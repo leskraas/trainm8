@@ -946,7 +946,7 @@ export async function removeTrack(
 	}
 
 	// The track's Week Pattern days cascade away with it, and the Held
-	// Workouts only they used go in the same transaction (ADR 0112 §4).
+	// Workouts only they used go in the same transaction (ADR 0113 §4).
 	await prisma.$transaction(async (tx) => {
 		await tx.trainingTrack.delete({ where: { id: track.id } })
 		await heldWorkouts(tx, { outlineId: track.outlineId, athleteId }).sweep()
@@ -2893,7 +2893,7 @@ export async function createStarterWeekPatternInTx(
 			},
 		})
 	}
-	// Every Workout a day here takes is one the plan holds (ADR 0112): a
+	// Every Workout a day here takes is one the plan holds (ADR 0113): a
 	// Simple Activity's own, or one copy of the session the lifts copy, which
 	// the pinned lifts and the lifting slots share.
 	const held = heldWorkouts(tx, { outlineId: outline.id, athleteId: userId })
@@ -3054,7 +3054,7 @@ export async function removeWeekPattern(
  *   Workout) — `workout-gone` otherwise. A `share` day's `workoutId` is optional
  *   and is a *shape to scale* rather than a prescription, but it is checked the
  *   same way: a stranger's Workout reads as absent. The day stores a **Held
- *   Workout**, the plan's own copy of it (ADR 0112), never the row picked;
+ *   Workout**, the plan's own copy of it (ADR 0113), never the row picked;
  * - the Workout's **Discipline is the track's** — `workout-discipline-mismatch`
  *   otherwise. A day draws its volume from its track and no figure spans
  *   incommensurable disciplines (ADR 0041, ADR 0043 §5), so a bike session on a
@@ -3087,7 +3087,7 @@ export async function addWeekPatternDay(
 		if (!track) return refuse('track-gone')
 
 		// The day never stores the picked row itself: the plan holds its own copy
-		// (ADR 0112), so editing or deleting the session it came from never
+		// (ADR 0113), so editing or deleting the session it came from never
 		// reaches the pattern. The Discipline is checked on the way, which the FK
 		// cannot do, and the reason it is here rather than only in the picker: a
 		// day's volume comes out of its track, so a Workout of another Discipline
@@ -3117,7 +3117,7 @@ export async function addWeekPatternDay(
 			},
 		})
 		// A held row an earlier write spared for its undo goes now: at most
-		// one write's rows wait (ADR 0112 §4).
+		// one write's rows wait (ADR 0113 §4).
 		await holder.sweep()
 		return { ok: true as const }
 	})
@@ -3188,7 +3188,7 @@ export async function removeWeekPatternDay(
 		if (!day) return refuse('day-gone')
 
 		await tx.weekPatternDay.delete({ where: { id: day.id } })
-		// The Held Workout only this day used goes with it (ADR 0112 §4).
+		// The Held Workout only this day used goes with it (ADR 0113 §4).
 		await heldWorkouts(tx, {
 			outlineId: day.pattern.outlineId,
 			athleteId: userId,

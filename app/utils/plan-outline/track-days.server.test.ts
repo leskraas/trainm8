@@ -259,7 +259,7 @@ test('every endurance track and Simple Activity can have its days chosen, La app
 	])
 })
 
-test('a Simple Activity picked again for another day stays one unit (ADR 0112 §2)', async () => {
+test('a Simple Activity picked again for another day stays one unit (ADR 0113 §2)', async () => {
 	const { userId, outlineId, skiWorkoutId } = await setup()
 	const pattern = await prisma.weekPattern.findFirstOrThrow({
 		where: { outlineId },
@@ -488,7 +488,7 @@ test('a pinned track trains only on its days in every Week Pattern, and the undo
 test('undoing puts back a day shaped by a Stock Workout exactly as it was', async () => {
 	const { userId, outlineId, bikeTrackId } = await setup()
 	// Saturday's ride is shaped by the plan's copy of a Catalogue session no
-	// athlete owns (ADR 0112).
+	// athlete owns (ADR 0113).
 	const stock = await prisma.workout.create({
 		select: { id: true },
 		data: {
@@ -546,7 +546,7 @@ test('undoing puts back a day shaped by a Stock Workout exactly as it was', asyn
 	expect(await bikeRows()).toEqual(before)
 })
 
-test('a shape a choice drops waits for its undo, then goes with the next write (ADR 0112 §4)', async () => {
+test('a shape a choice drops waits for its undo, then goes with the next write (ADR 0113 §4)', async () => {
 	const { userId, outlineId, bikeTrackId } = await setup()
 	// Saturday's ride is shaped on a session of the athlete's, which the plan
 	// holds its own copy of.

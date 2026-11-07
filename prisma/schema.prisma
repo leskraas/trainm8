@@ -295,7 +295,7 @@ model Workout {
   copiedFromId String?
   copies       Workout[] @relation("WorkoutLineage")
 
-  /// **Held Workout** (ADR 0112): the Plan Outline that holds this row as its
+  /// **Held Workout** (ADR 0113): the Plan Outline that holds this row as its
   /// private copy of what a Week Pattern day picked. Set by
   /// `plan-outline/held-workouts.server.ts`, which copies a session's Workout
   /// or a Stock Workout in (`copyWorkout`, owned by the athlete, `copiedFromId`
@@ -308,7 +308,7 @@ model Workout {
   /// The migration's CHECK is the implication `heldByOutlineId IS NULL OR
   /// authorship = 'athlete'` and deliberately does not require `ownerId`: the
   /// owner's `SetNull` and this cascade run in an order SQLite ties to table
-  /// order (ADR 0112 §6). Readers that list the athlete's own Workouts skip
+  /// order (ADR 0113 §6). Readers that list the athlete's own Workouts skip
   /// held rows through `notHeld`.
   heldBy          PlanOutline? @relation(fields: [heldByOutlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   heldByOutlineId String?
@@ -1382,7 +1382,7 @@ model PlanOutline {
   /// The sessions this plan laid: a stamp, a copied week, the horizon fill, the
   /// generator. What clearing, occupancy and counting scope by (ADR 0079).
   sessions  WorkoutSession[]
-  /// The **Held Workouts** (ADR 0112): the plan's private copies of what its
+  /// The **Held Workouts** (ADR 0113): the plan's private copies of what its
   /// Week Pattern days picked. They go with the plan.
   heldWorkouts Workout[]
   /// The Periodization Preset family the plan follows — its _filosofi_
@@ -1676,9 +1676,9 @@ model WeekPatternDay {
   weight     Float?
   /// fixed: the Workout stamped as authored. share: an optional shape to scale.
   /// lifting: the strength session each lift copies. Always a **Held Workout**
-  /// of this day's plan (ADR 0112), never a session's own row.
+  /// of this day's plan (ADR 0113), never a session's own row.
   ///
-  /// `NoAction` rather than `SetNull` (ADR 0112 §7): it is checked at the end
+  /// `NoAction` rather than `SetNull` (ADR 0113 §7): it is checked at the end
   /// of the statement, so a cascade that removes a plan's days and its held
   /// rows passes in any order, and a direct delete of a Workout a day still
   /// uses fails loudly instead of leaving a fixed day with none.

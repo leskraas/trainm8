@@ -17,7 +17,7 @@ import {
 } from './authoring.server.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 
-// The migration that gives existing plans their Held Workouts (#665, ADR 0112
+// The migration that gives existing plans their Held Workouts (#665, ADR 0113
 // §8), run for real on plans whose days still point at sessions' rows, a Stock
 // Workout and a row two plans share: every day ends up on a row its own plan
 // holds, and the weeks the plan lays after the deploy are the weeks it laid
@@ -207,7 +207,7 @@ async function stamp(userId: string, patternId: string, weekKey: string) {
 	if (!stamped.ok) throw new Error(stamped.reason)
 }
 
-/** A day written as the app wrote one before ADR 0112: on any Workout. */
+/** A day written as the app wrote one before ADR 0113: on any Workout. */
 function dayOn(data: {
 	patternId: string
 	trackId: string

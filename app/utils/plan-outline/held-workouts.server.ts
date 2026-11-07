@@ -1,23 +1,23 @@
-// **Held Workouts** (ADR 0112): a Plan Outline holds a private copy of every
+// **Held Workouts** (ADR 0113): a Plan Outline holds a private copy of every
 // Workout its Week Pattern days use. This module is the one place that rule
 // lives. Every write that gives a day an existing Workout takes its id from
 // `hold`, every undo that puts rows back is checked by `acceptsOnly`, and every
 // write that can leave a held row unused ends with `sweep`. The one row written
 // held from the start is the first run's new Simple Activity, which no session
-// owns (`createSimpleActivityWorkout`'s `heldByOutlineId`, ADR 0112 §1).
+// owns (`createSimpleActivityWorkout`'s `heldByOutlineId`, ADR 0113 §1).
 //
 // - **A copy per pick, shared by the plan.** `hold` copies the athlete's own
 //   Workout or a Stock Workout once per write (`copyWorkout`, owned by the
 //   athlete, `copiedFromId` at the source, `heldByOutlineId` the plan), and
 //   returns a row the plan already holds unchanged. One write's lifting slots
 //   share one copy, and a Simple Activity stays one unit with one id
-//   (ADR 0112 §2).
+//   (ADR 0113 §2).
 // - **Pattern writes accept only rows this plan holds.** A session's own row,
 //   another plan's row or a stranger's never lands on a day, so editing or
-//   deleting a session can never reach the pattern (ADR 0112 §3).
+//   deleting a session can never reach the pattern (ADR 0113 §3).
 // - **A held row lives while a day uses it.** `sweep` deletes the plan's held
 //   rows no day uses, sparing only those the write's own undo still names
-//   (ADR 0112 §4). Deleting the plan, its Event or the athlete cascades.
+//   (ADR 0113 §4). Deleting the plan, its Event or the athlete cascades.
 
 import { type Prisma } from '@prisma/client'
 import {
@@ -29,7 +29,7 @@ import {
 /**
  * The `where` fragment every reader of "the athlete's own Workouts" shares, so
  * a plan's private copies never show up as Workouts the athlete wrote: the
- * Catalogue's "your sessions" list and the publish flow (ADR 0112 §5).
+ * Catalogue's "your sessions" list and the publish flow (ADR 0113 §5).
  */
 export const notHeld = {
 	heldByOutlineId: null,
@@ -118,7 +118,7 @@ export function heldWorkouts(
 			// The plan may already hold a copy of this source that still says what
 			// it says: an earlier write picked it. Reuse it, so the same pick on
 			// another day, or in another of the plan's Week Patterns, is one unit
-			// with one id (ADR 0112 §2). A source edited since gets a new copy.
+			// with one id (ADR 0113 §2). A source edited since gets a new copy.
 			const earlier = await tx.workout.findMany({
 				where: { heldByOutlineId: outlineId, copiedFromId: source.id },
 				orderBy: { createdAt: 'asc' },

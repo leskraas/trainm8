@@ -34,7 +34,7 @@ import { stampWeekPattern } from './stamp.server.ts'
 import { addProposedStrengthTrack } from './strength-offer.server.ts'
 
 // A Week Pattern day holds the plan's own copy of what it picked, a **Held
-// Workout** (#665, ADR 0112): the athlete's sessions and their plan are never
+// Workout** (#665, ADR 0113): the athlete's sessions and their plan are never
 // tied together, so a session the pattern picked can be edited or deleted and
 // the pattern, and every week it lays, stays as it was.
 
@@ -269,7 +269,7 @@ test('a later write holding the same unchanged Workout reuses the plan’s copy,
 	const first = await holdOnce()
 	const second = await holdOnce()
 	if (!first.ok || !second.ok) throw new Error('not held')
-	// Separate writes share the copy, so the same pick is one unit (ADR 0112 §2).
+	// Separate writes share the copy, so the same pick is one unit (ADR 0113 §2).
 	expect(second.workoutId).toBe(first.workoutId)
 
 	await updateWorkoutSession(
@@ -426,7 +426,7 @@ test('sweep deletes the plan’s held rows no day uses, sparing what the undo na
 	).toBe(3)
 })
 
-test('adding a day sweeps a held row an earlier write left for its undo (ADR 0112 §4)', async () => {
+test('adding a day sweeps a held row an earlier write left for its undo (ADR 0113 §4)', async () => {
 	const userId = await athlete()
 	const { outlineId, patternId, runTrackId } = await racePlan(userId)
 	const waiting = await authoredSession(userId, 'Venter')
@@ -817,7 +817,7 @@ test('deleting the account erases the plan’s Held Workouts with the rest', asy
 	expect(await prisma.workout.count({ where: { id: plan.stockId } })).toBe(1)
 })
 
-test('a bare user delete passes with fixed, share and lifting days held (ADR 0112 §6)', async () => {
+test('a bare user delete passes with fixed, share and lifting days held (ADR 0113 §6)', async () => {
 	const plan = await planWithEveryKindOfDay()
 	await prisma.user.delete({ where: { id: plan.userId } })
 	expect(await heldBy(plan.outlineId)).toHaveLength(0)

@@ -47,7 +47,7 @@ export type AcceptStrengthOfferResult =
  *   left to the convention; its goal is {@link PROPOSED_STRENGTH_GOAL}.
  * - **Lifting slots** in the plan's week pattern (ADR 0104 §3) — as many as
  *   the frequency, on no weekday, sharing one held copy of the athlete's most
- *   recent strength session (ADR 0112), so a stamped lift is the session they
+ *   recent strength session (ADR 0113), so a stamped lift is the session they
  *   actually do and the session itself stays theirs to edit or delete. The stamp lays
  *   each week's slots after that week's endurance mix, away from its hard
  *   days (`liftingDaysFor`), over the athlete's Training Availability — the
@@ -144,7 +144,7 @@ export async function addProposedStrengthTrack(
 			// One slot per lift, on no weekday (ADR 0104 §3): the stamp lays each
 			// week's against that week's hard days, as the first run's are. The
 			// slots share one copy of the last strength session, which the plan
-			// holds (ADR 0112), so the athlete can still edit or delete that
+			// holds (ADR 0113), so the athlete can still edit or delete that
 			// session.
 			const pattern = outline.patterns[0]
 			const held =

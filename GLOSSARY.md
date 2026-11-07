@@ -211,7 +211,7 @@ Pattern** days: the plan's private copy of what the athlete picked, whether that
 was one of their sessions or a **Stock Workout**. No session uses it, so editing
 or deleting the session it came from leaves the plan as it was, and it goes when
 no day of the plan uses it any more. One pick is one copy, and the plan's days
-may share it (ADR 0112). _Avoid_: Pattern workout, template, the day's copy (it
+may share it (ADR 0113). _Avoid_: Pattern workout, template, the day's copy (it
 is the plan's)
 
 **Session Archetype**: _Built (#448, ADR 0055)._ The sixteen values ship as
@@ -2746,7 +2746,7 @@ because intervals are prescribed and must not be scaled) or a **share** (a
 relative weight that absorbs its part of the week's derived volume), since a
 pattern cannot hold absolute quantities when the week's target changes week to
 week (ADR 0040 §1, ADR 0044). A day's Workout is always a **Held Workout**, the
-plan's own copy, never a session's (ADR 0112). Stamping leaves ordinary
+plan's own copy, never a session's (ADR 0113). Stamping leaves ordinary
 standalone **Workout Sessions** with no live link back, so editing one stamped
 week never touches its siblings (#365) — which requires stamping to copy the
 **Workout** per session. Stored per **Plan Outline** in V1; whether a named

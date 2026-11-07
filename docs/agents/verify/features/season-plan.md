@@ -52,7 +52,7 @@ await page.getByRole('heading', { name: 'Legg opp sesongen' }).waitFor()
 - Season editors are inside _Avansert_, closed by default: open it with one tap
   on its heading (`openPlanAdvanced` in `tests/playwright-utils.ts`).
 - A Week Pattern day holds the plan's own copy of what it picked, a **Held
-  Workout** (ADR 0112): the row is `Workout.heldByOutlineId = <plan id>`, never
+  Workout** (ADR 0113): the row is `Workout.heldByOutlineId = <plan id>`, never
   the session's own `workoutId`. After picking, deleting or editing that session
   succeeds and the day keeps its title. The copies never show in the picker or
   in Bibliotek's "your sessions" list; a crafted publish of one is refused.

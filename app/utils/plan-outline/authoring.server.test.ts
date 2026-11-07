@@ -2845,7 +2845,7 @@ test('removing a pattern in the middle leaves the positions contiguous', async (
 	).toBe(0)
 })
 
-/** The plan's Held Workout copied from `sourceId` (ADR 0112). */
+/** The plan's Held Workout copied from `sourceId` (ADR 0113). */
 async function heldCopyOf(sourceId: string) {
 	const copy = await prisma.workout.findFirstOrThrow({
 		where: { copiedFromId: sourceId, heldByOutlineId: { not: null } },
@@ -2877,7 +2877,7 @@ test('a fixed day stores the Workout it stamps and carries no weight', async () 
 			orderInDay: 0,
 			kind: 'fixed',
 			weight: null,
-			// The plan's own copy of it, never the picked row (ADR 0112).
+			// The plan's own copy of it, never the picked row (ADR 0113).
 			workoutId: await heldCopyOf(workoutId),
 			trackId,
 		},

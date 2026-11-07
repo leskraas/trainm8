@@ -376,7 +376,7 @@ async function liftedIn(
 /**
  * Rows an undo sends back, held to what a strength track could hold: a
  * fixed row or a share on a real weekday, a lifting slot on none, and only
- * strength Workouts this plan holds (ADR 0112 §3). `null` where any is not, so
+ * strength Workouts this plan holds (ADR 0113 §3). `null` where any is not, so
  * a payload naming a session's own Workout can never tie a day to it.
  */
 async function checkedLiftingRestore(
@@ -509,7 +509,7 @@ export async function setLiftingDays(
 				const refusal = pinnedDaysRefusal(days, state.available)
 				if (refusal) return { ok: false, reason: refusal }
 			}
-			// What the track lifts is a Workout the plan holds (ADR 0112): the
+			// What the track lifts is a Workout the plan holds (ADR 0113): the
 			// one its rows already hold, or one copy of what a track with none
 			// would lift, which every row this write lays shares.
 			const held = heldWorkouts(tx, {
@@ -569,7 +569,7 @@ export async function setLiftingDays(
 				await writeStrengthRows(tx, other.patternId, state.trackId, other.rows)
 			}
 			// A row this write replaced may leave a Held Workout unused; it waits
-			// only while this write's undo still names it (ADR 0112 §4).
+			// only while this write's undo still names it (ADR 0113 §4).
 			await held.sweep({
 				spare: [
 					read.rows,

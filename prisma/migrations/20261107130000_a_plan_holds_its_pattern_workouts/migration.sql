@@ -1,5 +1,5 @@
 -- **A plan holds its own copy of every Workout its Week Pattern days use**
--- (#665, ADR 0112). A Week Pattern day held its Workout by reference, and the
+-- (#665, ADR 0113). A Week Pattern day held its Workout by reference, and the
 -- row was usually a Workout Session's own (ADR 0003): editing the session
 -- changed the pattern, and deleting it failed on `WeekPatternDay_kind_fields`.
 --
@@ -7,14 +7,14 @@
 --
 -- - `Workout.heldByOutlineId`, a foreign key to `PlanOutline` with
 --   `ON DELETE CASCADE`: the **Held Workout** mark. A held row is the plan's
---   private copy, and its days may share it (ADR 0112 §2).
+--   private copy, and its days may share it (ADR 0113 §2).
 -- - `Workout_held_is_athletes`: a held row is athlete-authored. An
 --   implication only, and it does not require `ownerId`: the owner's
 --   `SET NULL` and the plan's cascade run in an order SQLite ties to table
---   order, and a CHECK on the owner made a plain user delete fail (ADR 0112 §6).
+--   order, and a CHECK on the owner made a plain user delete fail (ADR 0113 §6).
 -- - `WeekPatternDay.workoutId` is `ON DELETE NO ACTION`, no longer
 --   `SET NULL`: checked at the end of the statement, so a cascade that removes
---   a plan's days and its held rows passes in any order (ADR 0112 §7).
+--   a plan's days and its held rows passes in any order (ADR 0113 §7).
 --
 -- SQLite cannot add a CHECK or change a foreign key in place, so both tables
 -- are rebuilt the way Prisma redefines one, and every CHECK Prisma does not
@@ -110,7 +110,7 @@ CREATE TABLE "new_Workout" (
     -- its Session Archetype, never both, because the second would be the endurance
     -- reading this column exists to stop the corpus from inventing.
     CONSTRAINT "Workout_strength_goal_excludes_archetype" CHECK ("strengthGoal" IS NULL OR "archetype" IS NULL),
-    -- A Held Workout is the athlete's copy, never trainm8's (ADR 0112 §6). The
+    -- A Held Workout is the athlete's copy, never trainm8's (ADR 0113 §6). The
     -- implication only: the owner is written by the app and not required here,
     -- because the owner's SET NULL may run before the plan's cascade.
     CONSTRAINT "Workout_held_is_athletes" CHECK ("heldByOutlineId" IS NULL OR "authorship" = 'athlete'),
@@ -129,7 +129,7 @@ CREATE UNIQUE INDEX "Workout_id_authorship_archetype_key" ON "Workout"("id", "au
 PRAGMA foreign_keys=ON;
 PRAGMA defer_foreign_keys=OFF;
 
--- Existing plans (ADR 0112 §8). This is athlete data, not corpus: nothing is
+-- Existing plans (ADR 0113 §8). This is athlete data, not corpus: nothing is
 -- seeded, and `production-seed-data.md`'s dump procedure does not apply.
 --
 -- For each plan, each Workout its days use is either:

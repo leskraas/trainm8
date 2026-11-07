@@ -661,7 +661,7 @@ export async function setTrackDays(
 				})
 			}
 			// A fixed day this choice dropped leaves its Held Workout unused; it
-			// waits only while this write's undo still names it (ADR 0112 §4).
+			// waits only while this write's undo still names it (ADR 0113 §4).
 			await held.sweep({
 				spare: [previous, ...elsewhere.map((entry) => entry.rows)].flatMap(
 					(replaced) => replaced.map((row) => row.workoutId),
@@ -737,7 +737,7 @@ async function replaceUnitRows(
 /**
  * Rows an undo sends back, held to what the unit could hold: real weekdays,
  * a share's weight, and only Workouts of the track's Discipline this plan
- * holds (ADR 0112 §3) — a Simple Activity's own one. `null` where any is not,
+ * holds (ADR 0113 §3) — a Simple Activity's own one. `null` where any is not,
  * so a payload naming a session's own Workout can never tie a day to it.
  */
 async function checkedRestore(

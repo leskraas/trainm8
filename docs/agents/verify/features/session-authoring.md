@@ -63,5 +63,5 @@ Side effect: a `WorkoutSession` row with the id from the URL and
 - To edit inline, you need a scheduled session id:
   `select id from WorkoutSession where status='scheduled' limit 1`.
 - A session whose Workout a Week Pattern day picked can still be deleted: the
-  day holds the plan's own copy (ADR 0112), so the delete succeeds and the plan
+  day holds the plan's own copy (ADR 0113), so the delete succeeds and the plan
   is unchanged. Before #665 it failed on `WeekPatternDay_kind_fields`.

@@ -259,7 +259,7 @@ test('the start writes lifting slots, one per lift, on no weekday', async () => 
 		},
 	})
 	// Both slots share one copy of the Stock Workout, which the plan holds
-	// (ADR 0112): no plan points at a corpus row directly.
+	// (ADR 0113): no plan points at a corpus row directly.
 	expect(days).toHaveLength(2)
 	expect(new Set(days.map((day) => day.workoutId)).size).toBe(1)
 	for (const day of days) {

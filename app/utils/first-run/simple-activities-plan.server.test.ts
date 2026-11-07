@@ -334,7 +334,7 @@ test('an athlete who picked only Simple Activities gets one simple week, made as
 	expect(tracks).toEqual([{ discipline: 'other' }])
 })
 
-test('a Simple Activity’s fixed day holds the plan’s own Workout, which goes with the plan (ADR 0112)', async () => {
+test('a Simple Activity’s fixed day holds the plan’s own Workout, which goes with the plan (ADR 0113)', async () => {
 	const athleteId = await createAthlete()
 	const answers = {
 		level: 'recreational',

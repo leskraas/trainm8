@@ -321,7 +321,7 @@ export async function copyWorkout(
 		copiedFromId?: string
 		/**
 		 * The plan that holds the copy, when it is a **Held Workout** (ADR
-		 * 0112). Passed only by `plan-outline/held-workouts.server.ts`; the
+		 * 0113). Passed only by `plan-outline/held-workouts.server.ts`; the
 		 * one other writer of the column is `createSimpleActivityWorkout`.
 		 */
 		heldByOutlineId?: string

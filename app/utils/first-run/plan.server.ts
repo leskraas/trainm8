@@ -250,7 +250,7 @@ export async function createFirstRunPlan(
 					effortWord: activity.effortWord,
 					durationMin: activity.minutes,
 				},
-				// The plan's own, held for its fixed days (ADR 0112).
+				// The plan's own, held for its fixed days (ADR 0113).
 				{ heldByOutlineId: outlineId },
 			)
 			fixedDays.push({
@@ -388,7 +388,7 @@ async function createStartStrengthInTx(
 	// each week's against that week's hard days, so week 1 lifts on the days
 	// the card showed and a later phase moves the lifting with its mix. The
 	// slots share one copy of the session the card named, which the plan
-	// holds (ADR 0112): the athlete's own session stays theirs to edit or
+	// holds (ADR 0113): the athlete's own session stays theirs to edit or
 	// delete.
 	const held = await heldWorkouts(tx, { outlineId, athleteId: userId }).hold(
 		strength.workoutId,

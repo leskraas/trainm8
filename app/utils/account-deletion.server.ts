@@ -25,7 +25,7 @@
  * and it cascades away with the row.
  *
  * The athlete's own Week Pattern slots are deleted before the purge, not left to
- * the `User` cascade: `WeekPatternDay.workoutId` is `NO ACTION` (ADR 0112 §7),
+ * the `User` cascade: `WeekPatternDay.workoutId` is `NO ACTION` (ADR 0113 §7),
  * so deleting a Workout a slot still uses fails. A plan's **Held Workouts**
  * are the athlete's own (`ownerId`), so they are purged with the rest.
  */
@@ -76,8 +76,8 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 		await withdraw(tx, [...kept])
 		const spliced = await spliceLineage(tx, userId, parentOf)
 		// The athlete's own plan goes with the account anyway; its days go first
-		// because a day's Workout is `NO ACTION` (ADR 0112 §7): erasing a Workout
-		// a day still uses would fail and roll it all back. Since ADR 0112 a day
+		// because a day's Workout is `NO ACTION` (ADR 0113 §7): erasing a Workout
+		// a day still uses would fail and roll it all back. Since ADR 0113 a day
 		// only uses its own plan's Held Workout, so the `patternDays` clause in
 		// `keptForOthers` above is unreachable; it stays for a database that
 		// predates that migration.

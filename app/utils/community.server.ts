@@ -158,7 +158,7 @@ export async function publishWorkout({
 	})
 	if (workout == null) return { ok: false, reason: 'not-found' }
 	if (workout.ownerId !== userId) return { ok: false, reason: 'not-yours' }
-	// A **Held Workout** is a plan's private copy (ADR 0112 §5): published, it
+	// A **Held Workout** is a plan's private copy (ADR 0113 §5): published, it
 	// would be deleted with the plan, and its Attribution and Catalogue Entry
 	// with it. No list offers one; this refuses a crafted id.
 	if (workout.heldByOutlineId != null) {
@@ -434,7 +434,7 @@ export async function attributionsFor(workoutIds: string[]) {
  *
  * Owner-scoped on purpose: this is the one list on the Catalogue surface that is
  * about the athlete rather than about the corpus. A plan's **Held Workouts**
- * are left out (ADR 0112 §5): they are the plan's copies, not sessions the
+ * are left out (ADR 0113 §5): they are the plan's copies, not sessions the
  * athlete wrote.
  */
 export async function listOwnPublishableWorkouts(userId: string, take = 20) {
@@ -458,7 +458,7 @@ export async function listOwnPublishableWorkouts(userId: string, take = 20) {
 
 /**
  * Everything the publish screen needs about one Workout. A plan's Held
- * Workout reads as absent, as the list leaves it out (ADR 0112 §5).
+ * Workout reads as absent, as the list leaves it out (ADR 0113 §5).
  */
 export async function readPublishTarget(userId: string, workoutId: string) {
 	const workout = await prisma.workout.findFirst({
