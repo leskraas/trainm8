@@ -39,7 +39,7 @@ import {
 	weekdayIndex,
 	weekMonday,
 } from '../athlete-calendar.ts'
-import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
+import { trainingTimeOf } from '../athlete-schema.ts'
 import {
 	getAthleteTimezone,
 	readAvailablePatternDays,
@@ -904,7 +904,7 @@ async function readStampProfile(
 		readAvailablePatternDays(userId),
 	])
 	return {
-		at: profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME,
+		at: trainingTimeOf(profile),
 		liftingDays: available ?? undefined,
 	}
 }

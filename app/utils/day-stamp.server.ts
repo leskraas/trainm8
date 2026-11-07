@@ -8,7 +8,7 @@
  * being the same thing.
  */
 import { localTimeUTC } from './athlete-calendar.ts'
-import { DEFAULT_TRAINING_TIME } from './athlete-schema.ts'
+import { trainingTimeOf } from './athlete-schema.ts'
 import { getAthleteTimezone } from './athlete.server.ts'
 import {
 	buildDayStamp,
@@ -51,11 +51,7 @@ async function scheduledAtOn(
 			select: { defaultTrainingTime: true },
 		}),
 	])
-	return localTimeUTC(
-		dateKey,
-		profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME,
-		timezone,
-	)
+	return localTimeUTC(dateKey, trainingTimeOf(profile), timezone)
 }
 
 /**
