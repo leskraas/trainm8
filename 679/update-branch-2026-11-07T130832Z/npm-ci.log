@@ -1,0 +1,4 @@
+npm warn deprecated @types/glob@9.0.0: This is a stub types definition. glob provides its own type definitions, so you do not need this installed.
+npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+
+added 1356 packages in 23s
