@@ -10,6 +10,10 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 
 - The season plan at `/training/plan`, with its closed _Avansert_ section
   holding the season editors (ADR 0101 §2).
+- The plan's **Guard Notices** (Ramp Guard, availability fit, band fit) in
+  _Plan_'s lead, under the card and before _Bibliotek_, as `role="note"`
+  notices in `[data-plan-guards]`, each closable by its button _Lukk merknaden
+  om …_ (ADR 0112). None renders inside _Avansert_.
 - Plan creation at `/training/plan/new`: a dated goal (_Mål_, _Dato_, _Lag målet
   og gå videre_), then _Legg opp sesongen_ (base, units, start volume).
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
@@ -47,5 +51,8 @@ await page.getByRole('heading', { name: 'Legg opp sesongen' }).waitFor()
 - The e2e spec creates a fresh user with no season. kody's seed may already have
   one, so `Plan` may land on the plan rather than on creation; check the URL
   before you drive creation.
+- A plan with no warnings shows no Guard Notice at all. To see them, author a
+  ramp over +8 %, few trainable weekdays, or a strength session outside its
+  block's band; `tests/e2e/mobile-overflow.test.ts` builds all three.
 - Season editors are inside _Avansert_, closed by default: open it with one tap
   on its heading (`openPlanAdvanced` in `tests/playwright-utils.ts`).
