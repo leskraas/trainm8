@@ -28,9 +28,6 @@ export async function readAthleteForecast(
 		timezone: string
 	},
 ): Promise<AthleteForecast | null> {
-	const first = dayKeys[0]
-	const last = dayKeys.at(-1)
-	if (!first || !last) return new Map()
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
 		select: {
@@ -40,6 +37,9 @@ export async function readAthleteForecast(
 	})
 	const place = profile?.homePlace
 	if (!place) return null
+	const first = dayKeys[0]
+	const last = dayKeys.at(-1)
+	if (!first || !last) return new Map()
 	const sessions = await prisma.workoutSession.findMany({
 		where: {
 			userId,
