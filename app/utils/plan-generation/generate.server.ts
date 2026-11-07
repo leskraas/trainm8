@@ -42,7 +42,7 @@
  */
 import { type Prisma } from '@prisma/client'
 import { addDays, localTimeUTC, weekMonday } from '../athlete-calendar.ts'
-import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
+import { trainingTimeOf } from '../athlete-schema.ts'
 import { catalogueEntrySelect } from '../catalogue.server.ts'
 import {
 	CATALOGUE_GOAL_EVENTS,
@@ -603,7 +603,7 @@ async function defaultTrainingTime(athleteId: string): Promise<string> {
 		where: { userId: athleteId },
 		select: { defaultTrainingTime: true },
 	})
-	return profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+	return trainingTimeOf(profile)
 }
 
 /**

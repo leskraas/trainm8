@@ -46,6 +46,25 @@ model User {
   moderatedReports      WorkoutReport[]       @relation("WorkoutReportModerator")
   /// Every **Juster** the athlete made on today's session (spec #558 S5).
   sessionAdjustments    SessionAdjustment[]
+
+  // Better Auth (ADR 0094 §2, ADR 0114), dark until the login cutover. These
+  // columns and the relation names below are what `npx auth generate` writes;
+  // `app/utils/auth/schema-generate.server.test.ts` fails when they drift.
+  emailVerified        Boolean       @default(false)
+  /// Better Auth's `image`, on its own column so Epic's `UserImage` stays.
+  imageUrl             String?
+  displayUsername      String?
+  twoFactorEnabled     Boolean?      @default(false)
+  role                 String?
+  banned               Boolean?      @default(false)
+  banReason            String?
+  banExpires           DateTime?
+  /// Set at the cutover for an athlete whose Epic 2FA cannot move (ADR 0094 §3).
+  mustReenrolTwoFactor Boolean?      @default(false)
+  authsessions         AuthSession[]
+  authaccounts         AuthAccount[]
+  twofactors           TwoFactor[]
+  authpasskeys         AuthPasskey[]
 }
 
 model UserImage {
@@ -295,6 +314,24 @@ model Workout {
   copiedFromId String?
   copies       Workout[] @relation("WorkoutLineage")
 
+  /// **Held Workout** (ADR 0113): the Plan Outline that holds this row as its
+  /// private copy of what a Week Pattern day picked. Set by
+  /// `plan-outline/held-workouts.server.ts`, which copies a session's Workout
+  /// or a Stock Workout in (`copyWorkout`, owned by the athlete, `copiedFromId`
+  /// at the source), and by `createSimpleActivityWorkout` when the first run
+  /// writes a Simple Activity no session owns straight into its plan. The
+  /// plan's own days may share one held row. No session ever points at a held
+  /// row: the stamp copies it per session.
+  ///
+  /// `Cascade`: a plan's held rows go with the plan, its Event or its athlete.
+  /// The migration's CHECK is the implication `heldByOutlineId IS NULL OR
+  /// authorship = 'athlete'` and deliberately does not require `ownerId`: the
+  /// owner's `SetNull` and this cascade run in an order SQLite ties to table
+  /// order (ADR 0113 §6). Readers that list the athlete's own Workouts skip
+  /// held rows through `notHeld`.
+  heldBy          PlanOutline? @relation(fields: [heldByOutlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  heldByOutlineId String?
+
   /// Membership: is this Workout offered for reuse at all. 1:1 — a Workout is
   /// in the Catalogue or it is not.
   catalogueEntry CatalogueEntry?
@@ -327,6 +364,7 @@ model Workout {
   @@unique([id, authorship, archetype])
   @@index([ownerId])
   @@index([copiedFromId])
+  @@index([heldByOutlineId])
 }
 
 /// **Membership** — the Catalogue's second axis, 1:1 with a Workout (ADR 0051).
@@ -1124,6 +1162,32 @@ model WorkoutSession {
   @@index([planOutlineId])
 }
 
+/// **Home Place** (ADR 0115 §2): the one named place in Norway the athlete
+/// trains from, used only to fetch the **Day Forecast**. Its own row, one to one
+/// with the profile, so "a place is set" is the row existing: every field is
+/// there or none is, and _Fjern_ is one delete. The point is rounded to 2
+/// decimals (about a kilometre) on the server on every write, whatever the form
+/// sent; the search text that found it is never stored. Kept while the account
+/// exists or until the athlete removes it (ADR 0105 §3).
+model HomePlace {
+  id           String @id @default(cuid())
+  /// The place's name as Kartverket writes it (`skrivemåte`), e.g. "Lillehammer".
+  name         String
+  /// Kartverket's kind of place (`navneobjekttype`), e.g. "By", "Kommune".
+  kind         String
+  municipality String
+  county       String
+  /// Rounded to 2 decimals on every write (`home-place.server.ts`).
+  latitude     Float
+  longitude    Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  athleteProfile   AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  athleteProfileId String         @unique
+}
+
 model AthleteProfile {
   id             String    @id @default(cuid())
   birthdate      DateTime?
@@ -1177,6 +1241,10 @@ model AthleteProfile {
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique
+
+  /// The athlete's **Home Place** (ADR 0115 §2): none until they choose one in
+  /// _Meg_ › _Hjemsted_, and with none I dag shows no weather.
+  homePlace HomePlace?
 
   disciplineProfiles DisciplineProfile[]
   thresholdEvents    ThresholdEvent[]
@@ -1363,6 +1431,9 @@ model PlanOutline {
   /// The sessions this plan laid: a stamp, a copied week, the horizon fill, the
   /// generator. What clearing, occupancy and counting scope by (ADR 0079).
   sessions  WorkoutSession[]
+  /// The **Held Workouts** (ADR 0113): the plan's private copies of what its
+  /// Week Pattern days picked. They go with the plan.
+  heldWorkouts Workout[]
   /// The Periodization Preset family the plan follows — its _filosofi_
   /// (#505 stories 10–14): 'classic' | 'masters' | 'big-base' | 'polarized' |
   /// 'threshold'. Written by a shape, by Hold meg aktiv and by a philosophy
@@ -1653,8 +1724,14 @@ model WeekPatternDay {
   /// share-only: relative weight, normalised across the week's share days.
   weight     Float?
   /// fixed: the Workout stamped as authored. share: an optional shape to scale.
-  /// lifting: the strength session each lift copies.
-  workout    Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  /// lifting: the strength session each lift copies. Always a **Held Workout**
+  /// of this day's plan (ADR 0113), never a session's own row.
+  ///
+  /// `NoAction` rather than `SetNull` (ADR 0113 §7): it is checked at the end
+  /// of the statement, so a cascade that removes a plan's days and its held
+  /// rows passes in any order, and a direct delete of a Workout a day still
+  /// uses fails loudly instead of leaving a fixed day with none.
+  workout    Workout? @relation(fields: [workoutId], references: [id], onDelete: NoAction)
   workoutId  String?
 
   pattern   WeekPattern   @relation(fields: [patternId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -2583,4 +2660,89 @@ model SessionAdjustment {
 
   @@index([userId])
   @@index([sessionId])
+}
+
+// Better Auth's tables (ADR 0094 §2, ADR 0114), named apart from Epic's
+// `Session`, `Verification` and `Passkey`. An `AuthAccount` is a **Sign-in
+// Method** and an `AuthSession` a **Sign-in Session** (GLOSSARY.md). Written as
+// `npx auth generate` writes them, without its `@@map`.
+
+model AuthSession {
+  id             String   @id
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@unique([token])
+  @@index([userId])
+}
+
+model AuthAccount {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+/// No foreign key to `User`: a row names its user inside `identifier` or
+/// `value`, so `app/utils/auth/erase.server.ts` deletes them on erasure.
+model AuthVerification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+model TwoFactor {
+  id                      String    @id
+  secret                  String
+  backupCodes             String
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
+  @@index([secret])
+  @@index([userId])
+}
+
+model AuthPasskey {
+  id           String    @id
+  name         String?
+  publicKey    String
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialID String
+  counter      Int
+  deviceType   String
+  backedUp     Boolean
+  transports   String?
+  createdAt    DateTime?
+  aaguid       String?
+
+  @@index([userId])
+  @@index([credentialID])
 }

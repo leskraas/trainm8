@@ -6,6 +6,7 @@ export const BASE_URL = 'https://www.epicstack.dev'
 
 export function convertSetCookieToCookie(setCookie: string) {
 	const parsedCookie = setCookieParser.parseString(setCookie)
+	if (!parsedCookie) throw new Error(`Not a set-cookie header: ${setCookie}`)
 	return new URLSearchParams({
 		[parsedCookie.name]: parsedCookie.value,
 	}).toString()
