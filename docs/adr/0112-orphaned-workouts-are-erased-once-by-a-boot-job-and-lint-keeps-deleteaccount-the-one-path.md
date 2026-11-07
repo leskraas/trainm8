@@ -27,11 +27,13 @@ future `prisma.user.delete` from making new ones.
 2. **The purge is a one-time job enqueued at boot**, on the `ensure*Enqueued`
    pattern (any job row of its kind, in any state, means boot does not enqueue
    another). The job runs `eraseOrphanedWorkouts` in one transaction and writes
-   the counts it erased, kept and spliced onto its own `Job.payload` (`purged`)
-   inside that same transaction, and logs them. A run after one that committed
-   keeps that first record rather than writing zeros over it. It never records a
-   title, description, name or Workout id. The job queue's attempts are its
-   retries.
+   the counts it erased, kept and spliced onto its own `Job.payload` (`purged`:
+   `{ erased, keptUnattributed, spliced }`) inside that same transaction, and
+   logs them. The kept count is named for the glossary's **unattributed** keep,
+   not "withdrawn", which is the author's own act and keeps the Attribution. A
+   run after one that committed keeps that first record rather than writing
+   zeros over it. It never records a title, description, name or Workout id. The
+   job queue's attempts are its retries.
 3. **Not a migration.** The rules exist once, in tested TypeScript. A SQL copy
    would be a recursive CTE for the splice that nothing typechecks or runs
    against `deleteAccount`'s fixtures, and it would drift from them: ADR 0051

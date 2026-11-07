@@ -58,7 +58,7 @@ export async function runOrphanedWorkoutPurge(): Promise<AccountErasure> {
 		return erasure
 	}, ERASURE_TRANSACTION_OPTIONS)
 	console.info(
-		`[orphaned-workout-purge] erased ${record.erased}, kept unattributed ${record.withdrawn}, spliced ${record.spliced}`,
+		`[orphaned-workout-purge] erased ${record.erased}, kept unattributed ${record.keptUnattributed}, spliced ${record.spliced}`,
 	)
 	return record
 }

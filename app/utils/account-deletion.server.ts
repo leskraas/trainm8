@@ -40,7 +40,7 @@ export type AccountErasure = {
 	/** Workouts erased. */
 	erased: number
 	/** Workouts kept unattributed because someone else's training points at them. */
-	withdrawn: number
+	keptUnattributed: number
 	/** Surviving Workouts whose back-pointer was spliced past an erased row. */
 	spliced: number
 }
@@ -145,7 +145,7 @@ async function erase(
 	const { count: erased } = await tx.workout.deleteMany({
 		where: { AND: [candidates, { id: { notIn: [...kept] } }] },
 	})
-	return { erased, withdrawn: kept.size, spliced }
+	return { erased, keptUnattributed: kept.size, spliced }
 }
 
 /** Keep a row with no author's name on it: private, entry retired, Attribution gone. */

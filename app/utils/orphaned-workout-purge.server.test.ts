@@ -107,7 +107,7 @@ test('the job erases the Orphaned Workouts and records counts only, on its own r
 	const row = await readJob(job.id)
 	expect(row.status).toBe('completed')
 	expect(row.payload).toEqual({
-		purged: { erased: 2, withdrawn: 1, spliced: 0 },
+		purged: { erased: 2, keptUnattributed: 1, spliced: 0 },
 	})
 	expect(await prisma.workout.count({ where: { id: { in: erasable } } })).toBe(
 		0,
@@ -144,7 +144,7 @@ test('a run after one that committed keeps the first record, never zeros', async
 	await processNextJob(jobHandlers)
 
 	expect((await readJob(job.id)).payload).toEqual({
-		purged: { erased: 2, withdrawn: 1, spliced: 0 },
+		purged: { erased: 2, keptUnattributed: 1, spliced: 0 },
 	})
 	info.mockRestore()
 })

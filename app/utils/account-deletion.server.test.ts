@@ -67,7 +67,7 @@ test('deleting an account erases every Workout it wrote, published ones included
 
 	const erasure = await deleteAccount(author.id)
 
-	expect(erasure).toEqual({ erased: 2, withdrawn: 0, spliced: 1 })
+	expect(erasure).toEqual({ erased: 2, keptUnattributed: 0, spliced: 1 })
 	expect(await prisma.user.findUnique({ where: { id: author.id } })).toBeNull()
 	expect(
 		await prisma.workout.count({
@@ -99,7 +99,7 @@ test('deleting an account erases every Workout it wrote, published ones included
 	expect((await resolveCatalogueOrigin(adopted.id))?.workoutId).toBe(stock.id)
 })
 
-test('a row someone else’s training points at directly is withdrawn, never erased into their week', async () => {
+test('a row someone else’s training points at directly is kept unattributed, never erased into their week', async () => {
 	const author = await createAthlete()
 	const other = await createAthlete()
 	const held = await createWorkout({ ownerId: author.id, title: 'held' })
@@ -123,7 +123,7 @@ test('a row someone else’s training points at directly is withdrawn, never era
 
 	const erasure = await deleteAccount(author.id)
 
-	expect(erasure).toEqual({ erased: 0, withdrawn: 1, spliced: 0 })
+	expect(erasure).toEqual({ erased: 0, keptUnattributed: 1, spliced: 0 })
 	expect(await prisma.workoutSession.count({ where: { id: session.id } })).toBe(
 		1,
 	)
@@ -184,7 +184,7 @@ for (const kind of ['fixed', 'lifting'] as const) {
 
 		const erasure = await deleteAccount(athlete.id)
 
-		expect(erasure).toEqual({ erased: 2, withdrawn: 0, spliced: 0 })
+		expect(erasure).toEqual({ erased: 2, keptUnattributed: 0, spliced: 0 })
 		expect(
 			await prisma.user.findUnique({ where: { id: athlete.id } }),
 		).toBeNull()
@@ -199,7 +199,7 @@ for (const kind of ['fixed', 'lifting'] as const) {
 	})
 }
 
-test('another athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn', async () => {
+test('another athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, unattributed', async () => {
 	const author = await createAthlete()
 	const other = await createAthlete()
 	const held = await createWorkout({ ownerId: author.id, title: 'held' })
@@ -209,7 +209,7 @@ test('another athlete’s Week Pattern slot on the departing athlete’s Workout
 
 	const erasure = await deleteAccount(author.id)
 
-	expect(erasure).toEqual({ erased: 0, withdrawn: 1, spliced: 0 })
+	expect(erasure).toEqual({ erased: 0, keptUnattributed: 1, spliced: 0 })
 	expect(
 		await prisma.weekPatternDay.findUniqueOrThrow({
 			where: { id: theirs.id },
@@ -460,7 +460,7 @@ test('deleting an account applies Account Erasure to everything the athlete wrot
 
 	const erasure = await deleteAccount(world.author.id)
 
-	expect(erasure).toEqual({ erased: 4, withdrawn: 2, spliced: 2 })
+	expect(erasure).toEqual({ erased: 4, keptUnattributed: 2, spliced: 2 })
 	expect(
 		await prisma.user.findUnique({ where: { id: world.author.id } }),
 	).toBeNull()
@@ -479,7 +479,7 @@ test('the purge applies the same Account Erasure to Workouts orphaned before #64
 
 	const erasure = await prisma.$transaction((tx) => eraseOrphanedWorkouts(tx))
 
-	expect(erasure).toEqual({ erased: 4, withdrawn: 2, spliced: 2 })
+	expect(erasure).toEqual({ erased: 4, keptUnattributed: 2, spliced: 2 })
 	await expectErased(world)
 	const catalogueAfter = await Promise.all(
 		(['stock', 'community'] as const).map((tier) =>
@@ -496,7 +496,7 @@ test('the purge never reaches the corpus or a Workout somebody owns', async () =
 	// Nothing is orphaned yet: every ownerless row is a Stock Workout.
 	const erasure = await prisma.$transaction((tx) => eraseOrphanedWorkouts(tx))
 
-	expect(erasure).toEqual({ erased: 0, withdrawn: 0, spliced: 0 })
+	expect(erasure).toEqual({ erased: 0, keptUnattributed: 0, spliced: 0 })
 	expect(await snapshotWorkouts()).toEqual(before)
 	expect(
 		await prisma.workout.count({ where: { id: { in: world.corpus } } }),
@@ -511,7 +511,7 @@ test('a second purge changes nothing: a row kept unattributed stays kept', async
 
 	const again = await prisma.$transaction((tx) => eraseOrphanedWorkouts(tx))
 
-	expect(again).toEqual({ erased: 0, withdrawn: 2, spliced: 0 })
+	expect(again).toEqual({ erased: 0, keptUnattributed: 2, spliced: 0 })
 	expect(await snapshotWorkouts()).toEqual(before)
 	await expectErased(world)
 })
