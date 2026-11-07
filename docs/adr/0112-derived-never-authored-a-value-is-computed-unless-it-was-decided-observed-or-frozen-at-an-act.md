@@ -243,9 +243,10 @@ accepted ADRs are records and are not rewritten.
   table, and tonnage is declined.
 - **ADR 0078 §5**: a cache is deferred: a real, measured saving, but three new
   invalidation paths for a tail that is not the one that hurts (§5).
-- **ADR 0102 §4**: the stored **Weekly Capacity** is the first-run plan's
-  heaviest week, written when the athlete picks a start option. Derived, then
-  authored at the athlete's act (§6), not seeding.
+- **ADR 0102 §4** (with ADR 0091 §3): the stored **Weekly Capacity** is the
+  heaviest week of the first-run plan the athlete accepts, written when they
+  pick a start option. Derived, then authored at the athlete's act on the option
+  that contains it (§6), not seeding.
 - **ADR 0110 §2**: approval writes the lowered **Season Anchors** it showed.
   Derived, then authored at the athlete's act (§6), not seeding.
 
