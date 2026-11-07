@@ -10,7 +10,6 @@ import {
 	updateActivityImportSnapshot,
 } from './activity-import.server.ts'
 import { readEventResultView } from './event-result.server.ts'
-import { answerImportQuestion, undoImportAnswer } from './import-link.server.ts'
 import {
 	cancelEvent,
 	createEvent,
@@ -20,6 +19,7 @@ import {
 	unlinkEventResult,
 	updateEvent,
 } from './event.server.ts'
+import { answerImportQuestion, undoImportAnswer } from './import-link.server.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import {
 	addPerformanceResult,
