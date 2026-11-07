@@ -39,6 +39,7 @@ import {
 } from '#app/utils/catalogue.ts'
 import {
 	defaultDisplayName,
+	type PublishResult,
 	publishWorkout,
 	readPublishTarget,
 	resolveSharedProvenance,
@@ -128,14 +129,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	if (!result.ok) {
 		// Every refusal is a sentence, never a generic failure. The takedown one in
 		// particular has to reach the author: it is the only permanent state here.
-		const message =
-			result.reason === 'taken-down'
-				? L.errors.takenDown
-				: result.reason === 'not-yours'
-					? L.errors.notYours
-					: result.reason === 'not-athlete-authored'
-						? L.errors.stock
-						: L.errors.gone
+		const message = PUBLISH_REFUSALS[result.reason]
 		return data(
 			{ result: submission.reply({ formErrors: [message] }) },
 			{ status: 400 },
@@ -144,6 +138,18 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 	throw redirect('/training/catalogue')
 }
+
+/** Each refusal's sentence: a new reason fails the typecheck until it has one. */
+const PUBLISH_REFUSALS = {
+	'taken-down': L.errors.takenDown,
+	'not-yours': L.errors.notYours,
+	'not-athlete-authored': L.errors.stock,
+	'held-by-plan': L.errors.heldByPlan,
+	'not-found': L.errors.gone,
+} as const satisfies Record<
+	Extract<PublishResult, { ok: false }>['reason'],
+	string
+>
 
 export default function PublishRoute({
 	loaderData,

@@ -13,6 +13,7 @@ import {
 	createStarterWeekPattern,
 	setQualitySessionMix,
 } from './authoring.server.ts'
+import { heldWorkouts } from './held-workouts.server.ts'
 import { dropUnavailablePinnedDays } from './pinned-days.server.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 import {
@@ -258,6 +259,34 @@ test('every endurance track and Simple Activity can have its days chosen, La app
 	])
 })
 
+test('a Simple Activity picked again for another day stays one unit (ADR 0113 §2)', async () => {
+	const { userId, outlineId, skiWorkoutId } = await setup()
+	const pattern = await prisma.weekPattern.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	const ski = await unit(userId, outlineId, { kind: 'activity' })
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId, discipline: 'other' },
+		select: { id: true },
+	})
+	// A second, separate write picks the same Workout for Friday.
+	const friday = await addWeekPatternDay(userId, {
+		patternId: pattern.id,
+		kind: 'fixed',
+		trackId: track.id,
+		weekday: FRI,
+		workoutId: skiWorkoutId,
+	})
+	expect(friday).toEqual({ ok: true })
+
+	const state = await readTrackDays(userId, outlineId)
+	const activities = state?.units.filter((each) => each.kind === 'activity')
+	expect(activities?.map(({ key, days }) => ({ key, days }))).toEqual([
+		{ key: ski.key, days: [WED, FRI] },
+	])
+})
+
 test('a Langrenn day moved to Saturday stays on Saturday, and the run’s hard session is laid around it', async () => {
 	const { userId, outlineId } = await setup()
 	// Before: the ski on Wednesday, the threshold run on Friday.
@@ -458,7 +487,8 @@ test('a pinned track trains only on its days in every Week Pattern, and the undo
 
 test('undoing puts back a day shaped by a Stock Workout exactly as it was', async () => {
 	const { userId, outlineId, bikeTrackId } = await setup()
-	// Saturday's ride is shaped by a Catalogue session no athlete owns.
+	// Saturday's ride is shaped by the plan's copy of a Catalogue session no
+	// athlete owns (ADR 0113).
 	const stock = await prisma.workout.create({
 		select: { id: true },
 		data: {
@@ -469,9 +499,20 @@ test('undoing puts back a day shaped by a Stock Workout exactly as it was', asyn
 			intent: 'endurance',
 		},
 	})
+	const held = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: userId,
+			title: 'Rolig langtur',
+			discipline: 'bike',
+			intent: 'endurance',
+			copiedFromId: stock.id,
+			heldByOutlineId: outlineId,
+		},
+	})
 	await prisma.weekPatternDay.updateMany({
 		where: { trackId: bikeTrackId, weekday: SAT },
-		data: { workoutId: stock.id },
+		data: { workoutId: held.id },
 	})
 	const bikeRows = async () =>
 		(
@@ -503,6 +544,88 @@ test('undoing puts back a day shaped by a Stock Workout exactly as it was', asyn
 	)
 	expect(undone.ok).toBe(true)
 	expect(await bikeRows()).toEqual(before)
+})
+
+test('a shape a choice drops waits for its undo, then goes with the next write (ADR 0113 §4)', async () => {
+	const { userId, outlineId, bikeTrackId } = await setup()
+	// Saturday's ride is shaped on a session of the athlete's, which the plan
+	// holds its own copy of.
+	const ride = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: userId,
+			title: 'Lang tur',
+			discipline: 'bike',
+			intent: 'endurance',
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId,
+			workoutId: ride.id,
+			scheduledAt: new Date('2030-01-05T08:00:00Z'),
+			status: 'completed',
+		},
+	})
+	const held = await prisma.$transaction((tx) =>
+		heldWorkouts(tx, { outlineId, athleteId: userId }).hold(ride.id, 'bike'),
+	)
+	if (!held.ok) throw new Error(held.reason)
+	await prisma.weekPatternDay.updateMany({
+		where: { trackId: bikeTrackId, weekday: SAT },
+		data: { workoutId: held.workoutId },
+	})
+	const exists = async () =>
+		(await prisma.workout.count({ where: { id: held.workoutId } })) === 1
+
+	const bike = await unit(userId, outlineId, { discipline: 'bike' })
+	const written = await setTrackDays(
+		userId,
+		{ outlineId, key: bike.key, choice: [MON, THU], version: bike.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	// Its undo still names the shape, so the shape waits.
+	expect(await exists()).toBe(true)
+	const undone = await setTrackDays(
+		userId,
+		{
+			outlineId,
+			key: bike.key,
+			choice: written.previous.pinned,
+			version: written.version,
+			restore: written.previous,
+		},
+		NOW,
+	)
+	expect(undone.ok).toBe(true)
+	expect(
+		await prisma.weekPatternDay.count({
+			where: { trackId: bikeTrackId, weekday: SAT, workoutId: held.workoutId },
+		}),
+	).toBe(1)
+
+	const again = await unit(userId, outlineId, { discipline: 'bike' })
+	const dropped = await setTrackDays(
+		userId,
+		{ outlineId, key: again.key, choice: [MON, THU], version: again.version },
+		NOW,
+	)
+	if (!dropped.ok) throw new Error(dropped.reason)
+	const next = await setTrackDays(
+		userId,
+		{
+			outlineId,
+			key: again.key,
+			choice: [MON, WED, THU],
+			version: dropped.version,
+		},
+		NOW,
+	)
+	if (!next.ok) throw new Error(next.reason)
+	expect(await exists()).toBe(false)
+	// The session's own Workout is never the plan's to sweep.
+	expect(await prisma.workout.count({ where: { id: ride.id } })).toBe(1)
 })
 
 test("an undo cannot put an orphaned athlete's Workout into the week (#639 H26)", async () => {

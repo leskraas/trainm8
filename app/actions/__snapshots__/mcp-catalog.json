@@ -206,7 +206,10 @@
 																				"outside-plan",
 																				"no-plan",
 																				"not-logged",
-																				"structure-not-verifiable"
+																				"structure-not-verifiable",
+																				"no-home-place",
+																				"beyond-forecast",
+																				"forecast-unavailable"
 																			]
 																		},
 																		"label": {
@@ -292,7 +295,10 @@
 																				"outside-plan",
 																				"no-plan",
 																				"not-logged",
-																				"structure-not-verifiable"
+																				"structure-not-verifiable",
+																				"no-home-place",
+																				"beyond-forecast",
+																				"forecast-unavailable"
 																			]
 																		},
 																		"label": {
@@ -378,7 +384,10 @@
 																				"outside-plan",
 																				"no-plan",
 																				"not-logged",
-																				"structure-not-verifiable"
+																				"structure-not-verifiable",
+																				"no-home-place",
+																				"beyond-forecast",
+																				"forecast-unavailable"
 																			]
 																		},
 																		"label": {
@@ -469,7 +478,8 @@
 										"type": "string",
 										"enum": [
 											"garmin",
-											"polar"
+											"polar",
+											"met-norway"
 										]
 									},
 									"text": {
@@ -752,7 +762,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -838,7 +851,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -924,7 +940,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -1021,7 +1040,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -1107,7 +1129,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -1193,7 +1218,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -1325,7 +1353,10 @@
 																					"outside-plan",
 																					"no-plan",
 																					"not-logged",
-																					"structure-not-verifiable"
+																					"structure-not-verifiable",
+																					"no-home-place",
+																					"beyond-forecast",
+																					"forecast-unavailable"
 																				]
 																			},
 																			"label": {
@@ -1411,7 +1442,10 @@
 																					"outside-plan",
 																					"no-plan",
 																					"not-logged",
-																					"structure-not-verifiable"
+																					"structure-not-verifiable",
+																					"no-home-place",
+																					"beyond-forecast",
+																					"forecast-unavailable"
 																				]
 																			},
 																			"label": {
@@ -1497,7 +1531,10 @@
 																					"outside-plan",
 																					"no-plan",
 																					"not-logged",
-																					"structure-not-verifiable"
+																					"structure-not-verifiable",
+																					"no-home-place",
+																					"beyond-forecast",
+																					"forecast-unavailable"
 																				]
 																			},
 																			"label": {
@@ -1669,7 +1706,10 @@
 																																"outside-plan",
 																																"no-plan",
 																																"not-logged",
-																																"structure-not-verifiable"
+																																"structure-not-verifiable",
+																																"no-home-place",
+																																"beyond-forecast",
+																																"forecast-unavailable"
 																															]
 																														},
 																														"label": {
@@ -1762,7 +1802,10 @@
 																																"outside-plan",
 																																"no-plan",
 																																"not-logged",
-																																"structure-not-verifiable"
+																																"structure-not-verifiable",
+																																"no-home-place",
+																																"beyond-forecast",
+																																"forecast-unavailable"
 																															]
 																														},
 																														"label": {
@@ -1870,7 +1913,10 @@
 																								"outside-plan",
 																								"no-plan",
 																								"not-logged",
-																								"structure-not-verifiable"
+																								"structure-not-verifiable",
+																								"no-home-place",
+																								"beyond-forecast",
+																								"forecast-unavailable"
 																							]
 																						},
 																						"label": {
@@ -1956,7 +2002,10 @@
 																								"outside-plan",
 																								"no-plan",
 																								"not-logged",
-																								"structure-not-verifiable"
+																								"structure-not-verifiable",
+																								"no-home-place",
+																								"beyond-forecast",
+																								"forecast-unavailable"
 																							]
 																						},
 																						"label": {
@@ -2042,7 +2091,10 @@
 																								"outside-plan",
 																								"no-plan",
 																								"not-logged",
-																								"structure-not-verifiable"
+																								"structure-not-verifiable",
+																								"no-home-place",
+																								"beyond-forecast",
+																								"forecast-unavailable"
 																							]
 																						},
 																						"label": {
@@ -2194,7 +2246,10 @@
 														"outside-plan",
 														"no-plan",
 														"not-logged",
-														"structure-not-verifiable"
+														"structure-not-verifiable",
+														"no-home-place",
+														"beyond-forecast",
+														"forecast-unavailable"
 													]
 												},
 												"label": {
@@ -2301,7 +2356,8 @@
 										"type": "string",
 										"enum": [
 											"garmin",
-											"polar"
+											"polar",
+											"met-norway"
 										]
 									},
 									"text": {
@@ -2534,7 +2590,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -2620,7 +2679,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -2716,7 +2778,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -2802,7 +2867,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -2898,7 +2966,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -2984,7 +3055,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -3082,7 +3156,10 @@
 														"outside-plan",
 														"no-plan",
 														"not-logged",
-														"structure-not-verifiable"
+														"structure-not-verifiable",
+														"no-home-place",
+														"beyond-forecast",
+														"forecast-unavailable"
 													]
 												},
 												"label": {
@@ -3172,7 +3249,10 @@
 														"outside-plan",
 														"no-plan",
 														"not-logged",
-														"structure-not-verifiable"
+														"structure-not-verifiable",
+														"no-home-place",
+														"beyond-forecast",
+														"forecast-unavailable"
 													]
 												},
 												"label": {
@@ -3272,7 +3352,10 @@
 																				"outside-plan",
 																				"no-plan",
 																				"not-logged",
-																				"structure-not-verifiable"
+																				"structure-not-verifiable",
+																				"no-home-place",
+																				"beyond-forecast",
+																				"forecast-unavailable"
 																			]
 																		},
 																		"label": {
@@ -3358,7 +3441,10 @@
 																				"outside-plan",
 																				"no-plan",
 																				"not-logged",
-																				"structure-not-verifiable"
+																				"structure-not-verifiable",
+																				"no-home-place",
+																				"beyond-forecast",
+																				"forecast-unavailable"
 																			]
 																		},
 																		"label": {
@@ -3453,7 +3539,8 @@
 										"type": "string",
 										"enum": [
 											"garmin",
-											"polar"
+											"polar",
+											"met-norway"
 										]
 									},
 									"text": {
@@ -3605,7 +3692,7 @@
 	{
 		"name": "get_today",
 		"title": "I dag",
-		"description": "The athlete's day: today's planned and recorded sessions, current fitness (CTL), fatigue (ATL) and form (TSB), this training week's target, planned and actual volume per training track in the track's own unit, and how many week-change proposals wait for the athlete's answer. Every number is a Reading: available with a value, or unavailable with a reason; never treat unavailable as zero.",
+		"description": "The athlete's day: today's planned and recorded sessions, current fitness (CTL), fatigue (ATL) and form (TSB), this training week's target, planned and actual volume per training track in the track's own unit, and how many week-change proposals wait for the athlete's answer, and today's weather forecast at the athlete's home place for the hour they train (from MET Norway: symbol, temperature in °C, precipitation in mm per hour, and the hour it is for). Every number is a Reading: available with a value, or unavailable with a reason; never treat unavailable as zero.",
 		"inputSchema": {
 			"$schema": "https://json-schema.org/draft/2020-12/schema",
 			"type": "object",
@@ -3736,7 +3823,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -3822,7 +3912,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -3908,7 +4001,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -4005,7 +4101,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -4091,7 +4190,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -4177,7 +4279,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -4292,7 +4397,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -4378,7 +4486,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -4464,7 +4575,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -4578,7 +4692,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -4664,7 +4781,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -4750,7 +4870,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -4853,7 +4976,149 @@
 														"outside-plan",
 														"no-plan",
 														"not-logged",
-														"structure-not-verifiable"
+														"structure-not-verifiable",
+														"no-home-place",
+														"beyond-forecast",
+														"forecast-unavailable"
+													]
+												},
+												"label": {
+													"type": "string"
+												},
+												"platforms": {
+													"type": "array",
+													"items": {
+														"type": "string",
+														"enum": [
+															"garmin",
+															"polar",
+															"suunto",
+															"coros",
+															"wahoo",
+															"strava",
+															"zwift",
+															"apple-health",
+															"health-connect",
+															"intervalsicu",
+															"upload",
+															"unknown"
+														]
+													}
+												}
+											},
+											"required": [
+												"status",
+												"reason",
+												"label"
+											],
+											"additionalProperties": false
+										}
+									]
+								},
+								"weather": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"status": {
+													"type": "string",
+													"const": "available"
+												},
+												"value": {
+													"type": "object",
+													"properties": {
+														"at": {
+															"type": "string"
+														},
+														"symbol": {
+															"type": "string",
+															"enum": [
+																"clear-sky",
+																"fair",
+																"partly-cloudy",
+																"cloudy",
+																"fog",
+																"light-rain",
+																"rain",
+																"heavy-rain",
+																"light-sleet",
+																"sleet",
+																"heavy-sleet",
+																"light-snow",
+																"snow",
+																"heavy-snow",
+																"light-rain-and-thunder",
+																"rain-and-thunder",
+																"heavy-rain-and-thunder",
+																"light-sleet-and-thunder",
+																"sleet-and-thunder",
+																"heavy-sleet-and-thunder",
+																"light-snow-and-thunder",
+																"snow-and-thunder",
+																"heavy-snow-and-thunder"
+															]
+														},
+														"label": {
+															"type": "string"
+														},
+														"temperatureC": {
+															"type": "number"
+														},
+														"precipitationMm": {
+															"type": "number"
+														}
+													},
+													"required": [
+														"at",
+														"symbol",
+														"label",
+														"temperatureC",
+														"precipitationMm"
+													],
+													"additionalProperties": false
+												}
+											},
+											"required": [
+												"status",
+												"value"
+											],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"status": {
+													"type": "string",
+													"const": "unavailable"
+												},
+												"reason": {
+													"type": "string",
+													"enum": [
+														"simple-activity",
+														"not-resolved",
+														"hours-calendar-cost",
+														"combined-cross-track-load",
+														"strength-ctl",
+														"sets-has-no-reading",
+														"not-an-endurance-discipline",
+														"no-zone-recipe",
+														"no-intensity-source",
+														"no-heart-rate-anchor",
+														"no-threshold-pace",
+														"no-critical-swim-speed",
+														"no-ride-history",
+														"no-season-anchor",
+														"no-recording",
+														"building-baseline",
+														"insufficient-data",
+														"source-terms",
+														"outside-plan",
+														"no-plan",
+														"not-logged",
+														"structure-not-verifiable",
+														"no-home-place",
+														"beyond-forecast",
+														"forecast-unavailable"
 													]
 												},
 												"label": {
@@ -4895,7 +5160,8 @@
 								"sessions",
 								"load",
 								"week",
-								"openProposals"
+								"openProposals",
+								"weather"
 							],
 							"additionalProperties": false
 						},
@@ -4927,7 +5193,8 @@
 										"type": "string",
 										"enum": [
 											"garmin",
-											"polar"
+											"polar",
+											"met-norway"
 										]
 									},
 									"text": {
@@ -5166,7 +5433,10 @@
 																	"outside-plan",
 																	"no-plan",
 																	"not-logged",
-																	"structure-not-verifiable"
+																	"structure-not-verifiable",
+																	"no-home-place",
+																	"beyond-forecast",
+																	"forecast-unavailable"
 																]
 															},
 															"label": {
@@ -5252,7 +5522,10 @@
 																	"outside-plan",
 																	"no-plan",
 																	"not-logged",
-																	"structure-not-verifiable"
+																	"structure-not-verifiable",
+																	"no-home-place",
+																	"beyond-forecast",
+																	"forecast-unavailable"
 																]
 															},
 															"label": {
@@ -5338,7 +5611,10 @@
 																	"outside-plan",
 																	"no-plan",
 																	"not-logged",
-																	"structure-not-verifiable"
+																	"structure-not-verifiable",
+																	"no-home-place",
+																	"beyond-forecast",
+																	"forecast-unavailable"
 																]
 															},
 															"label": {
@@ -5424,7 +5700,10 @@
 																	"outside-plan",
 																	"no-plan",
 																	"not-logged",
-																	"structure-not-verifiable"
+																	"structure-not-verifiable",
+																	"no-home-place",
+																	"beyond-forecast",
+																	"forecast-unavailable"
 																]
 															},
 															"label": {
@@ -5529,7 +5808,10 @@
 																	"outside-plan",
 																	"no-plan",
 																	"not-logged",
-																	"structure-not-verifiable"
+																	"structure-not-verifiable",
+																	"no-home-place",
+																	"beyond-forecast",
+																	"forecast-unavailable"
 																]
 															},
 															"label": {
@@ -5615,7 +5897,10 @@
 																	"outside-plan",
 																	"no-plan",
 																	"not-logged",
-																	"structure-not-verifiable"
+																	"structure-not-verifiable",
+																	"no-home-place",
+																	"beyond-forecast",
+																	"forecast-unavailable"
 																]
 															},
 															"label": {
@@ -5706,7 +5991,10 @@
 																	"outside-plan",
 																	"no-plan",
 																	"not-logged",
-																	"structure-not-verifiable"
+																	"structure-not-verifiable",
+																	"no-home-place",
+																	"beyond-forecast",
+																	"forecast-unavailable"
 																]
 															},
 															"label": {
@@ -5808,7 +6096,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -5894,7 +6185,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -5974,7 +6268,8 @@
 										"type": "string",
 										"enum": [
 											"garmin",
-											"polar"
+											"polar",
+											"met-norway"
 										]
 									},
 									"text": {
@@ -6207,7 +6502,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -6293,7 +6591,10 @@
 																"outside-plan",
 																"no-plan",
 																"not-logged",
-																"structure-not-verifiable"
+																"structure-not-verifiable",
+																"no-home-place",
+																"beyond-forecast",
+																"forecast-unavailable"
 															]
 														},
 														"label": {
@@ -6476,7 +6777,8 @@
 										"type": "string",
 										"enum": [
 											"garmin",
-											"polar"
+											"polar",
+											"met-norway"
 										]
 									},
 									"text": {
@@ -6773,7 +7075,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -6859,7 +7164,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -6945,7 +7253,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -7042,7 +7353,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -7128,7 +7442,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -7214,7 +7531,10 @@
 																			"outside-plan",
 																			"no-plan",
 																			"not-logged",
-																			"structure-not-verifiable"
+																			"structure-not-verifiable",
+																			"no-home-place",
+																			"beyond-forecast",
+																			"forecast-unavailable"
 																		]
 																	},
 																	"label": {
@@ -7317,7 +7637,8 @@
 										"type": "string",
 										"enum": [
 											"garmin",
-											"polar"
+											"polar",
+											"met-norway"
 										]
 									},
 									"text": {

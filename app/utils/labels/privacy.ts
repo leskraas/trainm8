@@ -9,7 +9,7 @@ export const PRIVACY_NOTICE_LABELS = {
 	title: 'Personvernerklæring',
 	draft:
 		'UTKAST — må gjennomgås juridisk før andre enn eieren tar appen i bruk.',
-	updated: 'Sist endret 24. oktober 2026 (utkast)',
+	updated: 'Sist endret 7. november 2026 (utkast)',
 	intro:
 		'Her står hvilke opplysninger trainm8 behandler om deg, hvorfor, hvor lenge, hvem som får dem, og hvilke rettigheter du har.',
 	sections: [
@@ -26,6 +26,7 @@ export const PRIVACY_NOTICE_LABELS = {
 				'Konto: e-post, brukernavn, navn, profilbilde og innloggingsøkter.',
 				'Treningsdata: planlagte og gjennomførte økter, puls-, watt- og tempokurver, GPS-spor, aktivitetsfiler, terskler, vekt, høyde, fødselsdato og kjønn, opplevd anstrengelse (RPE) og notatene dine.',
 				'Treningsdata kan si noe om helsen din. Vi behandler dem derfor som helseopplysninger (personvernforordningen artikkel 9).',
+				'Hjemsted, hvis du velger et i Meg: stedets navn, kommune og fylke, og et punkt avrundet til omtrent én kilometer. Det brukes bare til værvarselet på I dag.',
 			],
 		},
 		{
@@ -35,6 +36,7 @@ export const PRIVACY_NOTICE_LABELS = {
 				'Treningsanalyse: å lagre, analysere og planlegge treningen din. Dette er helseopplysninger, og vi gjør det bare med ditt uttrykkelige samtykke (artikkel 9 nr. 2 bokstav a). Uten dette samtykket kan appen ikke brukes.',
 				'Deling med en KI-assistent: bare hvis du slår det på, med et eget samtykke som er av til du sier ja. Du kan trekke det tilbake når som helst uten at resten av appen påvirkes.',
 				'Sikkerhet og feilretting: tekniske logger, for å holde tjenesten trygg (artikkel 6 nr. 1 bokstav f).',
+				'Værvarsel: hjemstedet du selv velger, for å vise været der du trener (artikkel 6 nr. 1 bokstav b).',
 			],
 		},
 		{
@@ -44,6 +46,7 @@ export const PRIVACY_NOTICE_LABELS = {
 				'Tigris (gjennom Fly.io) lagrer profilbilder.',
 				'Resend sender e-post til deg og får e-postadressen din.',
 				'Intervals.icu, hvis du kobler til: vi henter øktene dine derfra med nøkkelen du gir oss. Data fra Garmin-klokker kommer til oss gjennom Intervals.icu, og vi oppgir Garmin som kilde.',
+				'MET Norway (Meteorologisk institutt), hvis du har valgt et hjemsted: får bare det avrundede punktet når vi henter værvarselet. Kartverket får bare teksten du søker på når du leter etter et hjemsted. Ingen av dem får navnet ditt, kontoen din eller IP-adressen din: vi spør fra våre servere, ikke fra nettleseren din.',
 				'Sentry mottar feilrapporter og ytelsesdata (sporing og profilering av forespørsler) uten at vi sender treningsdata med med vilje [HVIS AKTIVERT: REGION OG LAGRINGSTID].',
 				'En KI-tjeneste er planlagt, men ikke i bruk. Den blir bare brukt hvis du samtykker, og står her med navn og region før den tas i bruk.',
 				'Kobler du din egen KI-assistent (for eksempel Claude eller ChatGPT) til trainm8, havner det den henter hos den leverandøren, under deres vilkår, og kan bli sendt ut av EØS. Vi kan ikke hente tilbake det assistenten allerede har fått.',
@@ -66,6 +69,8 @@ export const PRIVACY_NOTICE_LABELS = {
 				'Tilgangsnøkler til tilkoblede tjenester: til du kobler fra, eller etter 90 dager uten at koblingen virker.',
 				'Strava: trainm8 henter ikke lenger fra Strava. Bufrede Strava-data slettes etter 7 dager.',
 				'Samtykkene dine: så lenge du har konto, med tidspunkt og versjon.',
+				'Hjemstedet: så lenge du har konto, eller til du fjerner det i Meg. Sletter du kontoen, slettes det også. Det du søker på for å finne det, lagrer og logger vi ikke.',
+				'Værvarsler vi har hentet, lagres per avrundet punkt uten kobling til deg, og brukes i høyst ett døgn etter at de er utdatert.',
 				'Logg over hva en KI-assistent har gjort i kontoen din: 12 måneder.',
 				'Samtaler med KI-assistenter lagrer vi ikke.',
 			],

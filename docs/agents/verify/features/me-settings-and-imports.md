@@ -12,12 +12,23 @@ to Strava and Intervals.icu, and file imports. Specs to copy from:
 - Account at `/settings/profile`: name and username (_Lagre kontoen_), password
   (_Passord_, then _Bytt passord_), profile photo (_Bytt profilbilde_), 2FA and
   passkeys.
+- Your data on `/settings/profile` (_Dataene dine_): _Last ned dataene dine_
+  downloads the athlete's record as one JSON file
+  (`/resources/download-user-data`). Its `tables` list the Sign-in Methods
+  (`AuthAccount` by `providerId`, `AuthPasskey` names and dates,
+  `User.twoFactorEnabled`) and never a password hash, TOTP secret, backup code,
+  session token or one-time code. Better Auth runs dark (ADR 0114), so these
+  tables stay empty until the login cutover.
 - Training settings and level: `/settings/training`, `/settings/level`.
 - The plan's activities at `/settings/level` (#587, ADR 0109): the start's chips
   pressed with the plan's activities, _Vis ny uke_ for the server's preview of
   the first week the edit lays, _Bekreft_ to lay it. A plan toward an Event,
   measured in km or TSS, or lifting only shows the activities read-only with
   why; no plan shows no editor.
+- _Hjemsted_ at `/settings/hjemsted` (#433, ADR 0115): the Home Place. Search by
+  name (Kartverket, mocked with `MOCK_WEATHER=true`), pick a match (saves at
+  once, status line _Lagret. I dag viser været for X._), _Fjern_. The _Meg_ row
+  says the place or _Ikke valgt. Gir værvarsel på I dag._
 - Integrations at `/settings/integrations`: connect Strava or Intervals.icu
   (mocked under `MOCKS=true`) and sync.
 - File import at `/imports/upload` (FIT, TCX; fixtures in `tests/fixtures/fit`,
@@ -51,6 +62,10 @@ await page
   `createFirstRunPlan(userId, { level, discipline, otherSports, hours, days, family, strength })`
   before opening `/settings/level`; the chips are `button`s with `aria-pressed`,
   under `[data-meg-activities]`, and the preview is `[data-activities-preview]`.
+- _Hjemsted_'s search is a cmdk combobox: type into
+  `getByRole('combobox', { name: 'Søk etter et sted' })`, wait for
+  `getByRole('option')`, click one. The mock knows Lillehammer (two), Tromsø and
+  Trondheim (`tests/mocks/kartverket.ts`); any other text is a no-match.
 
 - Changing kody's username or password breaks the next login with
   `kody`/`kodylovesyou`. Do it last, or on a user you signed up through

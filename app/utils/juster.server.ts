@@ -40,11 +40,6 @@ import {
 	mondayOfDay,
 } from './athlete-calendar.ts'
 import { readRetrievableEntry } from './catalogue.server.ts'
-import {
-	type DurationReading,
-	stepDurationSec,
-	sumBlockDurationMin,
-} from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { type EffortWord, isEffortWord } from './effort-word.ts'
 import { formatNbWeekday } from './format.ts'
@@ -75,6 +70,11 @@ import {
 	TRAINED_SESSION_STATUSES,
 } from './plan-outline/session-placement.ts'
 import { type PatternWeekday } from './plan-outline/week-pattern.ts'
+import {
+	type DurationReading,
+	stepDurationSec,
+	sumBlockDurationMin,
+} from './prescribed-duration.ts'
 import { stampedSessionTitle } from './session-title.ts'
 import {
 	readSimpleActivity,

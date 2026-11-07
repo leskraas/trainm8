@@ -2,6 +2,12 @@
 
 Status: Accepted (interim) · Resolves #442 · Amends ADR 0037's factual claim
 
+> **§3, §4 and "Open for the owner" are superseded by
+> [ADR 0113](./0113-a-plan-holds-its-own-copy-of-every-workout-its-week-pattern-days-use.md).**
+> Fork-on-pick landed: a pattern day's Workout is now a **Held Workout**, the
+> plan's own copy, so a day never references a session's Workout again. §1 and
+> §2 (what the picker offers) are unchanged.
+
 ## Context
 
 `getAuthoredWorkouts` returned every `Workout` the athlete owns. Since ADR 0003
