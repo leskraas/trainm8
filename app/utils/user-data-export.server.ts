@@ -108,6 +108,9 @@ export async function exportUserData({
 			where: profile,
 		}),
 		PlateInventory: await prisma.plateInventory.findMany({ where: profile }),
+		// The Home Place (#433, ADR 0112 §2): the athlete's own, so it is theirs
+		// to take with them.
+		HomePlace: await prisma.homePlace.findMany({ where: profile }),
 
 		Event: await prisma.event.findMany({ where: athlete }),
 		PlanOutline: await prisma.planOutline.findMany({ where: athlete }),
