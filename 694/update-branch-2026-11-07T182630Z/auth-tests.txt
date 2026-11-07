@@ -1,0 +1,503 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run3/wt/694-update-branch[39m
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": SQLite database "base.db.31920.tmp" at "file:/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run3/wt/694-update-branch/tests/prisma/base.db.31920.tmp"
+
+SQLite database base.db.31920.tmp created at file:/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run3/wt/694-update-branch/tests/prisma/base.db.31920.tmp
+
+Applying migration `20250221233640_init`
+Applying migration `20260416140410_add_training_domain`
+Applying migration `20260508093352_remove_notes_domain`
+Applying migration `20260508095402_add_session_log`
+Applying migration `20260514074656_add_workout_authoring_fields`
+Applying migration `20260519120108_rename_scheduled_session_to_workout_session`
+Applying migration `20260519120112_rename_activity_to_discipline`
+Applying migration `20260519120706_add_workout_intent`
+Applying migration `20260519125819_add_activity_import_inbox`
+Applying migration `20260519125835_add_event_entity`
+Applying migration `20260519125854_add_athlete_profile_thresholds`
+Applying migration `20260519130231_add_step_discriminated_union`
+Applying migration `20260520000001_backfill_intensity_json`
+Applying migration `20260520065953_tss_triad_load_snapshot`
+Applying migration `20260528184726_add_account_connection`
+Applying migration `20260528200421_add_job_queue`
+Applying migration `20260606120000_add_training_availability`
+Applying migration `20260607071940_add_generated_plan_persistence`
+Applying migration `20260608055031_add_planned_tss`
+Applying migration `20260626140523_add_activity_import_metrics`
+Applying migration `20260626150459_add_activity_import_phase_bars`
+Applying migration `20260629100206_add_activity_stream`
+Applying migration `20260705212920_add_week_replan`
+Applying migration `20260707141528_relax_account_connection_for_key_providers`
+Applying migration `20260715150052_add_structure_detection_groundwork`
+Applying migration `20260716065940_add_run_power_threshold`
+Applying migration `20260727190451_relational_plan_outline`
+Applying migration `20260727202553_drop_redundant_plan_outline_indexes`
+Applying migration `20260730141217_retire_volume_landmarks`
+Applying migration `20260731070614_add_load_recompute_notice`
+Applying migration `20260731100000_backfill_endurance_segments`
+Applying migration `20260731203000_require_strength_goal_and_frequency`
+Applying migration `20260808162757_add_weekly_capacity`
+Applying migration `20260808173119_default_zone_recipe_per_discipline`
+Applying migration `20260809053306_add_structure_and_quantities`
+Applying migration `20260809065500_add_performance_result`
+Applying migration `20260809073956_add_catalogue_four_axes`
+Applying migration `20260809081502_add_session_adoption`
+Applying migration `20260809090000_add_community_tier`
+Applying migration `20260813120000_threshold_provenance_construct_and_protocol`
+Applying migration `20260813130000_session_archetype_on_workout`
+Applying migration `20260813140000_exercise_set_log`
+Applying migration `20260814120000_strength_anchors_programs_and_variants`
+Applying migration `20260817090000_exercise_laterality_is_a_statement_not_a_default`
+Applying migration `20260817140000_program_session_application`
+Applying migration `20260818120000_ship_the_exercise_corpus_and_the_three_programs`
+Applying migration `20260818160000_an_orphaned_exercise_belongs_to_nobody_and_is_healed_only_where_the_corpus_knows_it`
+Applying migration `20260819090000_a_logged_set_outlives_the_prescription_it_answered`
+Applying migration `20260819140000_a_logged_set_states_which_realization_it_was`
+Applying migration `20261007175838_the_week_replan_proposes_and_a_session_can_be_handed_back`
+Applying migration `20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them`
+Applying migration `20261007190320_the_week_change_runs_each_step_once`
+Applying migration `20261007191933_an_open_ended_plan_owns_itself_and_the_sessions_it_laid`
+Applying migration `20261007212213_a_plan_records_the_philosophy_it_follows`
+Applying migration `20261007225432_a_session_may_count_in_no_track`
+Applying migration `20261008041623_an_import_remembers_what_the_athlete_said_about_it`
+Applying migration `20261011061500_an_account_connection_remembers_when_it_last_checked`
+Applying migration `20261011120000_the_lifts_answer_to_their_norwegian_names`
+Applying migration `20261013120000_an_import_is_keyed_by_its_athlete`
+Applying migration `20261013130000_every_import_records_its_origin_platform`
+Applying migration `20261013140000_one_activity_is_one_row`
+Applying migration `20261013150000_the_harvest_budget_is_the_keys`
+Applying migration `20261017130000_an_applied_proposal_keeps_its_before_image`
+Applying migration `20261017160000_the_athlete_keeps_their_training_level`
+Applying migration `20261017170000_a_simple_activity_is_a_planned_session`
+Applying migration `20261017185740_the_athlete_answers_how_often_they_lift`
+Applying migration `20261017185741_the_start_lifts_a_full_body_stock_workout`
+Applying migration `20261017185742_the_athlete_keeps_their_session_preferences`
+Applying migration `20261017190000_the_simple_activities_share_a_track_on_other`
+Applying migration `20261018060000_the_autopilot_applies_at_the_close`
+Applying migration `20261018070000_a_juster_keeps_what_it_replaced`
+Applying migration `20261018080000_the_autopilot_notice_is_seen_and_kept`
+Applying migration `20261018090000_the_autopilot_is_on_for_everyone`
+Applying migration `20261018100000_lifting_is_laid_per_week`
+Applying migration `20261018110000_a_track_names_its_own_days`
+Applying migration `20261024120000_strava_streams_checked`
+Applying migration `20261025090000_grade_is_a_band`
+Applying migration `20261025090100_the_hill_rows_state_their_grade`
+Applying migration `20261107133155_better_auth_runs_dark`
+
+Database reset successful
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20250221233640_init/
+    └─ migration.sql
+  └─ 20260416140410_add_training_domain/
+    └─ migration.sql
+  └─ 20260508093352_remove_notes_domain/
+    └─ migration.sql
+  └─ 20260508095402_add_session_log/
+    └─ migration.sql
+  └─ 20260514074656_add_workout_authoring_fields/
+    └─ migration.sql
+  └─ 20260519120108_rename_scheduled_session_to_workout_session/
+    └─ migration.sql
+  └─ 20260519120112_rename_activity_to_discipline/
+    └─ migration.sql
+  └─ 20260519120706_add_workout_intent/
+    └─ migration.sql
+  └─ 20260519125819_add_activity_import_inbox/
+    └─ migration.sql
+  └─ 20260519125835_add_event_entity/
+    └─ migration.sql
+  └─ 20260519125854_add_athlete_profile_thresholds/
+    └─ migration.sql
+  └─ 20260519130231_add_step_discriminated_union/
+    └─ migration.sql
+  └─ 20260520000001_backfill_intensity_json/
+    └─ migration.sql
+  └─ 20260520065953_tss_triad_load_snapshot/
+    └─ migration.sql
+  └─ 20260528184726_add_account_connection/
+    └─ migration.sql
+  └─ 20260528200421_add_job_queue/
+    └─ migration.sql
+  └─ 20260606120000_add_training_availability/
+    └─ migration.sql
+  └─ 20260607071940_add_generated_plan_persistence/
+    └─ migration.sql
+  └─ 20260608055031_add_planned_tss/
+    └─ migration.sql
+  └─ 20260626140523_add_activity_import_metrics/
+    └─ migration.sql
+  └─ 20260626150459_add_activity_import_phase_bars/
+    └─ migration.sql
+  └─ 20260629100206_add_activity_stream/
+    └─ migration.sql
+  └─ 20260705212920_add_week_replan/
+    └─ migration.sql
+  └─ 20260707141528_relax_account_connection_for_key_providers/
+    └─ migration.sql
+  └─ 20260715150052_add_structure_detection_groundwork/
+    └─ migration.sql
+  └─ 20260716065940_add_run_power_threshold/
+    └─ migration.sql
+  └─ 20260727190451_relational_plan_outline/
+    └─ migration.sql
+  └─ 20260727202553_drop_redundant_plan_outline_indexes/
+    └─ migration.sql
+  └─ 20260730141217_retire_volume_landmarks/
+    └─ migration.sql
+  └─ 20260731070614_add_load_recompute_notice/
+    └─ migration.sql
+  └─ 20260731100000_backfill_endurance_segments/
+    └─ migration.sql
+  └─ 20260731203000_require_strength_goal_and_frequency/
+    └─ migration.sql
+  └─ 20260808162757_add_weekly_capacity/
+    └─ migration.sql
+  └─ 20260808173119_default_zone_recipe_per_discipline/
+    └─ migration.sql
+  └─ 20260809053306_add_structure_and_quantities/
+    └─ migration.sql
+  └─ 20260809065500_add_performance_result/
+    └─ migration.sql
+  └─ 20260809073956_add_catalogue_four_axes/
+    └─ migration.sql
+  └─ 20260809081502_add_session_adoption/
+    └─ migration.sql
+  └─ 20260809090000_add_community_tier/
+    └─ migration.sql
+  └─ 20260813120000_threshold_provenance_construct_and_protocol/
+    └─ migration.sql
+  └─ 20260813130000_session_archetype_on_workout/
+    └─ migration.sql
+  └─ 20260813140000_exercise_set_log/
+    └─ migration.sql
+  └─ 20260814120000_strength_anchors_programs_and_variants/
+    └─ migration.sql
+  └─ 20260817090000_exercise_laterality_is_a_statement_not_a_default/
+    └─ migration.sql
+  └─ 20260817140000_program_session_application/
+    └─ migration.sql
+  └─ 20260818120000_ship_the_exercise_corpus_and_the_three_programs/
+    └─ migration.sql
+  └─ 20260818160000_an_orphaned_exercise_belongs_to_nobody_and_is_healed_only_where_the_corpus_knows_it/
+    └─ migration.sql
+  └─ 20260819090000_a_logged_set_outlives_the_prescription_it_answered/
+    └─ migration.sql
+  └─ 20260819140000_a_logged_set_states_which_realization_it_was/
+    └─ migration.sql
+  └─ 20261007175838_the_week_replan_proposes_and_a_session_can_be_handed_back/
+    └─ migration.sql
+  └─ 20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them/
+    └─ migration.sql
+  └─ 20261007190320_the_week_change_runs_each_step_once/
+    └─ migration.sql
+  └─ 20261007191933_an_open_ended_plan_owns_itself_and_the_sessions_it_laid/
+    └─ migration.sql
+  └─ 20261007212213_a_plan_records_the_philosophy_it_follows/
+    └─ migration.sql
+  └─ 20261007225432_a_session_may_count_in_no_track/
+    └─ migration.sql
+  └─ 20261008041623_an_import_remembers_what_the_athlete_said_about_it/
+    └─ migration.sql
+  └─ 20261011061500_an_account_connection_remembers_when_it_last_checked/
+    └─ migration.sql
+  └─ 20261011120000_the_lifts_answer_to_their_norwegian_names/
+    └─ migration.sql
+  └─ 20261013120000_an_import_is_keyed_by_its_athlete/
+    └─ migration.sql
+  └─ 20261013130000_every_import_records_its_origin_platform/
+    └─ migration.sql
+  └─ 20261013140000_one_activity_is_one_row/
+    └─ migration.sql
+  └─ 20261013150000_the_harvest_budget_is_the_keys/
+    └─ migration.sql
+  └─ 20261017130000_an_applied_proposal_keeps_its_before_image/
+    └─ migration.sql
+  └─ 20261017160000_the_athlete_keeps_their_training_level/
+    └─ migration.sql
+  └─ 20261017170000_a_simple_activity_is_a_planned_session/
+    └─ migration.sql
+  └─ 20261017185740_the_athlete_answers_how_often_they_lift/
+    └─ migration.sql
+  └─ 20261017185741_the_start_lifts_a_full_body_stock_workout/
+    └─ migration.sql
+  └─ 20261017185742_the_athlete_keeps_their_session_preferences/
+    └─ migration.sql
+  └─ 20261017190000_the_simple_activities_share_a_track_on_other/
+    └─ migration.sql
+  └─ 20261018060000_the_autopilot_applies_at_the_close/
+    └─ migration.sql
+  └─ 20261018070000_a_juster_keeps_what_it_replaced/
+    └─ migration.sql
+  └─ 20261018080000_the_autopilot_notice_is_seen_and_kept/
+    └─ migration.sql
+  └─ 20261018090000_the_autopilot_is_on_for_everyone/
+    └─ migration.sql
+  └─ 20261018100000_lifting_is_laid_per_week/
+    └─ migration.sql
+  └─ 20261018110000_a_track_names_its_own_days/
+    └─ migration.sql
+  └─ 20261024120000_strava_streams_checked/
+    └─ migration.sql
+  └─ 20261025090000_grade_is_a_band/
+    └─ migration.sql
+  └─ 20261025090100_the_hill_rows_state_their_grade/
+    └─ migration.sql
+  └─ 20261107133155_better_auth_runs_dark/
+    └─ migration.sql
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account erases every Workout it wrote, published ones included (#468)
+[22m[39mprisma:query - 20ms - COMMIT
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account erases every Workout it wrote, published ones included (#468)
+[22m[39mprisma:query - 32ms - COMMIT
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account erases every Workout it wrote, published ones included (#468)
+[22m[39mprisma:query - 45ms - COMMIT
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account erases every Workout it wrote, published ones included (#468)
+[22m[39mprisma:query - 29ms - COMMIT
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2ma row someone else’s training points at directly is withdrawn, never erased into their week
+[22m[39mprisma:query - 32ms - UPDATE `main`.`Workout` SET `visibility` = ?, `updatedAt` = ? WHERE (`main`.`Workout`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `title` AS `title`, `description` AS `description`, `discipline` AS `discipline`, `intent` AS `intent`, `archetype` AS `archetype`, `strengthGoal` AS `strengthGoal`, `activityKind` AS `activityKind`, `effortWord` AS `effortWord`, `authorship` AS `authorship`, `visibility` AS `visibility`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `ownerId` AS `ownerId`, `copiedFromId` AS `copiedFromId`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2man athlete whose own fixed slot points at their own Workout can still delete their account
+[22m[39mprisma:query - 22ms - COMMIT
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2man athlete whose own lifting slot points at their own Workout can still delete their account
+[22m[39mprisma:query - 21ms - INSERT INTO `main`.`PlanOutline` (`id`, `startWeekKey`, `createdAt`, `updatedAt`, `athleteId`) VALUES (?,?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2manother athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn
+[22m[39mprisma:query - 53ms - COMMIT
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2manother athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn
+[22m[39mprisma:query - 45ms - INSERT INTO `main`.`Workout` (`id`, `title`, `discipline`, `intent`, `authorship`, `visibility`, `createdAt`, `updatedAt`, `ownerId`) VALUES (?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2manother athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn
+[22m[39mprisma:query - 24ms - INSERT INTO `main`.`PlanOutline` (`id`, `startWeekKey`, `createdAt`, `updatedAt`, `athleteId`) VALUES (?,?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2manother athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn
+[22m[39mprisma:query - 30ms - INSERT INTO `main`.`WeekPattern` (`id`, `name`, `orderIndex`, `outlineId`) VALUES (?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2manother athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn
+[22m[39mprisma:query - 21ms - INSERT INTO `main`.`TrainingTrack` (`id`, `discipline`, `currency`, `outlineId`) VALUES (?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2manother athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn
+[22m[39mprisma:query - 60ms - INSERT INTO `main`.`WeekPattern` (`id`, `name`, `orderIndex`, `outlineId`) VALUES (?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2manother athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn
+[22m[39mprisma:query - 35ms - COMMIT
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account removes its rows in every Better Auth table (ADR 0113 §6)
+[22m[39mprisma:query - 23ms - COMMIT
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account removes its rows in every Better Auth table (ADR 0113 §6)
+[22m[39mprisma:query - 37ms - COMMIT
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account removes its rows in every Better Auth table (ADR 0113 §6)
+[22m[39mprisma:query - 41ms - INSERT INTO `main`.`TwoFactor` (`id`, `secret`, `backupCodes`, `userId`, `verified`, `failedVerificationCount`) VALUES (?,?,?,?,?,?) RETURNING `id` AS `id`, `secret` AS `secret`, `backupCodes` AS `backupCodes`, `userId` AS `userId`, `verified` AS `verified`, `failedVerificationCount` AS `failedVerificationCount`, `lockedUntil` AS `lockedUntil`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account removes its rows in every Better Auth table (ADR 0113 §6)
+[22m[39mprisma:query - 20ms - INSERT INTO `main`.`AuthVerification` (`id`, `identifier`, `value`, `expiresAt`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?) RETURNING `id` AS `id`, `identifier` AS `identifier`, `value` AS `value`, `expiresAt` AS `expiresAt`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account removes its rows in every Better Auth table (ADR 0113 §6)
+[22m[39mprisma:query - 22ms - INSERT INTO `main`.`AuthSession` (`id`, `expiresAt`, `token`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?) RETURNING `id` AS `id`, `expiresAt` AS `expiresAt`, `token` AS `token`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `ipAddress` AS `ipAddress`, `userAgent` AS `userAgent`, `userId` AS `userId`, `impersonatedBy` AS `impersonatedBy`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account removes its rows in every Better Auth table (ADR 0113 §6)
+[22m[39mprisma:query - 32ms - INSERT INTO `main`.`AuthPasskey` (`id`, `publicKey`, `userId`, `credentialID`, `counter`, `deviceType`, `backedUp`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`, `name` AS `name`, `publicKey` AS `publicKey`, `userId` AS `userId`, `credentialID` AS `credentialID`, `counter` AS `counter`, `deviceType` AS `deviceType`, `backedUp` AS `backedUp`, `transports` AS `transports`, `createdAt` AS `createdAt`, `aaguid` AS `aaguid`
+
+[90mstdout[2m | app/utils/account-deletion.server.test.ts[2m > [22m[2mdeleting an account removes its rows in every Better Auth table (ADR 0113 §6)
+[22m[39mprisma:query - 20ms - INSERT INTO `main`.`TwoFactor` (`id`, `secret`, `backupCodes`, `userId`, `verified`, `failedVerificationCount`) VALUES (?,?,?,?,?,?) RETURNING `id` AS `id`, `secret` AS `secret`, `backupCodes` AS `backupCodes`, `userId` AS `userId`, `verified` AS `verified`, `failedVerificationCount` AS `failedVerificationCount`, `lockedUntil` AS `lockedUntil`
+
+ [32m✓[39m app/utils/account-deletion.server.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 4172[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting an account erases every Workout it wrote, published ones included (#468) [33m 713[2mms[22m[39m
+   [33m[2m✓[22m[39m a row someone else’s training points at directly is withdrawn, never erased into their week [33m 504[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete whose own fixed slot points at their own Workout can still delete their account [33m 660[2mms[22m[39m
+   [33m[2m✓[22m[39m another athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn [33m 1087[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting an account removes its rows in every Better Auth table (ADR 0113 §6) [33m 969[2mms[22m[39m
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2mthe export carries every user-owned table in the schema
+[22m[39mprisma:query - 64ms - COMMIT
+
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2mthe export carries every user-owned table in the schema
+[22m[39mprisma:query - 41ms - COMMIT
+
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2mthe export holds the athlete's training record
+[22m[39mprisma:query - 38ms - COMMIT
+
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2mthe export holds the athlete's training record
+[22m[39mprisma:query - 31ms - COMMIT
+
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2mthe export leaves out secrets and every other athlete
+[22m[39mprisma:query - 20ms - COMMIT
+
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2mthe export leaves out secrets and every other athlete
+[22m[39mprisma:query - 36ms - INSERT INTO `main`.`ThresholdEvent` (`id`, `discipline`, `kind`, `valueNumeric`, `source`, `effectiveAt`, `createdAt`, `athleteProfileId`) VALUES (?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `discipline` AS `discipline`, `kind` AS `kind`, `valueNumeric` AS `valueNumeric`, `source` AS `source`, `construct` AS `construct`, `protocol` AS `protocol`, `confidence` AS `confidence`, `effectiveAt` AS `effectiveAt`, `createdAt` AS `createdAt`, `athleteProfileId` AS `athleteProfileId`
+
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2ma moderator's export carries the reports they resolved, not the reporters' words
+[22m[39mprisma:query - 32ms - COMMIT
+
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2ma moderator's export carries the reports they resolved, not the reporters' words
+[22m[39mprisma:query - 51ms - INSERT INTO `main`.`SessionLog` (`id`, `content`, `createdAt`, `updatedAt`, `sessionId`) VALUES (?,?,?,?,?) RETURNING `id` AS `id`, `content` AS `content`, `rpe` AS `rpe`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `sessionId` AS `sessionId`
+
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2ma moderator's export carries the reports they resolved, not the reporters' words
+[22m[39mprisma:query - 36ms - INSERT INTO `main`.`AccountConnection` (`id`, `provider`, `externalAthleteId`, `accessToken`, `refreshToken`, `expiresAt`, `status`, `connectedAt`, `createdAt`, `updatedAt`, `athleteId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`provider`) DO UPDATE SET `externalAthleteId` = ?, `accessToken` = ?, `refreshToken` = ?, `expiresAt` = ?, `status` = ?, `connectedAt` = ?, `updatedAt` = ? WHERE ((`main`.`AccountConnection`.`athleteId` = ? AND `main`.`AccountConnection`.`provider` = ?) AND 1=1) RETURNING `id` AS `id`, `provider` AS `provider`, `externalAthleteId` AS `externalAthleteId`, `accessToken` AS `accessToken`, `refreshToken` AS `refreshToken`, `expiresAt` AS `expiresAt`, `status` AS `status`, `connectedAt` AS `connectedAt`, `lastSyncedAt` AS `lastSyncedAt`, `lastCheckedAt` AS `lastCheckedAt`, `backfillCompletedAt` AS `backfillCompletedAt`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `athleteId` AS `athleteId`
+
+[90mstdout[2m | app/utils/user-data-export.server.test.ts[2m > [22m[2mthe export lists sign-in methods and never a sign-in secret
+[22m[39mprisma:query - 33ms - INSERT INTO `main`.`AccountConnection` (`id`, `provider`, `externalAthleteId`, `accessToken`, `refreshToken`, `expiresAt`, `status`, `connectedAt`, `createdAt`, `updatedAt`, `athleteId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`provider`) DO UPDATE SET `externalAthleteId` = ?, `accessToken` = ?, `refreshToken` = ?, `expiresAt` = ?, `status` = ?, `connectedAt` = ?, `updatedAt` = ? WHERE ((`main`.`AccountConnection`.`athleteId` = ? AND `main`.`AccountConnection`.`provider` = ?) AND 1=1) RETURNING `id` AS `id`, `provider` AS `provider`, `externalAthleteId` AS `externalAthleteId`, `accessToken` AS `accessToken`, `refreshToken` AS `refreshToken`, `expiresAt` AS `expiresAt`, `status` AS `status`, `connectedAt` AS `connectedAt`, `lastSyncedAt` AS `lastSyncedAt`, `lastCheckedAt` AS `lastCheckedAt`, `backfillCompletedAt` AS `backfillCompletedAt`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `athleteId` AS `athleteId`
+
+ [32m✓[39m app/utils/user-data-export.server.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 3541[2mms[22m[39m
+   [33m[2m✓[22m[39m the export carries every user-owned table in the schema [33m 617[2mms[22m[39m
+   [33m[2m✓[22m[39m the export leaves out secrets and every other athlete [33m 1030[2mms[22m[39m
+   [33m[2m✓[22m[39m a moderator's export carries the reports they resolved, not the reporters' words [33m 1136[2mms[22m[39m
+   [33m[2m✓[22m[39m the export lists sign-in methods and never a sign-in secret [33m 403[2mms[22m[39m
+[90mstdout[2m | app/routes/api.auth.$.test.ts[2m > [22m[2ma signed-in athlete cannot clear mustReenrolTwoFactor
+[22m[39mprisma:query - 23ms - INSERT INTO `main`.`AuthAccount` (`id`, `accountId`, `providerId`, `userId`, `password`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`, `accountId` AS `accountId`, `providerId` AS `providerId`, `userId` AS `userId`, `accessToken` AS `accessToken`, `refreshToken` AS `refreshToken`, `idToken` AS `idToken`, `accessTokenExpiresAt` AS `accessTokenExpiresAt`, `refreshTokenExpiresAt` AS `refreshTokenExpiresAt`, `scope` AS `scope`, `password` AS `password`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[90mstdout[2m | app/routes/api.auth.$.test.ts[2m > [22m[2ma signed-in athlete cannot clear mustReenrolTwoFactor
+[22m[39mprisma:query - 27ms - UPDATE `main`.`User` SET `name` = ?, `updatedAt` = ? WHERE (`main`.`User`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `email` AS `email`, `username` AS `username`, `name` AS `name`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `emailVerified` AS `emailVerified`, `imageUrl` AS `imageUrl`, `displayUsername` AS `displayUsername`, `twoFactorEnabled` AS `twoFactorEnabled`, `role` AS `role`, `banned` AS `banned`, `banReason` AS `banReason`, `banExpires` AS `banExpires`, `mustReenrolTwoFactor` AS `mustReenrolTwoFactor`
+
+ [32m✓[39m app/routes/api.auth.$.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 5491[2mms[22m[39m
+   [33m[2m✓[22m[39m in tests, /api/auth/ok answers 200 [33m 4057[2mms[22m[39m
+   [33m[2m✓[22m[39m a signed-in athlete cannot clear mustReenrolTwoFactor [33m 1032[2mms[22m[39m
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2man email code is erased with the account
+[22m[39mprisma:query - 54ms - INSERT INTO `main`.`User` (`id`, `email`, `username`, `name`, `createdAt`, `updatedAt`, `emailVerified`, `twoFactorEnabled`, `banned`, `mustReenrolTwoFactor`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `email` AS `email`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2man email code is erased with the account
+[22m[39mprisma:query - 21ms - INSERT INTO `main`.`AuthAccount` (`id`, `accountId`, `providerId`, `userId`, `password`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`, `accountId` AS `accountId`, `providerId` AS `providerId`, `userId` AS `userId`, `accessToken` AS `accessToken`, `refreshToken` AS `refreshToken`, `idToken` AS `idToken`, `accessTokenExpiresAt` AS `accessTokenExpiresAt`, `refreshTokenExpiresAt` AS `refreshTokenExpiresAt`, `scope` AS `scope`, `password` AS `password`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2man email code is erased with the account
+[22m[39m🔶 mocked email contents: {
+  from: [32m'onboarding@resend.dev'[39m,
+  to: [32m'50_colin_rau@example.com'[39m,
+  subject: [32m'Koden din'[39m,
+  text: [32m'Koden din er 693162. Den gjelder i fem minutter.'[39m,
+  html: [32m'<p>Koden din er 693162. Den gjelder i fem minutter.</p>'[39m
+}
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2man email code is erased with the account
+[22m[39m🔶 mocked email contents: {
+  from: [32m'onboarding@resend.dev'[39m,
+  to: [32m'50_colin_rau@example.com'[39m,
+  subject: [32m'Koden din'[39m,
+  text: [32m'Koden din er 930524. Den gjelder i fem minutter.'[39m,
+  html: [32m'<p>Koden din er 930524. Den gjelder i fem minutter.</p>'[39m
+}
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2man email code is erased with the account
+[22m[39mprisma:query - 37ms - INSERT INTO `main`.`AuthAccount` (`id`, `accountId`, `providerId`, `userId`, `password`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`, `accountId` AS `accountId`, `providerId` AS `providerId`, `userId` AS `userId`, `accessToken` AS `accessToken`, `refreshToken` AS `refreshToken`, `idToken` AS `idToken`, `accessTokenExpiresAt` AS `accessTokenExpiresAt`, `refreshTokenExpiresAt` AS `refreshTokenExpiresAt`, `scope` AS `scope`, `password` AS `password`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2man email code is erased with the account
+[22m[39m🔶 mocked email contents: {
+  from: [32m'onboarding@resend.dev'[39m,
+  to: [32m'ir_emmett_heidenreic@example.com'[39m,
+  subject: [32m'Koden din'[39m,
+  text: [32m'Koden din er 779969. Den gjelder i fem minutter.'[39m,
+  html: [32m'<p>Koden din er 779969. Den gjelder i fem minutter.</p>'[39m
+}
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2man email code is erased with the account
+[22m[39mprisma:query - 24ms - COMMIT
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2ma password reset is erased with the account
+[22m[39mprisma:query - 30ms - INSERT INTO `main`.`User` (`id`, `email`, `username`, `name`, `createdAt`, `updatedAt`, `emailVerified`, `twoFactorEnabled`, `banned`, `mustReenrolTwoFactor`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `email` AS `email`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2ma password reset is erased with the account
+[22m[39mprisma:query - 57ms - INSERT INTO `main`.`AuthAccount` (`id`, `accountId`, `providerId`, `userId`, `password`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`, `accountId` AS `accountId`, `providerId` AS `providerId`, `userId` AS `userId`, `accessToken` AS `accessToken`, `refreshToken` AS `refreshToken`, `idToken` AS `idToken`, `accessTokenExpiresAt` AS `accessTokenExpiresAt`, `refreshTokenExpiresAt` AS `refreshTokenExpiresAt`, `scope` AS `scope`, `password` AS `password`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2ma password reset is erased with the account
+[22m[39m🔶 mocked email contents: {
+  from: [32m'onboarding@resend.dev'[39m,
+  to: [32m'o9_hassie_huel70@example.com'[39m,
+  subject: [32m'Tilbakestill passordet'[39m,
+  text: [32m'Tilbakestill passordet ditt: http://localhost:3000/api/auth/reset-password/5gAuwYBFAFcIuNqEPn65LRtW?callbackURL=%2Freset-password'[39m,
+  html: [32m'<p>Tilbakestill passordet ditt: http://localhost:3000/api/auth/reset-password/5gAuwYBFAFcIuNqEPn65LRtW?callbackURL=%2Freset-password</p>'[39m
+}
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2ma password reset is erased with the account
+[22m[39m🔶 mocked email contents: {
+  from: [32m'onboarding@resend.dev'[39m,
+  to: [32m'dk_bartholome_reinge@example.com'[39m,
+  subject: [32m'Koden din'[39m,
+  text: [32m'Koden din er 132619. Den gjelder i fem minutter.'[39m,
+  html: [32m'<p>Koden din er 132619. Den gjelder i fem minutter.</p>'[39m
+}
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2mthe two-factor cookie and its code are erased with the account
+[22m[39mprisma:query - 26ms - INSERT INTO `main`.`User` (`id`, `email`, `username`, `name`, `createdAt`, `updatedAt`, `emailVerified`, `twoFactorEnabled`, `banned`, `mustReenrolTwoFactor`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `email` AS `email`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2mthe two-factor cookie and its code are erased with the account
+[22m[39m🔶 mocked email contents: {
+  from: [32m'onboarding@resend.dev'[39m,
+  to: [32m'bo_ephraim_klocko@example.com'[39m,
+  subject: [32m'Koden din'[39m,
+  text: [32m'Koden din er 609011. Den gjelder i fem minutter.'[39m,
+  html: [32m'<p>Koden din er 609011. Den gjelder i fem minutter.</p>'[39m
+}
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2mthe two-factor cookie and its code are erased with the account
+[22m[39mprisma:query - 25ms - INSERT INTO `main`.`AuthVerification` (`id`, `identifier`, `value`, `expiresAt`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?) RETURNING `id` AS `id`, `identifier` AS `identifier`, `value` AS `value`, `expiresAt` AS `expiresAt`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2mthe two-factor cookie and its code are erased with the account
+[22m[39m🔶 mocked email contents: {
+  from: [32m'onboarding@resend.dev'[39m,
+  to: [32m'mb_nestor_stroman47@example.com'[39m,
+  subject: [32m'Koden din'[39m,
+  text: [32m'Koden din er 121933. Den gjelder i fem minutter.'[39m,
+  html: [32m'<p>Koden din er 121933. Den gjelder i fem minutter.</p>'[39m
+}
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2ma passkey challenge is erased with the account
+[22m[39mprisma:query - 54ms - INSERT INTO `main`.`AuthAccount` (`id`, `accountId`, `providerId`, `userId`, `password`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`, `accountId` AS `accountId`, `providerId` AS `providerId`, `userId` AS `userId`, `accessToken` AS `accessToken`, `refreshToken` AS `refreshToken`, `idToken` AS `idToken`, `accessTokenExpiresAt` AS `accessTokenExpiresAt`, `refreshTokenExpiresAt` AS `refreshTokenExpiresAt`, `scope` AS `scope`, `password` AS `password`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2ma passkey challenge is erased with the account
+[22m[39mprisma:query - 49ms - INSERT INTO `main`.`AuthAccount` (`id`, `accountId`, `providerId`, `userId`, `password`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`, `accountId` AS `accountId`, `providerId` AS `providerId`, `userId` AS `userId`, `accessToken` AS `accessToken`, `refreshToken` AS `refreshToken`, `idToken` AS `idToken`, `accessTokenExpiresAt` AS `accessTokenExpiresAt`, `refreshTokenExpiresAt` AS `refreshTokenExpiresAt`, `scope` AS `scope`, `password` AS `password`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2ma passkey challenge is erased with the account
+[22m[39mprisma:query - 101ms - INSERT INTO `main`.`AuthVerification` (`id`, `identifier`, `value`, `expiresAt`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?) RETURNING `id` AS `id`, `identifier` AS `identifier`, `value` AS `value`, `expiresAt` AS `expiresAt`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2ma passkey challenge is erased with the account
+[22m[39m🔶 mocked email contents: {
+  from: [32m'onboarding@resend.dev'[39m,
+  to: [32m'ty_jarrod_jacobson@example.com'[39m,
+  subject: [32m'Koden din'[39m,
+  text: [32m'Koden din er 163821. Den gjelder i fem minutter.'[39m,
+  html: [32m'<p>Koden din er 163821. Den gjelder i fem minutter.</p>'[39m
+}
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2merasure keeps a code for an address that only looks like the user’s
+[22m[39mprisma:query - 34ms - INSERT INTO `main`.`User` (`id`, `email`, `username`, `name`, `createdAt`, `updatedAt`, `emailVerified`, `twoFactorEnabled`, `banned`, `mustReenrolTwoFactor`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `email` AS `email`
+
+[90mstdout[2m | app/utils/auth/erase.server.test.ts[2m > [22m[2merasure keeps a code for an address that only looks like the user’s
+[22m[39mprisma:query - 47ms - INSERT INTO `main`.`AuthVerification` (`id`, `identifier`, `value`, `expiresAt`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?) RETURNING `id` AS `id`, `identifier` AS `identifier`, `value` AS `value`, `expiresAt` AS `expiresAt`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+ [32m✓[39m app/utils/auth/erase.server.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5896[2mms[22m[39m
+   [33m[2m✓[22m[39m an email code is erased with the account [33m 1457[2mms[22m[39m
+   [33m[2m✓[22m[39m a password reset is erased with the account [33m 1377[2mms[22m[39m
+   [33m[2m✓[22m[39m the two-factor cookie and its code are erased with the account [33m 1284[2mms[22m[39m
+   [33m[2m✓[22m[39m a passkey challenge is erased with the account [33m 1506[2mms[22m[39m
+ [32m✓[39m app/utils/auth/schema-generate.server.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 8872[2mms[22m[39m
+   [33m[2m✓[22m[39m `npx auth generate` for the configured auth matches prisma/schema.prisma [33m 8860[2mms[22m[39m
+ [32m✓[39m app/utils/auth/handler.production.server.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 152[2mms[22m[39m
+[90mstdout[2m | app/utils/auth/password-hash.server.test.ts[2m > [22m[2ma hash copied from Epic’s Password signs in on Better Auth unchanged
+[22m[39mprisma:query - 37ms - INSERT INTO `main`.`AuthSession` (`id`, `expiresAt`, `token`, `createdAt`, `updatedAt`, `ipAddress`, `userAgent`, `userId`) VALUES (?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `expiresAt` AS `expiresAt`, `token` AS `token`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `ipAddress` AS `ipAddress`, `userAgent` AS `userAgent`, `userId` AS `userId`, `impersonatedBy` AS `impersonatedBy`
+
+[90mstdout[2m | app/utils/auth/password-hash.server.test.ts[2m > [22m[2ma hash Better Auth writes is bcrypt at cost 10, and Epic verifies it
+[22m[39mprisma:query - 28ms - COMMIT
+
+ [32m✓[39m app/utils/auth/password-hash.server.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1409[2mms[22m[39m
+   [33m[2m✓[22m[39m a hash copied from Epic’s Password signs in on Better Auth unchanged [33m 688[2mms[22m[39m
+   [33m[2m✓[22m[39m a hash Better Auth writes is bcrypt at cost 10, and Epic verifies it [33m 708[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[32m36 passed[39m[22m[90m (36)[39m
+[2m   Start at [22m 18:17:10
+[2m   Duration [22m 125.59s[2m (transform 7.00s, setup 50.47s, import 15.91s, tests 29.53s, environment 1ms)[22m
+
