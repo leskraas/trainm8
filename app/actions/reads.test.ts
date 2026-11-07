@@ -700,3 +700,56 @@ test("a week's Planned TSS on get_today and get_season binds to the results its 
 		season: { status: 'unavailable', reason: 'source-terms' },
 	})
 })
+
+test("a planned duration timed through a Polar race's pace is Polar data: withheld from a model without the opt-in", async () => {
+	// ADR 0112 §4: a distance step at race pace is timed through the pace the
+	// result sets, so the planned duration is derived from the Recording.
+	const world = await createWorld()
+	const ctx = ctxFor(world.userId, 'mcp')
+	const { recording } = await import('#tests/actions-world.ts')
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId: world.userId },
+		select: { id: true },
+	})
+	await prisma.disciplineProfile.create({
+		data: { athleteProfileId: profile.id, discipline: 'run' },
+	})
+	const race = await recording(world.userId, {
+		originPlatform: 'polar',
+		startedAt: new Date('2026-10-11T08:00:00Z'),
+		durationSec: 2400,
+	})
+	await prisma.performanceResult.create({
+		data: {
+			athleteProfileId: profile.id,
+			discipline: 'run',
+			distanceM: 10_000,
+			timeSec: 2400,
+			occurredAt: new Date('2026-10-11T00:00:00Z'),
+			source: 'race',
+			verified: true,
+			activityImportId: race.id,
+		},
+	})
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: world.planned },
+		select: { workoutId: true },
+	})
+	await prisma.workoutStep.updateMany({
+		where: { block: { workoutId: session.workoutId! } },
+		data: {
+			durationSec: null,
+			distanceM: 5000,
+			intensity: JSON.stringify({ kind: 'racePace', event: '10k' }),
+		},
+	})
+
+	const today = await done(runAction(ctx, 'get_today', {}))
+	expect(
+		today.sessions.find((s) => s.id === world.planned)?.planned.durationS,
+	).toMatchObject({ status: 'unavailable', reason: 'source-terms' })
+	const vsPlan = await done(
+		runAction(ctx, 'get_session_vs_plan', { sessionId: world.planned }),
+	)
+	expect(vsPlan.durationS.planned).toMatchObject({ reason: 'source-terms' })
+})

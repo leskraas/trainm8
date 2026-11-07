@@ -498,6 +498,39 @@ export function racePaceBindingSet(
 }
 
 /**
+ * {@link racePaceBindingSet} for the steps a planned duration is timed through
+ * the pace for (a distance with no authored time, `stepDistanceDurationSec`):
+ * a planned duration read off a Garmin or Polar race's pace is that
+ * platform's data (ADR 0112 §4), while an authored time owes nothing.
+ */
+export function racePaceTimingBindingSet(
+	workout: {
+		discipline: string
+		blocks: ReadonlyArray<{
+			steps: ReadonlyArray<
+				StepWithIntensity & {
+					durationSec: number | null
+					distanceM: number | null
+				}
+			>
+		}>
+	},
+	thresholds: DisciplineThresholdMap,
+): OriginPlatform[] {
+	return racePaceBindingSet(
+		{
+			discipline: workout.discipline,
+			blocks: workout.blocks.map((block) => ({
+				steps: block.steps.filter(
+					(step) => step.durationSec == null && step.distanceM != null,
+				),
+			})),
+		},
+		thresholds,
+	)
+}
+
+/**
  * Parse a stored step intensity into an Intensity Target. New steps store the
  * authored discriminated union as JSON; legacy steps stored a bare zone label
  * string (e.g. "endurance"), which we read as a `zoneLabel`. Absent → null.

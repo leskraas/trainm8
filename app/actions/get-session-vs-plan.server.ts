@@ -19,6 +19,7 @@ import {
 } from './reading.ts'
 import { refuse } from './refusals.ts'
 import {
+	plannedDurationBindingSet,
 	plannedReading,
 	plannedTssBindingSet,
 	workoutBindingSet,
@@ -140,10 +141,8 @@ export const getSessionVsPlanAction = defineAction({
 		const actual = (value: number | null | undefined) =>
 			reading(value ?? unavailable(missing), own, ctx, { origin: 'recording' })
 
-		const review = buildReviewComparison(
-			session,
-			await getDisciplineThresholds(ctx.userId),
-		)
+		const thresholds = await getDisciplineThresholds(ctx.userId)
+		const review = buildReviewComparison(session, thresholds)
 		const prescribed = workoutBindingSet(session, own)
 		const plannedTss = plannedReading(review.tss.plannedRead, ctx, {
 			zeroIsUnresolved: true,
@@ -198,7 +197,11 @@ export const getSessionVsPlanAction = defineAction({
 			tss: { planned: plannedTss, actual: actualTss },
 			durationS: {
 				planned: plannedReading(review.duration.plannedRead, ctx, {
-					bindingSet: prescribed,
+					bindingSet: plannedDurationBindingSet(
+						prescribed,
+						session.workout,
+						thresholds,
+					),
 				}),
 				actual: actual(recording?.durationSec),
 			},
