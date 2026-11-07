@@ -1,0 +1,40 @@
+ [32m✓[39m app/utils/plan-generation/planned-volume.test.ts[2m > [22mthe “already in this week” count holds only the sessions a planned figure counts (#472)[32m 10[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22ma preview writes nothing at all[32m 202[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22ma preview declines the strength track by name and lays the endurance one[32m 182[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22mapproving writes the Plan Outline and the sessions under it[33m 579[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22ma placed session is generated, anchored, and owns a fresh copy of the corpus row[33m 547[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22ma placed session reaches its Citation through the chain, never a copy of it[33m 646[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22mthe season is already there — the screen opens on a plan, not a blank form[33m 639[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22ma Training Track with no Season Anchor previews but cannot be approved[32m 199[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22mnothing reaches the calendar until the athlete says so[32m 296[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma corpus session shows its Citation in the provenance slot[32m 210[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22mthe two uncited stock kinds say so, each in its own words[32m 211[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22manother athlete cannot generate against this Event[32m 211[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma community session reads the slot without a Citation, and carries the non-vouch[32m 201[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22man Event already carrying a plan is refused rather than doubled[33m 561[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22mthe corpus read serves stock rows only, and no retired one[32m 161[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22ma goal event is read off an exact race distance and nothing else[32m 7[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22mthe default shape is the one landing nearest the Event, and is never a label[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22mthe strength Unavailable is stated before the season, not hidden inside it[32m 172[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22man empty day is named rather than backfilled[32m 179[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma week card shows each track’s target and planned figure, labelled, with units[32m 212[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma week with no Season Anchor reads “—” for its target and still shows what is planned[32m 183[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma session with no number in the unit is counted apart, never as zero, and keeps a short week unmarked[32m 244[2mms
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma week whose sessions all lack a number says so instead of 0 km[32m 195[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma week with nothing placed plans 0, carries no mark, and keeps its unfilled lines[32m 214[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22mapproving under a Weekly Capacity writes the lowered season, and the plan’s own hours check stays quiet (#473)[33m 521[2
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22ma preview week’s Planned Volume is the one Sesong reads for that week once the season is approved unchanged[33m 826[2mms
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22m≠ marks a week planned more than 10 % off, per week as on Sesong, and says what it means[32m 281[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22man hours track counts a session it cannot time apart, in the existing words[32m 195[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma session the athlete already has in the week is counted, and the card says so[32m 213[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts[2m > [22ma placed session is not rescaled: its copy carries its Stock Workout’s blocks and steps field by field[33m 674[2mms[22m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22mthe page says once, above the weeks, that sessions are placed as published[32m 188[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22mthe one question and the pre-selected shape read in Norwegian, as Sesong names them[32m 300[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma lowered season says it was scaled to the athlete’s hours, before and after[32m 119[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22mhours the athlete authored in hours carry no ≈[32m 130[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma season that still does not fit says so, where, and why[32m 127[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma breach in every week is said as the whole season, not as a span[32m 159[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma 'unset' reading adds nothing to the preview[32m 193[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma 'unpriced' reading adds nothing to the preview[32m 171[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx[2m > [22ma 'fits' reading adds nothing to the preview[32m 187[2mms[22m[39m
+[2m      Tests [22m [1m[32m39 passed[39m[22m[90m (39)[39m

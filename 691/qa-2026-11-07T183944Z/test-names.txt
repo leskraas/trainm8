@@ -1,0 +1,14 @@
+143:test('a preview writes nothing at all', async () => {
+160:test('a preview declines the strength track by name and lays the endurance one', async () => {
+173:test('approving writes the Plan Outline and the sessions under it', async () => {
+224:test('a placed session is generated, anchored, and owns a fresh copy of the corpus row', async () => {
+253:test('a placed session reaches its Citation through the chain, never a copy of it', async () => {
+281:test('a Training Track with no Season Anchor previews but cannot be approved', async () => {
+306:test('another athlete cannot generate against this Event', async () => {
+317:test('an Event already carrying a plan is refused rather than doubled', async () => {
+329:test('the corpus read serves stock rows only, and no retired one', async () => {
+352:test('a goal event is read off an exact race distance and nothing else', () => {
+363:test('the default shape is the one landing nearest the Event, and is never a label', () => {
+374:test('approving under a Weekly Capacity writes the lowered season, and the plan’s own hours check stays quiet (#473)', async () => {
+461:test('a preview week’s Planned Volume is the one Sesong reads for that week once the season is approved unchanged', async () => {
+526:test('a placed session is not rescaled: its copy carries its Stock Workout’s blocks and steps field by field', async () => {

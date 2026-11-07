@@ -1,0 +1,18 @@
+1: Svømming mål 6 km · planlagt 4,6 km ≠ Sykling mål 120 km · planlagt 3 økter uten km
+2: Svømming mål 6,3 km · planlagt 5,6 km +1 uten km Sykling mål 126 km · planlagt 3 økter uten km
+3: Svømming mål 6,6 km · planlagt 4,6 km +1 uten km Sykling mål 132,3 km · planlagt 3 økter uten km
+4: Svømming mål 4,6 km · planlagt 4,8 km Sykling mål 92,6 km · planlagt 2 økter uten km
+5: Svømming mål 6,9 km · planlagt 4,6 km ≠ Sykling mål 138,9 km · planlagt 2 økter uten km
+6: Svømming mål 7,3 km · planlagt 5,6 km ≠ Sykling mål 145,9 km · planlagt 2 økter uten km
+7: Svømming mål 7,7 km · planlagt 4,6 km ≠ Sykling mål 153,2 km · planlagt 2 økter uten km
+8: Svømming mål 5,4 km · planlagt 4,8 km ≠ Sykling mål 107,2 km · planlagt 2 økter uten km
+9: Svømming mål 8 km · planlagt 5 km ≠ Sykling mål 160,8 km · planlagt 2 økter uten km
+10: Svømming mål 8,4 km · planlagt 6 km ≠ Sykling mål 168,9 km · planlagt 2 økter uten km
+11: Svømming mål 8,9 km · planlagt 5,6 km ≠ Sykling mål 177,3 km · planlagt 2 økter uten km
+12: Svømming mål 6,2 km · planlagt 6,2 km Sykling mål 124,1 km · planlagt 2 økter uten km
+13: Svømming mål 9,3 km · planlagt 5 km ≠ Sykling mål 186,2 km · planlagt 2 økter uten km
+14: Svømming mål 9,8 km · planlagt 6 km ≠ Sykling mål 195,5 km · planlagt 2 økter uten km
+15: Svømming mål 10,3 km · planlagt 2,3 km ≠ Sykling mål 205,2 km · planlagt 2 økter uten km
+16: Svømming mål 10,3 km · planlagt 2 km ≠ Sykling mål 205,2 km · planlagt 2 økter uten km
+17: Svømming mål 7,3 km · planlagt 5,2 km ≠ Sykling mål 145,1 km · planlagt 1 økt uten km
+18: Svømming mål 5,1 km · planlagt 3 km ≠ Sykling mål 102,6 km · planlagt 2 økter uten km

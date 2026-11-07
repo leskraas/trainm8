@@ -1,0 +1,25 @@
+ [32m✓[39m app/utils/plan-outline/attach-event.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 61[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/ramp-guard.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/day-rule.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/fit-proposal.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/retrieval.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/provenance.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/copy-week.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/strength-goal.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/band-fit.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/volume-conversion.server.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 858[2mms[22m[39m
+   [33m[2m✓[22m[39m an empty window is null — the honest close of the distance gate [33m 323[2mms[22m[39m
+ [32m✓[39m app/utils/labels.plan-generate.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/session-placement.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/quality-mix.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generator.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/planned-volume.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/philosophy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/week-keys.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/event-fit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m50 passed[39m[22m[90m (50)[39m
+[2m      Tests [22m [1m[32m1187 passed[39m[22m[90m (1187)[39m
+[2m   Start at [22m 18:28:51
+[2m   Duration [22m 54.16s[2m (transform 7.43s, setup 37.08s, import 9.45s, tests 94.56s, environment 522ms)[22m
+
