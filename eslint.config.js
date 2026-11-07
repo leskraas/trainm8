@@ -1,4 +1,5 @@
 import { default as defaultConfig } from '@epic-web/config/eslint'
+import trainm8 from './eslint-rules/luma-steps.js'
 
 /** @type {import("eslint").Linter.Config} */
 export default [
@@ -32,6 +33,28 @@ export default [
 				},
 			],
 		},
+	},
+	// Luma steps guard (ADR 0113 §2): page code uses the luma radius steps and
+	// the type scale (ADR 0085, docs/design/design-system.md). A local rule of
+	// its own, so its scope never shadows the `no-restricted-syntax` guards.
+	// Generated primitives, admin, marketing, SEO, auth (the Epic marketing
+	// scale), throwaway prototypes and tests sit outside it.
+	{
+		files: ['app/**/*.{ts,tsx}'],
+		ignores: [
+			'app/components/ui/**',
+			'app/routes/admin/**',
+			'app/routes/_marketing/**',
+			'app/routes/_seo/**',
+			'app/routes/_auth/**',
+			'app/components/auth-layout.tsx',
+			'app/**/__prototype-*',
+			'app/components/prototype-switcher.tsx',
+			'app/routes/training/plan.prototype.tsx',
+			'**/*.test.{ts,tsx}',
+		],
+		plugins: { trainm8 },
+		rules: { 'trainm8/luma-steps': 'error' },
 	},
 	{
 		ignores: ['.react-router/*'],

@@ -49,8 +49,7 @@
  *
  * App roles are added only where shadcn has none, named in the same style
  * (a plain role name, `--color-*` in `@theme inline`): status, training
- * tracks, phases, and motion. One older app token stays because pages
- * outside home still read it (`zone-*`); the home timeline's own (`ink-*`,
+ * tracks, phases, Training Zones and motion. The home timeline's own (`ink-*`,
  * `hairline*`, `warning`, `--shadow-pill`) went when home moved to the shadcn
  * roles (ADR 0086). `docs/design/design-system.md` is the full map; `/design` is the
  * live sheet.
@@ -177,14 +176,16 @@
 	--phase-peak: oklch(0.64 0.12 35);
 	--phase-taper: oklch(0.68 0.08 160);
 
-	/* ── Older app token, still read outside home ─────────────────────── */
+	/* ── Training Zones (ADR 0113 §3) ────────────────────────────────── */
 
-	/* The Score direction's Z1–Z5 hues (workout-editor spec §2.5/§7). */
-	--zone-1: #5f9fe0;
-	--zone-2: #3fae7d;
-	--zone-3: #d9b13b;
-	--zone-4: #e08a3c;
-	--zone-5: #d95757;
+	/* The Z1–Z5 intensity ladder (blue → red). Marks only (a bar, a strip
+	 * cell, a chart fill, a chip tint), never text: each reaches ≥ 3:1 on
+	 * `card` in both themes (light 3.23–5.36, dark 5.55–8.36). */
+	--zone-1: oklch(0.6 0.12 250);
+	--zone-2: oklch(0.59 0.12 160);
+	--zone-3: oklch(0.65 0.13 95);
+	--zone-4: oklch(0.61 0.14 58);
+	--zone-5: oklch(0.55 0.19 22);
 }
 
 .dark {
@@ -246,6 +247,14 @@
 	--phase-build: oklch(0.66 0.09 80);
 	--phase-peak: oklch(0.62 0.11 35);
 	--phase-taper: oklch(0.62 0.08 160);
+
+	/* Training Zones (ADR 0113 §3): the same ladder a step lighter, so each
+	 * mark reads on dark ground without glowing (≥ 5.5:1 on `card`). */
+	--zone-1: oklch(0.72 0.11 250);
+	--zone-2: oklch(0.72 0.12 160);
+	--zone-3: oklch(0.76 0.12 95);
+	--zone-4: oklch(0.74 0.14 58);
+	--zone-5: oklch(0.67 0.16 22);
 }
 
 @theme inline {

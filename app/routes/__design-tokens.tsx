@@ -113,6 +113,16 @@ const COLOUR_GROUPS: Array<{ title: string; swatches: Swatch[] }> = [
 		],
 	},
 	{
+		title: 'Treningssoner (app)',
+		swatches: [
+			{ name: 'zone-1', token: 'zone-1', note: 'Sone 1' },
+			{ name: 'zone-2', token: 'zone-2', note: 'Sone 2' },
+			{ name: 'zone-3', token: 'zone-3', note: 'Sone 3' },
+			{ name: 'zone-4', token: 'zone-4', note: 'Sone 4' },
+			{ name: 'zone-5', token: 'zone-5', note: 'Sone 5' },
+		],
+	},
+	{
 		title: 'Faser (app)',
 		swatches: [
 			{ name: 'phase-base', token: 'phase-base', note: 'Grunntrening' },
@@ -129,7 +139,7 @@ function SwatchChip({ swatch }: { swatch: Swatch }) {
 			{swatch.ink ? (
 				<span
 					aria-hidden="true"
-					className="bg-card flex size-10 shrink-0 items-center justify-center rounded-3xl text-lg font-semibold shadow-md"
+					className="bg-card text-heading flex size-10 shrink-0 items-center justify-center rounded-3xl font-semibold shadow-md"
 					style={{ color: `var(--${swatch.token})` }}
 				>
 					Aa
@@ -295,7 +305,9 @@ export function TypeSection() {
 // shadcn's scale, derived from `--radius` (6px). The luma components use the
 // top three; `full` is the pill.
 const RADII = [
+	// eslint-disable-next-line trainm8/luma-steps -- the sheet renders the radius scale as data
 	{ cls: 'rounded-lg', px: '6', use: 'små merker' },
+	// eslint-disable-next-line trainm8/luma-steps -- the sheet renders the radius scale as data
 	{ cls: 'rounded-xl', px: '8', use: 'tooltip' },
 	{ cls: 'rounded-2xl', px: '11', use: 'menyvalg' },
 	{ cls: 'rounded-3xl', px: '13', use: 'felt, menyer' },
@@ -376,7 +388,7 @@ export function ShapeSection() {
 								{s.name}
 							</span>
 							<span
-								className={cn(s.cls, 'bg-primary h-3 shrink-0 rounded-sm')}
+								className={cn(s.cls, 'bg-primary h-3 shrink-0 rounded-[3px]')}
 							/>
 							<span className="text-caption text-muted-foreground tabular-nums">
 								{s.px} px · {s.use}
