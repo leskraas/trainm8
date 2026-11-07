@@ -26,6 +26,8 @@ Usage:
   conductor.py fetch <o>/<r> <n> --me <login> [--for <task>]  # an issue or PR, as a task reads it
   conductor.py apply <o>/<r> <result.json> --me <login> --from <label> [--repo-dir .]
   conductor.py merge <o>/<r> <pr> --me <login> [--label <label>]
+  conductor.py update <o>/<r> <pr> --me <login> --label <label> --resume qa|merge
+                                                   # bring a PR up to date without a run, when it can
   conductor.py release <o>/<r> <n> --me <login>    # give a stale run's task back
   conductor.py log <o>/<r> <issue> --me <login>    # the close log, for an issue merged by hand
   conductor.py note <o>/<r> <file> [--session <for>=<id> ...]  # post a report on the log issue
@@ -207,6 +209,46 @@ def merge_method(config):
     if value not in MERGE_METHODS:
         raise ValueError(f"merge-method must be one of {', '.join(MERGE_METHODS)}, not {value!r}")
     return value
+
+
+MODELS = ("haiku", "sonnet", "opus", "fable")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+# Parts of a task that can take their own model or effort, beside the tasks.
+PARTS = ("review-read", "review-fix")
+
+
+def per_task(config, key, allowed):
+    """`models` or `effort`: `task=value` pairs, `*` for every task not named.
+    Returns the dict as written, checked."""
+    pairs = {}
+    for part in config.get(key, "").split(","):
+        if not part.strip():
+            continue
+        if "=" not in part:
+            raise ValueError(f"{key} takes task=value pairs, not {part.strip()!r}")
+        name, value = (s.strip() for s in part.split("=", 1))
+        if name != "*" and name not in TASKS and name not in PARTS:
+            name = name if name in TASKS else f"{name}-scan"
+            if name not in TASKS:
+                raise ValueError(f"{key} names an unknown task: {part.split('=')[0].strip()}")
+        if value not in allowed:
+            raise ValueError(f"{key} values are {', '.join(allowed)}, not {value!r}")
+        pairs[name] = value
+    return pairs
+
+
+def run_settings(config, task):
+    """The model and effort the orchestrator gives a task's subagent: the
+    task's own, else `*`, else nothing (the subagent inherits the session's).
+    Review's parts fall back to review's."""
+    picked = {}
+    for key, allowed, out in (("models", MODELS, "model"), ("effort", EFFORTS, "effort")):
+        pairs = per_task(config, key, allowed)
+        base = "review" if task in PARTS else task
+        value = pairs.get(task) or pairs.get(base) or pairs.get("*")
+        if value:
+            picked[out] = value
+    return picked
 
 
 def number_setting(config, key, default):
@@ -537,7 +579,8 @@ def default_next(task, plan):
 
 ALLOWED_NEXT = {
     "explore": {"spec", "implement"},
-    "spec": {"design", "architecture", "implement"},
+    # review and qa only when spec rewrote a criterion of an issue with a PR
+    "spec": {"design", "architecture", "implement", "review", "qa"},
     "design": {"architecture", "implement"},
     "architecture": {"implement"},
     "implement": {"review"},
@@ -549,10 +592,15 @@ ALLOWED_BACK = {
     "design": {"spec"},
     "architecture": {"spec", "design"},
     "implement": {"spec", "design", "architecture"},
-    "review": {"implement"},
+    "review": {"implement", "spec"},
     "qa": {"implement", "review"},
     "update-branch": {"implement"},
 }
+# Tasks whose decision on an acceptance criterion sends the issue to spec
+# before QA judges the old text.
+CRITERION_TASKS = {"architecture", "implement", "review"}
+# A token count this round was guessed, not read from the Agent tool.
+ROUND_TOKENS = 10_000
 ON_PR = {"update-branch", "review", "qa", "merge"}
 
 
@@ -621,6 +669,8 @@ def validate(result):
             raise ValueError("each decision needs a title, an answer and a reason")
         if d.get("door", "two-way") not in ("one-way", "two-way"):
             raise ValueError(f"door must be one-way or two-way, not {d.get('door')!r}")
+        if d.get("criterion") is not None and not str(d["criterion"]).isdigit():
+            raise ValueError("a decision's criterion is the acceptance criterion's number")
     for q in result.get("questions") or []:
         if not isinstance(q, dict) or not all(isinstance(q.get(k), str) for k in ("question", "recommended", "reason")):
             raise ValueError("each question needs question, recommended and reason")
@@ -635,6 +685,18 @@ def validate(result):
     for p in result.get("proposals") or []:
         if not isinstance(p, dict) or not p.get("title") or not p.get("body"):
             raise ValueError("each proposal needs a title and a body")
+        if p.get("door") is not None and p["door"] not in ("one-way", "two-way"):
+            raise ValueError(f"a proposal's door is one-way or two-way, not {p['door']!r}")
+        if p.get("size") is not None and p["size"] not in ("S", "M", "L"):
+            raise ValueError(f"a proposal's size is S, M or L, not {p['size']!r}")
+        if not isinstance(p.get("paths", []), list) or \
+                not all(isinstance(x, str) and x.strip() for x in p.get("paths", [])):
+            raise ValueError("a proposal's paths is a list of the files or folders it would change")
+    for r in result.get("resolved") or []:
+        if not isinstance(r, dict) or not str(r.get("number", "")).strip() or not r.get("reason"):
+            raise ValueError("each resolved proposal needs its number and a reason")
+    if (result.get("proposals") or result.get("resolved")) and task not in SCANS:
+        raise ValueError("only a scan files or resolves proposals")
     steps = result.get("human_steps") or []
     if not isinstance(steps, list) or not all(isinstance(x, str) and x.strip() for x in steps):
         raise ValueError("human_steps is a list of steps, each one line of text")
@@ -668,11 +730,18 @@ def decide(result, issue, pr, config, me, now, resume=None):
     if task in SCANS:
         if outcome not in ("done", "blocked"):
             raise ValueError(f"a scan ends done or blocked, not {outcome!r}")
+    elif outcome == "forward" and task in CRITERION_TASKS and \
+            any(d.get("criterion") is not None for d in result.get("decisions") or []):
+        # A decision that changes what a criterion asks goes to spec now, so
+        # QA never judges the old text against a build that differs by design.
+        outcome, target = "back", "spec"
     elif outcome == "forward":
         target = result.get("next") or (resume if task == "update-branch" and resume else None) \
             or default_next(task, plan)
         if target not in ALLOWED_NEXT.get(task, set()):
             raise ValueError(f"{task} cannot go forward to {target!r}")
+        if task == "spec" and target in ("review", "qa") and pr is None:
+            raise ValueError("spec goes forward to review or qa only on an issue with an open PR")
         if task == "explore" and target == "implement" and level == "supervised":
             target = "spec"
         if target == "design" and config.get("design") == "off":
@@ -681,6 +750,9 @@ def decide(result, issue, pr, config, me, now, resume=None):
         target = result.get("next")
         if target not in ALLOWED_BACK.get(task, set()):
             raise ValueError(f"{task} cannot go back to {target!r}")
+        if task == "review" and target == "spec" and \
+                not any(d.get("criterion") is not None for d in result.get("decisions") or []):
+            raise ValueError("review goes back to spec only with a decision on a criterion")
     elif outcome == "done":
         if task != "explore" or not result.get("duplicate_of"):
             raise ValueError("only explore ends done, when it closes a duplicate")
@@ -692,7 +764,8 @@ def decide(result, issue, pr, config, me, now, resume=None):
     if outcome == "blocked":
         wait = {"reason": "blocked", "resume": task,
                 "why": "This run cannot go on until a human unblocks it."}
-    elif outcome == "done" and level == "supervised" and not resumes_gate(issue, pr, task):
+    elif outcome == "done" and task == "explore" and level == "supervised" \
+            and not resumes_gate(issue, pr, task):
         wait = {"reason": "gate", "resume": task,
                 "why": f"Explore found this a duplicate of #{result['duplicate_of']}. Say "
                        "\"yes\" to close it, or say why it isn't one."}
@@ -723,7 +796,7 @@ def decide(result, issue, pr, config, me, now, resume=None):
     shown_next = "human" if wait else (target or "none")
     marker = (f"<!-- agent:run task={task} outcome={outcome} next={shown_next}"
               f" tokens={tokens} at={stamp(now)}")
-    if result.get("tokens_estimated"):
+    if result.get("tokens_estimated") or (tokens and tokens % ROUND_TOKENS == 0):
         marker += " estimated=1"
     if result.get("head"):
         marker += f" head={result['head']}"
@@ -906,7 +979,7 @@ def wait_section(decision, result, config):
     return "\n".join(lines)
 
 
-def handoff(decision, config, n, steps=None):
+def handoff(decision, config, n, steps=None, proposals=None):
     """The comment's last lines: what runs next on its own, what a human does,
     and what follows once they have. Every run comment ends with them, so a
     reader knows whether to act and what their action sets off. `steps` is
@@ -941,6 +1014,20 @@ def handoff(decision, config, n, steps=None):
             after = f"the factory runs `{target}` and carries the work on from there."
     else:
         auto, you = "nothing.", "nothing; this run finished the work."
+    started = (proposals or {}).get("started") or []
+    waiting = (proposals or {}).get("waiting") or []
+    if started:
+        refs = ", ".join(f"#{p}" for p in started)
+        auto = (f"{refs} {'start' if len(started) > 1 else 'starts'} at `spec` "
+                + ("at the next factory run, within the hour." if hourly
+                   else "when someone types `/factory`."))
+    if waiting:
+        refs = ", ".join(f"#{p}" for p in waiting)
+        who = addressee(config, "po")
+        you = (f"{'@' + who + ': ' if who else ''}choose which of {refs} to build: add "
+               "`agent:spec` to each you want, and close the rest. They change what a "
+               "human decides (a one-way door, a large change or a guarded file), so the "
+               "factory waits for you.")
     if steps:
         outside = f"the steps in #{steps}, which only a human can take; they hold up nothing here."
         you = (f"nothing for the factory. Outside it: {outside}" if you.startswith("nothing")
@@ -951,16 +1038,25 @@ def handoff(decision, config, n, steps=None):
     return "\n".join(lines)
 
 
-def comment_body(decision, result, comments, config, n=None, steps=None):
+def comment_body(decision, result, comments, config, n=None, steps=None, proposals=None):
     task = decision["task"]
     heading = f"## {TITLE[task]} · run {run_number(comments, task)}"
     parts = [decision["marker"], heading, "", result.get("comment", "").strip()]
     if result.get("decisions"):
         parts += ["", "### Decisions", ""]
         parts += [decision_line(d, task, autonomy(config)) for d in decision["decisions"]]
+    if proposals and any(proposals.values()):
+        parts += ["", "### Proposals", ""]
+        for p in proposals.get("started") or []:
+            parts.append(f"- #{p}: a two-way door of size S or M that touches no guarded file, "
+                         "so the factory builds it.")
+        for p in proposals.get("waiting") or []:
+            parts.append(f"- #{p}: waits for a human to choose it.")
+        for p in proposals.get("closed") or []:
+            parts.append(f"- #{p}: closed, it no longer holds.")
     if decision["wait"]:
         parts.append(wait_section(decision, result, config))
-    parts.append(handoff(decision, config, n, steps))
+    parts.append(handoff(decision, config, n, steps, proposals))
     return "\n".join(parts).rstrip() + "\n"
 
 
@@ -1005,6 +1101,8 @@ def choose(items, issues, prs, me, config, now, deps_open, scans_due=(), skip=fr
         if item["kind"] == "pr" and entry["task"] in ("qa", "merge") and item.get("behind"):
             entry.update(task="update-branch", resume=entry["task"],
                          why=entry["why"] + " The branch is behind the default branch first.")
+            if entry["label"] == PREFIX + entry["resume"]:
+                entry["try_update"] = True  # the conductor tries it before a run does
         if entry["task"] == "merge":
             entry["deterministic"] = True
         if item["kind"] == "pr" and item.get("issue"):
@@ -1157,7 +1255,7 @@ def touched(files, globs):
     return sorted(f for f in files if any(p.match(f) for p in patterns))
 
 
-def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=()):
+def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=(), merged_only=False):
     """Whether the factory may merge the PR now: `merge`, `pending` (try
     again later), `update`, or `back`/`human` with the reason. A PR that
     changes a path in `globs`, or changes or removes an existing file in
@@ -1173,6 +1271,11 @@ def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=()):
     if not pr["mergeable"]:
         return {"verdict": "update", "why": "The PR conflicts with the default branch."}
     head = verified_head(pr)
+    if head != pr["head"] and merged_only:
+        return {"verdict": "back", "next": "update-branch",
+                "why": f"QA verified {head}, and since then only merges of the default branch "
+                       f"moved the PR to {pr['head']}. `update-branch` checks they needed no "
+                       "judgement and carries QA forward, so no new QA run is needed."}
     if head != pr["head"]:
         return {"verdict": "back", "next": "qa",
                 "why": f"QA verified {head or 'no head'}, but the PR is at {pr['head']}."}
@@ -1862,12 +1965,24 @@ def scan_name(name):
     return name
 
 
+def settle(entry, config):
+    """Put the model and effort for the entry's subagent on it, and for
+    review the settings of its two parts."""
+    if entry["task"] == "merge":
+        return entry
+    entry.update(run_settings(config, entry["task"]))
+    if entry["task"] == "review":
+        entry["parts"] = {p: run_settings(config, p) for p in PARTS}
+    return entry
+
+
 def cmd_queue(gh, config, me, limit, skip, now, only=None, scan=None):
     if scan is not None:
         scan = scan_name(scan)
         _, since = merges_since_scans(gh, config, now)
         entry = {"number": None, "task": scan, "label": None, "since": since[scan],
                  "why": "Asked for with --scan."}
+        settle(entry, config)
         return {"run": [entry], "batch": [entry], "waiting": [], "running": [],
                 "logs": [], "stale": []}
     open_items = {}
@@ -1910,6 +2025,8 @@ def cmd_queue(gh, config, me, limit, skip, now, only=None, scan=None):
         if entry["task"] in SCANS:
             entry["since"] = since.get(entry["task"])
     chosen["logs"] = missing_logs(gh, now)
+    for entry in chosen["run"]:
+        settle(entry, config)
     chosen["batch"] = batch(chosen["run"], config)
     if limit:
         chosen["run"] = chosen["run"][:limit]
@@ -1948,6 +2065,9 @@ def cmd_dispatch(gh, config, me, live, now):
         elif len(start) < capacity:
             start.append({"for": key, "task": entry["task"], "number": entry["number"],
                           "why": entry["why"]})
+    if config.get("session-model"):
+        for entry in start:
+            entry["model"] = config["session-model"]
     return {"start": start, "merges": merges, "capacity": capacity, "live": sorted(live),
             "waiting": chosen["waiting"], "running": chosen["running"],
             "stale": stale, "logs": chosen["logs"]}
@@ -2177,6 +2297,74 @@ def file_human_steps(gh, config, issue, steps, me):
     return created["number"]
 
 
+def guarded_paths(paths, config):
+    """The paths a proposal would change that a human reads before a merge:
+    a path inside a guarded glob, or a folder that holds one."""
+    globs = human_paths(config) + human_edits(config)
+    hit = set(touched(paths, globs))
+    for p in paths:
+        folder = p.rstrip("*").rstrip("/")
+        if folder in ("", ".") or any(g.split("*")[0].startswith(folder + "/") for g in globs):
+            hit.add(p)
+    return sorted(hit)
+
+
+def builds_itself(proposal, config):
+    """Whether a scan's proposal goes straight to `agent:spec`: the autonomy
+    lets the factory take two-way doors, the proposal is one (`door`), small
+    enough (`size` S or M), names the paths it changes, and none of them is a
+    file a human reads before a merge. Everything else waits for a human."""
+    return (autonomy(config) != "supervised"
+            and proposal.get("door") == "two-way"
+            and proposal.get("size") in ("S", "M")
+            and bool(proposal.get("paths"))
+            and not guarded_paths(proposal["paths"], config))
+
+
+def file_proposals(gh, config, result, task, me):
+    """File a scan's proposals and close the ones it found resolved. A
+    proposal the factory may build itself is labelled `agent:spec`; the rest
+    `agent:proposal`, for a human to choose. Returns the numbers by fate."""
+    out = {"started": [], "waiting": [], "closed": []}
+    proposals = result.get("proposals") or []
+    if proposals:
+        mine = re.compile(r"<!--\s*agent:proposal-from\s")
+        open_titles = {i["title"] for i in gh.list(gh.r("issues?state=open"))
+                       if not i.get("pull_request") and mine.search(i.get("body") or "")}
+    for proposal in proposals:
+        if proposal["title"] in open_titles:
+            continue
+        start = builds_itself(proposal, config)
+        meta = []
+        if proposal.get("door") or proposal.get("size"):
+            meta.append(f"**Door:** {proposal.get('door', '?')} · **Size:** {proposal.get('size', '?')}")
+        if proposal.get("paths"):
+            meta.append("**Paths:** " + ", ".join(f"`{p}`" for p in proposal["paths"]))
+        body = proposal["body"].rstrip()
+        if meta:
+            body += "\n\n" + "\n".join(meta)
+        created = gh.call("POST", gh.r("issues"), {
+            "title": proposal["title"],
+            "body": body + f"\n\n<!-- agent:proposal-from {task} -->\n",
+            "labels": [PREFIX + "spec" if start else PROPOSAL]})
+        out["started" if start else "waiting"].append(created["number"])
+        open_titles.add(proposal["title"])
+    for r in result.get("resolved") or []:
+        n = item_id(r["number"])
+        raw = gh.get(gh.r(f"issues/{n}"))
+        # Only an open proposal a scan filed, and nothing a run holds now.
+        if raw.get("state") != "open" or raw.get("pull_request") \
+                or "agent:proposal-from" not in (raw.get("body") or "") \
+                or (raw.get("user") or {}).get("login") != me \
+                or PROPOSAL not in {lb["name"] for lb in raw.get("labels", [])}:
+            continue
+        gh.comment(n, f"The {TITLE[task].lower()} found that this no longer holds: "
+                      f"{r['reason'].strip()}\n")
+        gh.call("PATCH", gh.r(f"issues/{n}"), {"state": "closed", "state_reason": "not_planned"})
+        out["closed"].append(n)
+    return out
+
+
 def cmd_apply(gh, config, me, result, label, repo_dir, now):
     task = result["task"]
     resume = None
@@ -2185,6 +2373,12 @@ def cmd_apply(gh, config, me, result, label, repo_dir, now):
         resume = taken if taken in ("qa", "merge") else None
     n = result.get("item")
     item = gh.item(n) if n else None
+    if task == "update-branch" and resume is None and item:
+        # Merge sent the PR here because only merges of the default branch
+        # moved its head after QA: bring QA forward and go back to merge.
+        runs = markers(item["comments"], "run")
+        if runs and runs[-1]["task"] == "merge" and runs[-1].get("resume") == "merge":
+            resume = "merge"
     issue = pr = None
     if item and item["kind"] == "pr":
         pr = item
@@ -2232,10 +2426,11 @@ def cmd_apply(gh, config, me, result, label, repo_dir, now):
 
     next_n = pr["number"] if decision["label_on"] == "pr" and pr else (issue or {}).get("number")
     steps = file_human_steps(gh, config, issue, result.get("human_steps"), me) if issue else None
+    proposals = file_proposals(gh, config, result, task, me) if task in SCANS else None
     if decision["comment_on"] == "log":
         target_n = gh.log_issue()
         comments = gh.comments(target_n)
-        body = comment_body(decision, result, comments, config, next_n, steps)
+        body = comment_body(decision, result, comments, config, next_n, steps, proposals)
         body = f"<!-- agent:scan kind={task} at={stamp(now)} -->\n" + body
     else:
         target_n = pr["number"] if decision["comment_on"] == "pr" and pr else issue["number"]
@@ -2251,17 +2446,6 @@ def cmd_apply(gh, config, me, result, label, repo_dir, now):
     elif issue and decision["decisions"]:
         fresh = gh.get(gh.r(f"issues/{issue['number']}"))["body"] or ""
         gh.set_body(issue["number"], with_decisions(fresh, decision["decisions"], task, autonomy(config)))
-
-    filed = []
-    for proposal in result.get("proposals") or []:
-        open_titles = {i["title"] for i in gh.list(gh.r(f"issues?state=open&labels={quote(PROPOSAL)}"))}
-        if proposal["title"] in open_titles:
-            continue
-        created = gh.call("POST", gh.r("issues"), {
-            "title": proposal["title"],
-            "body": proposal["body"].rstrip() + f"\n\n<!-- agent:proposal-from {task} -->\n",
-            "labels": [PROPOSAL]})
-        filed.append(created["number"])
 
     tickets = []
     if issue and task == "spec" and result.get("tickets") and decision["wait"] is None:
@@ -2309,8 +2493,113 @@ def cmd_apply(gh, config, me, result, label, repo_dir, now):
             except GitHubError:
                 pass
     return {"comment": url, "next": decision["target"], "wait": decision["wait"],
-            "label": decision["add_label"], "proposals": filed, "tickets": tickets,
+            "label": decision["add_label"],
+            "proposals": (proposals or {}).get("started", []) + (proposals or {}).get("waiting", []),
+            "started": (proposals or {}).get("started", []),
+            "closed": (proposals or {}).get("closed", []), "tickets": tickets,
             "pr": pr["number"] if pr else None}
+
+
+def only_merges(gh, base, head, default):
+    """True when every commit from `base` to `head` is a merge whose first
+    parent is the commit before it and whose second parent is on the default
+    branch: GitHub's «Update branch», or the factory's own update. Anything
+    else, a fix pushed after QA say, is not."""
+    try:
+        commits = gh.get(gh.r(f"compare/{quote(base)}...{quote(head)}")).get("commits") or []
+        if not commits or commits[-1]["sha"] != head:
+            return False
+        before = base
+        for c in commits:
+            parents = [p["sha"] for p in c.get("parents") or []]
+            if len(parents) != 2 or parents[0] != before:
+                return False
+            status = gh.get(gh.r(f"compare/{quote(parents[1])}...{quote(default)}")).get("status")
+            if status not in ("ahead", "identical"):
+                return False
+            before = c["sha"]
+    except GitHubError:
+        return False
+    return True
+
+
+NUMBERED = re.compile(r"^(\d+)[-_]")
+
+
+def numbered_clash(ours, theirs):
+    """Files both sides added in one folder under one number (two ADRs 0012,
+    two migrations 0013): a merge git calls clean that still needs a run to
+    renumber. Returns the clashing pairs."""
+    def key(path):
+        folder, _, name = path.rpartition("/")
+        match = NUMBERED.match(name)
+        return (folder, int(match.group(1))) if match else None
+    seen = {key(f): f for f in theirs if key(f)}
+    return sorted((f, seen[key(f)]) for f in ours if key(f) in seen)
+
+
+def cmd_update(gh, config, me, n, now, label, resume):
+    """Bring a PR that is only behind the default branch up to date without a
+    run: GitHub merges the default branch in, the factory records a clean
+    `update-branch` at the new head, so QA's verdict carries forward, and the
+    label goes back for `resume`. Returns `agent: true` when a run must do it:
+    a conflict, a numbered file both sides added, or GitHub refusing."""
+    if not gh.remove_label(n, label):
+        return {"updated": False, "why": f"Another run took {label} first."}
+    gh.add_labels(n, [IN_PROGRESS])
+    try:
+        return update_now(gh, config, me, n, now, resume)
+    finally:
+        gh.remove_label(n, IN_PROGRESS)
+        gh.add_labels(n, [label])
+
+
+def update_now(gh, config, me, n, now, resume, wait=2, tries=10):
+    if getattr(gh, "kind", "github") == "local":
+        return {"updated": False, "agent": True, "why": "A local tracker updates in a run."}
+    pr = gh.item(n)
+    if not pr.get("mergeable"):
+        return {"updated": False, "agent": True,
+                "why": "The PR conflicts with the default branch, or GitHub can't tell yet."}
+    default = gh.default_branch()
+    ours = [f["filename"] for f in gh.list(gh.r(f"pulls/{n}/files")) if f.get("status") == "added"]
+    compare = gh.get(gh.r(f"compare/{quote(pr['head'])}...{quote(default)}"))
+    theirs = [f["filename"] for f in compare.get("files") or [] if f.get("status") == "added"]
+    clash = numbered_clash(ours, theirs)
+    if clash:
+        return {"updated": False, "agent": True,
+                "why": "Both sides added a numbered file: "
+                       + ", ".join(f"`{a}` and `{b}`" for a, b in clash) + "."}
+    try:
+        gh.call("PUT", gh.r(f"pulls/{n}/update-branch"), {"expected_head_sha": pr["head"]})
+    except GitHubError as error:
+        return {"updated": False, "agent": True, "why": f"GitHub refused the update: {error}"}
+    head = pr["head"]
+    for _ in range(tries):
+        head = gh.get(gh.r(f"pulls/{n}"))["head"]["sha"]
+        if head != pr["head"]:
+            break
+        if wait:
+            import time
+            time.sleep(wait)
+    if head != pr["head"] and not only_merges(gh, pr["head"], head, default):
+        # Something besides GitHub's merge landed while it ran (a push in the
+        # window): nobody verified it, so a run must look.
+        return {"updated": False, "agent": True,
+                "why": f"The head moved to {head}, and not only by GitHub's merge."}
+    if head == pr["head"]:
+        # GitHub merges in the background. The next merge sees that only a
+        # merge moved the head, and a cheap update-branch run carries QA on.
+        return {"updated": True, "pending": True,
+                "why": "GitHub is still merging; the head has not moved yet."}
+    gh.comment(n, f"<!-- agent:run task=update-branch outcome=forward next={resume} tokens=0"
+                  f" at={stamp(now)} head={head} clean=1 resume={resume} -->\n"
+                  f"## Update branch · by the conductor\n\nGitHub merged `{default}` into the "
+                  f"branch at `{head}` without a conflict, and no numbered file clashed, so no run "
+                  "was needed. CI checks the new head before the merge.\n"
+                  + handoff({"task": "update-branch", "wait": None, "target": resume}, config, n)
+                  + "\n")
+    return {"updated": True, "head": head}
 
 
 def cmd_merge(gh, config, me, n, now, label=PREFIX + "merge"):
@@ -2330,7 +2619,8 @@ def merge_now(gh, config, me, n, now):
 
     def stop(why, label, outcome="blocked", nxt=None, reason="blocked"):
         marker = (f"<!-- agent:run task=merge outcome={outcome} next={nxt or 'human'}"
-                  f" tokens=0 at={stamp(now)} -->")
+                  f" tokens=0 at={stamp(now)}"
+                  + (" resume=merge" if nxt == "update-branch" else "") + " -->")
         if not nxt:
             marker += f"\n<!-- agent:wait reason={reason} resume=merge at={stamp(now)} -->"
         wait = None if nxt else {"resume": "merge"}
@@ -2361,8 +2651,11 @@ def merge_now(gh, config, me, n, now):
     # A rename counts as a change to the old path too.
     edited = [f["filename"] for f in changed if f.get("status", "modified") != "added"] \
         + [f["previous_filename"] for f in changed if f.get("previous_filename")]
+    verified = verified_head(pr)
+    merged_only = bool(verified) and verified != pr["head"] and pr.get("mergeable") \
+        and only_merges(gh, verified, pr["head"], gh.default_branch())
     verdict = merge_verdict(pr, state, me, files, human_paths(config),
-                            edited, human_edits(config))
+                            edited, human_edits(config), merged_only)
     if verdict["verdict"] == "pending":
         gh.add_labels(n, [PREFIX + "merge"])
         return {"merged": False, "pending": True, "why": verdict["why"]}
@@ -2515,6 +2808,12 @@ def main():
     m.add_argument("number", type=item_id)
     m.add_argument("--me", required=True)
     m.add_argument("--label", default=PREFIX + "merge")
+    u = sub.add_parser("update")
+    u.add_argument("repo")
+    u.add_argument("number", type=item_id)
+    u.add_argument("--me", required=True)
+    u.add_argument("--label", required=True)
+    u.add_argument("--resume", required=True, choices=["qa", "merge"])
     r = sub.add_parser("release")
     r.add_argument("repo")
     r.add_argument("number", type=item_id)
@@ -2555,6 +2854,8 @@ def main():
             return
         if args.command == "config":
             task_list(config, "serial")
+            per_task(config, "models", MODELS)
+            per_task(config, "effort", EFFORTS)
             out({**config, "tracker": tracker(config), "entry": ENTRY,
                  "autonomy": autonomy(config), "merge": merge_policy(config),
                  "human-paths": human_paths(config),
@@ -2600,6 +2901,8 @@ def main():
             out(cmd_apply(gh, config, args.me, result, args.label, args.repo_dir, now))
         elif args.command == "merge":
             out(cmd_merge(gh, config, args.me, args.number, now, args.label))
+        elif args.command == "update":
+            out(cmd_update(gh, config, args.me, args.number, now, args.label, args.resume))
         elif args.command == "release":
             out(cmd_release(gh, args.number, args.me))
         elif args.command == "log":

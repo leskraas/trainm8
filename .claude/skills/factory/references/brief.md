@@ -115,7 +115,7 @@ The fields a task adds:
 
 | Field | Shape | Who |
 |---|---|---|
-| `decisions` | list of decisions, as [questions.md](questions.md) says | any task that settled a question |
+| `decisions` | list of decisions, as [questions.md](questions.md) says; `criterion: <n>` on one that changes what acceptance criterion `n` asks | any task that settled a question |
 | `questions` | `[{question, recommended, reason}]` | a blocked run |
 | `body` | the whole new issue body | spec |
 | `plan` | the tasks after spec: any of `design`, `architecture` | spec |
@@ -129,8 +129,20 @@ The fields a task adds:
 | `inline` | `[{path, line, body}]` on lines of the PR's diff | review |
 | `evidence` | the evidence folder, when you put files there | any |
 | `duplicate_of` | the oldest issue this one duplicates | explore |
-| `proposals` | `[{title, body}]`, at most three | scans |
+| `proposals` | `[{title, body, door, size, paths}]`, at most three, beside the ADR drift | scans |
+| `resolved` | `[{number, reason}]`: open proposals a scan filed that no longer hold or are done | scans |
 | `human_steps` | `["one step per line"]`: what only a human can do outside the repo (a cloud console, DNS, a secret), for what you built and left switched off | any |
+
+A proposal's `door` (`one-way` or `two-way`), `size` (`S`, `M` or `L`) and
+`paths` (the files or folders the change would touch) decide its fate. Under
+`doors` or `full`, a two-way door of size S or M whose paths miss every
+`human-paths` and `human-edits` glob is filed as `agent:spec`, and the
+factory builds it. Anything else, or a proposal without the three, is filed
+as `agent:proposal` and waits for a human to choose it.
+
+A decision with `criterion` sends the issue back to spec from implement,
+review or architecture, whatever `outcome` the task returned: spec rewrites
+the criterion, so QA judges what was decided.
 
 In `comment`, link a file from the evidence folder as `evidence:<file name>`;
 `apply` publishes the folder and puts each file's URL in place of its link.

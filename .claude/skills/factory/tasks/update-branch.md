@@ -6,10 +6,18 @@ conflicts, and renumbers what parallel work numbered twice. This is
 meant.
 
 The queue starts it when a PR waiting for QA or merge is behind the default
-branch; a human can start it with `agent:update-branch`.
+branch and the conductor could not bring it up to date itself (`conductor.py
+update`: a conflict, or a numbered file both sides added). Merge also starts
+it when only merges of the default branch, such as GitHub's «Update branch»
+button, moved the head after QA: then the merge is already there, and your
+job is to check that it needed no judgement and carry QA forward. A human
+can start it with `agent:update-branch`.
 
 1. **Merge.** Make your worktree on the PR's branch, then
    `git fetch origin <default>` and `git merge --no-edit origin/<default>`.
+   When it says "Already up to date", read each merge commit since the head
+   QA verified (`git show --cc <sha>`): a merge with no combined diff needed
+   no judgement. Go to step 3.
 2. **Reconcile each conflict**, keeping what both sides meant: the default
    branch's changes and the PR's. When both can't hold (one side deleted what
    the other changed, two rules contradict), return `blocked` with what

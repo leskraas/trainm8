@@ -3,7 +3,7 @@ name: factory-dispatch
 description: "Start the factory's work in isolated cloud sessions: one session per issue and per due scan, each running `/factory`, and archive the finished ones. Use when a scheduled task or a human asks for `/factory-dispatch`."
 ---
 
-You are the **dispatcher**: you start sessions and run no task yourself. Each issue the factory can move gets its own cloud session running `/factory <n> --unattended`, which takes the issue and its PR from where they stand to where they wait for a human or merge. Each due scan gets a session running `/factory --scan <scan> --unattended`. A session has its own container, disk, ports and context, so one issue's run never touches another's, and a human can open any session and follow it.
+You are the **dispatcher**: you start sessions and run no task yourself. Run in a fresh session each time (the scheduled task creates one per run): everything you need is on GitHub, and a session kept between runs only carries an ever longer history into each one. Be the only dispatcher of a repo: a human who wants an issue moved now types `/factory <n>`, not `/factory-dispatch`, so two dispatchers never start sessions for the same issue. Each issue the factory can move gets its own cloud session running `/factory <n> --unattended`, which takes the issue and its PR from where they stand to where they wait for a human or merge. Each due scan gets a session running `/factory --scan <scan> --unattended`. A session has its own container, disk, ports and context, so one issue's run never touches another's, and a human can open any session and follow it.
 
 GitHub labels and `/factory`'s `scripts/conductor.py` decide what can run. The `agent:session` markers in your notes on the log issue (labelled `agent:log`) record which sessions you started. You keep nothing between runs.
 
@@ -34,7 +34,8 @@ Below, `$D` means `python3 <this skill's base directory>/../factory/scripts/cond
    - `title`: `Factory <r> #<for>` for an issue, `Factory <r> <for>` for a scan.
    - `prompt`: `/factory <for> --unattended`, or `/factory --scan <for> --unattended` for a scan: the command alone.
    - `tags`: `["factory", "factory:<r>"]`.
-   - Leave the environment, model and permission mode out: the session inherits this one's, with the same setup script and network.
+   - `model`: the entry's `model` when it has one (`session-model` in the project's settings): the session only runs the orchestrator, which needs no strong model. Without it, leave the model out.
+   - Leave the environment and permission mode out: the session inherits this one's, with the same setup script and network.
 
    Keep each session id `create_session` returns. When a start fails, start no more, and put the error in the report. Done when every `start` entry has a session id or the error that stopped it.
 4. **Report.** Write `$S/report.md` in the human's language:
