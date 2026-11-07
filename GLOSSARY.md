@@ -2347,7 +2347,9 @@ batch.
 
 **Model-Client Seam**: The one boundary a generated season comes through — a
 request type, the typed payload, and a function between them (`SeasonGenerator`,
-ADR 0016 §2, carried forward by ADR 0053 §1). The review surface, the approval
+ADR 0016 §2, carried forward by ADR 0053 §1). A second function places chosen
+weeks of a stored plan, which is how a generated plan's weeks are laid again by
+the implementation that made it (ADR 0113). The review surface, the approval
 step and the provenance rendering are written against the **payload**, so the
 thing producing it can be replaced without any of the three changing. **Not an
 inert seam**: it shipped with its implementation rather than as an interface
