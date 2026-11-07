@@ -167,10 +167,22 @@ export async function readPlanStartAnswers(
 	// and the plan has a strength track to lift on.
 	const strengthTrack = live.find((track) => track.discipline === 'strength')
 	const lifts = profile?.strengthPerWeek != null && strengthTrack != null
+	// The main sport first: the track carrying the most hard sessions in the
+	// phase a change begins in, as the start lays the family's mix on the
+	// main sport only; the stored order breaks ties.
+	const phaseIndex = (
+		season.weeks.find((week) => week.weekKey >= fromWeekKey) ??
+		season.weeks.at(-1)
+	)?.phaseIndex
+	const hardOf = (track: PlanStartSeason['tracks'][number]) =>
+		(
+			track.segments.find((segment) => segment.phaseIndex === phaseIndex)
+				?.mix ?? []
+		).reduce((sum, entry) => sum + entry.sessionsPerWeek, 0)
 	const answers = planStartAnswers({
 		level: stored.level,
 		preferences: stored.preferences,
-		tracks: season.tracks,
+		tracks: [...season.tracks].sort((a, b) => hardOf(b) - hardOf(a)),
 		weeks: season.weeks,
 		fromWeekKey,
 		days: parseTrainableWeekdays(profile?.trainableWeekdays ?? null)

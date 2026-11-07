@@ -31,6 +31,7 @@ import { type EffortWord } from '../effort-word.ts'
 import { openEndedRoundName } from '../labels.ts'
 import { type PlacedSession } from '../plan-outline/day-rule.ts'
 import {
+	DEFAULT_DELOAD_WEEKS,
 	type StrengthGoal,
 	type VolumeCurrency,
 } from '../plan-outline/derive.ts'
@@ -176,8 +177,13 @@ export type TrackChange = {
 
 /** What the edit does to the dated strength blocks (ADR 0109 §3). */
 export type StrengthBlockEdit = {
-	/** Blocks that run past the boundary, cut to the weeks before it. */
-	cut: Array<{ segmentId: string; weeks: number }>
+	/**
+	 * Blocks that run past the boundary, cut to the weeks before it. Their
+	 * deload weeks are the lived weeks that were in the block's deload tail,
+	 * so a lived week keeps the role it had: a deload tail is the block's last
+	 * weeks, and cutting a block would otherwise move it onto them.
+	 */
+	cut: Array<{ segmentId: string; weeks: number; deloadWeeks: number }>
 	/** Blocks that open on or after the boundary, which go. */
 	remove: string[]
 	/** The block the edit opens at the boundary, where it lifts. */
@@ -338,7 +344,16 @@ export function spliceActivitiesEdit({
 		const opens = weekIndexOf(outline.startWeekKey, block.startWeekKey!)
 		if (opens >= boundary) strengthEdit.remove.push(block.id)
 		else if (opens + block.weeks! > boundary) {
-			strengthEdit.cut.push({ segmentId: block.id, weeks: boundary - opens })
+			const weeks = boundary - opens
+			const tail = Math.min(
+				Math.max(block.deloadWeeks ?? DEFAULT_DELOAD_WEEKS, 0),
+				block.weeks!,
+			)
+			strengthEdit.cut.push({
+				segmentId: block.id,
+				weeks,
+				deloadWeeks: Math.max(0, weeks - (block.weeks! - tail)),
+			})
 			cutGoal = block.goal
 		}
 	}
@@ -427,7 +442,7 @@ export function spliceActivitiesEdit({
 	const storedTracks: TrackRow[] = outline.tracks.map((track) => {
 		const change = changeOf(track.id)
 		const cutWeeks = new Map(
-			strengthEdit.cut.map((one) => [one.segmentId, one.weeks]),
+			strengthEdit.cut.map((one) => [one.segmentId, one]),
 		)
 		return {
 			id: track.id,
@@ -444,7 +459,11 @@ export function spliceActivitiesEdit({
 								.filter((segment) => !strengthEdit.remove.includes(segment.id))
 								.map((segment) =>
 									cutWeeks.has(segment.id)
-										? { ...segment, weeks: cutWeeks.get(segment.id)! }
+										? {
+												...segment,
+												weeks: cutWeeks.get(segment.id)!.weeks,
+												deloadWeeks: cutWeeks.get(segment.id)!.deloadWeeks,
+											}
 										: segment,
 								),
 							...(change?.kind === 'keep' ? openBlock(track.id) : []),
@@ -679,7 +698,7 @@ export function previewActivitiesEdit({
 	held,
 	keptSlots,
 	kept,
-	keptFromBoundary,
+	keptAhead,
 	liftingDays,
 }: {
 	outline: ActivitiesEditOutline
@@ -695,7 +714,11 @@ export function previewActivitiesEdit({
 	keptSlots: ReadonlyMap<string, number>
 	/** Every session of the athlete's kept in the boundary week. */
 	kept: readonly KeptSession[]
-	keptFromBoundary: { count: number; onRemoved: number }
+	/**
+	 * The Discipline of each of the athlete's own and adopted sessions from
+	 * the boundary on: they all stay where they are (ADR 0100 §3).
+	 */
+	keptAhead: readonly string[]
 	liftingDays: readonly PatternWeekday[] | undefined
 }): ActivitiesEditPreview {
 	const option = start.options[0]!
@@ -750,6 +773,11 @@ export function previewActivitiesEdit({
 	const removed = splice.tracks
 		.filter((change) => change.kind === 'retire')
 		.map((change) => change.discipline)
+	const keptFromBoundary = {
+		count: keptAhead.length,
+		onRemoved: keptAhead.filter((discipline) => removed.includes(discipline))
+			.length,
+	}
 	return {
 		choice,
 		family,

@@ -303,7 +303,8 @@ describe('the splice', () => {
 			strength: { lifts: 3, setsPerSession: 9, goal: 'hypertrophy' },
 		})
 		expect(kept.strength).toEqual({
-			cut: [{ segmentId: 'block', weeks: 6 }],
+			// Its deload week was its eighth, after the boundary: none lived.
+			cut: [{ segmentId: 'block', weeks: 6, deloadWeeks: 0 }],
 			remove: [],
 			open: {
 				startWeekKey: BOUNDARY,
@@ -394,7 +395,7 @@ describe('kept sessions', () => {
 			liftingSession: null,
 			held: [],
 			keptSlots: new Map<string, number>(),
-			keptFromBoundary: { count: 1, onRemoved: 1 },
+			keptAhead: ['bike'],
 			liftingDays: answers.days,
 		}
 		const kept = {
@@ -410,6 +411,7 @@ describe('kept sessions', () => {
 		expect(preview.keptMinutes).toBe(90)
 		expect(preview.plannedMinutes).toBe(preview.week.minutes - 90)
 		expect(preview.removed).toEqual(['bike'])
+		expect(preview.keptFromBoundary).toEqual({ count: 1, onRemoved: 1 })
 		expect(
 			preview.week.days[2]!.sessions.find((session) => session.kept),
 		).toMatchObject({ title: 'Fellestur', minutes: 90 })

@@ -528,6 +528,11 @@ export async function readHeldSessions(
 	planOutlineId: string,
 	weekKey: string,
 	timezone: string,
+	/**
+	 * The athlete's thresholds, where the caller read them already: inside a
+	 * transaction, which holds the one connection, they cannot be read here.
+	 */
+	known?: DisciplineThresholdMap,
 ): Promise<PlacedSession[]> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
 	const [rows, thresholds] = await Promise.all([
@@ -545,7 +550,7 @@ export async function readHeldSessions(
 			select: { scheduledAt: true, workout: sessionWorkoutSelect },
 		}),
 		// What an absolute pace, watts or bpm is read by (#617).
-		getDisciplineThresholds(userId),
+		known ?? getDisciplineThresholds(userId),
 	])
 	return rows.flatMap((row) => {
 		const shape = readPlacement(row.workout, thresholds)

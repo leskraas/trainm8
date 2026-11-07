@@ -2608,7 +2608,7 @@ export async function addWeekPattern(
 }
 
 /** What a starter week is called when the app proposes one. Free text after that. */
-const STARTER_PATTERN_NAME = 'Typical week'
+export const STARTER_PATTERN_NAME = 'Typical week'
 
 export type StarterPatternResult =
 	| { ok: true; proposal: StarterProposal }
