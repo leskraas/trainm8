@@ -965,7 +965,13 @@ function WeekSession({
 				<SessionMark status={session.status} markRef={check} />
 			</Link>
 			{offerDone || undoable ? (
-				<div className="-mt-2 flex flex-wrap items-center gap-x-4 pr-4 pb-1 pl-[4.75rem] @max-[17rem]:pl-4">
+				<div
+					className={cn(
+						'-mt-2 flex flex-wrap items-center gap-x-4 pr-4 pb-1 pl-[4.75rem]',
+						// Under the gutter while the row is side by side; flush once it stacks.
+						withWeather ? '@max-[20rem]:pl-4' : '@max-[17rem]:pl-4',
+					)}
+				>
 					{undoable ? (
 						<button
 							type="button"
@@ -1034,7 +1040,7 @@ function SessionMark({
 				ref={markRef}
 				data-calm-mark="done"
 				aria-hidden
-				className="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full justify-self-center"
+				className="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full"
 			>
 				<Icon name="check" size="xs" />
 			</span>
@@ -1045,7 +1051,7 @@ function SessionMark({
 			<span
 				data-calm-mark="missed"
 				aria-hidden
-				className="text-footnote text-status-missed italic justify-self-center"
+				className="text-footnote text-status-missed justify-self-center italic"
 			>
 				{L.missed}
 			</span>
@@ -1055,7 +1061,7 @@ function SessionMark({
 		<span
 			data-calm-mark="planned"
 			aria-hidden
-			className="border-border size-6 rounded-full border-2 justify-self-center"
+			className="border-border size-6 justify-self-center rounded-full border-2"
 		/>
 	)
 }

@@ -6,6 +6,14 @@
 
 export type GeoPoint = { latitude: number; longitude: number }
 
+/** A Home Place as stored and shown: Kartverket's names and a rounded point. */
+export type HomePlace = GeoPoint & {
+	name: string
+	kind: string
+	municipality: string
+	county: string
+}
+
 /** About a kilometre: what is stored and what MET is asked about, nothing finer. */
 export const HOME_PLACE_DECIMALS = 2
 

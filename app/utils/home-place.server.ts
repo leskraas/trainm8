@@ -6,16 +6,13 @@
  */
 import { z } from 'zod/v3'
 import { prisma } from './db.server.ts'
-import { isInHomePlaceArea, roundedPoint } from './home-place.ts'
+import {
+	type HomePlace,
+	isInHomePlaceArea,
+	roundedPoint,
+} from './home-place.ts'
 
-export type HomePlace = {
-	name: string
-	kind: string
-	municipality: string
-	county: string
-	latitude: number
-	longitude: number
-}
+export { type HomePlace }
 
 const text = z.string().trim().min(1).max(120)
 

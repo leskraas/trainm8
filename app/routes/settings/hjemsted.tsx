@@ -38,8 +38,8 @@ import { cn } from '#app/utils/misc.tsx'
 import {
 	PLACE_SEARCH_MAX_LENGTH,
 	type PlaceMatch,
-	searchPlaces,
-} from '#app/utils/place-search/search.server.ts'
+} from '#app/utils/place-search/place-match.ts'
+import { searchPlaces } from '#app/utils/place-search/search.server.ts'
 import { type Route } from './+types/hjemsted.ts'
 import { MegNote } from './__meg-ui.tsx'
 

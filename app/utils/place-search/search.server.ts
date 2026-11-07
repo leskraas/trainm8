@@ -10,9 +10,15 @@
  * is not in a URL the access log writes down).
  */
 import { z } from 'zod/v4'
-import { type HomePlace } from '#app/utils/home-place.server.ts'
 import { isInHomePlaceArea } from '#app/utils/home-place.ts'
 import { OUTBOUND_USER_AGENT } from '#app/utils/outbound-user-agent.ts'
+import {
+	PLACE_SEARCH_MAX_LENGTH,
+	type PlaceMatch,
+	type PlaceSearchResult,
+} from './place-match.ts'
+
+export { PLACE_SEARCH_MAX_LENGTH, type PlaceMatch, type PlaceSearchResult }
 
 export const PLACE_SEARCH_URL = 'https://ws.geonorge.no/stedsnavn/v1/navn'
 
@@ -20,19 +26,6 @@ export const PLACE_SEARCH_URL = 'https://ws.geonorge.no/stedsnavn/v1/navn'
 export const PLACE_SEARCH_TIMEOUT_MS = 4_000
 /** The most matches the list shows. */
 export const PLACE_SEARCH_LIMIT = 8
-/** Search text is a place name, not a paragraph. */
-export const PLACE_SEARCH_MAX_LENGTH = 80
-
-/** A match, in the shape a Home Place is stored in. */
-export type PlaceMatch = HomePlace & {
-	/** Kartverket's `stedsnummer`: the match's key in the list. */
-	id: string
-}
-
-export type PlaceSearchResult =
-	| { status: 'found'; places: PlaceMatch[] }
-	| { status: 'unavailable' }
-
 const KartverketSchema = z.object({
 	navn: z.array(
 		z.object({
