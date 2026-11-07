@@ -40,9 +40,10 @@ schedule: none
 - **Capacity**: the Team premium row. Runs are started by hand (`/factory`),
   typically on days set aside to spend the week's remaining quota, so the full
   row applies rather than the halved one for coding alongside.
-- **`serial: qa, design-scan`**: the dev server listens on port 3000 and the
-  local SQLite database (`prisma/data.db`) is shared, so only one QA run or
-  design scan drives the app at a time.
+- **`serial: qa, design-scan`**: QA's instance runs beside a dev server on its
+  own port and database ([`verify/`](verify/README.md#isolate)), but every run
+  shares the same defaults (`PORT=3100`, `/tmp/trainm8-verify`), so only one QA
+  run or design scan drives the app at a time.
 - **`human-paths`**: CI (`.github/`), the agents' own rules (`CLAUDE.md`,
   `.claude/`), and deploy infrastructure (`fly.toml`, `other/` with the
   Dockerfile and LiteFS config). A PR touching these waits for a human at the
