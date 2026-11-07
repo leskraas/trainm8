@@ -1,10 +1,6 @@
 import path from 'node:path'
 import { ESLint } from 'eslint'
 import { expect, test } from 'vitest'
-import {
-	NATIVE_SELECT_RESTRICTION,
-	USER_DELETE_RESTRICTIONS,
-} from '../../eslint.config.js'
 
 /**
  * The `no-restricted-syntax` restrictions in `eslint.config.js` share one rule,
@@ -48,8 +44,8 @@ async function restrictions(code: string, filePath: string) {
 		.map((m) => m.message)
 }
 
-const deleteAccountMessage = USER_DELETE_RESTRICTIONS[0]!.message
-const selectMessage = NATIVE_SELECT_RESTRICTION.message
+const deleteAccountMessage = expect.stringContaining('deleteAccount')
+const selectMessage = expect.stringContaining('Native <select>')
 
 test('a direct user delete outside Account Erasure fails lint, naming deleteAccount', async () => {
 	const messages = await restrictions(USER_DELETE, UTILS_FILE)
@@ -60,7 +56,6 @@ test('a direct user delete outside Account Erasure fails lint, naming deleteAcco
 		deleteAccountMessage,
 		deleteAccountMessage,
 	])
-	expect(messages[0]).toContain('deleteAccount')
 	expect(messages[0]).toContain('Orphaned Workouts')
 	expect(await restrictions(USER_DELETE, SERVER_FILE)).toHaveLength(3)
 })

@@ -14,7 +14,7 @@ import { default as defaultConfig } from '@epic-web/config/eslint'
 // admin/marketing/seo are out of this effort's scope (see #277's Out of
 // scope). An AST selector (not text match) so it ignores `<Select>` and
 // mentions of `<select>` in comments.
-export const NATIVE_SELECT_RESTRICTION = {
+const NATIVE_SELECT_RESTRICTION = {
 	selector: "JSXOpeningElement[name.name='select']",
 	message:
 		'Native <select> is a mobile-first UI violation (docs/design/ui-conventions.md §2.4). Use SelectField (Conform-bound) or the shared Base UI <Select> primitive so the trigger renders labels.ts values at a 44px touch target with 16px phone fonts.',
@@ -36,7 +36,7 @@ const USER_DELETE_MESSAGE =
 const DELETE_KEY = '/^(delete|deleteMany)$/'
 const PRISMA_CLIENT = '/^(prisma|tx|db|client)$/'
 const RAW_USER_DELETE = '/DELETE\\s+FROM\\s+\\W?User\\W?(\\s|;|$)/i'
-export const USER_DELETE_RESTRICTIONS = [
+const USER_DELETE_RESTRICTIONS = [
 	{
 		selector: `MemberExpression:matches([property.name=${DELETE_KEY}], [property.value=${DELETE_KEY}]):matches([object.property.name='user'], [object.property.value='user'])`,
 		message: USER_DELETE_MESSAGE,
