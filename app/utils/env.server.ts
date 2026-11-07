@@ -21,6 +21,16 @@ const schema = z.object({
 	// `userId:token[:scope+scope]`, comma-separated. Development and test
 	// only: production refuses to boot with one set (#639 H6).
 	MCP_DEV_TOKENS: z.string().optional(),
+	// Better Auth (ADR 0094, ADR 0113). It runs dark until the login cutover:
+	// production never constructs it, so both stay optional until then, and the
+	// cutover makes them required in production (#554, ticket 4).
+	// The app's own origin, e.g. `https://trainm8.no`. It feeds Better Auth's
+	// `baseURL`, its trusted origins and the passkey RP ID, and the `/api/auth`
+	// route refuses any other `Origin`. Never read from the request.
+	APP_ORIGIN: z.string().url().optional(),
+	// Signs Better Auth's cookies and tokens. Its own secret, at least 32
+	// characters; never SESSION_SECRET.
+	BETTER_AUTH_SECRET: z.string().min(32).optional(),
 	// If you plan on using Sentry, remove the .optional()
 	SENTRY_DSN: z.string().optional(),
 	// If you plan to use Resend, remove the .optional()
