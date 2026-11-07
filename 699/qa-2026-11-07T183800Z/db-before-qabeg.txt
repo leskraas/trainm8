@@ -1,0 +1,15 @@
+outline ('cmw6qpwh300047di0esqzlque', '2026-11-09', 'big-base')
+track ('bike', 'hours', None, '2026-11-09=2.5')
+track ('run', 'hours', None, '2026-11-09=2.5')
+track ('strength', 'sets', None, '2026-11-09=30.0')
+overrides []
+strengthPerWeek (2,)
+sessions 8
+   ('2026-11-09', 'strength', 'generated', 'scheduled')
+   ('2026-11-11', 'bike', 'generated', 'scheduled')
+   ('2026-11-13', 'strength', 'generated', 'scheduled')
+   ('2026-11-15', 'run', 'generated', 'scheduled')
+   ('2026-11-16', 'strength', 'generated', 'scheduled')
+   ('2026-11-18', 'bike', 'generated', 'scheduled')
+   ('2026-11-20', 'strength', 'generated', 'scheduled')
+   ('2026-11-22', 'run', 'generated', 'scheduled')

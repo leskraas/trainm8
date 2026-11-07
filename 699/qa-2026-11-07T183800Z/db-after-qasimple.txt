@@ -1,0 +1,14 @@
+outline ('cmw6qpwqp004o7di0rtphlqhj', '2026-11-09', 'polarized')
+track ('other', 'hours', None, '2026-11-09=0.0')
+track ('run', 'hours', None, '2026-11-09=4.0')
+overrides []
+strengthPerWeek (None,)
+sessions 8
+   ('2026-11-09', 'run', 'generated', 'scheduled')
+   ('2026-11-11', 'run', 'generated', 'scheduled')
+   ('2026-11-13', 'run', 'generated', 'scheduled')
+   ('2026-11-15', 'run', 'generated', 'scheduled')
+   ('2026-11-16', 'run', 'generated', 'scheduled')
+   ('2026-11-18', 'run', 'generated', 'scheduled')
+   ('2026-11-20', 'run', 'generated', 'scheduled')
+   ('2026-11-22', 'run', 'generated', 'scheduled')

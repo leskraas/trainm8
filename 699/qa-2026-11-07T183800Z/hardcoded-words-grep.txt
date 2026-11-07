@@ -1,0 +1,2 @@
+app/routes/settings/__activities-edit.server.ts:72:			/** `Timene og dagene blir som før: …`. */
+--- (above: Norwegian-looking literals in the new UI/server files)

@@ -1,0 +1,27 @@
+ ✓ app/utils/first-run/activities-edit.test.ts > the boundary week is laid from the rows the apply stores > with nothing kept it is the draft’s week 1, for a plan cut mid-round 22ms
+ ✓ app/utils/first-run/activities-edit.test.ts > the boundary week is laid from the rows the apply stores > lived weeks keep their targets; from the boundary every track is on the draft’s hours 6ms
+ ✓ app/utils/first-run/activities-edit.test.ts > the splice > a removed sport is retired, an added one made, the round restarted, and lived rows left alone 6ms
+ ✓ app/utils/first-run/activities-edit.test.ts > the splice > a retired sport taken up again reuses its track and is laid from the boundary 10ms
+ ✓ app/utils/first-run/activities-edit.test.ts > the splice > strength: a block cut at the boundary and one opened there; removed, the track retires 8ms
+ ✓ app/utils/first-run/activities-edit.test.ts > kept sessions > a kept lift fills a lifting slot, so no second lift is laid; the athlete’s hard session is laid around 10ms
+ ✓ app/utils/first-run/activities-edit.test.ts > kept sessions > the preview counts the athlete’s minutes apart and fingerprints the week 6ms
+ ✓ app/utils/first-run/activities-edit.test.ts > the choice > the plan’s activities now, the main sport first 2ms
+ ✓ app/utils/first-run/activities-edit.test.ts > the choice > the same activities, none, or strength alone are refused 2ms
+ ✓ app/utils/first-run/plan-start-options.test.ts > the hours are the next hard week’s, not an easy week’s, from the week a switch begins 6ms
+ ✓ app/utils/first-run/plan-start-options.test.ts > a Simple Activity’s time is in the hours, as it is in the start 3ms
+ ✓ app/utils/first-run/plan-start-options.test.ts > days never said are the days the plan lays on, and an unsaid level is a mosjonist 2ms
+ ✓ app/utils/first-run/plan-start-options.test.ts > a plan that only lifts has no options to show 2ms
+ ✓ app/utils/first-run/plan-start-options.test.ts > a retired track is not one of the plan’s activities: its sport is never laid again 4ms
+ ✓ app/utils/first-run/activities-edit.server.test.ts > made = shown: the boundary week laid is the week previewed, around an adopted lift and an authored hard session 902ms
+ ✓ app/routes/settings/level.route.test.ts > an athlete from before the start has no level, no preferences and, with no plan, no activities 154ms
+ ✓ app/utils/first-run/activities-edit.server.test.ts > lived weeks keep their targets and totals; from the boundary the plan lays the new activities 594ms
+ ✓ app/routes/settings/level.route.test.ts > Meg shows the level and preferences kept, and the activities the plan has tracks for 201ms
+ ✓ app/routes/settings/level.route.test.ts > the level and preferences change in Meg, and none is a choice too 165ms
+ ✓ app/routes/settings/level.route.test.ts > a level that does not exist is refused, and nothing is stored 129ms
+ ✓ app/utils/first-run/activities-edit.server.test.ts > a confirm whose boundary week changed since the preview writes nothing, and says the preview is stale 494ms
+ ✓ app/utils/first-run/activities-edit.server.test.ts > a removed sport is never laid again by Bytt treningsform, and removing strength clears the frequency 773ms
+ ✓ app/routes/settings/level.route.test.ts > a plan the start made is edited in place: pre-filled, previewed, refused when unchanged, and laid on Bekreft 1060ms
+ ✓ app/utils/first-run/activities-edit.server.test.ts > the same activities, or none, write nothing; a plan toward an Event is not edited here 478ms
+ ✓ app/routes/settings/level.route.test.ts > a confirm posted without the preview it confirms writes nothing 388ms
+ Test Files  4 passed (4)
+      Tests  25 passed (25)

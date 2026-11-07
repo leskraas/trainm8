@@ -1,0 +1,39 @@
+app/utils/first-run/activities-edit.server.test.ts:180:test('made = shown: the boundary week laid is the week previewed, around an adopted lift and an authored hard session', async () => {
+app/utils/first-run/activities-edit.server.test.ts:194:	const preview = await readActivitiesEdit(userId, SWIM_AND_YOGA, NOW)
+app/utils/first-run/activities-edit.server.test.ts:209:	const applied = await applyActivitiesEdit(userId, SWIM_AND_YOGA, NOW, {
+app/utils/first-run/activities-edit.server.test.ts:257:test('lived weeks keep their targets and totals; from the boundary the plan lays the new activities', async () => {
+app/utils/first-run/activities-edit.server.test.ts:260:	const applied = await applyActivitiesEdit(userId, SWIM_AND_YOGA, NOW)
+app/utils/first-run/activities-edit.server.test.ts:288:test('a confirm whose boundary week changed since the preview writes nothing, and says the preview is stale', async () => {
+app/utils/first-run/activities-edit.server.test.ts:291:	const preview = await readActivitiesEdit(userId, SWIM_AND_YOGA, NOW)
+app/utils/first-run/activities-edit.server.test.ts:305:		await applyActivitiesEdit(userId, SWIM_AND_YOGA, NOW, {
+app/utils/first-run/activities-edit.server.test.ts:318:test('a removed sport is never laid again by Bytt treningsform, and removing strength clears the frequency', async () => {
+app/utils/first-run/activities-edit.server.test.ts:320:	const applied = await applyActivitiesEdit(
+app/utils/first-run/activities-edit.server.test.ts:354:	const again = await applyActivitiesEdit(
+app/utils/first-run/activities-edit.server.test.ts:370:test('the same activities, or none, write nothing; a plan toward an Event is not edited here', async () => {
+app/utils/first-run/activities-edit.server.test.ts:373:		await readActivitiesEdit(
+app/utils/first-run/activities-edit.server.test.ts:380:		await applyActivitiesEdit(
+app/utils/first-run/activities-edit.server.test.ts:401:	expect(await readActivitiesEdit(userId, SWIM_AND_YOGA, NOW)).toEqual({
+app/utils/first-run/activities-edit.test.ts:98:describe('the boundary week is laid from the rows the apply stores', () => {
+app/utils/first-run/activities-edit.test.ts:99:	test('with nothing kept it is the draft’s week 1, for a plan cut mid-round', () => {
+app/utils/first-run/activities-edit.test.ts:107:		const splice = spliceActivitiesEdit({
+app/utils/first-run/activities-edit.test.ts:129:	test('lived weeks keep their targets; from the boundary every track is on the draft’s hours', () => {
+app/utils/first-run/activities-edit.test.ts:137:		const splice = spliceActivitiesEdit({
+app/utils/first-run/activities-edit.test.ts:167:describe('the splice', () => {
+app/utils/first-run/activities-edit.test.ts:168:	test('a removed sport is retired, an added one made, the round restarted, and lived rows left alone', () => {
+app/utils/first-run/activities-edit.test.ts:175:		const splice = spliceActivitiesEdit({
+app/utils/first-run/activities-edit.test.ts:235:	test('a retired sport taken up again reuses its track and is laid from the boundary', () => {
+app/utils/first-run/activities-edit.test.ts:247:		const splice = spliceActivitiesEdit({
+app/utils/first-run/activities-edit.test.ts:260:		const again = spliceActivitiesEdit({
+app/utils/first-run/activities-edit.test.ts:270:	test('strength: a block cut at the boundary and one opened there; removed, the track retires', () => {
+app/utils/first-run/activities-edit.test.ts:299:		const kept = spliceActivitiesEdit({
+app/utils/first-run/activities-edit.test.ts:324:		const none = spliceActivitiesEdit({
+app/utils/first-run/activities-edit.test.ts:342:describe('kept sessions', () => {
+app/utils/first-run/activities-edit.test.ts:343:	test('a kept lift fills a lifting slot, so no second lift is laid; the athlete’s hard session is laid around', () => {
+app/utils/first-run/activities-edit.test.ts:347:		const splice = spliceActivitiesEdit({
+app/utils/first-run/activities-edit.test.ts:384:	test('the preview counts the athlete’s minutes apart and fingerprints the week', () => {
+app/utils/first-run/activities-edit.test.ts:410:		const preview = previewActivitiesEdit({ ...base, kept: [kept] })
+app/utils/first-run/activities-edit.test.ts:419:		expect(previewActivitiesEdit({ ...base, kept: [kept] }).digest).toBe(
+app/utils/first-run/activities-edit.test.ts:423:			previewActivitiesEdit({ ...base, kept: [{ ...kept, weekday: 3 }] })
+app/utils/first-run/activities-edit.test.ts:429:describe('the choice', () => {
+app/utils/first-run/activities-edit.test.ts:432:	test('the plan’s activities now, the main sport first', () => {
+app/utils/first-run/activities-edit.test.ts:440:	test('the same activities, none, or strength alone are refused', () => {

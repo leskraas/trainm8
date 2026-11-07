@@ -1,0 +1,25 @@
+ [32m✓[39m app/utils/plan-outline/attach-event.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 77[2mms[22m[39m
+ [32m✓[39m app/utils/first-run/start-strength.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 184[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/day-rule.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/ramp-guard.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/copy-week.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/fit-proposal.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/volume-conversion.server.test.ts[2m > [22m[2mthe window is anchored to the authored start week, not to today
+[22m[39mprisma:query - 20ms - INSERT INTO `main`.`ActivityImport` (`id`, `athleteId`, `externalProvider`, `externalId`, `originPlatform`, `startedAt`, `endedAt`, `durationSec`, `distanceM`, `discipline`, `rawJson`, `createdAt`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `externalProvider` AS `externalProvider`, `externalId` AS `externalId`, `originPlatform` AS `originPlatform`, `deviceName` AS `deviceName`, `fitFileKey` AS `fitFileKey`, `fitHarvestedAt` AS `fitHarvestedAt`, `streamsCheckedAt` AS `streamsCheckedAt`, `startedAt` AS `startedAt`, `endedAt` AS `endedAt`, `durationSec` AS `durationSec`, `distanceM` AS `distanceM`, `discipline` AS `discipline`, `hrAvg` AS `hrAvg`, `hrMax` AS `hrMax`, `powerAvg` AS `powerAvg`, `powerMax` AS `powerMax`, `powerWeightedAvg` AS `powerWeightedAvg`, `cadenceAvg` AS `cadenceAvg`, `paceAvgSecPerKm` AS `paceAvgSecPerKm`, `speedMaxMps` AS `speedMaxMps`, `elevationGainM` AS `elevationGainM`, `kilojoules` AS `kilojoules`, `polyline` AS `polyline`, `phaseBarsJson` AS `phaseBarsJson`, `lapsJson` AS `lapsJson`, `rawJson` AS `rawJson`, `promotedSessionId` AS `promotedSessionId`, `linkAnsweredAt` AS `linkAnsweredAt`, `unlinkedFromSessionId` AS `unlinkedFromSessionId`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `createdAt` AS `createdAt`
+
+ [32m✓[39m app/utils/plan-outline/philosophy.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/strength-goal.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/volume-conversion.server.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1096[2mms[22m[39m
+   [33m[2m✓[22m[39m an empty window is null — the honest close of the distance gate [33m 356[2mms[22m[39m
+ [32m✓[39m app/utils/first-run/plan-start-options.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/band-fit.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/session-placement.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/quality-mix.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/week-keys.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/event-fit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m52 passed[39m[22m[90m (52)[39m
+[2m      Tests [22m [1m[32m1159 passed[39m[22m[90m (1159)[39m
+[2m   Start at [22m 18:33:06
+[2m   Duration [22m 60.43s[2m (transform 5.61s, setup 43.96s, import 8.32s, tests 107.01s, environment 7ms)[22m
+
