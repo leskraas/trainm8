@@ -3,6 +3,7 @@ import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { draftFirstRunPlan } from './draft.ts'
 import {
 	draftStart,
+	layStartFamily,
 	levelDefaults,
 	SESSION_PREFERENCES,
 	startFamilies,
@@ -676,4 +677,38 @@ test('Korte økter holds every sport’s weekday sessions to 45 minutes when the
 		expect(option.shortOfHours).toBe(option.week.minutes)
 		expect(option.shortByPreference).toBe(true)
 	}
+})
+
+test('one family laid by itself is the option draftStart lays for it, and Masters 2:1 is laid as itself', () => {
+	const answers = {
+		level: 'recreational' as const,
+		discipline: 'run' as const,
+		otherSports: ['bike' as const],
+		hours: 6,
+		days: [0, 1, 3, 5, 6] as PatternWeekday[],
+		startWeekKey: START,
+		preferences: ['intervals' as const],
+	}
+	const all = draftStart(answers)!
+	for (const option of all.options) {
+		const one = layStartFamily(answers, option.family)!
+		expect(one.options).toHaveLength(1)
+		expect(one.merged).toBe(0)
+		expect(one.options[0]!.week).toEqual(option.week)
+		expect(one.options[0]!.draft.rows).toEqual(option.draft.rows)
+		expect(one.sports).toEqual(all.sports)
+	}
+	// The start never offers Masters 2:1; a plan that follows it is laid on it.
+	const masters = layStartFamily(answers, 'masters')!
+	expect(masters.options.map((option) => option.family)).toEqual(['masters'])
+	expect(masters.options[0]!.draft.phases[0]!.rhythm).toBe('2:1')
+	// A family that merged into a higher-ranked card is still laid as itself.
+	const beginner = { ...answers, level: 'beginner' as const, hours: 2 }
+	const shown = draftStart(beginner)!.options.map((option) => option.family)
+	for (const family of startFamilies('beginner')) {
+		const one = layStartFamily(beginner, family)
+		expect(one?.options[0]?.family).toBe(family)
+		if (!shown.includes(family)) expect(one).not.toBeNull()
+	}
+	expect(layStartFamily({ ...answers, days: [] }, 'polarized')).toBeNull()
 })
