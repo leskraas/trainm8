@@ -1,6 +1,6 @@
 /**
  * How trainm8 names itself to the open lookups it calls from the server (ADR
- * 0113 §1): MET Norway's terms require an identifying `User-Agent`, and
+ * 0114 §1): MET Norway's terms require an identifying `User-Agent`, and
  * Kartverket gets the same. The app and where to reach whoever runs it: a
  * contact URL, not an e-mail address, until the privacy contact in
  * `labels/privacy.ts` is filled in.

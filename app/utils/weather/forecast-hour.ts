@@ -1,5 +1,5 @@
 /**
- * **Forecast Hour** (ADR 0113 §3, glossary): the hour a day's **Day Forecast**
+ * **Forecast Hour** (ADR 0114 §3, glossary): the hour a day's **Day Forecast**
  * is for. One pure rule, read by I dag's loader and by `get_today` alike, so
  * the card and an Assistant always ask MET about the same hour.
  *

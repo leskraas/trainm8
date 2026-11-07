@@ -1124,7 +1124,7 @@ model WorkoutSession {
   @@index([planOutlineId])
 }
 
-/// **Home Place** (ADR 0113 §2): the one named place in Norway the athlete
+/// **Home Place** (ADR 0114 §2): the one named place in Norway the athlete
 /// trains from, used only to fetch the **Day Forecast**. Its own row, one to one
 /// with the profile, so "a place is set" is the row existing: every field is
 /// there or none is, and _Fjern_ is one delete. The point is rounded to 2
@@ -1204,7 +1204,7 @@ model AthleteProfile {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique
 
-  /// The athlete's **Home Place** (ADR 0113 §2): none until they choose one in
+  /// The athlete's **Home Place** (ADR 0114 §2): none until they choose one in
   /// _Meg_ › _Hjemsted_, and with none I dag shows no weather.
   homePlace HomePlace?
 

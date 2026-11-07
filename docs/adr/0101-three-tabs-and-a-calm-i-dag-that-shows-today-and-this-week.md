@@ -1,7 +1,7 @@
 # Three tabs, and a calm I dag that shows today and this week
 
 > **Amended by
-> [ADR 0113](./0113-weather-on-i-dag-comes-from-met-norway-for-a-home-place-fetched-and-cached-on-the-server.md)
+> [ADR 0114](./0114-weather-on-i-dag-comes-from-met-norway-for-a-home-place-fetched-and-cached-on-the-server.md)
 > (#433)** in §3: with a **Home Place** set, the today card and this week's rows
 > carry the **Day Forecast**, and MET Norway is credited under the week.
 

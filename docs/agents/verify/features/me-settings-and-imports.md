@@ -13,7 +13,7 @@ to Strava and Intervals.icu, and file imports. Specs to copy from:
   (_Passord_, then _Bytt passord_), profile photo (_Bytt profilbilde_), 2FA and
   passkeys.
 - Training settings and level: `/settings/training`, `/settings/level`.
-- _Hjemsted_ at `/settings/hjemsted` (#433, ADR 0113): the Home Place. Search by
+- _Hjemsted_ at `/settings/hjemsted` (#433, ADR 0114): the Home Place. Search by
   name (Kartverket, mocked with `MOCK_WEATHER=true`), pick a match (saves at
   once, status line _Lagret. I dag viser været for X._), _Fjern_. The _Meg_ row
   says the place or _Ikke valgt. Gir værvarsel på I dag._

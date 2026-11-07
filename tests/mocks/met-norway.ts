@@ -1,7 +1,7 @@
 import { http, HttpResponse, passthrough, type HttpHandler } from 'msw'
 
 /**
- * MET Norway's Locationforecast 2.0 `compact` (ADR 0113), mocked: a forecast
+ * MET Norway's Locationforecast 2.0 `compact` (ADR 0114), mocked: a forecast
  * shaped like MET's own — hourly steps for 60 hours, then 6-hourly to about
  * nine days — from a fixed pattern, so a test knows every value. Mocked in
  * tests; in dev only with `MOCK_WEATHER=true` (else the real MET answers).

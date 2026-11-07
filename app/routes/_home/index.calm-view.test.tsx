@@ -570,7 +570,7 @@ test('Avansert leads to the session, the composer and Plan’s Avansert', async 
 	expect(await screen.findByRole('dialog')).toBeInTheDocument()
 })
 
-// ── the weather (#433, ADR 0113 §6) ──────────────────────────────────────
+// ── the weather (#433, ADR 0114 §6) ──────────────────────────────────────
 
 const WEATHER: Record<string, DayForecast> = {
 	'2030-01-02': {

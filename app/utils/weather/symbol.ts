@@ -1,5 +1,5 @@
 /**
- * trainm8's own weather symbol (ADR 0113 §5): a closed English family enum
+ * trainm8's own weather symbol (ADR 0114 §5): a closed English family enum
  * that MET Norway's `symbol_code` is read into once, at the edge, so MET's
  * vocabulary never becomes part of trainm8's interface. The glyph on I dag,
  * the Norwegian word in `labels.ts` and `get_today`'s `symbol` all read this.

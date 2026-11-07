@@ -1,6 +1,6 @@
 /**
  * **Day Forecast** from MET Norway's Locationforecast 2.0 (`compact`), ADR
- * 0113 §1 and §3. One function, {@link readDayForecasts}: a point and the
+ * 0114 §1 and §3. One function, {@link readDayForecasts}: a point and the
  * days' **Forecast Hours** in, per day a Day Forecast or the reason there is
  * none out. One adapter behind it (MET) and no provider interface: swapping
  * the source means rewriting the inside of this file (ADR 0014's rule).

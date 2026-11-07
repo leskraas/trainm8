@@ -64,7 +64,7 @@ function isUnavailable(value: unknown): value is Unavailable {
 
 /**
  * Whose credit a result can owe: the Origin Platforms whose terms ask for one
- * (ADR 0098 §3), then MET Norway for a **Day Forecast** (ADR 0113 §5), in the
+ * (ADR 0098 §3), then MET Norway for a **Day Forecast** (ADR 0114 §5), in the
  * order a result lists them. Widened, never renamed: `Credit.platform` keeps
  * its name for the clients that read it.
  */

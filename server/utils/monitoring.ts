@@ -32,7 +32,7 @@ export function init() {
 			return process.env.NODE_ENV === 'production' ? 1 : 0
 		},
 		// The place search's text and the Home Place travel in outgoing query
-		// strings; monitoring keeps the call, never the query (ADR 0113 §2).
+		// strings; monitoring keeps the call, never the query (ADR 0114 §2).
 		beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb),
 		beforeSendSpan: (span) => scrubSpan(span),
 		beforeSendTransaction(event) {

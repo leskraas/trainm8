@@ -23,7 +23,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
-	// The weather is read beside the timeline, never inside it (ADR 0113 §3):
+	// The weather is read beside the timeline, never inside it (ADR 0114 §3):
 	// the full view shares `readHomeTimeline` and shows no weather. A MET that
 	// errors or is slow costs I dag at most its 2-second cut, never an error.
 	const [timeline, weather] = await Promise.all([

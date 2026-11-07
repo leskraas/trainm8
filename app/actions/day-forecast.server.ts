@@ -1,5 +1,5 @@
 /**
- * A **Day Forecast** as it crosses to a model (ADR 0113 §5): one Reading of
+ * A **Day Forecast** as it crosses to a model (ADR 0114 §5): one Reading of
  * the whole forecast step, since its symbol, temperature and precipitation
  * come from one step and stand or fall together. `symbol` is trainm8's own
  * enum and `label` the word the today card shows, never MET's `symbol_code`.
