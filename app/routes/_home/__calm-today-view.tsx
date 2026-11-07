@@ -755,11 +755,33 @@ function WeekList({
  * days alike, and it stacks below 20rem instead: the column goes and the
  * weather joins the stacked day line, so no title breaks inside a word on a
  * 320–352px phone. A row with no weather gives the empty column to its title.
+ * The last column is at least 2rem: wider only for a missed day's text mark,
+ * and a missed day is past, so it never carries weather.
+ *
+ * Every class that differs between the two layouts lives in one entry here,
+ * so a row picks its layout once and never switches class by class. Written
+ * out in full for Tailwind to see.
  */
-const ROW =
-	'grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-3 @max-[17rem]:grid-cols-[minmax(0,1fr)_auto] @max-[17rem]:gap-y-1'
-const ROW_WITH_WEATHER =
-	'grid grid-cols-[2.75rem_minmax(0,1fr)_3.5rem_minmax(2rem,auto)] items-center gap-x-3 @max-[20rem]:grid-cols-[minmax(0,1fr)_minmax(2rem,auto)] @max-[20rem]:gap-y-1'
+const ROW_LAYOUT = {
+	plain: {
+		row: 'grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-3 @max-[17rem]:grid-cols-[minmax(0,1fr)_auto] @max-[17rem]:gap-y-1',
+		gutterStacked:
+			'@max-[17rem]:col-span-2 @max-[17rem]:flex-row @max-[17rem]:items-baseline @max-[17rem]:gap-1.5',
+		gutterHidden: 'invisible @max-[17rem]:hidden',
+		actionsStacked: '@max-[17rem]:pl-4',
+	},
+	weather: {
+		row: 'grid grid-cols-[2.75rem_minmax(0,1fr)_3.5rem_minmax(2rem,auto)] items-center gap-x-3 @max-[20rem]:grid-cols-[minmax(0,1fr)_minmax(2rem,auto)] @max-[20rem]:gap-y-1',
+		gutterStacked:
+			'@max-[20rem]:col-span-2 @max-[20rem]:flex-row @max-[20rem]:flex-wrap @max-[20rem]:items-baseline @max-[20rem]:gap-1.5',
+		gutterHidden: 'invisible @max-[20rem]:hidden',
+		actionsStacked: '@max-[20rem]:pl-4',
+	},
+} as const
+
+function rowLayout(withWeather: boolean) {
+	return withWeather ? ROW_LAYOUT.weather : ROW_LAYOUT.plain
+}
 
 /** The cell a row's main text sits in: across the weather column when it has none. */
 function mainCell(withWeather: boolean, weather: CalmWeather | null) {
@@ -783,14 +805,8 @@ function DayGutter({
 			aria-hidden
 			className={cn(
 				'flex flex-col leading-none',
-				withWeather
-					? '@max-[20rem]:col-span-2 @max-[20rem]:flex-row @max-[20rem]:flex-wrap @max-[20rem]:items-baseline @max-[20rem]:gap-1.5'
-					: '@max-[17rem]:col-span-2 @max-[17rem]:flex-row @max-[17rem]:items-baseline @max-[17rem]:gap-1.5',
-				show
-					? null
-					: withWeather
-						? 'invisible @max-[20rem]:hidden'
-						: 'invisible @max-[17rem]:hidden',
+				rowLayout(withWeather).gutterStacked,
+				show ? null : rowLayout(withWeather).gutterHidden,
 				day.isToday ? 'text-foreground' : 'text-muted-foreground',
 			)}
 		>
@@ -850,7 +866,7 @@ function FreeDay({ day, withWeather }: { day: CalmDay; withWeather: boolean }) {
 				.filter(Boolean)
 				.join(' ')}
 			className={cn(
-				withWeather ? ROW_WITH_WEATHER : ROW,
+				rowLayout(withWeather).row,
 				'pressable min-h-14 w-full px-4 py-2 text-left',
 			)}
 		>
@@ -930,7 +946,7 @@ function WeekSession({
 				}}
 				aria-label={`${day.dayName}: ${session.title}${facts ? `, ${facts}` : ''}, ${mark}${weather ? `. ${weather.spoken}` : ''}`}
 				className={cn(
-					withWeather ? ROW_WITH_WEATHER : ROW,
+					rowLayout(withWeather).row,
 					'pressable min-h-14 w-full px-4 py-2 text-left',
 				)}
 			>
@@ -970,7 +986,7 @@ function WeekSession({
 					className={cn(
 						'-mt-2 flex flex-wrap items-center gap-x-4 pr-4 pb-1 pl-[4.75rem]',
 						// Under the gutter while the row is side by side; flush once it stacks.
-						withWeather ? '@max-[20rem]:pl-4' : '@max-[17rem]:pl-4',
+						rowLayout(withWeather).actionsStacked,
 					)}
 				>
 					{undoable ? (
