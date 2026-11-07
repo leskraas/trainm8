@@ -1,0 +1,3 @@
+['id', 'email', 'username', 'name', 'createdAt', 'updatedAt', 'emailVerified', 'imageUrl', 'displayUsername', 'twoFactorEnabled', 'role', 'banned', 'banReason', 'banExpires', 'mustReenrolTwoFactor']
+['AuthSession', 'AuthAccount', 'AuthVerification', 'TwoFactor', 'AuthPasskey']
+[(8,)] [(0,)]

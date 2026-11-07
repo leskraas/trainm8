@@ -1,0 +1,40 @@
+# criterion 4 dev
+HTTP/1.1 200 OK
+cross-origin-resource-policy: same-origin
+strict-transport-security: max-age=31536000;includeSubDomains
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-permitted-cross-domain-policies: none
+RateLimit-Policy: 10000000;w=60
+RateLimit-Limit: 10000000
+RateLimit-Remaining: 9999998
+RateLimit-Reset: 29
+Vary: Origin, Accept-Encoding
+X-Powered-By: Express
+
+# criterion 5 foreign origin POST, no cookie
+HTTP/1.1 403 Forbidden
+cross-origin-resource-policy: same-origin
+strict-transport-security: max-age=31536000;includeSubDomains
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-permitted-cross-domain-policies: none
+RateLimit-Policy: 1000000;w=60
+RateLimit-Limit: 1000000
+
+# same origin POST sign-up (closed)
+HTTP/1.1 400 BAD_REQUEST
+cross-origin-resource-policy: same-origin
+strict-transport-security: max-age=31536000;includeSubDomains
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-permitted-cross-domain-policies: none
+RateLimit-Policy: 1000000;w=60
+RateLimit-Limit: 1000000
+RateLimit-Remaining: 999998
+RateLimit-Reset: 60
+Access-Control-Allow-Origin: http://localhost:3000
+Vary: Origin, Accept-Encoding
+
+# criterion 2 Epic login
+200

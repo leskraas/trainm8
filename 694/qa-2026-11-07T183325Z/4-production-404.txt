@@ -1,0 +1,5 @@
+GET ok: 404
+GET sign-up/email: 404
+GET session: 404
+POST sign-up same origin: 404
+login: 200
