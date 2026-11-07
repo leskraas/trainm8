@@ -1,0 +1,200 @@
+
+> lint
+> eslint .
+
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/app/actions/run.server.ts
+  29:1  warning  `./paths.ts` import should occur before import of `./reading.ts`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/app/actions/session-summary.server.ts
+  21:1  warning  `#app/utils/intensity-target.ts` import should occur before import of `#app/utils/labels.ts`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/app/routes/imports.share-target.server.test.ts
+  6:1  warning  `#app/utils/db.server.ts` import should occur before import of `#app/utils/toast.server.ts`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/app/routes/start/plan-ready.route.test.ts
+  9:1  warning  `#app/utils/labels.ts` import should occur before import of `#app/utils/load/propose-next-round.ts`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/app/routes/training/__exercise-combobox.tsx
+  12:1  warning  `#app/components/ui/button.tsx` import should occur before import of `#app/components/ui/command.tsx`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/app/routes/training/sessions.$sessionId_.log.route.test.tsx
+  280:13  warning  '_' is assigned a value but never used. Allowed unused vars must match /^ignored/u  @typescript-eslint/no-unused-vars
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/app/utils/day-stamp.server.ts
+  20:15  warning  'CardioDiscipline' is defined but never used. Allowed unused vars must match /^ignored/u  @typescript-eslint/no-unused-vars
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/docs/design/strength-program-handoff/support.js
+  192:10  warning  React Hook React.useMemo has an unnecessary dependency: 'entry.propsMeta'. Either exclude it or remove the dependency array. Outer scope values like 'entry.propsMeta' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/home-large-screen.test.ts
+  123:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  128:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  135:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  150:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  152:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  153:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  162:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  166:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  177:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  183:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  187:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  196:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  201:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  221:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  224:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  248:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  250:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/home-timeline.test.ts
+     9:1   warning  `#app/utils/db.server.ts` import should occur before import of `#app/utils/load/week-change.ts`       import/order
+   168:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   551:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   609:26  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   615:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   714:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   723:20  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   811:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   854:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   859:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   898:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1152:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1271:2   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1293:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1338:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1342:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1438:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1439:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1441:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1444:18  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1736:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1745:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1750:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1811:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1836:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1897:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1963:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1973:18  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2102:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2108:22  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2133:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2152:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2155:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2160:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2185:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2203:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2204:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2214:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2216:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2220:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2421:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2565:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2695:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2700:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2705:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2715:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2716:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2747:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2753:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2759:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2764:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2765:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2770:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2771:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2794:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2797:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2798:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2805:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2807:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2811:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2858:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2864:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2885:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/imports.test.ts
+  254:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  313:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  359:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/mobile-dashboard.test.ts
+  107:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  122:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/mobile-overflow.test.ts
+  174:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  270:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  277:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/plan-authoring.test.ts
+  187:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  223:19  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/season-edits.test.ts
+  116:3  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/session-authoring.test.ts
+  34:19  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  46:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  47:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  57:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/settings-profile.test.ts
+  73:8  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/start-motion.test.ts
+  344:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  414:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  477:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  493:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  496:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  503:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  596:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/start.test.ts
+  107:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  107:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  120:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  122:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  125:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  127:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/strength-screens.test.ts
+   603:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   651:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   681:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   757:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   793:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   797:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1089:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1106:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1178:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1344:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1411:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/tab-bar.test.ts
+  42:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/week-change.test.ts
+   7:1   warning  `#app/utils/app-tabs.ts` import should occur before import of `#app/utils/athlete-calendar.ts`        import/order
+  39:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/463-implement/tests/e2e/writing-line.test.ts
+   84:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  133:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  138:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  148:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  154:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  172:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  202:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  209:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  216:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  223:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  282:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  293:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  301:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  312:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  317:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+✖ 146 problems (0 errors, 146 warnings)
+  0 errors and 7 warnings potentially fixable with the `--fix` option.
+
