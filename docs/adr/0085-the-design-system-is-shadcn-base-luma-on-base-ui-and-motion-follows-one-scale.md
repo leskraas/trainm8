@@ -2,6 +2,11 @@
 
 Status: Accepted
 
+> **Amended by
+> [ADR 0113](./0113-every-page-is-on-the-luma-steps-a-lint-rule-of-its-own-keeps-it-there-and-the-zone-hues-are-an-app-role.md)
+> (#528).** `zone-1…5` is no longer temporary: it is the Training Zone app role,
+> with light and dark values. Every page, not only I dag, is on the luma steps.
+
 **Amends**
 [ADR 0077](0077-the-timeline-animates-four-things-and-reduced-motion-is-gentler-never-zero.md)
 §2–3: those sections count "four animations" and "two accordions" as the whole
