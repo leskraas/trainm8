@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import { draftStart } from '#app/utils/first-run/start-draft.ts'
+import { type SeasonAnchorChoice } from '#app/utils/plan-outline/season-edit.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { type EditableStrengthTrack } from './__strength-segment-editor.tsx'
 import { treningsformViewOf } from './__treningsform-view.ts'
@@ -673,6 +674,8 @@ function renderPlan(
 		at?: string
 		/** _Bytt treningsform_'s options (#581); none unless a test says so. */
 		treningsform?: TreningsformView
+		/** _Endre startnivået_'s tracks (#673); none unless a test says so. */
+		anchorChoices?: SeasonAnchorChoice[]
 	} = {},
 ) {
 	const week =
@@ -714,6 +717,7 @@ function renderPlan(
 				libraryLifts: extra.libraryLifts ?? [],
 				nextEasyWeek: extra.nextEasyWeek ?? null,
 				treningsform: extra.treningsform ?? null,
+				anchorChoices: extra.anchorChoices ?? [],
 				// No Event of the athlete's waits for a plan unless a test says so.
 				attachableEvents: [],
 				// Every week of these fixtures is ahead, so each offers its edit.
@@ -828,6 +832,48 @@ test('Plan opens on the plain name with the family small and the next easy week'
 	expect(
 		screen.getByRole('link', { name: 'Spring Half Marathon' }),
 	).toBeInTheDocument()
+})
+
+test('the lead’s Ukevolum shows each endurance track’s next week and links into Endre startnivået', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		at: '/training/plan',
+		anchorChoices: [
+			{
+				trackId: 'track-run',
+				discipline: 'run',
+				currency: 'km',
+				anchors: [
+					{
+						fromWeekKey: '2029-12-31',
+						value: 40,
+						earliest: true,
+						inPlan: true,
+					},
+				],
+				weeks: [
+					{
+						weekKey: '2030-01-14',
+						role: 'recovery',
+						target: 25,
+						overridden: false,
+						level: 37.5,
+					},
+				],
+			},
+		],
+	})
+
+	const volume = await screen.findByRole('list', { name: 'Ukevolum' })
+	// The week's own target with its role word, never the anchor's value.
+	expect(
+		within(volume).getByText('Uke 3 · lett uke: 25 km'),
+	).toBeInTheDocument()
+	const link = within(volume).getByRole('link', {
+		name: 'Endre volumet for løping',
+	})
+	expect(link.getAttribute('href')).toBe(
+		'/training/plan?edit=season-anchor&trackId=track-run#season-edit-season-anchor',
+	)
 })
 
 test('a plan that follows no family is the athlete’s own, and says no family', async () => {

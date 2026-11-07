@@ -161,3 +161,102 @@ test('a text link into an edit reaches 44 px without growing its line', async ()
 	expect(link.classList).toContain('after:-inset-y-3')
 	expect(link.classList).toContain('touch-manipulation')
 })
+
+// _Endre startnivået_ (#673): opened from the lead on the act that will not
+// be refused, pre-filled with the ramp's level, and never offering to remove
+// the season's first Season Anchor.
+
+type Choice = Parameters<typeof SeasonEditsCard>[0]['anchorChoices']
+
+function anchorChoice(
+	anchors: Array<{ fromWeekKey: string; value: number }>,
+): NonNullable<Choice>[number] {
+	return {
+		trackId: RUN,
+		discipline: 'run',
+		currency: 'km',
+		anchors: anchors.map((anchor, index) => ({
+			...anchor,
+			earliest: index === 0,
+			inPlan: true,
+		})),
+		weeks: [
+			{
+				weekKey: '2030-01-07',
+				role: 'recovery',
+				target: 25,
+				overridden: false,
+				level: 37.4567,
+			},
+			{
+				weekKey: '2030-01-14',
+				role: 'loading',
+				target: 39.3,
+				overridden: false,
+				level: 39.3,
+			},
+		],
+	}
+}
+
+function renderAnchorEdit(choice: NonNullable<Choice>[number]) {
+	const App = createRoutesStub([
+		{
+			path: '/training/plan',
+			Component: () => (
+				<SeasonEditsCard
+					outlineId="outline-1"
+					weeks={[]}
+					phases={[]}
+					tracks={[]}
+					anchorChoices={[choice]}
+					firstUnbegunWeekKey="2030-01-07"
+					reply={null}
+				/>
+			),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+	render(
+		<App
+			initialEntries={[
+				`/training/plan?edit=season-anchor&trackId=${RUN}#season-edit-season-anchor`,
+			]}
+		/>,
+	)
+}
+
+test('the lead’s link opens a fresh start from the first unbegun week, pre-filled with the ramp’s level', async () => {
+	renderAnchorEdit(anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]))
+
+	const form = await screen.findByRole('form', { name: 'Endre startnivået' })
+	expect(form.closest('#season-edit-season-anchor')).not.toBeNull()
+	expect(
+		screen.getByRole('radio', { name: /Start på nytt fra en uke/ }),
+	).toBeChecked()
+	// The level to three decimals, not the easy week's own target.
+	expect(screen.getByLabelText('Starter på (km)')).toHaveValue('37,457')
+	expect(screen.getByText('Nå: 25 km, lett uke.')).toBeInTheDocument()
+	// Only the season's first anchor: nothing to remove.
+	expect(screen.queryByRole('radio', { name: /Fjern/ })).toBeNull()
+})
+
+test('a segment starting on the first unbegun week opens on its value; only later ones can go', async () => {
+	renderAnchorEdit(
+		anchorChoice([
+			{ fromWeekKey: '2029-12-31', value: 30 },
+			{ fromWeekKey: '2030-01-07', value: 36 },
+		]),
+	)
+
+	expect(
+		await screen.findByRole('radio', { name: /Endre tallet i et startnivå/ }),
+	).toBeChecked()
+	expect(screen.getByLabelText('Nytt tall (km)')).toHaveValue('36')
+	expect(
+		screen.getByRole('radio', { name: /Fjern et nytt startnivå/ }),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(/Sesongstarten \(Fra uke 1 · 31\. des 2029 · 30 km\)/),
+	).toBeInTheDocument()
+})

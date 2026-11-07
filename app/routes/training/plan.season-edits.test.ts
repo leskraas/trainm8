@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	SEASON_ANCHOR_EDIT_LABELS,
 	SEASON_EDIT_LABELS,
 	SEASON_EDIT_REFUSAL_LABELS,
 } from '#app/utils/labels.ts'
@@ -56,7 +57,20 @@ type Reply = {
 				warnings: string[]
 				digest: string
 				weeks: Array<{ weekKey: string }>
+				anchor?: {
+					changedWeeks: string
+					rows: Array<{
+						weekNumber: number
+						before: string
+						after: string
+						authored: boolean
+						how: string | null
+					}>
+				}
 			}
+			refusal?: string
+			offer?: Record<string, unknown>
+			stale?: boolean
 		}
 	}
 	init: { status: number } | null
@@ -419,4 +433,108 @@ test('a phase’s rhythm changes behind its preview', async () => {
 			select: { rhythm: true },
 		}),
 	).toEqual({ rhythm: '2:1' })
+})
+
+test('a Season Anchor: a fresh start previews every week it moves with how each was worked out, writes nothing, and the confirm lands it', async () => {
+	const { outlineId, trackId, thirdWeek, cookie } = await setUp()
+	const fields: Array<[string, string]> = [
+		['edit', 'season-anchor'],
+		['outlineId', outlineId],
+		['trackId', trackId],
+		['action', 'add'],
+		['addWeekKey', thirdWeek],
+		['addValue', '5'],
+	]
+	const preview = replyOf(
+		await send([['intent', 'preview-season-edit'], ...fields], cookie),
+	)
+	expect(preview.init).toBeNull()
+	const shown = preview.data.seasonEdit!.preview!
+	// The block's easy week (46) cuts off the new start: 70 % of 5 t.
+	expect(shown.message).toBe(
+		'Løping fra uke 43: nytt startnivå 5 t, og stigningen starter på nytt der. 2 uker får nytt mål. Fasene og ukene før uke 43 står som før.',
+	)
+	expect(shown.anchor?.changedWeeks).toBe('2 uker får nytt mål')
+	expect(shown.anchor?.rows).toEqual([
+		{
+			weekKey: thirdWeek,
+			weekNumber: 43,
+			where: 'hard uke · Blokk 1',
+			before: '4',
+			after: '5',
+			authored: false,
+			how: 'Startnivå 5 t fra uke 43: uka starter der. Hard uke i Blokk 1.',
+		},
+		expect.objectContaining({ weekNumber: 44, before: '2,8', after: '3,5' }),
+	])
+	expect(await prisma.seasonAnchorSegment.count({ where: { trackId } })).toBe(1)
+
+	const applied = await send(
+		[['intent', 'apply-season-edit'], ...fields, ['digest', shown.digest]],
+		cookie,
+	)
+	expect(applied).toBeInstanceOf(Response)
+	expect(
+		await prisma.seasonAnchorSegment.findMany({
+			where: { trackId, fromWeekKey: thirdWeek },
+			select: { value: true },
+		}),
+	).toEqual([{ value: 5 }])
+})
+
+test('a Season Anchor value change on the season’s start, already begun, is refused with the fresh start to offer', async () => {
+	const { outlineId, trackId, cookie } = await setUp()
+	const start = await prisma.seasonAnchorSegment.findFirstOrThrow({
+		where: { trackId },
+		select: { fromWeekKey: true },
+	})
+	const reply = replyOf(
+		await send(
+			[
+				['intent', 'preview-season-edit'],
+				['edit', 'season-anchor'],
+				['outlineId', outlineId],
+				['trackId', trackId],
+				['action', 'set'],
+				['setWeekKey', start.fromWeekKey],
+				['setValue', '4,5'],
+			],
+			cookie,
+		),
+	)
+	expect(reply.init?.status).toBe(400)
+	expect(reply.data.seasonEdit?.refusal).toBe('segment-lived')
+	expect(reply.data.seasonEdit?.offer).toEqual({
+		kind: 'season-anchor',
+		trackId,
+		action: 'add',
+		fromWeekKey: '2026-10-12',
+		value: 4.5,
+	})
+})
+
+test('a stale Season Anchor confirm says nothing was saved and shows no new numbers', async () => {
+	const { outlineId, trackId, thirdWeek, cookie } = await setUp()
+	const reply = replyOf(
+		await send(
+			[
+				['intent', 'apply-season-edit'],
+				['edit', 'season-anchor'],
+				['outlineId', outlineId],
+				['trackId', trackId],
+				['action', 'add'],
+				['addWeekKey', thirdWeek],
+				['addValue', '5'],
+				['digest', 'not-what-was-shown'],
+			],
+			cookie,
+		),
+	)
+	expect(reply.init?.status).toBe(400)
+	expect(reply.data.seasonEdit?.stale).toBe(true)
+	expect(reply.data.seasonEdit?.preview).toBeUndefined()
+	expect(reply.data.seasonEdit?.confirmResult?.error?.['']).toEqual([
+		SEASON_ANCHOR_EDIT_LABELS.stale,
+	])
+	expect(await prisma.seasonAnchorSegment.count({ where: { trackId } })).toBe(1)
 })
