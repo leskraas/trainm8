@@ -1620,10 +1620,11 @@ inn ennå_ instead. _Avoid_: Wall, lookahead, sprint window.
 discipline filter. _Avoid_: Local filter state, tab state
 
 **Forecast Hour**: The hour a day's **Day Forecast** is for: the start of the
-day's first session not yet done, else the athlete's default training time
-(**Training Availability**), else 07:00; today, once that hour has passed, the
-coming hour. One rule for every surface that shows weather (ADR 0112). _Avoid_:
-Weather time, training hour
+day's first session not yet done (still scheduled; a skipped or missed one does
+not count), else the athlete's default training time (**Training
+Availability**), else 07:00; today, once that hour has passed, the coming hour.
+One rule for every surface that shows weather (ADR 0112). _Avoid_: Weather time,
+training hour
 
 **Day Forecast**: The weather forecast for one day at its **Forecast Hour** at
 the athlete's **Home Place** — a weather symbol, the temperature and the

@@ -4,7 +4,8 @@
  * the card and an Assistant always ask MET about the same hour.
  *
  * For each day from today on: the start of the day's first session not yet
- * done, else the athlete's default training time (`trainingTimeOf`, which
+ * done (one still `scheduled`: a completed, skipped or missed session is not
+ * one the athlete will train in), else the athlete's default training time (`trainingTimeOf`, which
  * already falls back to 07:00). Today, once that time has passed, the coming
  * hour instead: a passed hour has no forecast left, and the next one is what
  * the athlete would meet if they went now. Past days get no hour at all.
@@ -19,7 +20,7 @@ const HOUR_MS = 60 * 60 * 1000
 
 export type ForecastHourSession = {
 	scheduledAt: Date | string
-	/** `WorkoutSession.status`: a `completed` session is done and passed over. */
+	/** `WorkoutSession.status`: only a `scheduled` session sets the hour. */
 	status: string
 }
 
@@ -41,7 +42,7 @@ export function forecastHours({
 	const todayKey = localDate(now, timezone)
 	const firstOpen = new Map<string, Date>()
 	for (const session of sessions) {
-		if (session.status === 'completed') continue
+		if (session.status !== 'scheduled') continue
 		const at = new Date(session.scheduledAt)
 		const key = localDate(at, timezone)
 		const earlier = firstOpen.get(key)

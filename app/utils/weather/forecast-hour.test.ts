@@ -89,3 +89,21 @@ test('a day across the DST change keeps its local training hour', () => {
 		'2027-03-28T05:00:00.000Z',
 	)
 })
+
+test('a skipped or missed session sets no hour: only a session still planned does', () => {
+	const hours = hoursFor(
+		[
+			{ scheduledAt: '2026-11-12T05:00:00Z', status: 'skipped' },
+			{ scheduledAt: '2026-11-12T16:00:00Z', status: 'scheduled' },
+			{ scheduledAt: '2026-11-13T05:00:00Z', status: 'skipped' },
+			{ scheduledAt: '2026-11-11T09:00:00Z', status: 'missed' },
+			{ scheduledAt: '2026-11-11T16:00:00Z', status: 'scheduled' },
+		],
+		'12:00',
+	)
+	expect(hours['2026-11-12']).toBe('2026-11-12T16:00:00.000Z')
+	// Only a skipped session: the day falls back to the training time.
+	expect(hours['2026-11-13']).toBe('2026-11-13T11:00:00.000Z')
+	// Today: the missed 10:00 does not pull the hour to now; 17:00 is next.
+	expect(hours['2026-11-11']).toBe('2026-11-11T16:00:00.000Z')
+})
