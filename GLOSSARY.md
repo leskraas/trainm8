@@ -433,6 +433,11 @@ Recompute Notice** pattern moved from load to prescription. A recompute is
 announced, never offered. _Avoid_: Resolved intensity (the current
 provenance-free shape), baked range, effective target
 
+**Race Anchor**: One of the six race distances a `racePace` **Intensity Target**
+may name and a **Performance Result** resolves at: 1500 m, 3 km, 5 km, 10 km,
+half marathon, marathon. Matched to the metre. _Avoid_: Standard distance, race
+distance (that is the **Event Distance**)
+
 **Race Equivalence**: _Rungs 1 and 2 built, for run (#449, #674, ADR 0112)._ A
 `racePace` **Intensity Target** resolves against the athlete's own **Performance
 Result** at the named distance, or, with none there, against the run result
