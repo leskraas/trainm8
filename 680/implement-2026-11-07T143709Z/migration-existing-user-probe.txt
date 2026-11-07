@@ -1,0 +1,15 @@
+Probe: an existing user, their password and their Epic session survive the migration
+
+Built a database from every migration up to 20261025090100_the_hill_rows_state_their_grade, inserted user u1 with a Password row and an Epic Session row, then applied 20261107133155_better_auth_runs_dark with prisma migrate deploy.
+
+SELECT id,email,username,name,emailVerified,role,twoFactorEnabled,banned,mustReenrolTwoFactor FROM User 
+ [{"id":"u1","email":"a@x.test","username":"alice","name":"Alice","emailVerified":0,"role":null,"twoFactorEnabled":0,"banned":0,"mustReenrolTwoFactor":0}]
+SELECT userId,hash FROM Password 
+ [{"userId":"u1","hash":"$2a$10$hash"}]
+SELECT id,userId FROM Session 
+ [{"id":"s1","userId":"u1"}]
+PRAGMA foreign_key_check 
+ []
+SELECT name FROM sqlite_master WHERE type='table' AND name IN ('AuthSession','AuthAccount','AuthVerification','AuthPasskey','TwoFactor') ORDER BY name 
+ [{"name":"AuthAccount"},{"name":"AuthPasskey"},{"name":"AuthSession"},{"name":"AuthVerification"},{"name":"TwoFactor"}]
+(Use `node --trace-warnings ...` to show where the warning was created)

@@ -1,0 +1,21 @@
+Mutation probe: the gate and the origin rule removed from handler.server.ts; the tests must fail.
+   × production answers 404 without importing Better Auth 6827ms
+   × production answers 404 even with APP_ORIGIN and the secret unset 9ms
+   ✓ outside production the same request reaches Better Auth 24ms
+   ✓ in tests, /api/auth/ok answers 200  6448ms
+   ✓ in development, /api/auth/ok answers 200 126ms
+   × in production, every request to /api/auth answers 404 331ms
+   × a POST with a foreign Origin and no cookie is refused with 403 132ms
+   × a POST with a foreign Origin and a cookie is refused with 403 20ms
+   × an Origin that only looks like the app is refused 15ms
+   ✓ sign-up is closed even from the app itself 35ms
+   ✓ a POST with no Origin goes on to Better Auth 62ms
+   ✓ a GET with a foreign Origin is not refused by the route 13ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  app/routes/api.auth.$.test.ts > in production, every request to /api/auth answers 404
+ FAIL  app/routes/api.auth.$.test.ts > a POST with a foreign Origin and no cookie is refused with 403
+ FAIL  app/routes/api.auth.$.test.ts > a POST with a foreign Origin and a cookie is refused with 403
+ FAIL  app/routes/api.auth.$.test.ts > an Origin that only looks like the app is refused
+ FAIL  app/utils/auth/handler.production.server.test.ts > production answers 404 without importing Better Auth
+ FAIL  app/utils/auth/handler.production.server.test.ts > production answers 404 even with APP_ORIGIN and the secret unset
+      Tests  6 failed | 6 passed (12)

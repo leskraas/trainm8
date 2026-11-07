@@ -1,0 +1,7 @@
+Probe: does the production server bundle construct Better Auth at boot?
+npm run build, then:
+$ grep -o 'import("./better-auth.server[^)]*)' build/server/assets/server-build-*.js
+import("./better-auth.server-WbZGiEyP.js")
+$ grep -o 'from "./better-auth.server' build/server/assets/server-build-*.js | wc -l
+0
+The instance sits in its own chunk, reached only by the dynamic import after the NODE_ENV gate.
