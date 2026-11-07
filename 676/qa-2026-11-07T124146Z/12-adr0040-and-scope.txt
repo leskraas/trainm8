@@ -1,0 +1,24 @@
+$ git diff origin/main HEAD -- docs/adr/0040-volume-continuity-and-authored-overload.md
+diff --git a/docs/adr/0040-volume-continuity-and-authored-overload.md b/docs/adr/0040-volume-continuity-and-authored-overload.md
+index ac4538b..dc3bd45 100644
+--- a/docs/adr/0040-volume-continuity-and-authored-overload.md
++++ b/docs/adr/0040-volume-continuity-and-authored-overload.md
+@@ -49,6 +49,8 @@ intensity-distribution literature. Two findings reframed the decision:
+    both: it computes a number from other data and **throws the relation away**,
+    so it goes stale silently and unrecoverably.
+ 
++   Named and generalized in (Derived, never authored, ADR 0112).
++
+ 2. **The ramp steps over loading weeks. Recovery and taper are multiplicative
+    roles, not sequence participants.** A recovery week is
+    `last loading week × (1 − cut)` and contributes nothing to the progression;
+
+$ git diff --stat origin/main HEAD
+ GLOSSARY.md                                        |  44 +++-
+ ...0040-volume-continuity-and-authored-overload.md |   2 +
+ ...-it-was-decided-observed-or-frozen-at-an-act.md | 278 +++++++++++++++++++++
+ 3 files changed, 314 insertions(+), 10 deletions(-)
+
+$ git diff --name-only origin/main HEAD | grep -v -e '^GLOSSARY.md$' -e '^docs/adr/0040-' -e '^docs/adr/0112-' || echo 'no other files touched'
+no other files touched
+

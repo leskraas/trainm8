@@ -1,0 +1,16 @@
+$ grep -n '^## Relationships' GLOSSARY.md
+3003:## Relationships
+
+$ sed -n 3223,3233p GLOSSARY.md
+- A value is **Derived, never authored** (ADR 0112): it is computed whenever it
+  is a pure function of inputs the app still holds, and stored only as an
+  authored decision, an outside observation, or a bake at an act with its inputs
+  beside it. A materialized derived value keeps its relation to its inputs,
+  states its recompute triggers, and explains, never silently, a movement in a
+  number the athlete has already read.
+- A **Training Week**'s endurance volume target is **derived, never stored**: it
+  is a pure function of the applicable **Season Anchor** segment, the **Volume
+  Ramp** and **Block Boundary Step** of every endurance segment up to that week,
+  and the week's own role in the phase rhythm (loading, recovery, or taper).
+  Indexed, not folded — any week computes without computing the weeks before it
+

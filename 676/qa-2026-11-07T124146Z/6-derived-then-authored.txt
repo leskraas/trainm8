@@ -1,0 +1,64 @@
+$ sed -n 147,168p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+### 6. Derived, then authored
+
+A derived value the athlete owns (a **Weekly Capacity**, a threshold, an
+archetype) becomes stored, authored state only when the athlete acts on it, and
+from then on it is an authored decision, never re-read from its source. This is
+not the materialization of §3, which stores a derived value with no act and
+keeps it derived, nor the app's own decision of §2. The derivation is shown as a
+pre-fill; the athlete's act is what makes it theirs, and an **Assistant** never
+supplies that act (ADR 0093 §3; §2 above).
+
+- **Weekly Capacity** (ADR 0050 §2): proposed from recent weekly hours, and once
+  authored "nothing re-reads history". History says what the athlete did; a
+  capacity says what they could.
+- **Threshold Estimate** (ADR 0054 §4, §8): proposed from the athlete's own
+  history, and written only when accepted; acceptance re-derives server-side
+  rather than trusting a posted value.
+- **Adopting a detected session** (ADR 0055 §3): adoption is the honest moment
+  for a **Session Archetype** reading to become a statement. Writing it at
+  adoption is the next slice and not built.
+
+A **reading** is never stored (ADR 0055 §3): until the athlete acts, a
+context-dependent classification lives on the derived side only.
+
+$ sed -n 64,72p docs/adr/0050-*.md
+### 2. Derived once, authored thereafter
+
+The value is proposed from `readAnchorContext`'s recent weekly hours with the
+derivation visible, in the same act and the same idiom as the first **Season
+Anchor** segment. Once authored it is a stored athlete statement: nothing
+re-reads history, so a plan never shifts because activities arrived in the
+background (ADR 0040 §6).
+
+Deriving _and leaving it derived_ was rejected on a case nothing in the repo had
+
+$ sed -n 118,128p docs/adr/0054-*.md
+### 4. The engine is pure, and acceptance re-derives rather than trusts
+
+`app/utils/profile-analysis/` splits the way `plan-generation` does: the engine
+**reads no clock** (`now` is an argument), has no random source, mutates nothing
+and **cannot query**. The server half assembles the input and writes only what
+was accepted.
+
+Acceptance **re-runs the analysis server-side** instead of trusting the value
+the browser posted back — the rule `approveSeason` holds for a generated season
+and `fitPlanToEvent` holds for a **Season Fit** proposal. An athlete cannot
+accept a number the app never produced.
+
+$ sed -n 99,112p docs/adr/0055-*.md
+### 3. A reading is never stored — which is where this deviates from the research
+
+`workout-taxonomy.md` §9.1 proposes the axis "on `Workout` (authored or
+generated) and, derived, on a `WorkoutDetection`." **The second half is
+declined.** A `WorkoutDetection` is computed from one activity and has no week,
+so a column there would freeze the easy/long call at detection time and would
+force the pure detection module to take a window it has no business reading.
+
+The cost is that a reading cannot be queried or filtered. That is accepted,
+because the queryable axis is the authored one and **adoption is the bridge**:
+when an athlete adopts a detected session (ADR 0033, #460) is the honest moment
+for a reading to become a statement. That is derived-then-authored, the rule ADR
+0050 set for **Weekly Capacity** and stage 1 sets for a **Threshold Estimate**.
+Writing it at adoption is **not built here** and is named as the next slice.
+

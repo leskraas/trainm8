@@ -1,0 +1,39 @@
+$ sed -n 81,109p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+### 3. Materialization is a clause of the principle, not an exception to it
+
+A derived value may be stored for consistency or for a measured cost. It is then
+**materialized**, and it stays derived:
+
+- **It keeps its relation to its inputs.** Every input it was computed from is
+  still held, and the value can be recomputed from them at any time.
+- **It states its recompute triggers.** The ADR that materializes it names every
+  event that recomputes it.
+
+A **Load Snapshot** (ADR 0008) materializes daily TSS totals and CTL, ATL and
+TSB. As built, it is recomputed on a session log, an import promotion, a
+provider sync or backfill, a threshold change, a recorded missed or skipped
+**Session Status**, and a formula-correction backfill (the case §4 exists for).
+`plannedTssValue` (ADR 0019 §2) is materialized on the **Workout Session**,
+because per-render computation was "wasteful and inconsistent across views". As
+built, it is recomputed on a prescription edit, a threshold change, a typed
+**Performance Result**, and by the writers that lay or change a plan. These
+lists describe the code today and are examples, not the closed set a new
+materialization is checked against. Both are stored and neither is authored,
+which is why the name is "derived, never authored" and not "derived, never
+stored".
+
+Which rows a trigger recomputes is still open for `plannedTssValue`: a threshold
+change recomputes it on every session, done ones included, while a **Performance
+Result** recomputes only sessions still scheduled, so a completed session keeps
+the stress it was planned with. Whether a completed session's **Planned TSS**
+freezes at completion, as its **Target Resolution** does (§1.3), is not decided
+here.
+
+$ sed -n 32,37p docs/adr/0019-*.md
+2. **Materialized, never per-render.** Store `plannedTssValue` +
+   `plannedTssConfidence` on the Workout Session (parallel to actual TSS
+   provenance). Recompute on prescription edits (Step duration / intensity
+   changed) and on threshold changes (resolved ranges shifted). On-the-fly
+   per-render computation is rejected for the same reason as CTL/ATL/TSB (ADR
+   0008): wasteful and inconsistent across views.
+

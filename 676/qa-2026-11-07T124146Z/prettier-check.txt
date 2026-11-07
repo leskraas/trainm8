@@ -1,0 +1,4 @@
+$ npx prettier --check GLOSSARY.md docs/adr/0040-volume-continuity-and-authored-overload.md docs/adr/0112-*.md
+Checking formatting...
+All matched files use Prettier code style!
+exit=0

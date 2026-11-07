@@ -1,0 +1,2 @@
+$ gh api repos/leskraas/trainm8/pulls/676 --jq .head.sha
+b1c3cb7ead25794bd7f5109789e14c008c46b5dc

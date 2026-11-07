@@ -1,0 +1,12 @@
+$ git ls-tree --name-only origin/main docs/adr/ | tail -2
+docs/adr/0110-a-generated-season-fits-the-weekly-capacity-by-lowering-its-anchor.md
+docs/adr/0111-the-week-pattern-picker-offers-recent-hand-written-workouts-bounded.md
+
+$ ls docs/adr | grep '^0112'
+0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+
+$ sed -n 1,3p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+# Derived, never authored: a value is computed unless it was decided, observed or frozen at an act
+
+Status: Accepted · Resolves #377
+

@@ -1,0 +1,31 @@
+$ grep -n '^## \|^### Planning metrics' GLOSSARY.md | head -4
+6:## Language
+1046:### Planning metrics and filters
+3003:## Relationships
+3331:## Example dialogue
+
+$ sed -n 1096,1118p GLOSSARY.md
+**Unavailable Metric**: A training metric that the current domain model cannot
+truthfully calculate, shown as _ikke målt_ with its reason and never as a number
+or a zero — a Simple Activity's zones, pace, power, Planned TSS and Training
+Load, or a pace no threshold resolves. _Avoid_: Fake metric, mock stat, 0
+
+**Derived, never authored**: The test for whether a value is computed or stored
+(ADR 0112). Derive any value that is a pure function of inputs the app still
+holds; store only an authored decision (a **Week Replan**), an observation
+received from outside (an **Activity Import**), or a bake made at an act with
+the inputs it used stored beside it (a lift's load fixed with the bodyweight
+then, a completed session's frozen **Target Resolution**). A derived value
+stored for consistency or a measured cost is materialized and stays derived: it
+keeps its relation to its inputs, states its recompute triggers, and explains a
+movement in a number the athlete has already read (a **Load Recompute Notice**
+for a **Load Snapshot**). Cost never decides derive versus store. A derived
+value the athlete owns is stored only when the athlete acts on it, and is
+authored from then on (a confirmed **Weekly Capacity**); a convention the
+athlete did not choose is never stored as though authored. Cited as (Derived,
+never authored, ADR 0112). "Derived, never stored" stays correct as the narrower
+statement for a derived value that is not materialized, such as a **Training
+Week**'s volume target. _Avoid_: compute it, don't store it;
+derived-never-stored rule
+
+

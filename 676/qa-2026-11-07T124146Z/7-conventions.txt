@@ -1,0 +1,39 @@
+$ sed -n 170,179p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+### 7. Conventions and display artefacts are never stored as authored state
+
+- **A convention or default the athlete did not choose is never stored as though
+  authored** (ADR 0044 §4, ADR 0048 §1). A null rate means "follow the
+  convention" and a number means "the athlete authored this", so when a
+  convention moves, the athlete's own numbers do not move with it.
+- **A display artefact never shares a field with authored state** (ADR 0057 §6).
+  A 1RM computed for a chart may be recomputed freely; a training max is
+  authored state, so sharing a field would let a chart's recompute move a
+  program's loads.
+
+$ sed -n 284,290p docs/adr/0044-*.md
+Nullable rather than a stored default, because `null` means "follow the
+convention" and a number means "the athlete authored this". The distinction is
+load-bearing: these constants are **conventions**, not injury prevention (ADR
+0040 §13), so when one moves, the athlete's own numbers must not move with it.
+
+The taper's _shape_ is a documented function in code — exponential to its full
+cut in the phase's final week, per Bosquet — never per-week stored values, which
+
+$ sed -n 63,67p docs/adr/0048-*.md
+
+The hand-authored path is unchanged, including that it opens with every rate
+unset: a convention is still never stored as though it had been authored (ADR
+0044 §4). What a preset writes, it writes because a preset _chooses_ it.
+
+
+$ sed -n 190,198p docs/adr/0057-*.md
+### 6. The training max is not a construct here
+
+`trainingMaxKg` and `workingFraction` live on `ProgramLiftState` (ADR 0059), not
+on this table, and that separation is deliberate.
+
+A 1RM computed for a chart is a **display artefact** and may be recomputed
+freely. A training max is **authored state whose whole cycle is wrong if it is
+wrong**. Sharing a field would let a chart's recompute move a program's loads,
+and would put the training max into the record machinery ADR 0021 carves out.
+

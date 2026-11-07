@@ -1,0 +1,57 @@
+$ sed -n 127,145p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+### 5. Cost never decides derive versus store
+
+Cost is not part of the test in §1. A slow derivation is still a derivation. A
+**measured** cost decides only whether a derived value is materialized (§3), in
+the database or in memory alike.
+
+- ADR 0024 declined an NP column on the **Activity Import** "for now": the
+  recompute already reads the stream, and the column is "an optimization to
+  revisit if per-day recompute cost ever bites". No cost was measured, so
+  nothing was materialized.
+- ADR 0078 §5 (and its "Alternatives considered") deferred caching the stream's
+  per-frame rect reads, a measured cost: a real saving, but caching them means
+  invalidating them on growth, on resize and on a band expanding, three new
+  invalidation paths for a tail that is not the one that hurts, and a stale
+  offset there is a reading position that drifts.
+- The **Training Week** volume target (ADR 0040) is one closed-form, indexed
+  formula with no reads, and is derived and not materialized. CTL (ADR 0008) is
+  a 42-day replay over daily TSS, and is derived and materialized. Both are
+  derived; they differ only in whether a cost justified materializing.
+
+$ sed -n 67,70p docs/adr/0024-*.md
+- **Recompute NP at ingest and store it on the Activity Import.** Rejected for
+  now — TSS is already recomputed on demand through `recomputeLoadFrom`, which
+  reads the stream row anyway; a cached NP column is an optimization to revisit
+  if per-day recompute cost ever bites.
+
+$ sed -n 152,171p docs/adr/0078-*.md
+### 5. The remaining tail is recorded, not chased
+
+At full span, **~20% of frames still exceed 32ms at 4× and 6× CPU**, with a p95
+of 83ms and 117ms. The median is 16.7ms and the same fling at the landed window
+is 0.8%, so this is a spiky tail over a smooth floor, not a slow surface. The
+trace attributes it to the rendering pipeline over 52 mounted weeks — Paint
+540ms, PrePaint 247ms, `UpdateLayoutTree` 235ms, Layerize 132ms across one 6×
+fling — rather than to script.
+
+Two things were identified and deliberately not done, so that the next person
+starts from a list rather than a trace:
+
+- **`resync()` reads a rect per mounted week on every scroll frame** —
+  `querySelectorAll` plus 52 `getBoundingClientRect()` calls, measured at 2.3ms
+  median and 6.4ms worst at 6× CPU. Caching the offsets means invalidating them
+  on growth, on resize and on a band expanding, and stale offsets there are a
+  reading position that drifts.
+- **52 sticky week headers** are 52 composited layers, which is what PrePaint
+  and Layerize are counting.
+
+
+$ sed -n 40,45p docs/adr/0040-*.md
+1. **Per-week volume is derived, never stored.** A season carries one anchor and
+   each block carries a **rate**; every week's target is computed. Nothing
+   stores a week's number, so nothing can go stale. This is the general
+   principle the codebase already applies ad hoc — "derived, never authored"
+   (ADR 0021), the Plan card as a view over Events (ADR 0018) — named and
+   applied here.
+

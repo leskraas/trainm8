@@ -1,0 +1,39 @@
+$ sed -n 191,213p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+## Considered options
+
+- **Seed a value from other data and store it.** Rejected, as ADR 0040 §1 first
+  rejected it: it computes a number from other data and throws the relation
+  away, so it goes stale silently and unrecoverably. It is the worst of both:
+  neither a decision nor a derivation. Derived-then-authored (§6) is not this,
+  because the athlete's act makes the stored value a statement of theirs.
+- **"Derived, never stored" as the name.** Rejected: false for every
+  materialized value the principle has to cover (a **Load Snapshot**,
+  `plannedTssValue`). It is kept as the narrower statement (§8).
+- **Cost as part of the test.** Rejected: it would let a slow derivation turn
+  into stored data that has lost its relation. Cost decides only
+  materialization, and only when measured (§5).
+- **Caches as an exception to the rule.** Rejected: an exception invites a cache
+  that drops its relation and its triggers. As a clause (§3), a cache owes both.
+- **"Authored" meaning the athlete only.** Rejected: the Week Replan, the test's
+  own instance, is written by the app under the Autopilot, so the principle
+  would be broken on the day it is named, or would need a fourth store case for
+  the same thing (§2).
+- **Leaving derived-then-authored and conventions with their own ADRs.**
+  Rejected: they are exactly where derive meets store, and a test without them
+  would misclassify a confirmed Weekly Capacity as a stored derivation and a
+  preset's rates as authored.
+
+$ sed -n 40,51p docs/adr/0040-*.md
+1. **Per-week volume is derived, never stored.** A season carries one anchor and
+   each block carries a **rate**; every week's target is computed. Nothing
+   stores a week's number, so nothing can go stale. This is the general
+   principle the codebase already applies ad hoc — "derived, never authored"
+   (ADR 0021), the Plan card as a view over Events (ADR 0018) — named and
+   applied here.
+
+   The rejected alternative was to _seed_ a block's opening volume from the
+   previous block at creation time and store the result. That is the worst of
+   both: it computes a number from other data and **throws the relation away**,
+   so it goes stale silently and unrecoverably.
+
+

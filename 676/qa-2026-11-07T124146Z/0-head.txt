@@ -1,0 +1,14 @@
+$ git rev-parse HEAD
+b1c3cb7ead25794bd7f5109789e14c008c46b5dc
+
+$ git rev-parse origin/main
+6ec5b58a12083234b9cc49c8970fcedd268547a5
+
+$ git merge-base --is-ancestor origin/main HEAD && echo 'head contains origin/main'
+head contains origin/main
+
+$ git diff --name-status origin/main HEAD
+M	GLOSSARY.md
+M	docs/adr/0040-volume-continuity-and-authored-overload.md
+A	docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+

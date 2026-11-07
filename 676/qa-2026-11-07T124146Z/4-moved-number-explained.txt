@@ -1,0 +1,40 @@
+$ sed -n 111,125p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+### 4. A moved number the athlete has read is explained, never silent
+
+When a recompute moves a number the athlete has already read, without the
+athlete's own input having changed, the movement is explained and never silent
+(ADR 0008, ADR 0046 §2). The duty belongs to materialization, not to one table:
+any materialized value an athlete reads owes it. For a **Load Snapshot** the
+explanation is the **Load Recompute Notice**. Where the athlete's own data did
+change (a new power meter, ADR 0008), the choice between two honest readings is
+theirs, and ADR 0008 rules that the app offers rather than switches; that offer
+is not built yet. ADR 0055 §2 already reasons with this duty to keep a label
+from being stored: a stored reading would owe "a **Load Recompute Notice** for a
+label" every time its window moved.
+
+No generic notice mechanism is built here; a later materialized value that an
+athlete reads names its own explanation in the ADR that materializes it.
+
+$ sed -n 62,66p docs/adr/0008-*.md
+  therefore no longer equals the sum of the split. `sRPE` itself is untouched as
+  the terminal fallback of the endurance chains below._
+- When an athlete adds a power meter or threshold pace later, the system offers
+  to recompute historical LoadSnapshots with the new formula but never
+  auto-switches silently.
+
+$ sed -n 343,350p docs/adr/0046-*.md
+The blast radius is every `LoadSnapshot` row plus whatever copy explains the
+drop to an athlete who did not change their training. This ADR rules on what the
+number means; the migration, the backfill and the explanatory copy are a
+separate piece of work.
+
+_Settled by #394: **a one-time migration with a notice, not an offer.** ADR
+0008's sentence has two halves — it "offers to recompute … but never
+auto-switches silently" — and only the second half is load-bearing here. The
+
+$ sed -n 92,95p docs/adr/0055-*.md
+28-day window that keeps moving: a reading frozen into a column would be a
+classification of a window that has since changed, and every later recompute
+would have to move it again — a **Load Recompute Notice** for a label.
+
+

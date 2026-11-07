@@ -1,0 +1,52 @@
+$ sed -n 30,59p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+### 1. The test
+
+**Derive any value that is a pure function of inputs the app still holds. Store
+only three kinds of value:**
+
+1. **An authored decision.** A choice made once, at a dated act, and never
+   re-derived. The instance is the **Week Replan** (ADR 0025): stored per closed
+   week, and "the first evaluation wins", because re-deriving it over shifting
+   inputs would let a multiplicative adjustment compound and would let what was
+   applied and what is said drift apart.
+2. **An observation received from outside.** A fact the app did not compute and
+   cannot recompute. The instance is the **Activity Import**: a raw telemetry
+   record from an external provider, with nothing inside the app to derive it
+   from.
+3. **A bake made at an act, with the inputs it used stored beside it.** A
+   derivation whose input changes over time, captured as it stood at the moment
+   the athlete acted. The built instance is `effectiveKg` with `bodyweightKg`
+   (ADR 0056 §3, "resolve-and-bake"): a bodyweight-derived load depends on the
+   bodyweight _then_, so recomputing it would silently rewrite an old record,
+   and `bodyweightKg` stored beside it keeps the number auditable and
+   re-derivable. The second instance is a completed session's frozen **Target
+   Resolution**: the glossary's rule that a completed session's target "freezes
+   at completion", because it is what the athlete was told to run. That rule has
+   no ADR of its own and its `Resolution` record is not built yet; when it is,
+   it is a bake of this kind and stores its anchor snapshot beside the value.
+
+Everything else is derived. "Inputs the app still holds" is what separates case
+3 from a derivation: once an input has moved on (a new bodyweight, a new
+threshold), the value at the act is no longer a function of anything the app
+holds, so it is frozen with its inputs or it is lost.
+
+$ grep -n 'first evaluation' -A1 docs/adr/0025-*.md
+29:   first evaluation **wins**: late-arriving data for the closed week never
+30-   re-opens the decision. This is what makes a multiplicative adjustment safe —
+
+$ sed -n 155,163p docs/adr/0056-*.md
+surface says so in one phrase — _"No kilos — this progresses against itself
+only."_
+
+**`effectiveKg` is baked at log time, and never recomputed.** This looks like
+the derived-never-stored rule being broken and it is not: a bodyweight-derived
+load depends on the bodyweight _then_, so recomputing it would silently rewrite
+a two-year-old weighted-dip record after a 6 kg change. `bodyweightKg` is stored
+beside it so the number can be audited and re-derived. The same resolve-and-bake
+as a Step's resolved intensity ranges.
+
+$ grep -n 'freezes' GLOSSARY.md | head -3
+424:**freezes at completion**, because it is what the athlete was told to run and
+491:intervals to tempo. An auto-estimated threshold that goes stale **freezes and is
+3234:  (ADR 0040). The ramp product **freezes at the last loading week**, so a
+

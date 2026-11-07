@@ -1,0 +1,81 @@
+$ sed -n 181,189p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+### 8. How later ADRs cite it
+
+A later ADR that applies the principle cites it as **(Derived, never authored,
+ADR 0112)**, the way the repo already cites (Unavailable Metric, ADR 0008). An
+ADR that stores a value says which case of §1 it is, or names the
+materialization's recompute triggers (§3) and its explanation (§4).
+
+"Derived, never stored" stays correct as the narrower statement for a derived
+value that is not materialized, such as the **Training Week** volume target.
+
+$ sed -n 215,264p docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md
+## The rulings this generalizes
+
+Each line is one ruling and the case it decided. Their own wording stands:
+accepted ADRs are records and are not rewritten.
+
+- **ADR 0008**: a **Load Snapshot** materializes CTL, ATL and TSB with stated
+  triggers, and a recompute never switches an athlete's numbers silently (§3,
+  §4).
+- **ADR 0018**: the Plan card is a view over **Events**, and stores nothing of
+  its own.
+- **ADR 0019 §2**: `plannedTssValue` is materialized, never per-render, with
+  prescription edits and threshold changes as its triggers (§3).
+- **ADR 0021**: a **Personal Record** is derived, never authored, with no table
+  and no authoring path.
+- **ADR 0024**: an NP column is declined while no cost is measured (§5).
+- **ADR 0025**: a **Week Replan** is a decision stored once and never re-opened
+  by late data (§1.1).
+- **ADR 0040 §1**: a **Training Week**'s volume target is derived, never stored,
+  and seeding a block's volume is rejected (§5, Considered options).
+- **ADR 0042 §5**: the emphasis label is derived from the **Quality Session
+  Mix**, never authored.
+- **ADR 0044 §4**: a null rate means the convention; a convention is never
+  stored as a number (§7).
+- **ADR 0046 §2**: a recompute that moves an athlete's numbers when their data
+  did not change owes a notice, not an offer (§4).
+- **ADR 0048 §1**: a hand-authored season opens with every rate unset; what a
+  preset writes, it writes because the preset chose it (§7).
+- **ADR 0050**: **Weekly Capacity** is derived once, then authored (§6).
+- **ADR 0051 §3**: a corpus row's `archetype` is authored, because the row has
+  no week to derive it from.
+- **ADR 0054**: a **Threshold Estimate** is stored only when the athlete accepts
+  it, and acceptance re-derives (§6).
+- **ADR 0055 §1**: the rule forbids a second source of truth, not authoring; it
+  bites only where the model already holds what a value describes.
+- **ADR 0055 §3**: a reading is never stored, and adoption is where it becomes a
+  statement (§6).
+- **ADR 0056 §3**: `effectiveKg` is baked at log time with `bodyweightKg` beside
+  it (§1.3).
+- **ADR 0057 §6**: a display artefact never shares a field with authored state
+  (§7).
+- **ADR 0058**: a strength record is derived from the set row with no records
+  table, and tonnage is declined.
+- **ADR 0078 §5**: a cache is deferred: a real, measured saving, but three new
+  invalidation paths for a tail that is not the one that hurts (§5).
+- **ADR 0102 §4** (with ADR 0091 §3): the stored **Weekly Capacity** is the
+  heaviest week of the first-run plan the athlete accepts, written when they
+  pick a start option. Derived, then authored at the athlete's act on the option
+  that contains it (§6), not seeding.
+- **ADR 0110 §2**: approval writes the lowered **Season Anchors** it showed.
+  Derived, then authored at the athlete's act (§6), not seeding.
+
+$ for n in 0008 0018 0019 0021 0024 0025 0040 0042 0044 0048 0050 0054 0055 0056 0057 0078; do grep -q "^- \*\*ADR $n" docs/adr/0112-derived-never-authored-a-value-is-computed-unless-it-was-decided-observed-or-frozen-at-an-act.md && echo "$n listed" || echo "$n MISSING"; done
+0008 listed
+0018 listed
+0019 listed
+0021 listed
+0024 listed
+0025 listed
+0040 listed
+0042 listed
+0044 listed
+0048 listed
+0050 listed
+0054 listed
+0055 listed
+0056 listed
+0057 listed
+0078 listed
+
