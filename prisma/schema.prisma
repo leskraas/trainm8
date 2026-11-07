@@ -1162,6 +1162,32 @@ model WorkoutSession {
   @@index([planOutlineId])
 }
 
+/// **Home Place** (ADR 0115 §2): the one named place in Norway the athlete
+/// trains from, used only to fetch the **Day Forecast**. Its own row, one to one
+/// with the profile, so "a place is set" is the row existing: every field is
+/// there or none is, and _Fjern_ is one delete. The point is rounded to 2
+/// decimals (about a kilometre) on the server on every write, whatever the form
+/// sent; the search text that found it is never stored. Kept while the account
+/// exists or until the athlete removes it (ADR 0105 §3).
+model HomePlace {
+  id           String @id @default(cuid())
+  /// The place's name as Kartverket writes it (`skrivemåte`), e.g. "Lillehammer".
+  name         String
+  /// Kartverket's kind of place (`navneobjekttype`), e.g. "By", "Kommune".
+  kind         String
+  municipality String
+  county       String
+  /// Rounded to 2 decimals on every write (`home-place.server.ts`).
+  latitude     Float
+  longitude    Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  athleteProfile   AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  athleteProfileId String         @unique
+}
+
 model AthleteProfile {
   id             String    @id @default(cuid())
   birthdate      DateTime?
@@ -1215,6 +1241,10 @@ model AthleteProfile {
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique
+
+  /// The athlete's **Home Place** (ADR 0115 §2): none until they choose one in
+  /// _Meg_ › _Hjemsted_, and with none I dag shows no weather.
+  homePlace HomePlace?
 
   disciplineProfiles DisciplineProfile[]
   thresholdEvents    ThresholdEvent[]

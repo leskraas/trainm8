@@ -23,10 +23,9 @@
 
 import * as Sentry from '@sentry/react-router'
 import { SOURCE_ATTRIBUTION_LABELS } from '#app/utils/labels.ts'
-import { ATTRIBUTIONS } from '#app/utils/source-terms.ts'
 import { type ActionCtx, type AnyActionResult, type RunCtx } from './define.ts'
-import { type Credit } from './reading.ts'
 import { ATHLETE_YES_PATH } from './paths.ts'
+import { CREDIT_SOURCES, type Credit } from './reading.ts'
 import { Refusal, nextOf, refuse } from './refusals.ts'
 import { type ActionName, getAction, type ResultOf } from './registry.server.ts'
 import { isModelCaller, SCOPE_OF_KIND } from './vocabulary.ts'
@@ -94,14 +93,18 @@ async function run(
 }
 
 /**
- * Credits in the platforms' fixed order, and within a platform the recording's
- * line before the derived one, so a result reads the same each time.
+ * Credits in the sources' fixed order (the Origin Platforms, then MET Norway),
+ * and within a platform the recording's line before the derived one, so a
+ * result reads the same each time.
  */
 function byCreditOrder(a: Credit, b: Credit): number {
 	const derived = (c: Credit) =>
-		c.text === SOURCE_ATTRIBUTION_LABELS.derived[c.platform] ? 1 : 0
+		c.platform !== 'met-norway' &&
+		c.text === SOURCE_ATTRIBUTION_LABELS.derived[c.platform]
+			? 1
+			: 0
 	return (
-		ATTRIBUTIONS.indexOf(a.platform) - ATTRIBUTIONS.indexOf(b.platform) ||
+		CREDIT_SOURCES.indexOf(a.platform) - CREDIT_SOURCES.indexOf(b.platform) ||
 		derived(a) - derived(b)
 	)
 }
