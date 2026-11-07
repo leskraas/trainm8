@@ -1,0 +1,40 @@
+    218|  await ensureOrphanedWorkoutPurgeEnqueued()
+    219|  const requeued = await readJob(job.id)
+    220|  expect(requeued).toMatchObject({ status: 'pending', attempts: 1 })
+       |                   ^
+    221|  await prisma.job.update({
+    222|   where: { id: job.id },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  app/utils/orphaned-workout-purge.server.test.ts > the run writes its record on its own row, not on another of its kind
+AssertionError: expected {} to deeply equal { purged: { erased: 2, …(2) } }
+
+- Expected
++ Received
+
+- {
+-   "purged": {
+-     "erased": 2,
+-     "keptUnattributed": 1,
+-     "spliced": 0,
+-   },
+- }
++ {}
+
+ ❯ app/utils/orphaned-workout-purge.server.test.ts:269:42
+    267|  info.mockRestore()
+    268| 
+    269|  expect((await readJob(job.id)).payload).toEqual({
+       |                                          ^
+    270|   purged: { erased: 2, keptUnattributed: 1, spliced: 0 },
+    271|  })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 passed (8)
+   Start at  18:49:06
+   Duration  7.90s (transform 1.50s, setup 944ms, import 1.33s, tests 1.58s, environment 0ms)
+
