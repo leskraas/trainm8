@@ -22,14 +22,38 @@ export const NATIVE_SELECT_RESTRICTION = {
 
 // One deletion path for a `User` (#468, ADR 0112 §4): `Workout.ownerId` is
 // `SetNull`, so any other delete leaves the athlete's Workouts behind as
-// Orphaned Workouts. Catches `prisma.user.delete`, `tx.user.deleteMany` and one
-// inside a batch `$transaction([...])`; not `userImage` or a bare `user.delete()`.
-export const USER_DELETE_RESTRICTION = {
-	selector:
-		"CallExpression[callee.type='MemberExpression'][callee.property.name=/^(delete|deleteMany)$/][callee.object.type='MemberExpression'][callee.object.property.name='user']",
-	message:
-		'Delete a User only through deleteAccount (app/utils/account-deletion.server.ts). Workout.ownerId is SetNull, so a bare user.delete/deleteMany leaves the athlete’s Workouts behind as Orphaned Workouts (ADR 0112).',
-}
+// Orphaned Workouts. Several selectors, one per shape that reaches the delete:
+// - `.user.delete` / `.user.deleteMany` read off any object, called or not (a
+//   call, an optional call, one inside a batch `$transaction([...])`, `.bind`),
+//   dotted or computed (`prisma['user']['delete']`);
+// - the `user` delegate taken off a client into a variable or a destructuring
+//   (`const u = tx.user`, `const { user } = prisma`), which would let a later
+//   `u.delete` through; the client names the repo uses are listed;
+// - a raw `DELETE FROM "User"` in any string or template.
+// Not `userImage`, a bare `user.delete()`, or a `prisma.user.findMany` chain.
+const USER_DELETE_MESSAGE =
+	'Delete a User only through deleteAccount (app/utils/account-deletion.server.ts). Workout.ownerId is SetNull, so a bare user.delete/deleteMany leaves the athlete’s Workouts behind as Orphaned Workouts (ADR 0112).'
+const DELETE_KEY = '/^(delete|deleteMany)$/'
+const PRISMA_CLIENT = '/^(prisma|tx|db|client)$/'
+const RAW_USER_DELETE = '/DELETE\\s+FROM\\s+\\W?User\\W?(\\s|;|$)/i'
+export const USER_DELETE_RESTRICTIONS = [
+	{
+		selector: `MemberExpression:matches([property.name=${DELETE_KEY}], [property.value=${DELETE_KEY}]):matches([object.property.name='user'], [object.property.value='user'])`,
+		message: USER_DELETE_MESSAGE,
+	},
+	{
+		selector: `VariableDeclarator[init.object.name=${PRISMA_CLIENT}]:matches([init.property.name='user'], [init.property.value='user'])`,
+		message: USER_DELETE_MESSAGE,
+	},
+	{
+		selector: `VariableDeclarator[init.name=${PRISMA_CLIENT}] > ObjectPattern > Property:matches([key.name='user'], [key.value='user'])`,
+		message: USER_DELETE_MESSAGE,
+	},
+	{
+		selector: `:matches(TemplateElement[value.raw=${RAW_USER_DELETE}], Literal[value=${RAW_USER_DELETE}])`,
+		message: USER_DELETE_MESSAGE,
+	},
+]
 
 const NATIVE_SELECT_FILES = ['app/routes/**/*.tsx']
 const NATIVE_SELECT_IGNORES = [
@@ -38,13 +62,11 @@ const NATIVE_SELECT_IGNORES = [
 	'app/routes/_seo/**',
 ]
 const USER_DELETE_FILES = ['app/**/*.{ts,tsx}', 'server/**/*.ts']
-// Account Erasure itself, and tests and their fixtures, which set up and tear
-// down users directly.
+// Account Erasure itself, and test files, which set up and tear down users
+// directly. Test fixtures live in `tests/`, outside `USER_DELETE_FILES`.
 const USER_DELETE_IGNORES = [
 	'app/utils/account-deletion.server.ts',
 	'**/*.test.{ts,tsx}',
-	'**/fixtures/**',
-	'**/*-fixtures.ts',
 ]
 
 /** @type {import("eslint").Linter.Config} */
@@ -59,7 +81,7 @@ export default [
 		files: USER_DELETE_FILES,
 		ignores: USER_DELETE_IGNORES,
 		rules: {
-			'no-restricted-syntax': ['error', USER_DELETE_RESTRICTION],
+			'no-restricted-syntax': ['error', ...USER_DELETE_RESTRICTIONS],
 		},
 	},
 	// Route files under both restrictions: listed together, since this block
@@ -71,7 +93,7 @@ export default [
 			'no-restricted-syntax': [
 				'error',
 				NATIVE_SELECT_RESTRICTION,
-				USER_DELETE_RESTRICTION,
+				...USER_DELETE_RESTRICTIONS,
 			],
 		},
 	},

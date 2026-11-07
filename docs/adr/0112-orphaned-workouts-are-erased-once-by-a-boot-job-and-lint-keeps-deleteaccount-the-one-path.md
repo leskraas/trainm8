@@ -39,10 +39,15 @@ future `prisma.user.delete` from making new ones.
    against `deleteAccount`'s fixtures, and it would drift from them: ADR 0051
    §9's reason, applied to logic rather than content.
 4. **No recurring sweep. Lint pins the one deletion path instead.**
-   `no-restricted-syntax` rejects a `.user.delete` / `.user.deleteMany` call in
-   `app/` and `server/`, except in `account-deletion.server.ts`, test files and
-   test fixtures, and its message names `deleteAccount`. A sweep would quietly
-   clean up after the regression lint reports at the line that causes it.
+   `no-restricted-syntax` rejects, in `app/` and `server/`, every shape that
+   reaches a `User` delete: `.user.delete` / `.user.deleteMany` read off any
+   object (called, optionally called, in a batch `$transaction`, bound, dotted
+   or computed), the `user` delegate taken off a client (`prisma`, `tx`, `db`,
+   `client`) into a variable or a destructuring, and a raw `DELETE FROM "User"`
+   in any string. Only `account-deletion.server.ts` and test files are exempt;
+   test fixtures live in `tests/`, outside the rule's files. Its message names
+   `deleteAccount`. A sweep would quietly clean up after the regression lint
+   reports at the line that causes it.
 5. **Restrictions share one rule, so they are composed.** ESLint's flat config
    replaces a rule's options per matching block; it does not merge them. Each
    restriction is a named entry in `eslint.config.js`, and a block that covers
@@ -71,5 +76,6 @@ future `prisma.user.delete` from making new ones.
 - Open reports on an erased orphan go with it, as on Account Erasure (#639 H24).
 - The read-only SQL count in ADR 0051 §5 stays as the owner's check that the job
   ran: after it, only kept rows remain, all `private`.
-- `git grep` stays the backstop for shapes lint does not see, such as a computed
-  `prisma['user']`.
+- `git grep` stays the backstop for shapes lint does not see: the delegate
+  handed off under a client name the rule does not list, or a raw delete whose
+  SQL is assembled from pieces.

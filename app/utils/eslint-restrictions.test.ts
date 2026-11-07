@@ -1,6 +1,10 @@
 import path from 'node:path'
 import { ESLint } from 'eslint'
 import { expect, test } from 'vitest'
+import {
+	NATIVE_SELECT_RESTRICTION,
+	USER_DELETE_RESTRICTIONS,
+} from '../../eslint.config.js'
 
 /**
  * The `no-restricted-syntax` restrictions in `eslint.config.js` share one rule,
@@ -17,6 +21,8 @@ const SERVER_FILE = 'server/index.ts'
 const ROUTE_FILE = 'app/routes/settings/profile/index.tsx'
 const TEST_FILE = 'app/utils/catalogue.server.test.ts'
 const ROUTE_TEST_FILE = 'app/routes/me.test.tsx'
+// Test fixtures live under `tests/`, outside the rule's files.
+const FIXTURE_FILE = 'tests/playwright-utils.ts'
 
 const USER_DELETE = `
 import { prisma } from '#app/utils/db.server.ts'
@@ -42,8 +48,8 @@ async function restrictions(code: string, filePath: string) {
 		.map((m) => m.message)
 }
 
-const deleteAccountMessage = expect.stringContaining('deleteAccount')
-const selectMessage = expect.stringContaining('Native <select>')
+const deleteAccountMessage = USER_DELETE_RESTRICTIONS[0]!.message
+const selectMessage = NATIVE_SELECT_RESTRICTION.message
 
 test('a direct user delete outside Account Erasure fails lint, naming deleteAccount', async () => {
 	const messages = await restrictions(USER_DELETE, UTILS_FILE)
@@ -54,8 +60,44 @@ test('a direct user delete outside Account Erasure fails lint, naming deleteAcco
 		deleteAccountMessage,
 		deleteAccountMessage,
 	])
+	expect(messages[0]).toContain('deleteAccount')
 	expect(messages[0]).toContain('Orphaned Workouts')
 	expect(await restrictions(USER_DELETE, SERVER_FILE)).toHaveLength(3)
+})
+
+// Every other shape that reaches a `User` delete, one per line, and the
+// near-misses that must stay quiet.
+const USER_DELETE_SHAPES = `
+import { prisma } from '#app/utils/db.server.ts'
+export async function gone(id: string, tx: typeof prisma) {
+	await prisma['user'].delete({ where: { id } })
+	await prisma.user['deleteMany']({ where: { id } })
+	await prisma?.user?.delete({ where: { id } })
+	const remove = prisma.user.delete.bind(prisma.user)
+	const users = tx.user
+	const { user } = prisma
+	await prisma.$executeRaw\`DELETE FROM "User" WHERE id = \${id}\`
+	await prisma.$executeRawUnsafe('delete from User where id = ?', id)
+	return [remove, users, user]
+}
+`
+const NEAR_MISSES = `
+import { prisma } from '#app/utils/db.server.ts'
+export async function kept(id: string, session: { user: unknown }) {
+	await prisma.user.findMany({ where: { id } })
+	await prisma.userImage.delete({ where: { userId: id } })
+	await prisma.$executeRaw\`DELETE FROM "UserImage" WHERE "userId" = \${id}\`
+	const { user } = session
+	const viewer = session.user
+	return [user, viewer]
+}
+`
+
+test('a user delete by any other shape fails lint too', async () => {
+	expect(await restrictions(USER_DELETE_SHAPES, UTILS_FILE)).toEqual(
+		Array(8).fill(deleteAccountMessage),
+	)
+	expect(await restrictions(NEAR_MISSES, UTILS_FILE)).toEqual([])
 })
 
 test('a route file is held to both restrictions at once', async () => {
@@ -72,6 +114,7 @@ test('Account Erasure itself and tests may delete a user; route tests keep the <
 		await restrictions(USER_DELETE, 'app/utils/account-deletion.server.ts'),
 	).toEqual([])
 	expect(await restrictions(USER_DELETE, TEST_FILE)).toEqual([])
+	expect(await restrictions(USER_DELETE_SHAPES, FIXTURE_FILE)).toEqual([])
 	expect(
 		await restrictions(`${USER_DELETE}\n${NATIVE_SELECT}`, ROUTE_TEST_FILE),
 	).toEqual([selectMessage])
