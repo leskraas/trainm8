@@ -367,6 +367,100 @@ export const SESSION_PREFERENCE_LABELS = {
 	},
 } as const
 
+/**
+ * _Meg_ → _Nivå og økter_, editing the activities (#587, ADR 0109): the
+ * start's chips, the server's preview of the new week (_Vis ny uke_) and
+ * its confirm, and the line that says why a plan cannot be edited here.
+ */
+export const ACTIVITIES_EDIT_LABELS = {
+	note: 'Det planen din legger ut. Endrer du dem, legges planen på nytt fra første uke som ikke har begynt. Du ser den nye uka før noe endres.',
+	/** `Timene og dagene blir som før: 6 timer i uka, mandag og torsdag.` */
+	stands: (hours: string, days: readonly string[]) =>
+		days.length > 0
+			? `Timene og dagene blir som før: ${hours} i uka, ${nbJoin(days)}.`
+			: `Timene blir som før: ${hours} i uka.`,
+	/** The Strength Frequency the athlete gave last. */
+	strengthAnswer: (perWeek: number) => `Du svarte ${perWeek} i uka sist.`,
+	show: 'Vis ny uke',
+	same: 'Det er de samme aktivitetene som planen har nå. Ingenting er endret.',
+	none: 'Velg minst én aktivitet. Ingenting er endret.',
+	changedSince:
+		'Du har endret valgene etter forhåndsvisningen. Trykk Vis ny uke for å se uka de gir.',
+	/** `Ny uke · uke 46`: the ISO week the edit begins in. */
+	overline: (isoWeek: number) => `Ny uke · uke ${isoWeek}`,
+	/** `Fra mandag 9. november`. */
+	title: (monday: string) => `Fra ${monday}`,
+	boundaryNext: 'Uka som er i gang blir som den er.',
+	boundaryThis: 'Du har ikke trent noe denne uka, så den nye uka begynner nå.',
+	/** The family the plan follows, kept. */
+	family: (name: string) =>
+		`Planen følger fortsatt ${name}, og rytmen starter på nytt med en uke som bygger.`,
+	/** A plan whose family reads as none takes the top option. */
+	familyNone: (plain: string, name: string) =>
+		`Planen har ingen treningsform. Fra da følger den «${plain}» (${name}), og rytmen starter med en uke som bygger.`,
+	yours: 'Din',
+	yoursSr: 'din økt',
+	yoursNote:
+		'Økter merket Din har du lagt inn selv eller hentet fra Bibliotek. De står der de står, og appen legger sine rundt dem.',
+	/** The week's total split, where the athlete's own sessions add time. */
+	totalSplit: (plan: string, yours: string) =>
+		`${plan} fra planen + ${yours} av dine`,
+	alsoTitle: 'Dette endres også',
+	keptTitle: 'Øktene dine står',
+	/** How many of the athlete's own or adopted sessions stay, from the Monday on. */
+	kept: (count: number, from: string) =>
+		`${count === 1 ? 'Én økt' : `${count} økter`} du har lagt inn selv eller hentet fra Bibliotek, fra ${from} og utover, blir der ${count === 1 ? 'den er' : 'de er'}.`,
+	/** How many of them are on an activity the edit removes. */
+	keptRemoved: (count: number, total: number, removed: readonly string[]) =>
+		`${
+			count === total
+				? count === 1
+					? 'Den'
+					: 'Alle'
+				: count === 1
+					? 'Én av dem'
+					: `${count} av dem`
+		} er ${nbJoin(removed)}, som du tar bort. ${count === 1 ? 'Den' : 'De'} blir stående som dine.`,
+	pinnedTitle: 'Faste dager går tilbake til «La appen velge»',
+	/** `Løping: søndag`. */
+	pinnedRow: (track: string, days: readonly string[]) =>
+		`${track}: ${nbJoin(days)}`,
+	overridesTitle: 'Timer du har satt selv på en uke, fjernes',
+	/** `uke 47 (16. november)`: one cleared week, never split across lines. */
+	overrideWeek: (isoWeek: number, monday: string) =>
+		`uke ${isoWeek} (${monday})`,
+	confirm: 'Bekreft',
+	confirmNote: 'Ukene du har trent, blir som før.',
+	stale:
+		'Uka endret seg etter at du så den. Her er den nye. Ingenting er endret ennå.',
+	done: (monday: string) =>
+		`Aktivitetene er endret. Planen er lagt på nytt fra ${monday}.`,
+	doneLink: 'Se uka i Plan',
+	/** Why a plan's activities are not edited here, and where they are. */
+	readOnly: {
+		event: (event: string) =>
+			`Planen din går mot ${event}, og ukene er lagt mot løpet. Aktivitetene endrer du i Plan, under Avansert.`,
+		currency:
+			'Planen din måles i km eller TSS, ikke i timer, så den kan ikke legges på nytt herfra. Aktivitetene endrer du i Plan, under Avansert.',
+		liftingOnly:
+			'Planen din har bare styrke, så den kan ikke legges på nytt herfra. Aktivitetene endrer du i Plan, under Avansert.',
+		noDays:
+			'Du har ingen treningsdager, så planen kan ikke legges på nytt herfra. Velg dagene under Treningsinnstillinger, eller endre aktivitetene i Plan, under Avansert.',
+	},
+	/** Why the edit wrote nothing, said beside it. */
+	refusal: {
+		'outline-not-found': 'Planen finnes ikke lenger. Ingenting er endret.',
+		'not-editable':
+			'Planen kan ikke legges på nytt herfra lenger. Ingenting er endret.',
+		'nothing-to-lay':
+			'Det er ingen uke å legge med de aktivitetene og dagene. Ingenting er endret.',
+	},
+	/** The level and preferences, below the activities. */
+	answersTitle: 'Svarene dine',
+	answersIntro:
+		'Nivået og øktene du liker endrer ikke uka som ligger. De brukes neste gang du velger en måte å trene på.',
+} as const
+
 /** Months in full, as the start says a date: `19. oktober`. */
 const NB_MONTHS_LONG = [
 	'januar',

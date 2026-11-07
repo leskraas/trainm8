@@ -14,6 +14,7 @@ import { FIVE_MINUTES } from '../five-minutes.ts'
 import { SIMPLE_ACTIVITY_LABELS } from '../labels.ts'
 import { openEndedRound, type PresetFamily } from '../plan-outline/presets.ts'
 import { qualitySessionCount } from '../plan-outline/quality-mix.ts'
+import { type StampSession } from '../plan-outline/stamp.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { stampedSessionTitle } from '../session-title.ts'
 import { type ActivityKind } from '../simple-activity.ts'
@@ -24,6 +25,7 @@ import {
 	MIN_SESSION_HOURS,
 	patternDaysFor,
 	spreadDays,
+	type DraftedSimpleActivity,
 	type DraftSimpleActivity,
 	type DraftTrack,
 	type FirstRunDraft,
@@ -216,7 +218,16 @@ export type StartWeekSession = {
 	minutes: number
 	/** Its Effort Word, as I dag says it (`effortWordOfZone`). */
 	effort: EffortWord
+	/**
+	 * The athlete's own session, kept where it is and laid around (ADR 0109
+	 * §5): one they wrote or adopted, in a week the plan is laid again. Never
+	 * set on a week the start lays.
+	 */
+	kept?: boolean
 }
+
+/** A lifting day's strength session, and whether it is the athlete's own. */
+export type StartWeekLift = StartStrengthSession & { kept?: boolean }
 
 export type StartWeekDay = {
 	weekday: PatternWeekday
@@ -225,7 +236,7 @@ export type StartWeekDay = {
 	 * The day's strength session, where it is a lifting day (#574): shown by
 	 * its lifts, never in minutes, and outside every figure in hours.
 	 */
-	lifting: StartStrengthSession[]
+	lifting: StartWeekLift[]
 }
 
 /**
@@ -258,44 +269,84 @@ export function startWeekOf(
 		session: StartStrengthSession
 	} | null = null,
 ): StartWeek {
-	const laid = draft?.weeks[0]?.sessions ?? []
+	return startWeekFrom(
+		draft?.weeks[0]?.sessions ?? [],
+		draft?.simpleActivities ?? [],
+		lifting,
+	)
+}
+
+/**
+ * A week of laid sessions as the athlete reads it: each titled as the stamp
+ * titles it — a Simple Activity by its Activity Kind — with the lifting days,
+ * and the athlete's own sessions kept on their days (`kept`), which count in
+ * the week's figures as the sessions they are.
+ */
+export function startWeekFrom(
+	laid: ReadonlyArray<
+		Pick<
+			StampSession,
+			'weekday' | 'discipline' | 'role' | 'zone' | 'volume' | 'sourceWorkoutId'
+		>
+	>,
+	simpleActivities: readonly DraftedSimpleActivity[],
+	lifting: {
+		days: readonly PatternWeekday[]
+		session: StartStrengthSession
+	} | null = null,
+	kept: ReadonlyArray<
+		| { weekday: PatternWeekday; session: StartWeekSession }
+		| { weekday: PatternWeekday; lift: StartStrengthSession }
+	> = [],
+): StartWeek {
 	const activities = new Map(
-		(draft?.simpleActivities ?? []).map((activity) => [
-			activity.workoutId,
-			activity,
-		]),
+		simpleActivities.map((activity) => [activity.workoutId, activity]),
 	)
 	const days = WEEKDAYS.map((weekday) => ({
 		weekday,
-		lifting: lifting && lifting.days.includes(weekday) ? [lifting.session] : [],
-		sessions: laid
-			.filter((session) => session.weekday === weekday)
-			.map((session): StartWeekSession => {
-				// A Simple Activity is titled by its Activity Kind, as its Workout
-				// is (`createSimpleActivityWorkout`), and keeps its own Effort Word.
-				const activity = session.sourceWorkoutId
-					? activities.get(session.sourceWorkoutId)
-					: undefined
-				if (activity) {
-					return {
-						title: SIMPLE_ACTIVITY_LABELS.kind[activity.kind],
-						discipline: 'other',
-						minutes: activity.minutes,
-						effort: activity.effortWord,
+		lifting: [
+			...(lifting && lifting.days.includes(weekday) ? [lifting.session] : []),
+			...kept.flatMap((one) =>
+				one.weekday === weekday && 'lift' in one
+					? [{ ...one.lift, kept: true }]
+					: [],
+			),
+		],
+		sessions: [
+			...laid
+				.filter((session) => session.weekday === weekday)
+				.map((session): StartWeekSession => {
+					// A Simple Activity is titled by its Activity Kind, as its Workout
+					// is (`createSimpleActivityWorkout`), and keeps its own Effort Word.
+					const activity = session.sourceWorkoutId
+						? activities.get(session.sourceWorkoutId)
+						: undefined
+					if (activity) {
+						return {
+							title: SIMPLE_ACTIVITY_LABELS.kind[activity.kind],
+							discipline: 'other',
+							minutes: activity.minutes,
+							effort: activity.effortWord,
+						}
 					}
-				}
-				return {
-					title: stampedSessionTitle({
+					return {
+						title: stampedSessionTitle({
+							discipline: session.discipline,
+							role: session.role,
+							zone: session.zone,
+						}),
 						discipline: session.discipline,
-						role: session.role,
-						zone: session.zone,
-					}),
-					discipline: session.discipline,
-					minutes: Math.round((session.volume ?? 0) * 60),
-					effort:
-						session.zone == null ? 'rolig' : effortWordOfZone(session.zone),
-				}
-			}),
+						minutes: Math.round((session.volume ?? 0) * 60),
+						effort:
+							session.zone == null ? 'rolig' : effortWordOfZone(session.zone),
+					}
+				}),
+			...kept.flatMap((one) =>
+				one.weekday === weekday && 'session' in one
+					? [{ ...one.session, kept: true }]
+					: [],
+			),
+		],
 	}))
 	const sessions = days.flatMap((day) => day.sessions)
 	const minutesByEffort: Record<EffortWord, number> = {

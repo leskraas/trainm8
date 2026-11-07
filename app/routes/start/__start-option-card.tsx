@@ -9,6 +9,7 @@
  * the same in both places. Each page keeps its own card frame, heading and
  * action.
  */
+import { Badge } from '#app/components/ui/badge.tsx'
 import { type EffortWord } from '#app/utils/effort-word.ts'
 import {
 	type StartOption,
@@ -16,6 +17,7 @@ import {
 	type StartWeekSession,
 } from '#app/utils/first-run/start-draft.ts'
 import {
+	ACTIVITIES_EDIT_LABELS,
 	FIRST_RUN_LABELS,
 	NB_WEEKDAY_LABELS,
 	nbDurationLabel,
@@ -39,12 +41,22 @@ function percent(part: number, whole: number): number {
 	return whole === 0 ? 0 : Math.round((part / whole) * 100)
 }
 
-export type StartCard = {
+export type StartCard = StartWeekCard & {
 	family: StartOption['family']
 	name: string
 	why: string
 	familyName: string
 	badge: string | null
+	chooseLabel: string
+}
+
+/**
+ * A Start Option's week as the athlete reads it, without the card around it
+ * (its name, its reason, its badge): what `StartOptionWeekView` draws. _Meg_'s
+ * activities edit reads a family's week this way, whatever the family
+ * (ADR 0109 §5).
+ */
+export type StartWeekCard = {
 	/** The week as _Uka di_ draws it: the card's blocks (#584). */
 	week: StartWeek
 	days: Array<{
@@ -58,9 +70,11 @@ export type StartCard = {
 			effort: EffortWord
 			/** `45 min · rolig`. */
 			facts: string
+			/** The athlete's own session, kept on its day (ADR 0109 §5). */
+			kept?: boolean
 		}>
 		/** The day's strength session, by its title and its lifts (#574). */
-		lifting: Array<{ title: string; lifts: string }>
+		lifting: Array<{ title: string; lifts: string; kept?: boolean }>
 	}>
 	/** Minutes at each effort, the bar's widths. */
 	effortMinutes: Record<EffortWord, number>
@@ -75,7 +89,6 @@ export type StartCard = {
 	shortOfHours: string | null
 	/** _Fikk ikke plass denne uka: …_, with what would make room (#572). */
 	notFitted: string | null
-	chooseLabel: string
 }
 
 /** A card as the athlete reads it, every word from the labels module. */
@@ -87,13 +100,28 @@ export function cardOf(
 ): StartCard {
 	if (option.family === 'masters') throw new Error('Masters is not offered')
 	const plain = L.plain[option.family]
-	const { week } = option
 	return {
 		family: option.family,
 		name: plain.name,
 		why: plain.why,
 		familyName: L.familyName(PHILOSOPHY_LABELS[option.family]),
 		badge,
+		chooseLabel: L.chooseLabel(plain.name),
+		...weekCardOf(option, hours, strengthChosen),
+	}
+}
+
+/**
+ * A Start Option's week as the athlete reads it, every word from the labels
+ * module: its days, its figures and the start's notes on it.
+ */
+export function weekCardOf(
+	option: StartOption,
+	hours: number,
+	strengthChosen: number | null,
+): StartWeekCard {
+	const { week } = option
+	return {
 		week,
 		days: week.days.map((day) => ({
 			weekday: NB_WEEKDAY_LABELS[day.weekday]!,
@@ -106,10 +134,12 @@ export function cardOf(
 					duration(session.minutes),
 					L.effort[session.effort],
 				),
+				...(session.kept ? { kept: true } : {}),
 			})),
 			lifting: day.lifting.map((lift) => ({
 				title: lift.title,
 				lifts: lift.lifts.join(' · '),
+				...(lift.kept ? { kept: true } : {}),
 			})),
 		})),
 		effortMinutes: week.minutesByEffort,
@@ -148,7 +178,6 @@ export function cardOf(
 					option.notFitted.room,
 				)
 			: null,
-		chooseLabel: L.chooseLabel(plain.name),
 	}
 }
 
@@ -163,6 +192,20 @@ function liftingClashLines(option: StartOption): string[] {
 		.filter((clash) => clash.reason.startsWith('lifting-'))
 		.map((clash) => SESONG_NOTICE_LABELS.dayClash(clash.reason, clash.weekday))
 	return [...new Set(lines)]
+}
+
+/**
+ * _Din_ beside a session the athlete wrote or adopted, kept on its day in a
+ * week the plan is laid again around it (ADR 0109 §5); a screen reader hears
+ * _din økt_.
+ */
+function KeptBadge() {
+	return (
+		<Badge variant="secondary" className="shrink-0" data-kept-session>
+			<span aria-hidden>{ACTIVITIES_EDIT_LABELS.yours}</span>
+			<span className="sr-only">{ACTIVITIES_EDIT_LABELS.yoursSr}</span>
+		</Badge>
+	)
 }
 
 /** One mark colour per sport (design-system: track hues are marks). */
@@ -192,7 +235,7 @@ const EFFORT_ORDER: EffortWord[] = ['rolig', 'middels', 'hard']
  * figures, the days, and the notes on strength, short hours and what did not
  * fit. The blocks are a picture: the rows say the same week.
  */
-export function StartOptionWeekView({ card }: { card: StartCard }) {
+export function StartOptionWeekView({ card }: { card: StartWeekCard }) {
 	return (
 		<>
 			<WeekBlocks week={card.week} />
@@ -253,6 +296,7 @@ export function StartOptionWeekView({ card }: { card: StartCard }) {
 											<span className="text-foreground min-w-0 break-words">
 												{session.title}
 											</span>
+											{session.kept ? <KeptBadge /> : null}
 										</span>
 										<span className="text-muted-foreground tabular-nums">
 											{session.facts}
@@ -273,6 +317,7 @@ export function StartOptionWeekView({ card }: { card: StartCard }) {
 											<span className="text-foreground min-w-0 break-words">
 												{lift.title}
 											</span>
+											{lift.kept ? <KeptBadge /> : null}
 										</span>
 										{lift.lifts ? (
 											<span className="text-muted-foreground block pl-3.5 break-words">

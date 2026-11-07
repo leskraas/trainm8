@@ -74,15 +74,25 @@ type ShownBlock = SketchBlock & {
  * the stack resting on the baseline, sessions taller for longer and shrunk
  * together when a day holds more than fits.
  */
+/**
+ * The athlete's own session in a week the plan is laid again around it
+ * (ADR 0109 §5): outlined, so the picture says which blocks are theirs, as
+ * the _Din_ badge beside its row does.
+ */
+const KEPT_OUTLINE = 'ring-2 ring-inset ring-foreground/70'
+
 function sketchBlocks(sketch: Sketch, neutral: boolean): SketchBlock[] {
 	const longest = Math.max(
 		1,
 		...sketch.days.flatMap((day) => day.sessions.map((s) => s.minutes)),
 	)
 	return sketch.days.flatMap((day) => {
-		const lifting = day.lifting.map((_, index) => ({
+		const lifting = day.lifting.map((lift, index) => ({
 			key: `${day.weekday}:lift-${index}`,
-			className: neutral ? NEUTRAL_MARK : 'bg-track-strength',
+			className: cn(
+				neutral ? NEUTRAL_MARK : 'bg-track-strength',
+				lift.kept && KEPT_OUTLINE,
+			),
 			height: LIFT_HEIGHT,
 			lifting: true,
 		}))
@@ -99,6 +109,7 @@ function sketchBlocks(sketch: Sketch, neutral: boolean): SketchBlock[] {
 			className: cn(
 				(neutral ? null : TRACK_MARK[session.discipline]) ?? NEUTRAL_MARK,
 				EFFORT_OPACITY[session.effort],
+				session.kept && KEPT_OUTLINE,
 			),
 			height: raw[index]! * scale,
 			lifting: false,

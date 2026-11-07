@@ -793,7 +793,7 @@ export function draftFirstRunPlan(
 }
 
 /** The draft's stand-in strength track, which only the day check reads. */
-const DRAFT_STRENGTH_TRACK_ID = 'draft-strength'
+export const DRAFT_STRENGTH_TRACK_ID = 'draft-strength'
 
 /** The sum, or null where any part is unpriced. */
 function sumOrNull(values: ReadonlyArray<number | null>): number | null {
