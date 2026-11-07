@@ -109,9 +109,10 @@ athlete's own input having changed, the movement is explained and never silent
 any materialized value an athlete reads owes it. For a **Load Snapshot** the
 explanation is the **Load Recompute Notice**. Where the athlete's own data did
 change (a new power meter, ADR 0008), the choice between two honest readings is
-theirs, and the app offers rather than switches. ADR 0055 §2 already reasons
-with this duty to keep a label from being stored: a stored reading would owe "a
-**Load Recompute Notice** for a label" every time its window moved.
+theirs, and ADR 0008 rules that the app offers rather than switches; that offer
+is not built yet. ADR 0055 §2 already reasons with this duty to keep a label
+from being stored: a stored reading would owe "a **Load Recompute Notice** for a
+label" every time its window moved.
 
 No generic notice mechanism is built here; a later materialized value that an
 athlete reads names its own explanation in the ADR that materializes it.
