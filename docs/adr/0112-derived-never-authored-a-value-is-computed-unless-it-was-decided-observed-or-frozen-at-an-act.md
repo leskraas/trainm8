@@ -121,11 +121,11 @@ the database or in memory alike.
   recompute already reads the stream, and the column is "an optimization to
   revisit if per-day recompute cost ever bites". No cost was measured, so
   nothing was materialized.
-- ADR 0078 §5 (and its "Alternatives considered") declined to cache the stream's
-  per-frame rect reads: caching them means invalidating them on growth, on
-  resize and on a band expanding, three new invalidation paths for a tail that
-  is not the one that hurts, and a stale offset there is a reading position that
-  drifts.
+- ADR 0078 §5 (and its "Alternatives considered") deferred caching the stream's
+  per-frame rect reads, a measured cost: a real saving, but caching them means
+  invalidating them on growth, on resize and on a band expanding, three new
+  invalidation paths for a tail that is not the one that hurts, and a stale
+  offset there is a reading position that drifts.
 - The **Training Week** volume target (ADR 0040) is one closed-form, indexed
   formula with no reads, and is derived and not materialized. CTL (ADR 0008) is
   a 42-day replay over daily TSS, and is derived and materialized. Both are
@@ -241,8 +241,8 @@ accepted ADRs are records and are not rewritten.
   (§7).
 - **ADR 0058**: a strength record is derived from the set row with no records
   table, and tonnage is declined.
-- **ADR 0078 §5**: a cache is declined because its invalidation paths cost more
-  than the tail it closes (§5).
+- **ADR 0078 §5**: a cache is deferred: a real, measured saving, but three new
+  invalidation paths for a tail that is not the one that hurts (§5).
 - **ADR 0102 §4**: the stored **Weekly Capacity** is the first-run plan's
   heaviest week, written when the athlete picks a start option. Derived, then
   authored at the athlete's act (§6), not seeding.
