@@ -222,8 +222,10 @@ function DismissibleNotice({
 				// The text column runs the full width; the first line of the first
 				// block steps in for the button. Fact lines (`li`) read in the
 				// foreground, the explanation under them stays muted: in the lead the
-				// warning should read before its reason.
-				className="[&_li]:text-foreground space-y-2 text-base md:text-sm [&>p:first-child]:pr-10 [&>ul:first-child>li:first-child]:pr-10"
+				// warning should read before its reason. `text-pretty` rather than
+				// `Alert`'s phone `text-balance`, which narrows every line of a long
+				// notice to match its last.
+				className="[&_li]:text-foreground space-y-2 text-base text-pretty md:text-sm [&>p:first-child]:pr-10 [&>ul:first-child>li:first-child]:pr-10"
 			>
 				{children}
 			</AlertDescription>
