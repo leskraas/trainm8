@@ -16,8 +16,8 @@ autonomy: full
 merge: agent
 merge-method: merge
 budget: 6000000
-parallel: 6
-build-parallel: 4
+parallel: 10
+build-parallel: 6
 serial: qa, design-scan
 human-paths: .github/, .claude/, CLAUDE.md, fly.toml, other/
 human-edits: eslint.config.js, tsconfig.json, playwright.config.ts
@@ -37,8 +37,8 @@ schedule: none
 
 - **Autonomy `full`, merge `agent`**: a solo project; the factory decides,
   merges, and logs its decisions in the `Factory log` issue.
-- **Capacity**: above the Team premium row (3/2), raised to `parallel: 6`,
-  `build-parallel: 4` on 2026-11-07 at the owner's request to spend the week's
+- **Capacity**: above the Team premium row (3/2), raised to `parallel: 10`,
+  `build-parallel: 6` on 2026-11-07 at the owner's request to spend the week's
   remaining quota before it resets. Runs are started by hand or by
   `/factory-dispatch`, not by a schedule. Bredvid/tavla spent a five-hour limit
   in 2.5 hours at fifteen parallel sessions; lower it again if runs stop on a
