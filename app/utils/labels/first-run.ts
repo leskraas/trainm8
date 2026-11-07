@@ -384,6 +384,8 @@ export const ACTIVITIES_EDIT_LABELS = {
 		'Styrke legges ved siden av en idrett eller en aktivitet. Velg minst én av dem også. Ingenting er endret.',
 	changedSince:
 		'Du har endret valgene etter forhåndsvisningen. Trykk Vis ny uke for å se uka de gir.',
+	/** A confirm posted without the preview it confirms. */
+	previewFirst: 'Trykk Vis ny uke og se uka før du bekrefter. Ingenting er endret.',
 	/** `Ny uke · uke 46`: the ISO week the edit begins in. */
 	overline: (isoWeek: number) => `Ny uke · uke ${isoWeek}`,
 	/** `Fra mandag 9. november`. */

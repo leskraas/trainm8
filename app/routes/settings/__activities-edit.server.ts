@@ -270,7 +270,7 @@ const ActivitiesFormSchema = z.object({
 			(STRENGTH_PER_WEEK_CHOICES as readonly number[]).includes(value),
 		)
 		.optional(),
-	digest: z.string().optional(),
+	digest: z.string().min(1).optional(),
 })
 
 /** The editor's last answer, under its own key. */
@@ -316,6 +316,12 @@ export async function activitiesAction(
 		return {
 			activities: { kind: 'refused', message: W.refusal['not-editable'] },
 		}
+	}
+	// A confirm carries the preview it confirms: without its digest there is
+	// nothing to hold the edit to the week shown (made = shown), so nothing
+	// is written, as the philosophy switch refuses (`previewFirst`).
+	if (parsed.data.intent === 'confirm-activities' && !parsed.data.digest) {
+		return { activities: { kind: 'refused', message: W.previewFirst } }
 	}
 	const choice: ActivitiesChoice = {
 		sports: parsed.data.sports,

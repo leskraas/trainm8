@@ -231,3 +231,33 @@ test('a plan the start made is edited in place: pre-filled, previewed, refused w
 	})
 	expect(profile.strengthPerWeek).toBeNull()
 })
+
+test('a confirm posted without the preview it confirms writes nothing', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const segments = () =>
+		prisma.seasonAnchorSegment.count({
+			where: { track: { outline: { athleteId: userId } } },
+		})
+	const before = await segments()
+	const reply = await action({
+		request: request(cookie, [
+			['intent', 'confirm-activities'],
+			['sports', 'run'],
+			['sports', 'swim'],
+		]),
+		...ARGS,
+	})
+	expect(reply).toEqual({
+		activities: {
+			kind: 'refused',
+			message: ACTIVITIES_EDIT_LABELS.previewFirst,
+		},
+	})
+	expect(await segments()).toBe(before)
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId },
+		select: { strengthPerWeek: true },
+	})
+	expect(profile.strengthPerWeek).toBe(2)
+})
