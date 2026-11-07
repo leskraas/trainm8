@@ -179,10 +179,11 @@ export function PlanGuardNotices({ season }: { season: SeasonData }) {
  * region would read three long notices aloud on each arrival. `Alert` itself
  * keeps `role="alert"` for its other callers.
  *
- * **Only the first line clears the close button.** `Alert`'s 72px gutter down the
- * whole notice narrows the text by a quarter on a phone; the first line of the
- * first block is the only one beside the button. No motion: a dismissal is rare,
- * and the notice is simply gone.
+ * **Only the first block clears the close button.** `Alert`'s 72px gutter down
+ * the whole notice narrows the text by a quarter on a phone; the button sits
+ * beside the first block alone (the first fact line, or a first paragraph), so
+ * that block takes a 40px gutter and everything under it runs the full width.
+ * No motion: a dismissal is rare, and the notice is simply gone.
  */
 function DismissibleNotice({
 	name,
@@ -219,8 +220,8 @@ function DismissibleNotice({
 	return (
 		<Alert role="note" className="pr-4 has-data-[slot=alert-action]:pr-4">
 			<AlertDescription
-				// The text column runs the full width; the first line of the first
-				// block steps in for the button. Fact lines (`li`) read in the
+				// The text column runs the full width; the first block (its first
+				// fact line, or a first paragraph) steps in for the button. Fact lines (`li`) read in the
 				// foreground, the explanation under them stays muted: in the lead the
 				// warning should read before its reason. `text-pretty` rather than
 				// `Alert`'s phone `text-balance`, which narrows every line of a long
