@@ -148,11 +148,15 @@ async function erase(
 	return { erased, keptUnattributed: kept.size, spliced }
 }
 
-/** Keep a row with no author's name on it: private, entry retired, Attribution gone. */
+/**
+ * Keep a row with no author's name on it: private, entry retired, Attribution
+ * gone. Each write takes only the rows it would change, so a row an earlier run
+ * already kept unattributed is left exactly as it is (`updatedAt` included).
+ */
 async function keepUnattributed(tx: Prisma.TransactionClient, ids: string[]) {
 	if (ids.length === 0) return
 	await tx.workout.updateMany({
-		where: { id: { in: ids } },
+		where: { id: { in: ids }, visibility: { not: 'private' } },
 		data: { visibility: 'private' },
 	})
 	await tx.catalogueEntry.updateMany({

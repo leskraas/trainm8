@@ -439,7 +439,10 @@ async function expectErased(world: ErasureWorld) {
 	).toEqual({ ownerId: world.reader.id, copiedFromId: world.stock.id })
 }
 
-/** The whole Workout table, to show a run changed nothing. */
+/**
+ * The whole Workout table, to show a run changed nothing — `updatedAt` too, so a
+ * write that sets a column to the value it already holds counts as a change.
+ */
 async function snapshotWorkouts() {
 	return prisma.workout.findMany({
 		orderBy: { id: 'asc' },
@@ -449,6 +452,7 @@ async function snapshotWorkouts() {
 			authorship: true,
 			visibility: true,
 			copiedFromId: true,
+			updatedAt: true,
 			attribution: { select: { displayName: true } },
 			catalogueEntry: { select: { retiredAt: true } },
 		},
