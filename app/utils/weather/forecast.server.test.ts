@@ -47,7 +47,7 @@ function countRequests() {
 	}
 }
 
-test('each day reads the one step covering its hour: hourly near, 6-hourly far, nothing beyond', async () => {
+test('each day reads the one step covering its hour: hourly near, 6-hourly far (precipitation per hour), nothing beyond', async () => {
 	server.use(metForecastHandler({ from: START }))
 	const forecasts = await readDayForecasts(
 		freshPoint(),
@@ -66,12 +66,14 @@ test('each day reads the one step covering its hour: hourly near, 6-hourly far, 
 		precipitationMm: 2.4,
 	})
 	// 70 h out is the 6-hourly step that starts at 66 h: the pattern's 61st.
+	// Its 12.4 mm fall over six hours: per hour, as every day's figure is.
+	expect(mockStep(61).precipitationMm).toBe(12.4)
 	expect(forecasts.get('far')).toEqual({
 		at: at(70).toISOString(),
 		symbol: 'heavy-snow-and-thunder',
 		night: false,
 		temperatureC: mockStep(61).temperatureC,
-		precipitationMm: mockStep(61).precipitationMm,
+		precipitationMm: 2.1,
 	})
 	expect(forecasts.get('night')).toMatchObject({ symbol: 'fair', night: true })
 	expect(forecasts.get('beyond')).toEqual({ reason: 'beyond-forecast' })

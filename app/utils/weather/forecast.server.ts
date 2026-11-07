@@ -19,7 +19,9 @@
  *   page is slow or broken, and a MET that throttles is left alone.
  * - **One step per day.** A day's symbol, temperature and precipitation come
  *   from the one forecast step that covers its hour (hourly for about 60
- *   hours, then 6-hourly), so its figures never mix steps.
+ *   hours, then 6-hourly), so its figures never mix steps. Precipitation is
+ *   per hour on every day: a 6-hourly step's amount is spread over its six
+ *   hours, so a week's column compares like with like.
  */
 import {
 	cachified,
@@ -305,6 +307,11 @@ function stepAt(steps: readonly StoredStep[], hour: Date): DayForecastResult {
 		symbol: read.symbol,
 		night: read.night,
 		temperatureC: covering.temperatureC,
-		precipitationMm: covering.precipitationMm,
+		precipitationMm: perHour(covering.precipitationMm, covering.hours),
 	}
+}
+
+/** A step's precipitation per hour, to MET's own tenth of a millimetre. */
+function perHour(mm: number, hours: number): number {
+	return Math.round((mm / hours) * 10) / 10
 }

@@ -48,7 +48,7 @@ export const getTodayAction = defineAction({
 	callers: ['web', 'mcp', 'agent'],
 	title: ACTION_TITLE_LABELS.get_today,
 	description:
-		"The athlete's day: today's planned and recorded sessions, current fitness (CTL), fatigue (ATL) and form (TSB), this training week's target, planned and actual volume per training track in the track's own unit, and how many week-change proposals wait for the athlete's answer, and today's weather forecast at the athlete's home place for the hour they train (from MET Norway: symbol, temperature in °C, precipitation in mm, and the hour it is for). Every number is a Reading: available with a value, or unavailable with a reason; never treat unavailable as zero.",
+		"The athlete's day: today's planned and recorded sessions, current fitness (CTL), fatigue (ATL) and form (TSB), this training week's target, planned and actual volume per training track in the track's own unit, and how many week-change proposals wait for the athlete's answer, and today's weather forecast at the athlete's home place for the hour they train (from MET Norway: symbol, temperature in °C, precipitation in mm per hour, and the hour it is for). Every number is a Reading: available with a value, or unavailable with a reason; never treat unavailable as zero.",
 	input: z.object({}),
 	output: z.object({
 		/** `YYYY-MM-DD` in the Athlete Timezone. */

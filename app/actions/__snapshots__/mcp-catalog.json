@@ -3692,7 +3692,7 @@
 	{
 		"name": "get_today",
 		"title": "I dag",
-		"description": "The athlete's day: today's planned and recorded sessions, current fitness (CTL), fatigue (ATL) and form (TSB), this training week's target, planned and actual volume per training track in the track's own unit, and how many week-change proposals wait for the athlete's answer, and today's weather forecast at the athlete's home place for the hour they train (from MET Norway: symbol, temperature in °C, precipitation in mm, and the hour it is for). Every number is a Reading: available with a value, or unavailable with a reason; never treat unavailable as zero.",
+		"description": "The athlete's day: today's planned and recorded sessions, current fitness (CTL), fatigue (ATL) and form (TSB), this training week's target, planned and actual volume per training track in the track's own unit, and how many week-change proposals wait for the athlete's answer, and today's weather forecast at the athlete's home place for the hour they train (from MET Norway: symbol, temperature in °C, precipitation in mm per hour, and the hour it is for). Every number is a Reading: available with a value, or unavailable with a reason; never treat unavailable as zero.",
 		"inputSchema": {
 			"$schema": "https://json-schema.org/draft/2020-12/schema",
 			"type": "object",

@@ -70,7 +70,9 @@ The weather module's interface takes the Home Place and the Forecast Hours and
 returns, per day, a Day Forecast or the reason there is none (`beyond-forecast`,
 `forecast-unavailable`). A Day Forecast is taken from the one forecast step that
 covers its hour (hourly for about 60 hours, then 6-hourly), so its symbol,
-temperature and precipitation never come from different steps.
+temperature and precipitation never come from different steps. Precipitation is
+given per hour on every day (a 6-hourly step's amount spread over its six
+hours), so a week's days compare like with like.
 
 The forecast is cached with cachified, keyed by the rounded point alone (no
 user), fresh until MET's `Expires`, refreshed with `If-Modified-Since`, and

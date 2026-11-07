@@ -13,7 +13,7 @@ export type DayForecast = {
 	/** Night or polar twilight at that step: the glyph is a moon. */
 	night: boolean
 	temperatureC: number
-	/** Over the step's own period (one hour, or six further out). */
+	/** Per hour: a six-hour step's amount is spread over its hours. */
 	precipitationMm: number
 }
 

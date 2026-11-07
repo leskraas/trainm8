@@ -28,7 +28,7 @@ export const DayForecastReadingSchema = () =>
 			/** The athlete's word for the symbol (`labels.ts`). */
 			label: z.string(),
 			temperatureC: z.number(),
-			/** Over the forecast step's own period: one hour, or six further out. */
+			/** Per hour at the Forecast Hour (a six-hour step's amount spread over its hours). */
 			precipitationMm: z.number(),
 		}),
 	)
