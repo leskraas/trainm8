@@ -4,7 +4,7 @@
  * form sent, and refuses a point outside the area Kartverket covers; _Fjern_
  * is one delete. Nothing here sees the search text that found the place.
  */
-import { z } from 'zod/v3'
+import { z } from 'zod/v4'
 import { ensureAthleteProfile } from './athlete.server.ts'
 import { prisma } from './db.server.ts'
 import {
