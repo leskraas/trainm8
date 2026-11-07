@@ -275,7 +275,7 @@ type GenerationContext = {
 	proposals: TrackProposal[]
 	trainableWeekdays: number[] | null
 	weeklyCapacityHours: number | null
-	/** The session row's thresholds: what a placed session is timed by (ADR 0112). */
+	/** The session row's thresholds: what a placed session is timed by (ADR 0113). */
 	thresholds: DisciplineThresholdMap
 	corpus: RetrievableEntry[]
 	/** Reads the athlete's conversion inputs for a start week (ADR 0110). */
@@ -386,7 +386,7 @@ export async function buildRequest(
 						tracks.map((track) => track.discipline),
 					),
 		// The map a session row times its minutes by, read on every preview and
-		// approval whether or not a capacity is set (ADR 0112 §1).
+		// approval whether or not a capacity is set (ADR 0113 §1).
 		thresholds: context.thresholds,
 	}
 }

@@ -623,7 +623,7 @@ function isSingleWeek(spans: readonly WeekSpan[]): boolean {
 
 /**
  * **Placed Hours** over the **Weekly Capacity**, under the season's heading
- * (ADR 0110 §4, ADR 0112): which weeks hold placed sessions that alone take
+ * (ADR 0110 §4, ADR 0113): which weeks hold placed sessions that alone take
  * longer than the athlete has, so a 20-week season need not be scrolled to
  * find them. It sits beside `lowered` and `over` and replaces neither.
  *

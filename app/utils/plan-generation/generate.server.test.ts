@@ -347,7 +347,7 @@ test('the corpus read serves stock rows only, and no retired one', async () => {
 	)
 	expect(corpus.map((entry) => entry.entryId)).toContain('stockentry_easy1')
 	// Each row carries its Stock Workout's blocks as stored, so the generator
-	// can time a placed session without querying (ADR 0112).
+	// can time a placed session without querying (ADR 0113).
 	expect(
 		corpus.find((entry) => entry.entryId === 'stockentry_easy1')?.blocks,
 	).toEqual([

@@ -103,7 +103,7 @@ export const PLAN_GENERATE_LABELS = {
 		`${spans} ber om ${single ? '' : 'opptil '}${peak} utholdenhetstrening, og kapasiteten din er ${capacity}. Kvalitetsøktene alene krever mer enn det, så et lavere startvolum hjelper ikke – startvolumet står som det er.`,
 
 	/**
-	 * **Placed Hours** against the **Weekly Capacity** (ADR 0110 §4, ADR 0112):
+	 * **Placed Hours** against the **Weekly Capacity** (ADR 0110 §4, ADR 0113):
 	 * the placed sessions alone take longer than the athlete has. Stated, never
 	 * fixed. Figures arrive formatted: `minst ≈ 7,5 t`, `7,5 t`, `6 t/uke`.
 	 *

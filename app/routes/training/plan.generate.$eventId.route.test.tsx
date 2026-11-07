@@ -392,7 +392,7 @@ test.each([
 	expect(screen.queryByText(/skalert ned/i)).not.toBeInTheDocument()
 })
 
-// --- Placed Hours over the Weekly Capacity (#473, ADR 0110 §4, ADR 0112) ---
+// --- Placed Hours over the Weekly Capacity (#473, ADR 0110 §4, ADR 0113) ---
 
 /** Weeks `count` long from 2026-01-05 (ISO week 2), all loading weeks. */
 function weeksOf(count: number): GeneratedWeek[] {

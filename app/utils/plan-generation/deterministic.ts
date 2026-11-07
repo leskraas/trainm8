@@ -381,7 +381,7 @@ export function generateDeterministicSeason(
 
 	// Placed Hours: how long the placed sessions take at least, against the
 	// capacity. Stated, never fixed: nothing above changes because of it (ADR
-	// 0110 §4, ADR 0112). It runs whatever the Week Target reading did.
+	// 0110 §4, ADR 0113). It runs whatever the Week Target reading did.
 	const placed = readPlacedHours({
 		weekCount,
 		sessions,

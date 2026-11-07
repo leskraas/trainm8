@@ -17,7 +17,7 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 - Plan generation from an event: `/training/plan/generate/:eventId` (uses the
   deterministic stub model client when `ANTHROPIC_API_KEY` is empty). With a
   **Weekly Capacity** set on the Athlete Profile, the preview states **Placed
-  Hours** (ADR 0112): a week whose placed sessions alone take longer than the
+  Hours** (ADR 0113): a week whose placed sessions alone take longer than the
   capacity carries an amber line on its card (`[data-placed="over"]`,
   `Øktene alene tar minst ≈ 7,5 t, kapasiteten din er 6 t/uke.`), a line under
   _Sesongen_ names the weeks (`[data-placed="season"]`), and the closed _N uker
