@@ -357,7 +357,8 @@ function MetCredit() {
 				href={WEATHER_LABELS.creditHref}
 				target="_blank"
 				rel="noreferrer"
-				className="underline-offset-4 hover:underline"
+				// A caption-high link: an invisible hit area brings it to 44px.
+				className="relative underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-3.5 hover:underline"
 			>
 				{WEATHER_LABELS.credit}
 			</a>
