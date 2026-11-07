@@ -206,7 +206,7 @@ export const jobHandlers: JobHandlers = {
 		await encryptPlaintextCredentials()
 	},
 	[ORPHANED_WORKOUT_PURGE_JOB_KIND]: async () => {
-		// One-shot (#468, ADR 0112): erase the Orphaned Workouts accounts deleted
+		// One-shot (#468, ADR 0113): erase the Orphaned Workouts accounts deleted
 		// before #641 left stored, with the rules `deleteAccount` applies. One
 		// transaction, so a failure rolls back whole and the attempts retry it.
 		await runOrphanedWorkoutPurge()

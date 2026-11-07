@@ -254,7 +254,7 @@ test('another athlete’s Week Pattern slot on the departing athlete’s Workout
 })
 
 /**
- * One world both entry points run over (#468, ADR 0112): an author whose
+ * One world both entry points run over (#468, ADR 0113): an author whose
  * Workouts are erased, another athlete whose training and lineage hang off
  * them, and the corpus the orphan scope must never reach.
  */

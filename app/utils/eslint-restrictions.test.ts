@@ -5,7 +5,7 @@ import { beforeAll, expect, test } from 'vitest'
 /**
  * The `no-restricted-syntax` restrictions in `eslint.config.js` share one rule,
  * and flat config replaces a rule's options per block instead of merging them
- * (ADR 0112 §5). These lint a snippet at each kind of path through the real
+ * (ADR 0113 §5). These lint a snippet at each kind of path through the real
  * config, so no restriction can silently shadow another again.
  */
 const eslint = new ESLint({ cwd: path.resolve(import.meta.dirname, '../..') })
