@@ -27,8 +27,12 @@ import {
 	type WeeklyAdherence,
 	type WeeklyLoad,
 } from './load/adherence.ts'
+import { plannedTssOriginsOf } from './load/planned-tss.ts'
 import { lastClosedWeekKey } from './load/week-change.ts'
-import { raceAnchorPacesByDiscipline } from './performance-result.server.ts'
+import {
+	raceAnchorChoicesByDiscipline,
+	raceAnchorFields,
+} from './performance-result.server.ts'
 import {
 	anchoredActiveOutlineWhere,
 	isOutlineResting,
@@ -1770,9 +1774,22 @@ export async function getRecentWeeklyBuild(
 	userId: string,
 	weeks: number,
 	now: Date = new Date(),
-): Promise<WeeklyLoad[]> {
+): Promise<Array<WeeklyLoad & { plannedTssOrigins: OriginPlatform[] }>> {
 	const perWeek = await recentWeeklySessions(userId, weeks, now)
-	return perWeek.map(weeklyLoad)
+	return perWeek.map((sessions) => ({
+		...weeklyLoad(sessions),
+		// A week's Planned TSS binds to every result its sessions' race paces
+		// read (ADR 0112 §4): the union, as a model reader passes it on.
+		plannedTssOrigins: [
+			...new Set(
+				sessions.flatMap((session) =>
+					session.plannedTss != null && session.plannedTss > 0
+						? plannedTssOriginsOf(session.plannedTssOrigins)
+						: [],
+				),
+			),
+		],
+	}))
 }
 
 /**
@@ -1786,29 +1803,36 @@ export async function getRecentWeeklyBuild(
  * step-back loop cost one round trip per week, which is survivable at the eight
  * weeks the build chart asks for and is not at a season's length.
  */
+type WeekSession = {
+	plannedTss: number | null
+	actualTss: number | null
+	plannedTssOrigins: string | null
+}
+
 async function recentWeeklySessions(
 	userId: string,
 	weeks: number,
 	now: Date,
-): Promise<
-	Array<Array<{ plannedTss: number | null; actualTss: number | null }>>
-> {
+): Promise<Array<Array<WeekSession>>> {
 	const timezone = await getAthleteTimezone(userId)
 
 	const bounds = Array.from({ length: Math.max(weeks, 0) }, (_, index) => {
 		const back = weeks - 1 - index
 		return weekBoundsUTC(new Date(now.getTime() - back * 7 * DAY_MS), timezone)
 	})
-	const buckets: Array<
-		Array<{ plannedTss: number | null; actualTss: number | null }>
-	> = bounds.map(() => [])
+	const buckets: Array<Array<WeekSession>> = bounds.map(() => [])
 	const first = bounds.at(0)
 	const last = bounds.at(-1)
 	if (!first || !last) return buckets
 
 	const sessions = await prisma.workoutSession.findMany({
 		where: { userId, scheduledAt: { gte: first.start, lte: last.end } },
-		select: { scheduledAt: true, tssValue: true, plannedTssValue: true },
+		select: {
+			scheduledAt: true,
+			tssValue: true,
+			plannedTssValue: true,
+			plannedTssOrigins: true,
+		},
 	})
 
 	for (const session of sessions) {
@@ -1821,6 +1845,7 @@ async function recentWeeklySessions(
 		buckets[index]?.push({
 			plannedTss: session.plannedTssValue,
 			actualTss: session.tssValue,
+			plannedTssOrigins: session.plannedTssOrigins,
 		})
 	}
 	return buckets
@@ -1988,7 +2013,7 @@ export async function getDisciplineThresholds(
 	if (!profile) return {}
 	// Every discipline's Race Anchor paces in one query, not one per profile:
 	// this runs on the home timeline, the week sum and structure detection.
-	const paces = await raceAnchorPacesByDiscipline(
+	const choices = await raceAnchorChoicesByDiscipline(
 		profile.id,
 		profile.disciplineProfiles.map(({ discipline }) => discipline),
 	)
@@ -1996,7 +2021,7 @@ export async function getDisciplineThresholds(
 	for (const { discipline, ...thresholds } of profile.disciplineProfiles) {
 		map[discipline] = {
 			...thresholds,
-			raceAnchorPaces: paces.get(discipline) ?? {},
+			...raceAnchorFields(choices.get(discipline) ?? {}),
 		}
 	}
 	return map

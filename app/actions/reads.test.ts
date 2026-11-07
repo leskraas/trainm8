@@ -635,3 +635,34 @@ test('get_week_change: null before any close, then the proposals with whose sess
 	const today = await done(runAction(ctx, 'get_today', {}))
 	expect(today.openProposals).toEqual({ status: 'available', value: 1 })
 })
+
+test("a Planned TSS computed from a Polar race's pace is Polar data: withheld from a model without the opt-in, while a Garmin one goes with its credit", async () => {
+	// ADR 0112 §4: the binding set is stored with the value when it is
+	// computed, and every reader that sends Planned TSS passes it on.
+	const world = await createWorld()
+	const ctx = ctxFor(world.userId, 'mcp')
+	const plannedTss = async () =>
+		(await done(runAction(ctx, 'get_today', {}))).sessions.find(
+			(s) => s.id === world.planned,
+		)?.planned.tss
+
+	await prisma.workoutSession.update({
+		where: { id: world.planned },
+		data: { plannedTssOrigins: JSON.stringify(['polar']) },
+	})
+	expect(await plannedTss()).toMatchObject({
+		status: 'unavailable',
+		reason: 'source-terms',
+		platforms: ['polar'],
+	})
+	const vsPlan = await done(
+		runAction(ctx, 'get_session_vs_plan', { sessionId: world.planned }),
+	)
+	expect(vsPlan.tss.planned).toMatchObject({ reason: 'source-terms' })
+
+	await prisma.workoutSession.update({
+		where: { id: world.planned },
+		data: { plannedTssOrigins: JSON.stringify(['garmin']) },
+	})
+	expect(await plannedTss()).toMatchObject({ status: 'available', value: 30 })
+})

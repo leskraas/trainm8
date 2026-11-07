@@ -218,6 +218,7 @@ function row(overrides: Partial<LedgerSession> = {}): SessionRow {
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,
+		plannedTssOrigins: null,
 		replanReason: null,
 		workout: null,
 		recording: null,

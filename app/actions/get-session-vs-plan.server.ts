@@ -20,6 +20,7 @@ import {
 import { refuse } from './refusals.ts'
 import {
 	plannedReading,
+	plannedTssBindingSet,
 	workoutBindingSet,
 	readRecordingBindingSets,
 } from './session-summary.server.ts'
@@ -78,6 +79,7 @@ export const getSessionVsPlanAction = defineAction({
 				adoptedAt: true,
 				tssValue: true,
 				plannedTssValue: true,
+				plannedTssOrigins: true,
 				workout: {
 					select: {
 						discipline: true,
@@ -145,7 +147,7 @@ export const getSessionVsPlanAction = defineAction({
 		const prescribed = workoutBindingSet(session, own)
 		const plannedTss = plannedReading(review.tss.plannedRead, ctx, {
 			zeroIsUnresolved: true,
-			bindingSet: prescribed,
+			bindingSet: plannedTssBindingSet(prescribed, session.plannedTssOrigins),
 		})
 		const actualTss = reading(
 			session.tssValue ??

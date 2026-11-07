@@ -17,6 +17,7 @@ import {
 } from './activity-import.server.ts'
 import { getAthleteTimezone } from './athlete.server.ts'
 import { prisma } from './db.server.ts'
+import { keepEventResultsInStep } from './event-result.server.ts'
 import { isRecordingOnlySource } from './import-fit.ts'
 import {
 	type AngreRefusal,
@@ -272,34 +273,36 @@ export async function undoImportAnswer(
 		return { ok: false, reason: 'not-undoable' }
 	}
 	const status = session.statusBeforeLink ?? 'scheduled'
-	const taken = await prisma.$transaction(async (tx) => {
-		// Compare-and-set on the link's stamp, so two taps race to one undo
-		// and one ekstra. Unanswered from here on: the question is back.
-		const lifted = await tx.activityImport.updateMany({
-			where: {
-				id: imported.id,
-				promotedSessionId: session.id,
-				linkAnsweredAt: linkedAt,
-			},
-			data: { promotedSessionId: null, linkAnsweredAt: null },
-		})
-		if (lifted.count === 0) return false
-		await tx.workoutSession.update({
-			where: { id: session.id },
-			data: {
-				recordingId: null,
-				status,
-				statusBeforeLink: null,
-				// The link's recompute priced it off the Recording; a session that
-				// goes back to open carries none (the recompute prices only done
-				// ones), and one that goes back to done is priced again below.
-				tssValue: null,
-				tssFormula: null,
-				tssConfidence: null,
-			},
-		})
-		return true
-	})
+	const taken = await keepEventResultsInStep({ sessionIds: [session.id] }, () =>
+		prisma.$transaction(async (tx) => {
+			// Compare-and-set on the link's stamp, so two taps race to one undo
+			// and one ekstra. Unanswered from here on: the question is back.
+			const lifted = await tx.activityImport.updateMany({
+				where: {
+					id: imported.id,
+					promotedSessionId: session.id,
+					linkAnsweredAt: linkedAt,
+				},
+				data: { promotedSessionId: null, linkAnsweredAt: null },
+			})
+			if (lifted.count === 0) return false
+			await tx.workoutSession.update({
+				where: { id: session.id },
+				data: {
+					recordingId: null,
+					status,
+					statusBeforeLink: null,
+					// The link's recompute priced it off the Recording; a session that
+					// goes back to open carries none (the recompute prices only done
+					// ones), and one that goes back to done is priced again below.
+					tssValue: null,
+					tssFormula: null,
+					tssConfidence: null,
+				},
+			})
+			return true
+		}),
+	)
 	if (!taken) return { ok: true, undone: false, title: null }
 	// The ekstra, as auto-save stood it up; its recompute (from the import's
 	// day, the planned session's day too) prices the week again.

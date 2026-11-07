@@ -1,5 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
+import { keepEventResultsInStep } from './event-result.server.ts'
+import { eventTakesDistance } from './event-result.ts'
 import {
 	type EventAuthoringInput,
 	parseEventDisciplines,
@@ -17,6 +19,7 @@ const eventSelect = {
 	location: true,
 	status: true,
 	notes: true,
+	distanceM: true,
 	resultSessionId: true,
 	athleteId: true,
 	createdAt: true,
@@ -37,6 +40,11 @@ function serializeInput(input: EventAuthoringInput) {
 		location: input.location ?? null,
 		status: input.status,
 		notes: input.notes ?? null,
+		// Only a run-only race or time trial carries an Event Distance; saving
+		// one that is not clears it (ADR 0112 §1).
+		distanceM: eventTakesDistance(input.kind, input.disciplines)
+			? (input.distanceM ?? null)
+			: null,
 	}
 }
 
@@ -58,7 +66,7 @@ export async function createEvent(
 	athleteId: string,
 	input: EventAuthoringInput,
 ): Promise<EventRecord> {
-	return prisma.event.create({
+	const created = await prisma.event.create({
 		data: {
 			athleteId,
 			...serializeInput(input),
@@ -69,6 +77,8 @@ export async function createEvent(
 		},
 		select: eventSelect,
 	})
+	if (!created.resultSessionId) return created
+	return keepEventResultsInStep({ eventIds: [created.id] }, async () => created)
 }
 
 export async function updateEvent(
@@ -82,17 +92,45 @@ export async function updateEvent(
 	})
 	if (!existing) return null
 
-	return prisma.event.update({
-		where: { id: eventId },
-		data: {
-			...serializeInput(input),
-			resultSessionId: await ownSessionIdOrNull(
-				athleteId,
-				input.resultSessionId,
-			),
-		},
-		select: eventSelect,
+	const resultSessionId = await ownSessionIdOrNull(
+		athleteId,
+		input.resultSessionId,
+	)
+	// The distance, the kind, the disciplines or the result session can each
+	// make, rewrite or remove the Event's result.
+	return keepEventResultsInStep({ eventIds: [eventId] }, () =>
+		prisma.event.update({
+			where: { id: eventId },
+			data: { ...serializeInput(input), resultSessionId },
+			select: eventSelect,
+		}),
+	)
+}
+
+/**
+ * Set or clear a done Event's **Event Distance** from its result section
+ * (#670): the one write the Event page makes for an Event after the race, and
+ * the same path to the reconcile the form's save takes. Refused (null) for an
+ * Event that is not the athlete's, or one that takes no distance.
+ */
+export async function setEventDistance(
+	athleteId: string,
+	eventId: string,
+	distanceM: number | null,
+): Promise<EventRecord | null> {
+	const existing = await prisma.event.findFirst({
+		where: { id: eventId, athleteId },
+		select: { kind: true, disciplines: true },
 	})
+	if (!existing) return null
+	if (!eventTakesDistance(existing.kind, existing.disciplines)) return null
+	return keepEventResultsInStep({ eventIds: [eventId] }, () =>
+		prisma.event.update({
+			where: { id: eventId },
+			data: { distanceM },
+			select: eventSelect,
+		}),
+	)
 }
 
 export async function deleteEvent(
@@ -105,10 +143,14 @@ export async function deleteEvent(
 	})
 	if (!existing) return null
 
-	return prisma.event.delete({
-		where: { id: eventId },
-		select: { id: true },
-	})
+	// The cascade takes the result row and skips the recompute, so the delete
+	// runs inside the reconcile, which sees the row go.
+	return keepEventResultsInStep({ eventIds: [eventId] }, () =>
+		prisma.event.delete({
+			where: { id: eventId },
+			select: { id: true },
+		}),
+	)
 }
 
 export async function getEventById(
@@ -188,11 +230,13 @@ export async function setEventResult(
 	if (!existing) return null
 	if (!(await ownSessionIdOrNull(athleteId, sessionId))) return null
 
-	return prisma.event.update({
-		where: { id: eventId },
-		data: { resultSessionId: sessionId, status: 'completed' },
-		select: eventSelect,
-	})
+	return keepEventResultsInStep({ eventIds: [eventId] }, () =>
+		prisma.event.update({
+			where: { id: eventId },
+			data: { resultSessionId: sessionId, status: 'completed' },
+			select: eventSelect,
+		}),
+	)
 }
 
 export async function unlinkEventResult(
@@ -205,11 +249,13 @@ export async function unlinkEventResult(
 	})
 	if (!existing) return null
 
-	return prisma.event.update({
-		where: { id: eventId },
-		data: { resultSessionId: null, status: 'planned' },
-		select: eventSelect,
-	})
+	return keepEventResultsInStep({ eventIds: [eventId] }, () =>
+		prisma.event.update({
+			where: { id: eventId },
+			data: { resultSessionId: null, status: 'planned' },
+			select: eventSelect,
+		}),
+	)
 }
 
 export async function cancelEvent(
@@ -222,9 +268,11 @@ export async function cancelEvent(
 	})
 	if (!existing) return null
 
-	return prisma.event.update({
-		where: { id: eventId },
-		data: { status: 'cancelled', resultSessionId: null },
-		select: eventSelect,
-	})
+	return keepEventResultsInStep({ eventIds: [eventId] }, () =>
+		prisma.event.update({
+			where: { id: eventId },
+			data: { status: 'cancelled', resultSessionId: null },
+			select: eventSelect,
+		}),
+	)
 }

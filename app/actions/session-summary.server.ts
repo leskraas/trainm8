@@ -15,10 +15,11 @@ import {
 } from '#app/integrations/shared/origin-platform.ts'
 import { localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { nbDisciplineLabel } from '#app/utils/labels.ts'
+import { plannedTssOriginsOf } from '#app/utils/load/planned-tss.ts'
 import { type PlannedMetric } from '#app/utils/planned-discipline.ts'
 import { SESSION_OWNERS, sessionOwner } from '#app/utils/session-ownership.ts'
-import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import {
 	getDisciplineThresholds,
@@ -142,6 +143,17 @@ export function workoutBindingSet(
  * A planned figure, as a Reading. It binds to `bindingSet`, the Workout's
  * ({@link workoutBindingSet}): nothing for an independent prescription.
  */
+/** A Planned TSS's binding set: the Workout's, plus the results its race
+ * paces resolved against when it was computed (ADR 0112 §4). */
+export function plannedTssBindingSet(
+	prescribed: readonly OriginPlatform[],
+	plannedTssOrigins: string | null | undefined,
+): OriginPlatform[] {
+	return [
+		...new Set([...prescribed, ...plannedTssOriginsOf(plannedTssOrigins)]),
+	]
+}
+
 export function plannedReading(
 	metric: PlannedMetric<number>,
 	ctx: ReadingContext,
@@ -234,9 +246,11 @@ export function toSessionSummary(
 			distanceM: plannedReading(review.distance.plannedRead, ctx, {
 				bindingSet: prescribed,
 			}),
+			// Planned TSS also binds to the results its race paces read
+			// (ADR 0112 §4), stored with the value when it was computed.
 			tss: plannedReading(review.tss.plannedRead, ctx, {
 				zeroIsUnresolved: true,
-				bindingSet: prescribed,
+				bindingSet: plannedTssBindingSet(prescribed, session.plannedTssOrigins),
 			}),
 		},
 		actual: {

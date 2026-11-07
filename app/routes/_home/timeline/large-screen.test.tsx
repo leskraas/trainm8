@@ -106,6 +106,7 @@ function on(
 		tssValue: done ? 50 : null,
 		plannedTssValue: 50,
 		plannedTssConfidence: 'full',
+		plannedTssOrigins: null,
 		replanReason: null,
 		workout: workout(8),
 		recording: done

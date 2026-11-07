@@ -1,6 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { addDays, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import { keepEventResultsInStep } from './event-result.server.ts'
 import { canMarkDone, MARK_DONE_REACH_DAYS } from './import-fit.ts'
 import {
 	type AngreRefusal,
@@ -449,15 +450,19 @@ export async function deleteWorkoutSession(userId: string, sessionId: string) {
 
 	if (!session) return null
 
-	return prisma.$transaction(async (tx) => {
-		await tx.workoutSession.delete({ where: { id: session.id } })
-		if (session.workoutId) {
-			const ancestorIds = await lineageAncestorIds(tx, session.workoutId)
-			await tx.workout.delete({ where: { id: session.workoutId } })
-			await deleteOrphanedLineage(tx, ancestorIds, userId)
-		}
-		return { id: session.id }
-	})
+	// `Event.resultSessionId` is `SetNull`, so an Event's result would outlive
+	// the session it was read from; the reconcile removes it.
+	return keepEventResultsInStep({ sessionIds: [session.id] }, () =>
+		prisma.$transaction(async (tx) => {
+			await tx.workoutSession.delete({ where: { id: session.id } })
+			if (session.workoutId) {
+				const ancestorIds = await lineageAncestorIds(tx, session.workoutId)
+				await tx.workout.delete({ where: { id: session.workoutId } })
+				await deleteOrphanedLineage(tx, ancestorIds, userId)
+			}
+			return { id: session.id }
+		}),
+	)
 }
 
 /**

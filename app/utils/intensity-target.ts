@@ -11,6 +11,7 @@
 // Cockpit Today card, Week timeline, and session detail all resolve through here
 // so the home surface and the detail agree on a session's headline target.
 
+import { type OriginPlatform } from '#app/integrations/shared/origin-platform.ts'
 import { formatPaceClock, formatPaceRange } from './format.ts'
 import {
 	INTENSITY_DISPLAY_WORDS,
@@ -472,6 +473,37 @@ export function describeStepTarget(
  * JSON that parses but fails the schema (an incomplete editor draft, corrupt
  * data) is also null — a JSON blob is never a zone label.
  */
+/**
+ * The binding set a prescription's resolved `racePace` targets carry (ADR 0112
+ * §4): the union of the origins of the results its race-pace steps resolve
+ * against. Empty when none resolves against a measured result, so a Workout of
+ * typed results and authored numbers owes nothing.
+ */
+export function racePaceBindingSet(
+	workout: {
+		discipline: string
+		blocks: ReadonlyArray<{ steps: readonly StepWithIntensity[] }>
+	},
+	thresholds: DisciplineThresholdMap,
+): OriginPlatform[] {
+	const origins = new Set<OriginPlatform>()
+	for (const block of workout.blocks) {
+		for (const step of block.steps) {
+			if (step.kind !== 'cardio') continue
+			const target = parseAuthoredIntensity(step.intensity)
+			if (target?.kind !== 'racePace') continue
+			const profile = thresholds[step.discipline ?? workout.discipline]
+			// Only a target that resolves binds: without a pace it is the bare
+			// authored form, which is the athlete's own words.
+			if (profile?.raceAnchorPaces?.[target.event] == null) continue
+			for (const origin of profile.raceAnchorOrigins?.[target.event] ?? []) {
+				origins.add(origin)
+			}
+		}
+	}
+	return [...origins]
+}
+
 export function parseAuthoredIntensity(
 	intensity: string | null | undefined,
 ): IntensityTarget | null {

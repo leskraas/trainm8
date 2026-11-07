@@ -1,3 +1,7 @@
+import {
+	originPlatformOf,
+	type OriginPlatform,
+} from '#app/integrations/shared/origin-platform.ts'
 import { type PlannedMetric, readPlannedMetric } from '../planned-discipline.ts'
 import { blockRepeatTotal } from '../workout-schema.ts'
 import { type PaceUnit } from '../zones/index.ts'
@@ -18,6 +22,30 @@ import { coggan, hrTSS, rTSS, sTSS } from './formulas.ts'
  * `partial`; a session where nothing resolves is `null` (unavailable), never a
  * fabricated value.
  */
+
+/**
+ * The binding set a stored Planned TSS was computed with (ADR 0112 §4): the
+ * origins of the results its `racePace` steps resolved against, read back from
+ * `WorkoutSession.plannedTssOrigins`. Null, empty or unreadable is empty.
+ */
+export function plannedTssOriginsOf(
+	raw: string | null | undefined,
+): OriginPlatform[] {
+	if (!raw) return []
+	try {
+		const parsed: unknown = JSON.parse(raw)
+		if (!Array.isArray(parsed)) return []
+		return [
+			...new Set(
+				parsed
+					.filter((value): value is string => typeof value === 'string')
+					.map(originPlatformOf),
+			),
+		]
+	} catch {
+		return []
+	}
+}
 
 export type PlannedTssStep = {
 	kind: string // 'cardio' | 'strength' | 'rest'

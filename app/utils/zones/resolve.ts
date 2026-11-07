@@ -1,3 +1,4 @@
+import { type OriginPlatform } from '#app/integrations/shared/origin-platform.ts'
 import { zoneLabelToZone } from '../session-profile.ts'
 import {
 	powerPctRef,
@@ -36,6 +37,15 @@ export type DisciplineProfileForResolver = {
 	 * Unavailable Metric until they are handed the athlete's results.
 	 */
 	raceAnchorPaces?: RaceAnchorPaces | null
+	/**
+	 * The binding set of the result each Race Anchor's pace was read from
+	 * (ADR 0112 §4): a `racePace` target resolved against a Garmin race is
+	 * Garmin data. Absent or empty for a typed result, which binds nothing.
+	 * The resolver never reads it; the credit and Planned TSS do.
+	 */
+	raceAnchorOrigins?: Partial<
+		Record<RaceAnchor, readonly OriginPlatform[]>
+	> | null
 }
 
 /** The unit a resolved pace is in: seconds per km, or seconds per 100 m. */

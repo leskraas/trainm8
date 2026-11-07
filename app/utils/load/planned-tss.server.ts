@@ -1,7 +1,12 @@
+import { type OriginPlatform } from '#app/integrations/shared/origin-platform.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { raceAnchorPacesFrom } from '#app/utils/performance-result.server.ts'
+import { racePaceBindingSet } from '#app/utils/intensity-target.ts'
+import {
+	raceAnchorChoicesByDiscipline,
+	raceAnchorFields,
+} from '#app/utils/performance-result.server.ts'
 import { plannedMetricValue } from '#app/utils/planned-discipline.ts'
-import { type IntensityTarget } from '#app/utils/workout-schema.ts'
+import { type IntensityTarget, type RaceAnchor  } from '#app/utils/workout-schema.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
@@ -17,8 +22,11 @@ import {
 
 // Planned TSS is materialized on the Workout Session (ADR 0019), never computed
 // per render. It is kept fresh by recomputing on prescription edits (the steps
-// changed), on threshold changes (the resolved ranges shifted) and on a typed
-// Performance Result (a `racePace` step's anchor moved). Like the
+// changed), on threshold changes (the resolved ranges shifted) and on a
+// Performance Result, typed or an Event's (a `racePace` step's anchor moved).
+// It stores beside the value the binding set of the results it read
+// (`plannedTssOrigins`, ADR 0112 §4), so a done session keeps what its number
+// was computed from. Like the
 // rest of the load math this is synchronous — fine for a SQLite hobby project.
 
 const disciplineProfileSelect = {
@@ -50,6 +58,8 @@ type DbDisciplineProfile = {
 	/** The newest result at each Race Anchor in this discipline, so a `racePace`
 	 * step counts toward Planned TSS exactly as it resolves on screen. */
 	raceAnchorPaces: RaceAnchorPaces
+	/** The binding set of the result behind each anchor's pace. */
+	raceAnchorOrigins: Partial<Record<RaceAnchor, readonly OriginPlatform[]>>
 }
 
 type DbStep = {
@@ -175,25 +185,20 @@ async function getProfiles(userId: string): Promise<DbDisciplineProfile[]> {
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
 		select: {
+			id: true,
 			disciplineProfiles: { select: disciplineProfileSelect },
-			performanceResults: {
-				select: {
-					discipline: true,
-					distanceM: true,
-					timeSec: true,
-					occurredAt: true,
-				},
-			},
 		},
 	})
 	if (!profile) return []
+	// The same choice the targets on screen resolve against (ADR 0112 §3), so
+	// the stress a session is planned with reads the result the athlete sees.
+	const choices = await raceAnchorChoicesByDiscipline(
+		profile.id,
+		profile.disciplineProfiles.map(({ discipline }) => discipline),
+	)
 	return profile.disciplineProfiles.map((dp) => ({
 		...dp,
-		raceAnchorPaces: raceAnchorPacesFrom(
-			profile.performanceResults.filter(
-				(result) => result.discipline === dp.discipline,
-			),
-		),
+		...raceAnchorFields(choices.get(dp.discipline) ?? {}),
 	}))
 }
 
@@ -307,11 +312,20 @@ async function persist(
 					),
 				)
 			: null
+	// The results the value read, stored with it (ADR 0112 §4).
+	const origins =
+		result && workout
+			? racePaceBindingSet(
+					workout,
+					Object.fromEntries(profiles.map((p) => [p.discipline, p])),
+				)
+			: []
 	await prisma.workoutSession.update({
 		where: { id: sessionId },
 		data: {
 			plannedTssValue: result?.tss ?? null,
 			plannedTssConfidence: result?.confidence ?? null,
+			plannedTssOrigins: origins.length ? JSON.stringify(origins) : null,
 		},
 	})
 }
