@@ -139,10 +139,6 @@ export function workoutBindingSet(
 	return session.source === 'detected' ? recordingBindingSet : []
 }
 
-/**
- * A planned figure, as a Reading. It binds to `bindingSet`, the Workout's
- * ({@link workoutBindingSet}): nothing for an independent prescription.
- */
 /** A Planned TSS's binding set: the Workout's, plus the results its race
  * paces resolved against when it was computed (ADR 0112 §4). */
 export function plannedTssBindingSet(
@@ -154,6 +150,10 @@ export function plannedTssBindingSet(
 	]
 }
 
+/**
+ * A planned figure, as a Reading. It binds to `bindingSet`, the Workout's
+ * ({@link workoutBindingSet}): nothing for an independent prescription.
+ */
 export function plannedReading(
 	metric: PlannedMetric<number>,
 	ctx: ReadingContext,

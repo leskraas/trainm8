@@ -467,13 +467,6 @@ export function describeStepTarget(
 }
 
 /**
- * Parse a stored step intensity into an Intensity Target. New steps store the
- * authored discriminated union as JSON; legacy steps stored a bare zone label
- * string (e.g. "endurance"), which we read as a `zoneLabel`. Absent → null.
- * JSON that parses but fails the schema (an incomplete editor draft, corrupt
- * data) is also null — a JSON blob is never a zone label.
- */
-/**
  * The binding set a prescription's resolved `racePace` targets carry (ADR 0112
  * §4): the union of the origins of the results its race-pace steps resolve
  * against. Empty when none resolves against a measured result, so a Workout of
@@ -504,6 +497,13 @@ export function racePaceBindingSet(
 	return [...origins]
 }
 
+/**
+ * Parse a stored step intensity into an Intensity Target. New steps store the
+ * authored discriminated union as JSON; legacy steps stored a bare zone label
+ * string (e.g. "endurance"), which we read as a `zoneLabel`. Absent → null.
+ * JSON that parses but fails the schema (an incomplete editor draft, corrupt
+ * data) is also null — a JSON blob is never a zone label.
+ */
 export function parseAuthoredIntensity(
 	intensity: string | null | undefined,
 ): IntensityTarget | null {
