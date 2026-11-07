@@ -1,6 +1,9 @@
 import { expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
-import { deleteAccount } from './account-deletion.server.ts'
+import {
+	deleteAccount,
+	eraseOrphanedWorkouts,
+} from './account-deletion.server.ts'
 import {
 	createCatalogueEntry,
 	forkCatalogueWorkout,
@@ -8,7 +11,7 @@ import {
 	resolveCatalogueOrigin,
 	saveToCatalogueList,
 } from './catalogue.server.ts'
-import { publishWorkout } from './community.server.ts'
+import { publishWorkout, reportWorkout } from './community.server.ts'
 import { prisma } from './db.server.ts'
 
 async function createAthlete() {
@@ -219,4 +222,296 @@ test('another athlete’s Week Pattern slot on the departing athlete’s Workout
 			select: { ownerId: true, visibility: true },
 		}),
 	).toEqual({ ownerId: null, visibility: 'private' })
+})
+
+/**
+ * One world both entry points run over (#468, ADR 0112): an author whose
+ * Workouts are erased, another athlete whose training and lineage hang off
+ * them, and the corpus the orphan scope must never reach.
+ */
+async function createErasureWorld() {
+	const author = await createAthlete()
+	const reader = await createAthlete()
+	const bystander = await createAthlete()
+
+	// The corpus: a cited Stock Workout, one with no entry, and a stock row
+	// forked from the cited one (ownerless too, so `ownerId IS NULL` alone would
+	// take all three).
+	const stock = await createWorkout({ authorship: 'system', title: 'stock' })
+	await createCatalogueEntry(stock.id, { archetype: 'threshold' })
+	const bareStock = await createWorkout({
+		authorship: 'system',
+		title: 'bare stock',
+	})
+	const stockFork = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			discipline: 'run',
+			intent: 'threshold',
+			authorship: 'system',
+			title: 'stock fork',
+			copiedFromId: stock.id,
+		},
+	})
+	const readerOwn = await prisma.$transaction((tx) =>
+		forkCatalogueWorkout(tx, stock.id, reader.id),
+	)
+	if (!readerOwn) throw new Error('no reader fork')
+
+	// What the author wrote: a private note, a published fork of the cited stock
+	// row (saved and reported by others), a fork of that fork, and a root with
+	// no ancestor at all.
+	const privateOne = await createWorkout({
+		ownerId: author.id,
+		title: 'my notes',
+	})
+	const fork = await prisma.$transaction((tx) =>
+		forkCatalogueWorkout(tx, stock.id, author.id),
+	)
+	if (!fork) throw new Error('no fork')
+	expect(
+		(
+			await publishWorkout({
+				userId: author.id,
+				workoutId: fork.id,
+				displayName: 'Kari N.',
+				archetype: 'threshold',
+			})
+		).ok,
+	).toBe(true)
+	await saveToCatalogueList(reader.id, fork.id)
+	await reportWorkout({
+		reporterId: bystander.id,
+		workoutId: fork.id,
+		reason: 'spam',
+	})
+	const forkOfFork = await prisma.$transaction((tx) =>
+		forkCatalogueWorkout(tx, fork.id, author.id),
+	)
+	if (!forkOfFork) throw new Error('no fork of fork')
+	const root = await createWorkout({ ownerId: author.id, title: 'root' })
+
+	// The reader's adoptions: deep copies they own, back-pointing at the author's.
+	const adopted = await prisma.$transaction((tx) =>
+		forkCatalogueWorkout(tx, forkOfFork.id, reader.id),
+	)
+	const fromRoot = await prisma.$transaction((tx) =>
+		forkCatalogueWorkout(tx, root.id, reader.id),
+	)
+	if (!adopted || !fromRoot) throw new Error('no adoption')
+
+	// Two of the author's rows the reader's training points at directly.
+	const heldBySession = await createWorkout({
+		ownerId: author.id,
+		title: 'held by a session',
+	})
+	expect(
+		(
+			await publishWorkout({
+				userId: author.id,
+				workoutId: heldBySession.id,
+				displayName: 'Kari N.',
+				archetype: 'threshold',
+			})
+		).ok,
+	).toBe(true)
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: reader.id,
+			workoutId: heldBySession.id,
+			scheduledAt: new Date('2030-01-01T07:00:00Z'),
+			status: 'scheduled',
+			source: 'authored',
+		},
+	})
+	const heldBySlot = await createWorkout({
+		ownerId: author.id,
+		title: 'held by a slot',
+	})
+	const slot = await createSlot(reader.id, heldBySlot.id, 'fixed')
+
+	return {
+		author,
+		reader,
+		corpus: [stock.id, bareStock.id, stockFork.id],
+		stock,
+		stockFork,
+		readerOwn,
+		erasable: [privateOne.id, fork.id, forkOfFork.id, root.id],
+		fork,
+		adopted,
+		fromRoot,
+		held: [heldBySession.id, heldBySlot.id],
+		heldBySession,
+		heldBySlot,
+		session,
+		slot,
+	}
+}
+
+type ErasureWorld = Awaited<ReturnType<typeof createErasureWorld>>
+
+/** Every rule of Account Erasure, read off the world after either entry point. */
+async function expectErased(world: ErasureWorld) {
+	expect(
+		await prisma.workout.count({ where: { id: { in: world.erasable } } }),
+	).toBe(0)
+	expect(
+		await prisma.workoutReport.count({ where: { workoutId: world.fork.id } }),
+	).toBe(0)
+
+	// Kept unattributed: ownerless, private, no entry served, no name.
+	expect(
+		await prisma.workout.findMany({
+			where: { id: { in: world.held } },
+			select: { ownerId: true, visibility: true },
+		}),
+	).toEqual([
+		{ ownerId: null, visibility: 'private' },
+		{ ownerId: null, visibility: 'private' },
+	])
+	expect(
+		await prisma.attribution.count({
+			where: { workoutId: { in: world.held } },
+		}),
+	).toBe(0)
+	expect(
+		await prisma.catalogueEntry.count({
+			where: { workoutId: { in: world.held }, retiredAt: null },
+		}),
+	).toBe(0)
+	// …and the reader's training on them is still there, still on them.
+	expect(
+		await prisma.workoutSession.findUniqueOrThrow({
+			where: { id: world.session.id },
+			select: { workoutId: true },
+		}),
+	).toEqual({ workoutId: world.heldBySession.id })
+	expect(
+		await prisma.weekPatternDay.findUniqueOrThrow({
+			where: { id: world.slot.id },
+			select: { workoutId: true },
+		}),
+	).toEqual({ workoutId: world.heldBySlot.id })
+
+	// A fork of an erased fork of a cited Stock Workout keeps its Citation; a
+	// fork with no surviving ancestor keeps nothing, and still opens.
+	expect(
+		await prisma.workout.findUniqueOrThrow({
+			where: { id: world.adopted.id },
+			select: { ownerId: true, copiedFromId: true },
+		}),
+	).toEqual({ ownerId: world.reader.id, copiedFromId: world.stock.id })
+	expect((await resolveCatalogueOrigin(world.adopted.id))?.workoutId).toBe(
+		world.stock.id,
+	)
+	expect(
+		await prisma.workout.findUniqueOrThrow({
+			where: { id: world.fromRoot.id },
+			select: { ownerId: true, copiedFromId: true },
+		}),
+	).toEqual({ ownerId: world.reader.id, copiedFromId: null })
+	expect(await resolveCatalogueOrigin(world.fromRoot.id)).toBeNull()
+
+	// The reader's saved list just lacks the erased row.
+	const saved = await listCatalogue({
+		viewerId: world.reader.id,
+		savedBy: world.reader.id,
+	})
+	expect(saved.map((e) => e.workoutId)).not.toContain(world.fork.id)
+
+	// The corpus and every owned row are untouched.
+	expect(
+		await prisma.workout.count({ where: { id: { in: world.corpus } } }),
+	).toBe(3)
+	expect(
+		await prisma.workout.findUniqueOrThrow({
+			where: { id: world.stockFork.id },
+			select: { copiedFromId: true },
+		}),
+	).toEqual({ copiedFromId: world.stock.id })
+	expect(
+		await prisma.workout.findUniqueOrThrow({
+			where: { id: world.readerOwn.id },
+			select: { ownerId: true, copiedFromId: true },
+		}),
+	).toEqual({ ownerId: world.reader.id, copiedFromId: world.stock.id })
+}
+
+/** The whole Workout table, to show a run changed nothing. */
+async function snapshotWorkouts() {
+	return prisma.workout.findMany({
+		orderBy: { id: 'asc' },
+		select: {
+			id: true,
+			ownerId: true,
+			authorship: true,
+			visibility: true,
+			copiedFromId: true,
+			attribution: { select: { displayName: true } },
+			catalogueEntry: { select: { retiredAt: true } },
+		},
+	})
+}
+
+test('deleting an account applies Account Erasure to everything the athlete wrote', async () => {
+	const world = await createErasureWorld()
+
+	const erasure = await deleteAccount(world.author.id)
+
+	expect(erasure).toEqual({ erased: 4, withdrawn: 2, spliced: 2 })
+	expect(
+		await prisma.user.findUnique({ where: { id: world.author.id } }),
+	).toBeNull()
+	await expectErased(world)
+})
+
+test('the purge applies the same Account Erasure to Workouts orphaned before #641', async () => {
+	const world = await createErasureWorld()
+	// How every account was deleted before #641: the Workouts stay, ownerless.
+	await prisma.user.delete({ where: { id: world.author.id } })
+	const catalogueBefore = await Promise.all(
+		(['stock', 'community'] as const).map((tier) =>
+			listCatalogue({ viewerId: world.reader.id, tier }),
+		),
+	)
+
+	const erasure = await prisma.$transaction((tx) => eraseOrphanedWorkouts(tx))
+
+	expect(erasure).toEqual({ erased: 4, withdrawn: 2, spliced: 2 })
+	await expectErased(world)
+	const catalogueAfter = await Promise.all(
+		(['stock', 'community'] as const).map((tier) =>
+			listCatalogue({ viewerId: world.reader.id, tier }),
+		),
+	)
+	expect(catalogueAfter).toEqual(catalogueBefore)
+})
+
+test('the purge never reaches the corpus or a Workout somebody owns', async () => {
+	const world = await createErasureWorld()
+	const before = await snapshotWorkouts()
+
+	// Nothing is orphaned yet: every ownerless row is a Stock Workout.
+	const erasure = await prisma.$transaction((tx) => eraseOrphanedWorkouts(tx))
+
+	expect(erasure).toEqual({ erased: 0, withdrawn: 0, spliced: 0 })
+	expect(await snapshotWorkouts()).toEqual(before)
+	expect(
+		await prisma.workout.count({ where: { id: { in: world.corpus } } }),
+	).toBe(3)
+})
+
+test('a second purge changes nothing: a row kept unattributed stays kept', async () => {
+	const world = await createErasureWorld()
+	await prisma.user.delete({ where: { id: world.author.id } })
+	await prisma.$transaction((tx) => eraseOrphanedWorkouts(tx))
+	const before = await snapshotWorkouts()
+
+	const again = await prisma.$transaction((tx) => eraseOrphanedWorkouts(tx))
+
+	expect(again).toEqual({ erased: 0, withdrawn: 2, spliced: 0 })
+	expect(await snapshotWorkouts()).toEqual(before)
+	await expectErased(world)
 })
