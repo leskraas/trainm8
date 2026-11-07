@@ -101,9 +101,11 @@ In each week, a re-lay of a generated plan:
    is and fills no slot, as with every stamp;
 2. keeps a replaceable session the plan laid when its **Stock Workout**
    (`copiedFromId`) still meets the criteria of an unfilled slot of the same
-   Discipline in that week (`matchesCriteria`: archetypes, catalogue phase, goal
-   event, level floor), preferring the slot on its own weekday. A kept one stays
-   on the day it is on;
+   Discipline in that week (`matchesCriteria`: catalogue phase, goal event,
+   level floor) and is of the archetype the generator retrieves for that slot
+   (the first of the slot's archetypes the corpus answers, not a fallback it
+   lists, so an easy session in a week that became race week goes), preferring
+   the slot on its own weekday. A kept one stays on the day it is on;
 3. removes every other replaceable session the plan laid in that week, and
    places the generator's session in each slot still unfilled, through the same
    writer approval uses.

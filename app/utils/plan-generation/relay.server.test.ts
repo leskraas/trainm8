@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { localDate, weekdayIndex, weekMonday } from '../athlete-calendar.ts'
 import { prisma } from '../db.server.ts'
+import { layPlanWeek } from '../load/horizon-fill.server.ts'
 import { storedPlaceWeeksRequest } from '../plan-outline/generation-request.ts'
 import { relayPlanFrom } from '../plan-outline/open-ended.server.ts'
 import { outlinePreviewSelect } from '../plan-outline/outline-preview.ts'
@@ -444,4 +445,56 @@ test('a plan generated before the record is laid again, its days frozen from its
 		{ discipline: 'run', weekday: 4, role: 'ordinary' },
 		{ discipline: 'run', weekday: 5, role: 'long' },
 	])
+})
+
+test("the horizon fill lays a generated plan's unlaid week by its generator, as approval laid it", async () => {
+	await seedCorpus()
+	const { athleteId } = await approve()
+	const before = await planSessions(athleteId)
+	const weekKey = '2026-01-19'
+	const inWeek = (rows: typeof before) =>
+		rows
+			.filter((row) => row.weekKey === weekKey)
+			.map((row) => ({ weekday: row.weekday, stock: row.stock }))
+	const approved = inWeek(before)
+	expect(approved.length).toBeGreaterThan(0)
+	// The week as if never laid: the plan's sessions there gone.
+	await prisma.workoutSession.deleteMany({
+		where: {
+			id: {
+				in: before.filter((row) => row.weekKey === weekKey).map((r) => r.id),
+			},
+		},
+	})
+
+	const laid = await layPlanWeek(athleteId, weekKey, 'UTC', NOW)
+
+	expect(laid).toEqual({ weekKey, sessions: approved.length, unlaid: null })
+	expect(inWeek(await planSessions(athleteId))).toEqual(approved)
+})
+
+test("a shortened generated plan clears the machine's sessions past its new end", async () => {
+	await seedCorpus()
+	const { athleteId, outlineId } = await approve()
+	const before = await planSessions(athleteId)
+	const phases = await prisma.planOutlinePhase.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: { id: true, weeks: true },
+	})
+	const changed = phases.find((phase) => phase.weeks > 1)!
+	await prisma.planOutlinePhase.update({
+		where: { id: changed.id },
+		data: { weeks: changed.weeks - 1 },
+	})
+	await relay(athleteId, outlineId)
+
+	const after = await planSessions(athleteId)
+	const weeksBefore = [...new Set(before.map((row) => row.weekKey))]
+	const weeksAfter = [...new Set(after.map((row) => row.weekKey))]
+	expect(weeksAfter).toEqual(weeksBefore.slice(0, -1))
+	const lastWeek = after.filter((row) => row.weekKey === weeksAfter.at(-1))
+	expect(lastWeek.map((row) => row.stock)).toEqual(
+		lastWeek.map(() => 'stock_race1'),
+	)
 })

@@ -268,15 +268,19 @@ async function layWeeks(
 	return result
 }
 
-/** Whether a slot still asks for a session copied from `entry`. */
+/**
+ * Whether a slot still asks for a session copied from `entry`: of the
+ * archetype the generator retrieves for the slot (the first of its archetypes
+ * the corpus answers, not any fallback it lists), meeting the slot's criteria.
+ * So an easy session left in a week that became race week goes, and the race
+ * week's own session is placed (#686 AC 3).
+ */
 function stillAsksFor(
 	slot: PlacedSlot,
 	entry: RetrievableEntry,
 	request: Pick<PlaceWeeksRequest, 'goalEvent' | 'level'>,
 ): boolean {
-	if (!(slot.archetypes as readonly string[]).includes(entry.archetype)) {
-		return false
-	}
+	if (slot.session?.archetype !== entry.archetype) return false
 	return matchesCriteria(entry, {
 		discipline: slot.discipline,
 		archetype: entry.archetype as SessionArchetype,
