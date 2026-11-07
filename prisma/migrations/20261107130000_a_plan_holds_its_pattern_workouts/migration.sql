@@ -127,7 +127,8 @@ PRAGMA defer_foreign_keys=OFF;
 --
 -- - **marked held** in place, when nothing but that plan's days uses it: the
 --   athlete's own private row, with no session, no other plan's day, no
---   Catalogue Entry, Attribution, save or Program day on it; or
+--   Catalogue Entry, Attribution, save, report or Program day on it (each
+--   would cascade away with the plan); or
 -- - **deep-copied** once for the plan (Workout, WorkoutBlock, WorkoutStep,
 --   ExerciseSet), owned by the plan's athlete, `copiedFromId` at the source,
 --   and the plan's days repointed at the copy. That is every row a session, a
@@ -165,6 +166,7 @@ SELECT DISTINCT p."outlineId", w."id",
         AND NOT EXISTS (SELECT 1 FROM "Attribution" a WHERE a."workoutId" = w."id")
         AND NOT EXISTS (SELECT 1 FROM "CatalogueSave" cs WHERE cs."workoutId" = w."id")
         AND NOT EXISTS (SELECT 1 FROM "StrengthProgramDay" pd WHERE pd."workoutId" = w."id")
+        AND NOT EXISTS (SELECT 1 FROM "WorkoutReport" r WHERE r."workoutId" = w."id")
     THEN 0 ELSE 1 END
 FROM "WeekPatternDay" d
 JOIN "WeekPattern" p ON p."id" = d."patternId"

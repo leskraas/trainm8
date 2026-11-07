@@ -559,3 +559,39 @@ test('the migration leaves a plan that already holds its rows as it is', async (
 	expect(await daysOf(before.race.patternId)).toEqual(once)
 	expect(await prisma.workout.count()).toBe(workouts)
 })
+
+test('the migration copies a reported row rather than holding it, so its report outlives the plan', async () => {
+	const before = await plansBeforeTheDeploy()
+	// The Simple Activity's row was once public and reported, and is private
+	// again: only the race plan's days use it.
+	const reporter = await athlete()
+	await prisma.workoutReport.create({
+		data: {
+			workoutId: before.activityId,
+			reporterId: reporter,
+			reason: 'spam',
+		},
+	})
+
+	await runBackfill()
+
+	const copyId = `${before.activityId}.${before.race.outlineId}`
+	const days = await daysOf(before.race.patternId)
+	expect(
+		days
+			.filter((day) => day.workout?.title === 'Klatring')
+			.map((day) => day.workoutId),
+	).toEqual([copyId, copyId])
+	expect(
+		await prisma.workout.findUniqueOrThrow({
+			where: { id: before.activityId },
+			select: { heldByOutlineId: true },
+		}),
+	).toEqual({ heldByOutlineId: null })
+	await prisma.planOutline.delete({ where: { id: before.race.outlineId } })
+	expect(
+		await prisma.workoutReport.count({
+			where: { workoutId: before.activityId },
+		}),
+	).toBe(1)
+})
