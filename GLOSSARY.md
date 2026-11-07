@@ -2838,6 +2838,16 @@ Volume rather than a planned zero. Writing, moving or editing a session moves
 this number and never the **Week Target**. _Avoid_: Planned load (that is
 Planned TSS, per session), week sum.
 
+**Placed Hours**: How long one generated **Training Week**'s placed endurance
+sessions take **at least**, in hours: every step the **Workout Reading** can time
+through the athlete's own thresholds, a **Send-Off** rep at its cycle time, summed.
+Exact only when every placed session was timed end to end and no slot went
+unfilled; otherwise a floor, and it reads _minst_. Read in the generate preview
+against the **Weekly Capacity** and stated, never fixed, where it is over (ADR
+0110 §4, ADR 0112). Not **Planned Volume**, which drops a whole session for one
+untimed step, so the two may differ on the same week. _Avoid_: Planned hours,
+session hours, week duration.
+
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the
 session's TSS, the working **Exercise Set Logs**. A **Simple Activity** marked
