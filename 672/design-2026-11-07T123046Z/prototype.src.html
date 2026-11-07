@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>#672 Plan guards in the lead · prototype</title>
+<style>
+@font-face { font-family: 'Public Sans Variable'; font-weight: 100 900; font-style: normal; src: url(data:font/woff2;base64,/*FONT*/) format('woff2'); }
+
+/* The project's tokens (app/styles/tailwind.css), light and dark. */
+:root {
+  --radius: 0.375rem;
+  --background: oklch(0.975 0.003 197); --foreground: oklch(0.148 0.004 228.8);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.148 0.004 228.8);
+  --primary: #0d7a68; --primary-foreground: #fff;
+  --secondary: oklch(0.955 0.004 197); --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.948 0.004 197); --muted-foreground: oklch(0.52 0.016 213.5);
+  --border: oklch(0.915 0.005 214.3);
+  --ring: color-mix(in oklab, var(--primary) 55%, transparent);
+  --track-run: oklch(0.63 0.16 32);
+  --phase-base: oklch(0.66 0.06 240); --phase-build: oklch(0.72 0.1 80); --phase-peak: oklch(0.64 0.12 35); --phase-taper: oklch(0.68 0.08 160);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  color-scheme: light;
+}
+:root.dark {
+  --background: oklch(0.148 0.004 228.8); --foreground: oklch(0.987 0.002 197.1);
+  --card: oklch(0.205 0.007 223.9); --card-foreground: oklch(0.987 0.002 197.1);
+  --primary: #35b89c; --primary-foreground: #0c1512;
+  --secondary: oklch(0.275 0.011 216.9); --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.255 0.01 216.9); --muted-foreground: oklch(0.723 0.014 214.4);
+  --border: oklch(1 0 0 / 10%);
+  --track-run: oklch(0.7 0.14 32);
+  --phase-base: oklch(0.6 0.06 240); --phase-build: oklch(0.66 0.09 80); --phase-peak: oklch(0.62 0.11 35); --phase-taper: oklch(0.62 0.08 160);
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: 'Public Sans Variable', system-ui, sans-serif; font-size: 16px; line-height: 24px; -webkit-font-smoothing: antialiased; }
+a, button, summary { touch-action: manipulation; }
+button { font: inherit; color: inherit; }
+p, ul, h1, h2, h3 { margin: 0; }
+ul { padding: 0; list-style: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Type steps (design-system.md §Type) */
+.text-title { font-size: 24px; line-height: 30px; font-weight: 650; letter-spacing: -0.02em; }
+.text-heading { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.012em; }
+.text-callout { font-size: 15px; line-height: 21px; font-weight: 500; letter-spacing: -0.004em; }
+.text-footnote { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: 0.002em; }
+.text-caption { font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.01em; }
+.muted { color: var(--muted-foreground); }
+.tnum { font-variant-numeric: tabular-nums; }
+.wrap-any { overflow-wrap: anywhere; }
+
+/* App chrome */
+.topbar { position: sticky; top: 0; z-index: 10; height: 52px; padding: env(safe-area-inset-top) 16px 0; display: flex; align-items: center; background: var(--background); font-weight: 700; letter-spacing: -0.02em; }
+.topbar .tabs-desktop { display: none; margin-left: auto; gap: 4px; }
+.tabbar { position: fixed; z-index: 10; left: 0; right: 0; bottom: 0; height: calc(64px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); display: grid; grid-template-columns: repeat(3, 1fr); background: color-mix(in oklab, var(--card) 92%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--border); }
+.tabbar a, .tabs-desktop a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--muted-foreground); text-decoration: none; font-size: 12px; font-weight: 500; }
+.tabbar a[aria-current], .tabs-desktop a[aria-current] { color: var(--primary); }
+.tabbar svg { width: 22px; height: 22px; }
+@media (min-width: 768px) {
+  .tabbar { display: none; }
+  .topbar .tabs-desktop { display: flex; }
+  .tabs-desktop a { flex-direction: row; padding: 0 12px; height: 36px; border-radius: 999px; font-size: 14px; }
+  .tabs-desktop a[aria-current] { background: var(--secondary); color: var(--foreground); }
+}
+main { max-width: 672px; margin: 0 auto; padding: 24px 16px calc(96px + env(safe-area-inset-bottom)); }
+@media (min-width: 768px) { main { padding: 32px 32px 64px; } }
+@media (min-width: 1024px) { main { max-width: 1152px; } .lead-col { max-width: 672px; margin-left: auto; margin-right: auto; } }
+
+.page-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.page-header h1 { flex: 1 1 160px; min-width: 0; font-size: 18px; line-height: 28px; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); font-size: 14px; font-weight: 500; text-decoration: none; position: relative; user-select: none; transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out); }
+.pill::after { content: ''; position: absolute; inset: -6px 0; }
+.pill:active { transform: scale(0.97); }
+.pill svg { width: 16px; height: 16px; }
+
+.card { background: var(--card); color: var(--card-foreground); border-radius: 15.6px; box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 5%, transparent), 0 4px 6px -1px rgb(0 0 0 / .08), 0 2px 4px -2px rgb(0 0 0 / .06); padding: 16px; }
+@media (min-width: 768px) { .card { padding: 24px; } }
+.stack-3 > * + * { margin-top: 12px; }
+.stack-4 > * + * { margin-top: 16px; }
+.stack-6 > * + * { margin-top: 24px; }
+
+/* A collapsible row (CollapsibleSection) */
+.row { margin: 0 -8px; width: calc(100% + 16px); min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 10px 8px; border: 0; background: transparent; text-align: left; border-radius: 10.8px; cursor: pointer; user-select: none; transition: background-color 160ms var(--ease-out); }
+.row:active { background: var(--muted); }
+@media (hover: hover) and (pointer: fine) { .row:hover { background: color-mix(in oklab, var(--muted) 50%, transparent); } .pill:hover { background: color-mix(in oklab, var(--secondary) 80%, var(--foreground) 6%); } }
+.row .chev { flex-shrink: 0; width: 16px; height: 16px; color: var(--muted-foreground); transition: transform 160ms var(--ease-out); }
+.row[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.hair { border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.collapse { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 150ms var(--ease-out), opacity 150ms var(--ease-out); }
+.collapse[data-open] { grid-template-rows: 1fr; opacity: 1; transition-duration: 200ms; }
+.collapse > div { overflow: hidden; min-height: 0; }
+@media (prefers-reduced-motion: reduce) { .collapse, .row .chev, .pill { transition: none; } }
+
+/* The curve */
+.curve svg { display: block; width: 100%; height: 112px; overflow: visible; }
+
+/* Alert (app/components/ui/alert.tsx) as the guard notices use it */
+.alert { position: relative; display: grid; gap: 2px; width: 100%; border: 1px solid var(--border); border-radius: 10.8px; padding: 12px 72px 12px 16px; background: var(--card); color: var(--card-foreground); text-align: left; }
+.alert-desc { color: var(--muted-foreground); font-size: 16px; line-height: 24px; text-wrap: pretty; }
+@media (min-width: 768px) { .alert-desc { font-size: 14px; line-height: 20px; } }
+.alert-desc > * + * { margin-top: 8px; }
+.alert-desc ul > li + li { margin-top: 4px; }
+.band-list > li + li { margin-top: 8px !important; }
+.alert-desc .fact { color: var(--foreground); }
+.alert-desc .strong { font-weight: 500; color: var(--foreground); }
+.alert-action { position: absolute; top: 10px; right: 12px; }
+.icon-btn { position: relative; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: transparent; color: var(--muted-foreground); cursor: pointer; user-select: none; transition: background-color 160ms var(--ease-out), transform 160ms var(--ease-out); }
+.icon-btn::after { content: ''; position: absolute; inset: -6px; }
+.icon-btn:active { transform: scale(0.97); background: var(--muted); }
+@media (hover: hover) and (pointer: fine) { .icon-btn:hover { background: var(--muted); color: var(--foreground); } }
+.icon-btn svg { width: 16px; height: 16px; }
+/* A link inside a notice: a real 44px target, the resting link's idiom. */
+/* An invisible hit area, not a taller line: inline-flex min-h-11 opened a 20px gap in
+   the middle of a sentence. The inline box is the font's content area (~19px at 16px,
+   ~16px at 14px), not the line, so the area grows 13px / 14px each way to reach 44px; neighbours are text, never
+   another target (each band line runs to at least two lines, so its link is 48px+
+   from the next). */
+.tap-link { position: relative; color: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.tap-link::after { content: ''; position: absolute; inset: -13px -4px; }
+@media (min-width: 768px) { .tap-link::after { inset: -14px -4px; } }
+.band-link { color: var(--foreground); text-decoration: none; }
+@media (hover: hover) and (pointer: fine) { .band-link:hover { text-decoration: underline; } }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
+
+.guards { display: flex; flex-direction: column; gap: 12px; }
+
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--muted); }
+.seg a { height: 32px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--muted-foreground); text-decoration: none; }
+.seg a[aria-current] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+.phase { display: flex; align-items: center; gap: 12px; }
+.phase .dot { width: 10px; height: 10px; border-radius: 99px; flex-shrink: 0; }
+.badge { flex-shrink: 0; font-size: 12px; line-height: 16px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: color-mix(in oklab, var(--primary) 14%, transparent); color: var(--primary); }
+
+/* Harness chrome: not part of the design */
+.harness { position: fixed; z-index: 2147483646; top: 70px; right: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12px; }
+.harness .seg-h { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: #e5e5e5; box-shadow: 0 2px 8px rgb(0 0 0 / .15); }
+.harness button { height: 24px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: #444; cursor: pointer; font: inherit; }
+.harness button[data-on] { background: #fff; color: #111; box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
+.harness .note { max-width: 240px; padding: 6px 10px; border-radius: 10px; background: rgba(10,10,10,.82); color: #fff; }
+[data-full="1"] .tabbar { display: none; }
+[data-chrome="0"] .harness, [data-chrome="0"] .proto-picker { display: none !important; }
+
+/* The picker (PICKER.md), verbatim */
+.proto-picker { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 2147483647; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: rgba(10, 10, 10, 0.82); -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset, 0 8px 24px rgba(0, 0, 0, 0.24), 0 2px 6px rgba(0, 0, 0, 0.12); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; line-height: 1; -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; }
+.proto-picker-highlight { position: absolute; top: 4px; left: 0; height: 28px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); will-change: transform; }
+.proto-picker[data-ready] .proto-picker-highlight { transition: transform 250ms cubic-bezier(0.23, 1, 0.32, 1), width 250ms cubic-bezier(0.23, 1, 0.32, 1); }
+@media (prefers-reduced-motion: reduce) { .proto-picker[data-ready] .proto-picker-highlight { transition: none; } }
+.proto-picker-item { position: relative; display: flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: rgba(255, 255, 255, 0.55); font: inherit; cursor: pointer; transition: color 150ms ease-out; }
+.proto-picker-item:hover { color: rgba(255, 255, 255, 0.85); }
+.proto-picker-item:active { transform: scale(0.97); }
+.proto-picker-item:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.4); outline-offset: 2px; }
+.proto-picker-item[data-active] { color: #fff; }
+.proto-picker-divider { width: 1px; height: 16px; margin: 0 4px; background: rgba(255, 255, 255, 0.12); }
+.proto-picker-replay { padding: 0 10px; font-size: 14px; }
+.proto-picker[data-position="top"] { bottom: auto; top: 24px; }
+</style>
+</head>
+<body>
+<header class="topbar"><span>trainm8</span>
+  <nav class="tabs-desktop" aria-label="Faner"><a href="#">I dag</a><a href="#" aria-current="page">Plan</a><a href="#">Meg</a></nav>
+</header>
+<div id="stage"></div>
+<nav class="tabbar" aria-label="Faner">
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>I dag</a>
+  <a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 18c4-1 5-9 9-9s5 6 9 4"/><path d="M3 21h18"/></svg>Plan</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Meg</a>
+</nav>
+
+<div class="harness" aria-label="Prototype controls">
+  <div class="seg-h" id="data-toggle"><button data-k="demo">Demo data</button><button data-k="worst">Worst case</button><button data-k="none">Ingen merknader</button></div>
+  <div class="seg-h" id="theme-toggle"><button data-k="light">Lys</button><button data-k="dark">Mørk</button></div>
+  <div class="note" id="harness-note" hidden></div>
+</div>
+
+<nav class="proto-picker" data-position="top" aria-label="Prototype variants">
+  <span class="proto-picker-highlight" aria-hidden="true"></span>
+  <button class="proto-picker-item" data-active aria-current="true">I dag (før)</button>
+  <button class="proto-picker-item">Under kortet</button>
+</nav>
+
+<script>
+// ---------- Data: the notices' real copy, rendered with the repo's own labels (copy.json) ----------
+const NOTE = {
+  rampNote: 'Vanlig praksis er +8 % – per harde uke for stigning, og på én gang for et hopp ved start. Mer enn det er uvanlig, ikke farlig: ingen volumregel er vist å forebygge skader, så dette er en merknad og ikke en grense. Tallene dine er lagret slik du skrev dem.',
+  rampLiftingNote: ' En styrkeblokk er datert og ikke knyttet til en fase, så fasen som nevnes ved en slik blokk er bare der den første uka faller.',
+  bothChecks: 'Det er to ulike sammenligninger – økter mot dagene du trener, og timer mot kapasiteten du har satt – og en uke kan bomme på den ene uten den andre. ',
+  daysCheck: 'Det er dager mot dager: økter mot dagene du trener. ',
+  hoursCheck: 'Det er timer mot timer: timene utholdenhetsukene blir til, mot kapasiteten du har satt. ',
+  fitNote: 'Det kan være akkurat det du mente: to økter kan dele en dag, og begge tallene er innstillinger, ikke fakta om uka di. Planen er lagret slik du skrev den.',
+  dayClashCheck: 'Det er dagene lest mot hverandre, på tvers av alt du trener: hard betyr her en økt som ikke er rolig, også middels. ',
+  dayClashNote: 'Det kan være akkurat det du mente – en dag du har valgt selv, blir der du satte den. Planen er lagret slik den er.',
+  noCap: ['Timer er den andre sammenligningen, og', 'utøverprofilen', 'din har ingen ukentlig kapasitet ennå – så ingenting her er sjekket mot timene dine.'],
+  bandNote: 'Det spennet er utledet fra styrkemålet du satte på blokka, aldri skrevet ved siden av – endre målet, så flytter spennet seg, eller la økta være som den er. Dette er en merknad og ikke en grense: blokkene og øktene dine er lagret slik du skrev dem.',
+  dismiss: (n) => `Lukk ${n}`,
+  dismissed: (n) => `${n[0].toUpperCase()}${n.slice(1)} er lukket. Den kommer tilbake hvis det den sier endrer seg.`,
+  rampName: 'merknaden om stigning', availabilityName: 'merknaden om treningsdager', bandName: 'merknaden om belastning',
+}
+
+const DATA = {
+  demo: {
+    name: 'Mest rolig, litt veldig hardt', family: 'Fagnavn: Polarisert',
+    event: 'Sentrumsløpet 10 km', meta: '25. apr 2027 · 25 uker fra 2. nov 2026',
+    easy: 'Neste lette uke er uke 48, fra 23. nov 2026.', resting: null,
+    phases: [['Grunntrening', 'base', 8], ['Oppbygging', 'build', 9], ['Spissing', 'peak', 5], ['Nedtrapping', 'taper', 3]],
+    ramp: [{ phase: 'Oppbygging', rate: 'stiger +14 % per harde uke' }],
+    avail: { days: [], hours: [{ span: 'Uke 52–1', text: [' ber om opptil 9,5 t/uke utholdenhetstrening, og kapasiteten din er 7 t/uke.'] }], clashes: [], noCap: false },
+    band: [{ span: 'Uke 47, 18. nov', line: 'er lagt inn med 62,5 %, 65 % 1RM, utenfor 67–85 % 1RM som muskelvekst trener i.' }],
+  },
+  worst: {
+    name: 'Kortere blokker, mer hvile', family: 'Fagnavn: Masters',
+    event: 'Fjellmaraton Beitostølen – Bitihorn halvmaraton med stigning', meta: '6. jun 2027 · 31 uker fra 2. nov 2026',
+    easy: 'Denne uka er en lett uke.',
+    resting: { text: 'Planen hviler mens planen mot løpet ditt er i gang. Den tar over igjen når løpet er over.', link: 'Åpne løpsplanen' },
+    phases: [['Off-season med alternativ trening og langrenn', 'base', 6], ['Grunntrening', 'base', 8], ['Oppbygging', 'build', 9], ['Spissing', 'peak', 5], ['Nedtrapping', 'taper', 3]],
+    ramp: [
+      { phase: 'Off-season med alternativ trening og langrenn', rate: 'stiger +22 % per harde uke' },
+      { phase: 'Oppbygging', rate: 'stiger +14 % per harde uke' },
+      { phase: 'Spissing', rate: 'hopper +12 % ved starten' },
+      { lifting: 'Styrke', rest: 'stiger +15 % per harde uke, i blokka som starter i Grunntrening.' },
+    ],
+    avail: {
+      days: [{ span: 'Uke 47–50', text: [' ber om 3 kvalitetsøkter og 2 styrkeøkter i uka, og du kan trene 4 dager i uka.'] }, { span: 'Uke 2–9', text: [' ber om 4 kvalitetsøkter og 2 styrkeøkter i uka, og du kan trene 1 dag i uka.'] }],
+      // No Weekly Capacity set: the hours check cannot run, so the notice points at the profile.
+      hours: [],
+      clashes: [
+        { span: 'Uke 47–49 og uke 53', text: ': Styrke og en hard økt på tirsdag.' },
+        { span: 'Uke 3, uke 6–7 og uke 9', text: ': To harde dager etter hverandre (onsdag–torsdag) – en dag du har valgt selv.' },
+      ],
+      noCap: false,
+    },
+    band: [
+      { span: 'Uke 47, 18. nov', line: 'er lagt inn med 62,5 %, 65 % 1RM, utenfor 67–85 % 1RM som muskelvekst trener i.' },
+      { span: 'Uke 47, 20. nov', line: 'er lagt inn med 92,5 % 1RM, utenfor 70–85 % 1RM som muskelvekst trener i.' },
+      { span: 'Uke 49, 2. des', line: 'er lagt inn med 50 %, 52,5 %, 55 %, 57,5 % 1RM, utenfor 80–95 % 1RM som maksimal styrke trener i.' },
+      { span: 'Uke 52, 23. des', line: 'er lagt inn med 97,5 % 1RM, utenfor 30–60 % 1RM som eksplosivitet trener i.' },
+    ],
+  },
+  none: null,
+}
+DATA.none = { ...DATA.demo, ramp: [], avail: { days: [], hours: [], clashes: [], noCap: false }, band: [] }
+// A second worst case: no capacity set, so the notice points at the profile.
+DATA.worst.availNoCap = true
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const ICON = {
+  cross: '<svg viewBox="0 0 15 15" fill="currentColor" aria-hidden="true"><path d="M11.78 4.03a.53.53 0 0 0-.75-.75L7.5 6.8 3.97 3.28a.53.53 0 1 0-.75.75L6.75 7.5l-3.53 3.53a.53.53 0 1 0 .75.75L7.5 8.25l3.53 3.53a.53.53 0 0 0 .75-.75L8.25 7.5z"/></svg>',
+  chev: '<svg class="chev" viewBox="0 0 15 15" fill="currentColor" aria-hidden="true"><path d="M3.13 5.82a.5.5 0 0 1 .7.05L7.5 10.1l3.67-4.23a.5.5 0 1 1 .76.65l-4.05 4.66a.5.5 0 0 1-.76 0L3.08 6.52a.5.5 0 0 1 .05-.7Z"/></svg>',
+  cal: '<svg viewBox="0 0 15 15" fill="currentColor" aria-hidden="true"><path d="M4.5 1a.5.5 0 0 1 .5.5V2h5v-.5a.5.5 0 0 1 1 0V2h1.5A1.5 1.5 0 0 1 14 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 1 12.5v-9A1.5 1.5 0 0 1 2.5 2H4v-.5a.5.5 0 0 1 .5-.5ZM2 6v6.5c0 .28.22.5.5.5h10a.5.5 0 0 0 .5-.5V6z"/></svg>',
+  plus: '<svg viewBox="0 0 15 15" fill="currentColor" aria-hidden="true"><path d="M8 2.75a.5.5 0 0 0-1 0V7H2.75a.5.5 0 0 0 0 1H7v4.25a.5.5 0 0 0 1 0V8h4.25a.5.5 0 0 0 0-1H8z"/></svg>',
+}
+
+// ---------- Pieces ----------
+function curveSvg(d) {
+  const weeks = d.phases.reduce((n, p) => n + p[2], 0)
+  const W = 340, H = 112, base = 92, top = 14
+  const slot = W / weeks
+  let pts = [], i = 0, v = 4.5, done = []
+  for (const [, tone, n] of d.phases) for (let k = 0; k < n; k++, i++) {
+    const rec = tone !== 'taper' && k % 4 === 3
+    if (tone === 'taper') v *= 0.82; else if (!rec) v *= tone === 'build' ? 1.06 : tone === 'peak' ? 1.02 : 1.03
+    const val = rec ? v * 0.7 : v
+    pts.push(val); if (i < 3) done.push(val * (0.85 + 0.1 * (i % 2)))
+  }
+  const max = Math.max(...pts) * 1.05
+  const y = (val) => base - (val / max) * (base - top)
+  let bands = '', at = 0
+  for (const [, tone, n] of d.phases) { bands += `<rect x="${(at * slot).toFixed(1)}" y="${base + 2}" width="${(n * slot - 0.5).toFixed(1)}" height="3" style="fill:var(--phase-${tone})"/>`; at += n }
+  const bars = done.map((dv, k) => `<rect x="${(k * slot + slot * 0.2).toFixed(1)}" y="${y(dv).toFixed(1)}" width="${(slot * 0.6).toFixed(1)}" height="${(base - y(dv)).toFixed(1)}" rx="1" style="fill:var(--track-run)"/>`).join('')
+  const line = pts.map((p, k) => `${(k * slot + slot / 2).toFixed(1)},${y(p).toFixed(1)}`).join(' ')
+  const now = 2 * slot + slot / 2
+  return `<figure class="curve" style="margin:0"><div class="text-caption muted" style="display:flex;justify-content:space-between"><span>Timer i uka, uke for uke</span><span class="tnum">${weeks} uker</span></div>
+  <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Sesongen som én kurve, denne uka markert">${bands}${bars}
+  <line x1="${now}" x2="${now}" y1="${top - 6}" y2="${base}" stroke="var(--primary)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+  <polyline points="${line}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+  <text x="${now + 4}" y="${top - 2}" font-size="10" font-weight="600" style="fill:var(--primary)">Nå</text></svg></figure>`
+}
+
+function leadCard(d) {
+  return `<section aria-labelledby="plan-name" data-plan-lead class="stack-3 lead-col">
+    <div class="card stack-4">
+      <header style="display:grid;gap:4px">
+        <h1 id="plan-name" class="text-title wrap-any" style="text-wrap:balance">${esc(d.name)}</h1>
+        <p class="text-footnote muted">${esc(d.family)}</p>
+        <p class="text-footnote muted tnum wrap-any">Mot <a href="#" data-dest="/training/events/…" style="color:var(--foreground);font-weight:600;text-decoration:none">${esc(d.event)}</a> · ${esc(d.meta)}</p>
+      </header>
+      ${curveSvg(d)}
+      <p class="text-callout">${esc(d.easy)}</p>
+      <a class="pill" href="#" data-dest="/training/events/…" style="padding:0 16px">${ICON.cal}Endre løpet</a>
+      <div class="hair" style="padding-top:2px"><button class="row" type="button" aria-expanded="false" data-row><span style="flex:1;min-width:0"><span class="text-callout" style="display:block">Bytt treningsform</span><span class="text-footnote muted" style="display:block">Se måtene å trene på igjen, lagt for ukene dine</span></span>${ICON.chev}</button>
+        <div class="collapse"><div><p class="text-footnote muted" style="padding:4px 0 16px">Hver er en ekte uke med 6 t på 5 dager, fra uka som starter 9. nov. Du ser hva som endres før noe skjer.</p></div></div></div>
+    </div>
+    ${d.resting ? `<p class="text-footnote muted" style="text-align:center">${esc(d.resting.text)} <a href="#" data-dest="/training/plan" style="color:var(--foreground);font-weight:600;display:inline-flex;min-height:44px;align-items:center;text-decoration:underline;text-underline-offset:4px">${esc(d.resting.link)}</a></p>` : ''}
+    ${state.variant === 1 ? guards(d, 'lead') : ''}
+  </section>`
+}
+
+function notice(name, key, body) {
+  if (state.dismissed.has(key)) return `<p tabindex="-1" class="sr-only" data-closed="${key}">${esc(NOTE.dismissed(name))}</p>`
+  return `<div class="alert" role="alert" data-notice="${key}"><div class="alert-desc">${body}</div>
+    <div class="alert-action"><button class="icon-btn" type="button" aria-label="${esc(NOTE.dismiss(name))}" data-dismiss="${key}">${ICON.cross}</button></div></div>`
+}
+
+function rampBody(d) {
+  const lifting = d.ramp.some((w) => w.lifting)
+  return `<ul>${d.ramp.map((w) => w.lifting ? `<li class="fact"><span class="strong">${esc(w.lifting)}</span> ${esc(w.rest)}</li>` : `<li class="fact"><span class="strong wrap-any">${esc(w.phase)}</span> ${esc(w.rate)}.</li>`).join('')}</ul>
+  <p>${esc(NOTE.rampNote)}${lifting ? esc(NOTE.rampLiftingNote) : ''}</p>`
+}
+function availBody(d, noCap) {
+  const a = d.avail, counted = a.days.length + a.hours.length > 0
+  let html = ''
+  if (counted) {
+    html += `<ul>${[...a.days, ...a.hours].map((w) => `<li class="fact"><span class="strong tnum">${esc(w.span)}</span>${esc(w.text.join(''))}</li>`).join('')}</ul>`
+    html += `<p>${esc(a.days.length && a.hours.length ? NOTE.bothChecks : a.days.length ? NOTE.daysCheck : NOTE.hoursCheck)}${esc(NOTE.fitNote)}</p>`
+    if (noCap) html += `<p>${esc(NOTE.noCap[0])} <a class="tap-link" href="#" data-dest="/settings/profile">${esc(NOTE.noCap[1])}</a> ${esc(NOTE.noCap[2])}</p>`
+  }
+  if (a.clashes.length) {
+    html += `<ul>${a.clashes.map((c) => `<li class="fact"><span class="strong tnum">${esc(c.span)}</span>${esc(c.text)}</li>`).join('')}</ul>`
+    html += `<p>${esc(NOTE.dayClashCheck)}${esc(NOTE.dayClashNote)}</p>`
+  }
+  return html
+}
+function bandBody(d) {
+  return `<ul class="band-list">${d.band.map((b) => `<li class="fact"><a class="tap-link band-link tnum" href="#" data-dest="/training/sessions/…">${esc(b.span)}</a> ${esc(b.line)}</li>`).join('')}</ul><p>${esc(NOTE.bandNote)}</p>`
+}
+
+function guards(d, where) {
+  const any = d.ramp.length || d.avail.days.length || d.avail.hours.length || d.avail.clashes.length || d.band.length
+  if (!any) return ''
+  const noCap = Boolean(d.availNoCap)
+  const avail = d
+  return `<div class="guards" data-plan-guards="${where}">
+    ${d.ramp.length ? notice(NOTE.rampName, 'ramp', rampBody(d)) : ''}
+    ${avail.avail.days.length || avail.avail.hours.length || avail.avail.clashes.length ? notice(NOTE.availabilityName, 'avail', availBody(avail, noCap)) : ''}
+    ${d.band.length ? notice(NOTE.bandName, 'band', bandBody(d)) : ''}
+  </div>`
+}
+
+function library() {
+  return `<section class="lead-col" style="margin-top:40px" aria-labelledby="bib"><h2 id="bib" class="text-heading" style="margin-bottom:8px">Bibliotek</h2>
+  <div class="card" style="padding:4px 16px">
+    ${[['Katalog', 'Ferdige økter du kan ta inn i uka di.'], ['Styrkeprogrammer', 'Programmer som setter neste vekt ut fra forrige logg.'], ['Alle øvelser', 'Hele øvelsesbanken, med søk.']].map(([t, s], k) => `<a href="#" data-dest="/library" class="row" style="text-decoration:none;color:inherit;${k ? 'border-top:1px solid color-mix(in oklab, var(--border) 60%, transparent);border-radius:0' : ''}"><span style="flex:1;min-width:0"><span class="text-callout" style="display:block">${t}</span><span class="text-footnote muted" style="display:block">${s}</span></span><svg class="chev" style="transform:rotate(-90deg)" viewBox="0 0 15 15" fill="currentColor"><path d="M3.13 5.82a.5.5 0 0 1 .7.05L7.5 10.1l3.67-4.23a.5.5 0 1 1 .76.65l-4.05 4.66a.5.5 0 0 1-.76 0L3.08 6.52a.5.5 0 0 1 .05-.7Z"/></svg></a>`).join('')}
+  </div></section>`
+}
+
+function advanced(d) {
+  return `<section id="avansert" style="margin-top:40px" aria-labelledby="avansert-title">
+    <h2 id="avansert-title" class="lead-col" style="margin-bottom:0"><button class="row" type="button" aria-expanded="${state.adv}" data-adv style="border-top:1px solid color-mix(in oklab, var(--border) 60%, transparent);border-radius:10.8px">
+      <span style="flex:1;min-width:0"><span class="text-heading" style="display:block">Avansert</span><span class="text-footnote muted" style="display:block;font-weight:400">Filosofi, ukemål, faser, treningsspor, den typiske uka og sesongdiagrammet.</span></span>${ICON.chev}</button></h2>
+    <div class="collapse" ${state.adv ? 'data-open' : ''}><div><div class="stack-6" style="padding-top:16px">
+      <div class="card"><h3 class="text-heading">Endre sesongen</h3><p class="text-footnote muted" style="margin-top:4px">Et ukemål, en fases navn og lengde, og den lette uka – hver bak en forhåndsvisning.</p></div>
+      <nav class="seg" aria-label="Lesninger"><a href="#" aria-current="page">Blokker</a><a href="#">Uker</a></nav>
+      <div class="stack-6" data-blocks-reading>
+        ${state.variant === 0 ? guards(d, 'blocks') : ''}
+        <ol style="list-style:none;padding:0;margin:0" class="stack-3" aria-label="Faser">
+          ${d.phases.map(([n, tone, w], k) => `<li class="card phase"><span class="dot" style="background:var(--phase-${tone})"></span><span style="flex:1;min-width:0"><span class="text-callout wrap-any" style="display:block">${esc(n)}</span><span class="text-footnote muted tnum" style="display:block">${w} uker · 3:1</span></span>${k === (d.phases.length > 4 ? 1 : 0) ? '<span class="badge">Nå</span>' : ''}${ICON.chev}</li>`).join('')}
+        </ol>
+      </div>
+    </div></div></div>
+  </section>`
+}
+
+function page() {
+  const d = DATA[state.data]
+  return `<main>
+    <header class="page-header lead-col"><h1>Plan</h1><nav aria-label="Start noe nytt" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="pill" href="#" data-dest="/training/events/new">${ICON.plus}Nytt løp</a><a class="pill" href="#" data-dest="/training/plan/new">${ICON.plus}Ny plan</a></nav></header>
+    ${leadCard(d)}
+    ${library()}
+    ${advanced(d)}
+  </main>`
+}
+
+// ---------- State, picker and toggles ----------
+const params = new URLSearchParams(location.search)
+const state = {
+  variant: 0,
+  data: DATA[params.get('data')] ? params.get('data') : 'demo',
+  adv: params.get('adv') === '1',
+  dismissed: new Set(),
+}
+document.documentElement.classList.toggle('dark', params.get('theme') === 'dark')
+document.documentElement.dataset.chrome = params.get('chrome') ?? '1'
+document.documentElement.dataset.full = params.get('full') ?? '0'
+
+const stage = document.getElementById('stage')
+function render() { stage.innerHTML = page() }
+function setParam(k, v) { const u = new URL(location); u.searchParams.set(k, v); history.replaceState(null, '', u) }
+function syncToggles() {
+  document.querySelectorAll('#data-toggle button').forEach((b) => b.toggleAttribute('data-on', b.dataset.k === state.data))
+  const dark = document.documentElement.classList.contains('dark')
+  document.querySelectorAll('#theme-toggle button').forEach((b) => b.toggleAttribute('data-on', (b.dataset.k === 'dark') === dark))
+}
+document.getElementById('data-toggle').addEventListener('click', (e) => {
+  const k = e.target.closest('button')?.dataset.k; if (!k) return
+  state.data = k; state.dismissed.clear(); setParam('data', k); syncToggles(); render()
+})
+document.getElementById('theme-toggle').addEventListener('click', (e) => {
+  const k = e.target.closest('button')?.dataset.k; if (!k) return
+  document.documentElement.classList.toggle('dark', k === 'dark'); setParam('theme', k); syncToggles()
+})
+let noteTimer
+stage.addEventListener('click', (e) => {
+  const dismiss = e.target.closest('[data-dismiss]')
+  if (dismiss) {
+    const key = dismiss.dataset.dismiss
+    state.dismissed.add(key); render()
+    // The line that replaces it takes focus, so the reader keeps their place.
+    stage.querySelector(`[data-closed="${key}"]`)?.focus()
+    return
+  }
+  const adv = e.target.closest('[data-adv]')
+  if (adv) { state.adv = !state.adv; adv.setAttribute('aria-expanded', state.adv); adv.closest('section').querySelector('.collapse').toggleAttribute('data-open', state.adv); setParam('adv', state.adv ? 1 : 0); return }
+  const row = e.target.closest('[data-row]')
+  if (row) { const open = row.getAttribute('aria-expanded') !== 'true'; row.setAttribute('aria-expanded', open); row.nextElementSibling.toggleAttribute('data-open', open); return }
+  const link = e.target.closest('a[data-dest]')
+  if (link) {
+    e.preventDefault()
+    const n = document.getElementById('harness-note'); n.hidden = false
+    n.textContent = `Prototype: would open ${link.dataset.dest}`
+    clearTimeout(noteTimer); noteTimer = setTimeout(() => (n.hidden = true), 1800)
+  }
+})
+
+// Picker wiring (PICKER.md reference wiring), variants re-render the stage.
+const variants = [() => { state.variant = 0; state.dismissed.clear(); render() }, () => { state.variant = 1; state.dismissed.clear(); render() }]
+const picker = document.querySelector('.proto-picker')
+const highlight = picker.querySelector('.proto-picker-highlight')
+const items = [...picker.querySelectorAll('.proto-picker-item:not(.proto-picker-replay)')]
+let current = 0
+function moveHighlight() { const el = items[current]; highlight.style.width = el.offsetWidth + 'px'; highlight.style.transform = `translateX(${el.offsetLeft}px)` }
+function mount(i) { stage.innerHTML = ''; requestAnimationFrame(() => variants[i]()) }
+function setActive(i) {
+  if (i < 0 || i >= variants.length) return
+  current = i
+  items.forEach((el, j) => { el.toggleAttribute('data-active', j === i); if (j === i) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current') })
+  moveHighlight(); setParam('v', i + 1); mount(i)
+}
+items.forEach((el, i) => el.addEventListener('click', () => setActive(i)))
+window.addEventListener('resize', moveHighlight)
+document.addEventListener('keydown', (e) => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return
+  if (e.metaKey || e.ctrlKey || e.altKey) return
+  const num = parseInt(e.key, 10)
+  if (num >= 1 && num <= variants.length) setActive(num - 1)
+  else if (e.key === 'ArrowRight') setActive((current + 1) % variants.length)
+  else if (e.key === 'ArrowLeft') setActive((current - 1 + variants.length) % variants.length)
+  else if (e.key === 'r' || e.key === 'R') mount(current)
+})
+syncToggles()
+setActive((parseInt(params.get('v'), 10) || 1) - 1)
+requestAnimationFrame(() => requestAnimationFrame(() => picker.setAttribute('data-ready', '')))
+</script>
+</body>
+</html>

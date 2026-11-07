@@ -1,0 +1,832 @@
+{
+ "today-demo-light-mobile": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "16px"
+  ],
+  "firstNoticeTop": 1163,
+  "leadBottom": 567,
+  "notices": 3,
+  "where": "blocks",
+  "errors": []
+ },
+ "today-demo-light-desktop": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "14px"
+  ],
+  "firstNoticeTop": 1095,
+  "leadBottom": 537,
+  "notices": 3,
+  "where": "blocks",
+  "errors": []
+ },
+ "today-demo-dark-mobile": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "16px"
+  ],
+  "firstNoticeTop": 1163,
+  "leadBottom": 567,
+  "notices": 3,
+  "where": "blocks",
+  "errors": []
+ },
+ "today-demo-dark-desktop": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "14px"
+  ],
+  "firstNoticeTop": 1095,
+  "leadBottom": 537,
+  "notices": 3,
+  "where": "blocks",
+  "errors": []
+ },
+ "today-worst-light-mobile": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "utøverprofilen",
+    "w": 113,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 47, 20. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 49, 2. des",
+    "w": 119,
+    "h": 45
+   },
+   {
+    "what": "Uke 52, 23. des",
+    "w": 130,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "16px"
+  ],
+  "firstNoticeTop": 1237,
+  "leadBottom": 567,
+  "notices": 3,
+  "where": "blocks",
+  "errors": []
+ },
+ "today-worst-light-desktop": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "utøverprofilen",
+    "w": 102,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 20. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Uke 49, 2. des",
+    "w": 104,
+    "h": 44
+   },
+   {
+    "what": "Uke 52, 23. des",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "14px"
+  ],
+  "firstNoticeTop": 1169,
+  "leadBottom": 555,
+  "notices": 3,
+  "where": "blocks",
+  "errors": []
+ },
+ "today-worst-dark-mobile": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "utøverprofilen",
+    "w": 113,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 47, 20. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 49, 2. des",
+    "w": 119,
+    "h": 45
+   },
+   {
+    "what": "Uke 52, 23. des",
+    "w": 130,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "16px"
+  ],
+  "firstNoticeTop": 1237,
+  "leadBottom": 567,
+  "notices": 3,
+  "where": "blocks",
+  "errors": []
+ },
+ "today-worst-dark-desktop": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "utøverprofilen",
+    "w": 102,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 20. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Uke 49, 2. des",
+    "w": 104,
+    "h": 44
+   },
+   {
+    "what": "Uke 52, 23. des",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "14px"
+  ],
+  "firstNoticeTop": 1169,
+  "leadBottom": 555,
+  "notices": 3,
+  "where": "blocks",
+  "errors": []
+ },
+ "today-none-light-mobile": {
+  "overflow": 0,
+  "targets": [],
+  "fonts": [],
+  "firstNoticeTop": null,
+  "leadBottom": 567,
+  "notices": 0,
+  "where": null,
+  "errors": []
+ },
+ "today-none-light-desktop": {
+  "overflow": 0,
+  "targets": [],
+  "fonts": [],
+  "firstNoticeTop": null,
+  "leadBottom": 537,
+  "notices": 0,
+  "where": null,
+  "errors": []
+ },
+ "today-none-dark-mobile": {
+  "overflow": 0,
+  "targets": [],
+  "fonts": [],
+  "firstNoticeTop": null,
+  "leadBottom": 567,
+  "notices": 0,
+  "where": null,
+  "errors": []
+ },
+ "today-none-dark-desktop": {
+  "overflow": 0,
+  "targets": [],
+  "fonts": [],
+  "firstNoticeTop": null,
+  "leadBottom": 537,
+  "notices": 0,
+  "where": null,
+  "errors": []
+ },
+ "under-the-card-demo-light-mobile": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "16px"
+  ],
+  "firstNoticeTop": 579,
+  "leadBottom": 567,
+  "notices": 3,
+  "where": "lead",
+  "errors": []
+ },
+ "under-the-card-demo-light-desktop": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "14px"
+  ],
+  "firstNoticeTop": 549,
+  "leadBottom": 537,
+  "notices": 3,
+  "where": "lead",
+  "errors": []
+ },
+ "under-the-card-demo-dark-mobile": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "16px"
+  ],
+  "firstNoticeTop": 579,
+  "leadBottom": 567,
+  "notices": 3,
+  "where": "lead",
+  "errors": []
+ },
+ "under-the-card-demo-dark-desktop": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "14px"
+  ],
+  "firstNoticeTop": 549,
+  "leadBottom": 537,
+  "notices": 3,
+  "where": "lead",
+  "errors": []
+ },
+ "under-the-card-worst-light-mobile": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "utøverprofilen",
+    "w": 113,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 47, 20. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 49, 2. des",
+    "w": 119,
+    "h": 45
+   },
+   {
+    "what": "Uke 52, 23. des",
+    "w": 130,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "16px"
+  ],
+  "firstNoticeTop": 653,
+  "leadBottom": 567,
+  "notices": 3,
+  "where": "lead",
+  "errors": []
+ },
+ "under-the-card-worst-light-desktop": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "utøverprofilen",
+    "w": 102,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 20. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Uke 49, 2. des",
+    "w": 104,
+    "h": 44
+   },
+   {
+    "what": "Uke 52, 23. des",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "14px"
+  ],
+  "firstNoticeTop": 623,
+  "leadBottom": 555,
+  "notices": 3,
+  "where": "lead",
+  "errors": []
+ },
+ "under-the-card-worst-dark-mobile": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "utøverprofilen",
+    "w": 113,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 47, 20. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 49, 2. des",
+    "w": 119,
+    "h": 45
+   },
+   {
+    "what": "Uke 52, 23. des",
+    "w": 130,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "16px"
+  ],
+  "firstNoticeTop": 653,
+  "leadBottom": 567,
+  "notices": 3,
+  "where": "lead",
+  "errors": []
+ },
+ "under-the-card-worst-dark-desktop": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "utøverprofilen",
+    "w": 102,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 20. nov",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Uke 49, 2. des",
+    "w": 104,
+    "h": 44
+   },
+   {
+    "what": "Uke 52, 23. des",
+    "w": 114,
+    "h": 44
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "14px"
+  ],
+  "firstNoticeTop": 623,
+  "leadBottom": 555,
+  "notices": 3,
+  "where": "lead",
+  "errors": []
+ },
+ "under-the-card-none-light-mobile": {
+  "overflow": 0,
+  "targets": [],
+  "fonts": [],
+  "firstNoticeTop": null,
+  "leadBottom": 567,
+  "notices": 0,
+  "where": null,
+  "errors": []
+ },
+ "under-the-card-none-light-desktop": {
+  "overflow": 0,
+  "targets": [],
+  "fonts": [],
+  "firstNoticeTop": null,
+  "leadBottom": 537,
+  "notices": 0,
+  "where": null,
+  "errors": []
+ },
+ "under-the-card-none-dark-mobile": {
+  "overflow": 0,
+  "targets": [],
+  "fonts": [],
+  "firstNoticeTop": null,
+  "leadBottom": 567,
+  "notices": 0,
+  "where": null,
+  "errors": []
+ },
+ "under-the-card-none-dark-desktop": {
+  "overflow": 0,
+  "targets": [],
+  "fonts": [],
+  "firstNoticeTop": null,
+  "leadBottom": 537,
+  "notices": 0,
+  "where": null,
+  "errors": []
+ },
+ "onceWithAvansertOpen": {
+  "notices": 3,
+  "inBlocks": 0
+ },
+ "dismiss": {
+  "notices": 2,
+  "focus": "Merknaden om stigning er lukket. Den kommer tilbake hvis det den sier endrer seg.",
+  "afterReload": 3
+ },
+ "under-the-card-worst-320": {
+  "overflow": 0,
+  "targets": [
+   {
+    "what": "Lukk merknaden om stigning",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "utøverprofilen",
+    "w": 113,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om treningsdager",
+    "w": 44,
+    "h": 44
+   },
+   {
+    "what": "Uke 47, 18. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 47, 20. nov",
+    "w": 129,
+    "h": 45
+   },
+   {
+    "what": "Uke 49, 2. des",
+    "w": 119,
+    "h": 45
+   },
+   {
+    "what": "Uke 52, 23. des",
+    "w": 130,
+    "h": 45
+   },
+   {
+    "what": "Lukk merknaden om belastning",
+    "w": 44,
+    "h": 44
+   }
+  ],
+  "fonts": [
+   "16px"
+  ],
+  "firstNoticeTop": 737,
+  "leadBottom": 633,
+  "notices": 3,
+  "where": "lead"
+ },
+ "under-the-card-worst-zoom200": 0
+}

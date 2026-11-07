@@ -1,0 +1,69 @@
+{
+ "weekSpanSample": [
+  "Uke 47–49",
+  "Uke 51"
+ ],
+ "ramp": {
+  "lines": [
+   {
+    "phase": "Oppbygging",
+    "rate": "stiger +14 % per harde uke"
+   },
+   {
+    "phase": "Spissing",
+    "rate": "hopper +12 % ved starten"
+   }
+  ],
+  "lifting": [
+   "Styrke",
+   "stiger +15 % per harde uke, i blokka som starter i Grunntrening."
+  ],
+  "note": "Vanlig praksis er +8 % – per harde uke for stigning, og på én gang for et hopp ved start. Mer enn det er uvanlig, ikke farlig: ingen volumregel er vist å forebygge skader, så dette er en merknad og ikke en grense. Tallene dine er lagret slik du skrev dem.",
+  "liftingNote": " En styrkeblokk er datert og ikke knyttet til en fase, så fasen som nevnes ved en slik blokk er bare der den første uka faller.",
+  "name": "merknaden om stigning",
+  "dismiss": "Lukk merknaden om stigning"
+ },
+ "avail": {
+  "days": "Uke 47–50 ber om 3 kvalitetsøkter og 2 styrkeøkter i uka, og du kan trene 4 dager i uka.",
+  "hours": "Uke 52–1 ber om opptil 9,5 t/uke utholdenhetstrening, og kapasiteten din er 7 t/uke.",
+  "both": "Det er to ulike sammenligninger – økter mot dagene du trener, og timer mot kapasiteten du har satt – og en uke kan bomme på den ene uten den andre. Det kan være akkurat det du mente: to økter kan dele en dag, og begge tallene er innstillinger, ikke fakta om uka di. Planen er lagret slik du skrev den.",
+  "daysOnly": "Det er dager mot dager: økter mot dagene du trener. Det kan være akkurat det du mente: to økter kan dele en dag, og begge tallene er innstillinger, ikke fakta om uka di. Planen er lagret slik du skrev den.",
+  "clash": "Uke 47–49 og uke 53: Styrke og en hard økt på tirsdag.",
+  "clash2": "Uke 3–5: To harde dager etter hverandre (onsdag–torsdag) – en dag du har valgt selv.",
+  "clashNote": "Det er dagene lest mot hverandre, på tvers av alt du trener: hard betyr her en økt som ikke er rolig, også middels. Det kan være akkurat det du mente – en dag du har valgt selv, blir der du satte den. Planen er lagret slik den er.",
+  "noCap": [
+   "Timer er den andre sammenligningen, og",
+   "utøverprofilen",
+   "din har ingen ukentlig kapasitet ennå – så ingenting her er sjekket mot timene dine."
+  ],
+  "name": "merknaden om treningsdager",
+  "dismiss": "Lukk merknaden om treningsdager"
+ },
+ "band": {
+  "line": "er lagt inn med 62,5 %, 65 % 1RM, utenfor 67–85 % 1RM som muskelvekst trener i.",
+  "line2": "er lagt inn med 92,5 % 1RM, utenfor 70–85 % 1RM som muskelvekst trener i.",
+  "note": "Det spennet er utledet fra styrkemålet du satte på blokka, aldri skrevet ved siden av – endre målet, så flytter spennet seg, eller la økta være som den er. Dette er en merknad og ikke en grense: blokkene og øktene dine er lagret slik du skrev dem.",
+  "name": "merknaden om belastning",
+  "dismiss": "Lukk merknaden om belastning"
+ },
+ "dismissed": "Merknaden om stigning er lukket. Den kommer tilbake hvis det den sier endrer seg.",
+ "lead": {
+  "plain": {
+   "polarized": "Mest rolig, litt veldig hardt",
+   "threshold": "Jevnt og kontrollert hardt",
+   "classic": "Variert og bygger seg opp",
+   "big-base": "Bygg grunnform først",
+   "masters": "Kortere blokker, mer hvile"
+  },
+  "family": "Fagnavn: Polarisert",
+  "toward": "Mot",
+  "thisWeekEasy": "Denne uka er en lett uke.",
+  "next": "Neste lette uke er uke 48, fra 23. nov 2026.",
+  "heroChange": "Endre løpet",
+  "heroMeta": "6. jun 2027 · 31 uker fra 2. nov 2026",
+  "advanced": "Avansert",
+  "advancedDetail": "Filosofi, ukemål, faser, treningsspor, den typiske uka og sesongdiagrammet.",
+  "resting": "Planen hviler mens planen mot løpet ditt er i gang. Den tar over igjen når løpet er over.",
+  "restingLink": "Åpne løpsplanen"
+ }
+}

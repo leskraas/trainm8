@@ -1,0 +1,266 @@
+{
+ "320-demo": {
+  "links": [
+   {
+    "text": "Uke 47, 18. nov",
+    "lines": 1,
+    "top": 1403,
+    "misses": []
+   }
+  ],
+  "overlaps": [],
+  "overflow": 0,
+  "guardsTop": 648,
+  "alertHeights": [
+   346,
+   370,
+   394
+  ],
+  "bibliotekTop": 1822,
+  "descWidth": 198,
+  "alertWidth": 288
+ },
+ "320-worst": {
+  "links": [
+   {
+    "text": "utøverprofilen",
+    "lines": 1,
+    "top": 1910,
+    "misses": []
+   },
+   {
+    "text": "Uke 47, 18. nov",
+    "lines": 1,
+    "top": 2496,
+    "misses": []
+   },
+   {
+    "text": "Uke 47, 20. nov",
+    "lines": 1,
+    "top": 2624,
+    "misses": []
+   },
+   {
+    "text": "Uke 49, 2. des",
+    "lines": 1,
+    "top": 2728,
+    "misses": []
+   },
+   {
+    "text": "Uke 52, 23. des",
+    "lines": 1,
+    "top": 2856,
+    "misses": []
+   }
+  ],
+  "overlaps": [],
+  "overflow": 0,
+  "guardsTop": 737,
+  "alertHeights": [
+   670,
+   1050,
+   730
+  ],
+  "bibliotekTop": 3251,
+  "descWidth": 198,
+  "alertWidth": 288
+ },
+ "390-demo": {
+  "links": [
+   {
+    "text": "Uke 47, 18. nov",
+    "lines": 1,
+    "top": 1166,
+    "misses": []
+   }
+  ],
+  "overlaps": [],
+  "overflow": 0,
+  "guardsTop": 579,
+  "alertHeights": [
+   274,
+   274,
+   298
+  ],
+  "bibliotekTop": 1489,
+  "descWidth": 268,
+  "alertWidth": 358
+ },
+ "390-worst": {
+  "links": [
+   {
+    "text": "utøverprofilen",
+    "lines": 1,
+    "top": 1538,
+    "misses": []
+   },
+   {
+    "text": "Uke 47, 18. nov",
+    "lines": 1,
+    "top": 1980,
+    "misses": []
+   },
+   {
+    "text": "Uke 47, 20. nov",
+    "lines": 1,
+    "top": 2060,
+    "misses": []
+   },
+   {
+    "text": "Uke 49, 2. des",
+    "lines": 1,
+    "top": 2140,
+    "misses": []
+   },
+   {
+    "text": "Uke 52, 23. des",
+    "lines": 1,
+    "top": 2244,
+    "misses": []
+   }
+  ],
+  "overlaps": [],
+  "overflow": 0,
+  "guardsTop": 653,
+  "alertHeights": [
+   526,
+   762,
+   562
+  ],
+  "bibliotekTop": 2567,
+  "descWidth": 268,
+  "alertWidth": 358
+ },
+ "768-demo": {
+  "links": [
+   {
+    "text": "Uke 47, 18. nov",
+    "lines": 1,
+    "top": 856,
+    "misses": []
+   }
+  ],
+  "overlaps": [],
+  "overflow": 0,
+  "guardsTop": 549,
+  "alertHeights": [
+   134,
+   134,
+   134
+  ],
+  "bibliotekTop": 1015,
+  "descWidth": 518,
+  "alertWidth": 608
+ },
+ "768-worst": {
+  "links": [
+   {
+    "text": "utøverprofilen",
+    "lines": 1,
+    "top": 1054,
+    "misses": []
+   },
+   {
+    "text": "Uke 47, 18. nov",
+    "lines": 1,
+    "top": 1272,
+    "misses": []
+   },
+   {
+    "text": "Uke 47, 20. nov",
+    "lines": 1,
+    "top": 1320,
+    "misses": []
+   },
+   {
+    "text": "Uke 49, 2. des",
+    "lines": 1,
+    "top": 1368,
+    "misses": []
+   },
+   {
+    "text": "Uke 52, 23. des",
+    "lines": 1,
+    "top": 1416,
+    "misses": []
+   }
+  ],
+  "overlaps": [],
+  "overflow": 0,
+  "guardsTop": 641,
+  "alertHeights": [
+   226,
+   366,
+   278
+  ],
+  "bibliotekTop": 1575,
+  "descWidth": 518,
+  "alertWidth": 608
+ },
+ "1440-demo": {
+  "links": [
+   {
+    "text": "Uke 47, 18. nov",
+    "lines": 1,
+    "top": 816,
+    "misses": []
+   }
+  ],
+  "overlaps": [],
+  "overflow": 0,
+  "guardsTop": 549,
+  "alertHeights": [
+   114,
+   114,
+   134
+  ],
+  "bibliotekTop": 975,
+  "descWidth": 582,
+  "alertWidth": 672
+ },
+ "1440-worst": {
+  "links": [
+   {
+    "text": "utøverprofilen",
+    "lines": 1,
+    "top": 996,
+    "misses": []
+   },
+   {
+    "text": "Uke 47, 18. nov",
+    "lines": 1,
+    "top": 1214,
+    "misses": []
+   },
+   {
+    "text": "Uke 47, 20. nov",
+    "lines": 1,
+    "top": 1262,
+    "misses": []
+   },
+   {
+    "text": "Uke 49, 2. des",
+    "lines": 1,
+    "top": 1310,
+    "misses": []
+   },
+   {
+    "text": "Uke 52, 23. des",
+    "lines": 1,
+    "top": 1358,
+    "misses": []
+   }
+  ],
+  "overlaps": [],
+  "overflow": 0,
+  "guardsTop": 623,
+  "alertHeights": [
+   226,
+   326,
+   278
+  ],
+  "bibliotekTop": 1517,
+  "descWidth": 582,
+  "alertWidth": 672
+ }
+}
