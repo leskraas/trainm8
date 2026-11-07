@@ -637,7 +637,7 @@ test('get_week_change: null before any close, then the proposals with whose sess
 })
 
 test("a Planned TSS computed from a Polar race's pace is Polar data: withheld from a model without the opt-in, while a Garmin one goes with its credit", async () => {
-	// ADR 0112 §4: the binding set is stored with the value when it is
+	// ADR 0113 §4: the binding set is stored with the value when it is
 	// computed, and every reader that sends Planned TSS passes it on.
 	const world = await createWorld()
 	const ctx = ctxFor(world.userId, 'mcp')
@@ -668,7 +668,7 @@ test("a Planned TSS computed from a Polar race's pace is Polar data: withheld fr
 })
 
 test("a week's Planned TSS on get_today and get_season binds to the results its sessions' race paces read", async () => {
-	// ADR 0112 §4: a week total takes the union of its sessions' stored sets.
+	// ADR 0113 §4: a week total takes the union of its sessions' stored sets.
 	const world = await createWorld()
 	const ctx = ctxFor(world.userId, 'mcp')
 	const created = await createPlanOutline(world.userId, {
@@ -702,7 +702,7 @@ test("a week's Planned TSS on get_today and get_season binds to the results its 
 })
 
 test("a planned duration timed through a Polar race's pace is Polar data: withheld from a model without the opt-in", async () => {
-	// ADR 0112 §4: a distance step at race pace is timed through the pace the
+	// ADR 0113 §4: a distance step at race pace is timed through the pace the
 	// result sets, so the planned duration is derived from the Recording.
 	const world = await createWorld()
 	const ctx = ctxFor(world.userId, 'mcp')

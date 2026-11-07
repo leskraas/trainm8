@@ -1,5 +1,5 @@
 /**
- * **An Event's result**, kept true (ADR 0112 §2). An Event's result is a
+ * **An Event's result**, kept true (ADR 0113 §2). An Event's result is a
  * `PerformanceResult` row carrying its provenance (`eventId`,
  * `activityImportId`), and this module is the only code that creates,
  * rewrites or deletes one. It reads the Event, its result session and that
@@ -179,7 +179,7 @@ async function eventsIn(
 }
 
 /**
- * Run `change`, then bring every Event it can reach back in step (ADR 0112
+ * Run `change`, then bring every Event it can reach back in step (ADR 0113
  * §2). The Events and their rows are read **before** the change, so a delete
  * that takes the Event, the session or the Recording with it still counts as
  * a row that changed, and the Planned TSS it moved is recomputed.
@@ -231,7 +231,7 @@ export async function readEventResultVerdict(
 }
 
 /** How the Event's result sits with the resolver, read off its choice
- * (ADR 0112 §3), never re-derived. */
+ * (ADR 0113 §3), never re-derived. */
 export type EventResultUse =
 	| 'in-use'
 	| 'typed-same-day'

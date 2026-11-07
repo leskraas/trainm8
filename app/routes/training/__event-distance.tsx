@@ -1,5 +1,5 @@
 /**
- * The **Event Distance** choice (#670, ADR 0112 §1): a row of pills for the six
+ * The **Event Distance** choice (#670, ADR 0113 §1): a row of pills for the six
  * Race Anchors and _Annen_, which opens a km field. One component behind the
  * Event form and the result section's _Lagre distansen_, posting the same two
  * fields (`distance`, `distanceKm`) to the same reader

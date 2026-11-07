@@ -14,7 +14,7 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
   og gå videre_), then _Legg opp sesongen_ (base, units, start volume).
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
   `/training/events/new`, `/training/events/:id`.
-- An Event's result (#670, ADR 0112): on a run-only _Løp_ or _Testløp_, the
+- An Event's result (#670, ADR 0113): on a run-only _Løp_ or _Testløp_, the
   form's _Distanse_ pills (`1500 m` … `Maraton`, _Annen_ with _Distanse i km_).
   On a done Event, the _Resultat_ section shows the watch's time, pace and _Målt
   av klokka_ with the platform's credit, or says why there is none (_Hvor langt

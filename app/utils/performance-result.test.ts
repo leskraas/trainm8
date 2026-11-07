@@ -58,7 +58,7 @@ test('an anchor with no result is absent rather than zero', () => {
 })
 
 test("on the same day a typed result wins over an Event's, whichever came first", () => {
-	// ADR 0112 §3: typing a time for a race the watch also measured is a
+	// ADR 0113 §3: typing a time for a race the watch also measured is a
 	// correction (the course was long, the watch started late).
 	const typed = row({
 		id: 'typed',

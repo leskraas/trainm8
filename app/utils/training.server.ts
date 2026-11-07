@@ -1779,7 +1779,7 @@ export async function getRecentWeeklyBuild(
 	return perWeek.map((sessions) => ({
 		...weeklyLoad(sessions),
 		// A week's Planned TSS binds to every result its sessions' race paces
-		// read (ADR 0112 §4): the union, as a model reader passes it on.
+		// read (ADR 0113 §4): the union, as a model reader passes it on.
 		plannedTssOrigins: [
 			...new Set(
 				sessions.flatMap((session) =>

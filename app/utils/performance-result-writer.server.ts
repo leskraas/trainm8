@@ -12,7 +12,7 @@
  * the form offers the anchors rather than free metres (a 4.8 km parkrun is not
  * a 5k). Every `racePace` row in the corpus is a run.
  *
- * **One typed result per distance and day** (ADR 0112 §3). A second typed
+ * **One typed result per distance and day** (ADR 0113 §3). A second typed
  * result at the same anchor on the same day is the athlete correcting a typo,
  * so it replaces the first rather than leaving two rows the resolver has to
  * choose between. An Event's result (a row with an `eventId`) is never replaced

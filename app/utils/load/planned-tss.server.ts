@@ -28,7 +28,7 @@ import {
 // changed), on threshold changes (the resolved ranges shifted) and on a
 // Performance Result, typed or an Event's (a `racePace` step's anchor moved).
 // It stores beside the value the binding set of the results it read
-// (`plannedTssOrigins`, ADR 0112 §4), so a done session keeps what its number
+// (`plannedTssOrigins`, ADR 0113 §4), so a done session keeps what its number
 // was computed from. Like the
 // rest of the load math this is synchronous — fine for a SQLite hobby project.
 
@@ -193,7 +193,7 @@ async function getProfiles(userId: string): Promise<DbDisciplineProfile[]> {
 		},
 	})
 	if (!profile) return []
-	// The same choice the targets on screen resolve against (ADR 0112 §3), so
+	// The same choice the targets on screen resolve against (ADR 0113 §3), so
 	// the stress a session is planned with reads the result the athlete sees.
 	const choices = await raceAnchorChoicesByDiscipline(
 		profile.id,
@@ -315,7 +315,7 @@ async function persist(
 					),
 				)
 			: null
-	// The results the value read, stored with it (ADR 0112 §4).
+	// The results the value read, stored with it (ADR 0113 §4).
 	const origins =
 		result && workout
 			? racePaceBindingSet(

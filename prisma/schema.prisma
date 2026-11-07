@@ -1027,7 +1027,7 @@ model WorkoutSession {
   // TSS. Compared to `tssValue` as the Adherence Band; never feeds CTL/ATL/TSB.
   plannedTssValue      Float? // null = unavailable (no step resolved)
   plannedTssConfidence String? // 'full' | 'partial' (null when value is null)
-  /// The binding set of the results the Planned TSS read (ADR 0112 §4): a JSON
+  /// The binding set of the results the Planned TSS read (ADR 0113 §4): a JSON
   /// `OriginPlatform[]` of the Performance Results its `racePace` steps
   /// resolved against; null means empty. Written by the same computation that
   /// writes `plannedTssValue`, so a done session keeps what its number was
@@ -1226,13 +1226,13 @@ model PerformanceResult {
   athleteProfile   AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
   athleteProfileId String
 
-  /// The Event this result was read from (ADR 0112 §2): at most one result per
+  /// The Event this result was read from (ADR 0113 §2): at most one result per
   /// Event, written and removed only by `reconcileEventResult`. Null on a
   /// result the athlete typed on Løpsresultater.
   event            Event?          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   eventId          String?         @unique
   /// The Recording an Event's result was read from: its Origin Platform and
-  /// aliases are the result's binding set (ADR 0112 §4). Null on a typed one.
+  /// aliases are the result's binding set (ADR 0113 §4). Null on a typed one.
   activityImport   ActivityImport? @relation(fields: [activityImportId], references: [id], onDelete: Cascade)
   activityImportId String?
 
@@ -1327,7 +1327,7 @@ model Event {
   location    String?
   status      String    @default("planned") // 'planned' | 'completed' | 'cancelled'
   notes       String?
-  /// The **Event Distance** in exact metres (ADR 0112 §1): how far the race
+  /// The **Event Distance** in exact metres (ADR 0113 §1): how far the race
   /// is, a fact about the course and never the Event Target. A value equal to
   /// a Race Anchor is stored as that anchor's metres. Only a run-only race or
   /// time trial carries one.
@@ -1346,7 +1346,7 @@ model Event {
   // this row until the Outline became athlete-authored primary data; null when
   // no plan anchors here, which makes the Event a calendar marker (ADR 0018).
   planOutline       PlanOutline?
-  /// The Performance Result read from this Event's Recording (ADR 0112 §2).
+  /// The Performance Result read from this Event's Recording (ADR 0113 §2).
   result            PerformanceResult?
 
   @@index([athleteId])
@@ -1774,7 +1774,7 @@ model ActivityImport {
   detection       WorkoutDetection?
   originalFile    ActivityFile?
   aliases         ActivityImportAlias[]
-  /// The Event results read from this Recording (ADR 0112 §2).
+  /// The Event results read from this Recording (ADR 0113 §2).
   eventResults    PerformanceResult[]
 
   /// The athlete is part of the key (#544): two athletes may hold the same

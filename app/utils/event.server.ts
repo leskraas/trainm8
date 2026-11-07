@@ -41,7 +41,7 @@ function serializeInput(input: EventAuthoringInput) {
 		status: input.status,
 		notes: input.notes ?? null,
 		// Only a run-only race or time trial carries an Event Distance; saving
-		// one that is not clears it (ADR 0112 §1).
+		// one that is not clears it (ADR 0113 §1).
 		distanceM: eventTakesDistance(input.kind, input.disciplines)
 			? (input.distanceM ?? null)
 			: null,

@@ -1,5 +1,5 @@
 /**
- * **An Event's result** (ADR 0112): the pure rule that says whether a completed
+ * **An Event's result** (ADR 0113): the pure rule that says whether a completed
  * run Event, its result session and that session's Recording make a
  * **Performance Result**, and, when they don't, why. The reconcile that keeps
  * the stored row true (`event-result.server.ts`) and the Event page's "why
@@ -98,7 +98,7 @@ export function eventTakesDistance(
 }
 
 /**
- * The rule (ADR 0112 §2). An Event that is a run-only race or time trial, with
+ * The rule (ADR 0113 §2). An Event that is a run-only race or time trial, with
  * a result session, makes a result when it has an Event Distance and the
  * session's Recording is a run whose distance is within ±5 % of it. The
  * result's distance is the Event Distance (rung 1 matches to the metre); its

@@ -7,7 +7,7 @@
  * plausible time for the distance, a real day no later than the athlete's own
  * today, one typed result per distance and day — live in the writer.
  *
- * An Event's result (#670, ADR 0112) sits in the same list as a row of the
+ * An Event's result (#670, ADR 0113) sits in the same list as a row of the
  * same shape: _Målt av klokka_ with its platform's credit (ADR 0098 §3), and
  * the Event's name linking to the Event where a typed row has _Slett_, because
  * it is removed on the Event. When a typed result and an Event's share an
@@ -82,7 +82,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		performanceResultToday(userId),
 	])
 	// Where a typed result and an Event's share an anchor and a day: the one
-	// place there is a choice to explain (ADR 0112 §3).
+	// place there is a choice to explain (ADR 0113 §3).
 	const sameDayKey = (row: (typeof rows)[number]) =>
 		row.anchor ? `${row.anchor}|${row.occurredAt.toISOString()}` : null
 	const typedDays = new Set(rows.filter((row) => !row.event).map(sameDayKey))

@@ -35,7 +35,7 @@ export type ResultRow = {
 	/** The Event this result was read from; null for a typed one. */
 	eventId: string | null
 	createdAt?: Date
-	/** The result's binding set (ADR 0112 §4): its Recording's Origin Platform
+	/** The result's binding set (ADR 0113 §4): its Recording's Origin Platform
 	 * and aliases'. Empty for a typed result, which binds nothing. */
 	origins: readonly OriginPlatform[]
 }
@@ -50,7 +50,7 @@ export type ChosenResult = {
 export type RaceAnchorChoices = Partial<Record<RaceAnchor, ChosenResult>>
 
 /** Whether `row` is chosen over `held` at the same anchor: the newer day, and
- * on the same day the typed one (ADR 0112 §3: typing a time for a race the
+ * on the same day the typed one (ADR 0113 §3: typing a time for a race the
  * watch also measured is a correction), then the later written. */
 function preferred(row: ResultRow, held: ResultRow): boolean {
 	const day = row.occurredAt.getTime() - held.occurredAt.getTime()
@@ -104,7 +104,7 @@ export function pacesOf(choices: RaceAnchorChoices): RaceAnchorPaces {
 }
 
 /** A discipline's choices as the resolver profile carries them: the paces a
- * target resolves against, and the binding set of each (ADR 0112 §4). */
+ * target resolves against, and the binding set of each (ADR 0113 §4). */
 export function raceAnchorFields(choices: RaceAnchorChoices): {
 	raceAnchorPaces: RaceAnchorPaces
 	raceAnchorOrigins: Partial<Record<RaceAnchor, readonly OriginPlatform[]>>

@@ -143,7 +143,7 @@ export function workoutBindingSet(
 }
 
 /** A Planned TSS's binding set: the Workout's, plus the results its race
- * paces resolved against when it was computed (ADR 0112 §4). */
+ * paces resolved against when it was computed (ADR 0113 §4). */
 export function plannedTssBindingSet(
 	prescribed: readonly OriginPlatform[],
 	plannedTssOrigins: string | null | undefined,
@@ -154,7 +154,7 @@ export function plannedTssBindingSet(
 }
 
 /** A planned duration's binding set: the Workout's, plus the results whose
- * race pace times a distance step (ADR 0112 §4). */
+ * race pace times a distance step (ADR 0113 §4). */
 export function plannedDurationBindingSet(
 	prescribed: readonly OriginPlatform[],
 	workout: Parameters<typeof racePaceTimingBindingSet>[0] | null,
@@ -269,7 +269,7 @@ export function toSessionSummary(
 				bindingSet: prescribed,
 			}),
 			// Planned TSS also binds to the results its race paces read
-			// (ADR 0112 §4), stored with the value when it was computed.
+			// (ADR 0113 §4), stored with the value when it was computed.
 			tss: plannedReading(review.tss.plannedRead, ctx, {
 				zeroIsUnresolved: true,
 				bindingSet: plannedTssBindingSet(prescribed, session.plannedTssOrigins),

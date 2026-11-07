@@ -29,7 +29,7 @@ import {
 import { getDisciplineThresholds } from './training.server.ts'
 import { deleteWorkoutSession } from './workout.server.ts'
 
-// An Event's result (#670, ADR 0112) at the server seam: every path that
+// An Event's result (#670, ADR 0113) at the server seam: every path that
 // changes the Event, its result session or its Recording goes through the one
 // reconcile, which writes or removes the row and moves Planned TSS with it.
 
@@ -202,7 +202,7 @@ test('linking the raced session writes one verified result at the Event Distance
 		activityImportId: importId,
 	})
 	// 41:12 is 4:07/km; the scheduled session resolves against it, and its
-	// Planned TSS carries the Garmin origin (ADR 0112 §4).
+	// Planned TSS carries the Garmin origin (ADR 0113 §4).
 	const after = await planned(ahead)
 	expect(after.tss).not.toBeNull()
 	expect(JSON.parse(after.origins!)).toEqual(['garmin'])

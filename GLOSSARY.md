@@ -1572,7 +1572,7 @@ for portable race-pace targets, which is why the table landed with the anchors
 (ADR 0007, #449). **Its first writer is the athlete's own hand** (#464):
 _Løpsresultater_ under Meg adds a typed run result at a **Race Anchor**
 distance, always `verified: false`. Its second is a completed run **Event**
-(#670, ADR 0112): the **Event Distance** and the **Recording**'s elapsed time,
+(#670, ADR 0113): the **Event Distance** and the **Recording**'s elapsed time,
 `verified: true`, kept in step with the Event and removed with it. It needs the
 Event and a measured distance within ±5 % of the Event Distance, not **Load
 Confidence**, which judges load, not a race clock. On a day both writers name

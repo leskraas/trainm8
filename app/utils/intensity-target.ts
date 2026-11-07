@@ -467,7 +467,7 @@ export function describeStepTarget(
 }
 
 /**
- * The binding set a prescription's resolved `racePace` targets carry (ADR 0112
+ * The binding set a prescription's resolved `racePace` targets carry (ADR 0113
  * §4): the union of the origins of the results its race-pace steps resolve
  * against. Empty when none resolves against a measured result, so a Workout of
  * typed results and authored numbers owes nothing.
@@ -501,7 +501,7 @@ export function racePaceBindingSet(
  * {@link racePaceBindingSet} for the steps a planned duration is timed through
  * the pace for (a distance with no authored time, `stepDistanceDurationSec`):
  * a planned duration read off a Garmin or Polar race's pace is that
- * platform's data (ADR 0112 §4), while an authored time owes nothing.
+ * platform's data (ADR 0113 §4), while an authored time owes nothing.
  */
 export function racePaceTimingBindingSet(
 	workout: {

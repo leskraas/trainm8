@@ -3,7 +3,7 @@
  * run — the session that is its result. In Norwegian (ADR 0081) on the design
  * system's card, type steps and buttons (ADR 0085).
  *
- * The result section (#670, ADR 0112) shows the time the watch measured as the
+ * The result section (#670, ADR 0113) shows the time the watch measured as the
  * Event's **Performance Result**, or says in the athlete's terms why there is
  * none and offers the fix in place: the **Event Distance**, the one thing this
  * page writes for a done Event. Every state reads the same rule the writer

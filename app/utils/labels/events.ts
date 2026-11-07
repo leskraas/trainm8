@@ -154,7 +154,7 @@ export const EVENTS_LABELS = {
 	untitledSession: 'Økt uten navn',
 	notFound: 'Fant ikke løpet',
 
-	// The Event Distance (#670, ADR 0112 §1): the form's pills and the result
+	// The Event Distance (#670, ADR 0113 §1): the form's pills and the result
 	// section's fix.
 	distance: 'Distanse',
 	distanceNames: {
@@ -175,7 +175,7 @@ export const EVENTS_LABELS = {
 	saveDistance: 'Lagre distansen',
 	changeDistance: 'Endre distansen',
 
-	// An Event's result (#670, ADR 0112): measured, or why there is none.
+	// An Event's result (#670, ADR 0113): measured, or why there is none.
 	measured: 'Målt av klokka',
 	askDistance: 'Hvor langt var løpet?',
 	askDistanceBody: 'Velg distansen, så lagres tida fra klokka som et resultat.',
