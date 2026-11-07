@@ -260,15 +260,17 @@ Withdrawal would retain the athlete's text with no reader and no purpose.
   cascades its open `WorkoutReport`s and its Attribution's takedown record, so
   an author can erase the evidence of a report by deleting their account. A
   de-identified tombstone (reason, dates, no content) would close it.
-- **No recurring sweep.** Orphans stop being created only because
-  `deleteAccount` is the one deletion path. A future path that deletes a `User`
-  directly re-creates them silently; the read path stays safe, but the data is
-  retained. Nothing pins the one-path rule yet.
-- **Pre-existing orphans are not yet purged in production.** The guarded cleanup
-  migration is not in this change; the read path makes them unreadable, but they
-  are still stored. Run this read-only count first. An orphan is an
-  athlete-authored row with no owner; Stock Workouts are excluded by
-  `authorship`, never by `ownerId` (§2):
+- **No recurring sweep; lint pins the one deletion path.** Orphans stop being
+  created only because `deleteAccount` is the one deletion path. Since
+  [ADR 0112](./0112-orphaned-workouts-are-erased-once-by-a-boot-job-and-lint-keeps-deleteaccount-the-one-path.md)
+  `npm run lint` rejects a `.user.delete` / `.user.deleteMany` call anywhere in
+  `app/` or `server/` outside `account-deletion.server.ts` and test files.
+- **Pre-existing orphans are purged once, by a boot job** (ADR 0112), not by the
+  guarded cleanup migration this note first suggested: the job runs the same
+  rules as `deleteAccount`, from the same module. This read-only count stays as
+  the owner's check that it ran. An orphan is an athlete-authored row with no
+  owner; Stock Workouts are excluded by `authorship`, never by `ownerId` (§2).
+  After the job, the only rows it counts are kept ones, all `private`:
 
   ```sql
   SELECT "visibility", COUNT(*) AS orphans

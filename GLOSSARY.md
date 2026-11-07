@@ -1034,6 +1034,25 @@ nobody can derive, and inventing it is the fabrication the building principle
 forbids. _Avoid_: Flag, moderation queue (the surface, not the thing), abuse
 report, strike
 
+**Account Erasure**: What deleting an account does to the **Workouts** the
+athlete wrote, as one act: every one is deleted, **Shared Workouts** included,
+except one another athlete's session, **Week Pattern** slot or **Program** day
+points at directly. That one is kept **unattributed**: private, its **Catalogue
+Entry** retired and its **Attribution** deleted, so it carries no author's name
+and nobody can publish it again. A surviving fork's lineage is spliced to its
+nearest surviving ancestor, so a **Citation** still resolves through it. An
+**Orphaned Workout** gets the same treatment (ADR 0051 §5, ADR 0112). Not a
+**withdrawal**: that is the author's own reversible act, and it keeps the
+Attribution. _Avoid_: account deletion (the whole act, not the Workout policy),
+withdrawn (for the kept row), sweep
+
+**Orphaned Workout**: An athlete-authored **Workout** with no owner: its
+author's account was deleted without **Account Erasure**, which every deletion
+before #641 was. Defined by asserted authorship plus a missing owner, never by
+the missing owner alone, which would take in every **Stock Workout**. _Avoid_:
+bare "orphan" (ADR 0051's retention rule also says it of a preserved pre-edit
+row no session holds any more), ownerless Workout, deleted Workout
+
 ### Session feedback
 
 **Session Log**: The athlete's post-session record for a Workout Session,
