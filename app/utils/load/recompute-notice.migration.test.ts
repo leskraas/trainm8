@@ -29,16 +29,27 @@ function statements(name: string): string[] {
 		.filter(Boolean)
 }
 
+/**
+ * Run DDL on one connection. Prisma pools SQLite connections, and a rebuild
+ * spread across them can see a stale schema: the RENAME then finds the table
+ * the DROP just removed ("there is already another table … with this name").
+ */
+async function onOneConnection(sql: string[]) {
+	await prisma.$transaction(async (tx) => {
+		for (const statement of sql) await tx.$executeRawUnsafe(statement)
+	})
+}
+
 async function run(name: string) {
-	for (const statement of statements(name)) {
-		await prisma.$executeRawUnsafe(statement)
-	}
+	await onOneConnection(statements(name))
 }
 
 /** Put the table back the way the first migration made it: both NOT NULL. */
 async function restoreOldTable() {
-	await prisma.$executeRawUnsafe('DROP TABLE "LoadRecomputeNotice"')
-	await run('20260731070614_add_load_recompute_notice')
+	await onOneConnection([
+		'DROP TABLE "LoadRecomputeNotice"',
+		...statements('20260731070614_add_load_recompute_notice'),
+	])
 }
 
 async function createAthlete() {
