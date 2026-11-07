@@ -1,14 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import {
-	CATALOGUE_CORPUS,
-	stockEntryId,
-	stockWorkoutId,
-} from '../catalogue-corpus.all.ts'
+import { GENERATION_CORPUS } from '#tests/fixtures/generation/corpus.ts'
 import { hoursFitWarnings } from '../plan-outline/availability-fit.ts'
 import { PRESET_KEYS } from '../plan-outline/presets.ts'
 import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
 import { generateDeterministicSeason } from './deterministic.ts'
-import { type RetrievableEntry } from './retrieval.ts'
 import { type GeneratedSeason, type SeasonRequest } from './season.ts'
 
 // #473: the athlete's Weekly Capacity is enforced on the generated season's Week
@@ -16,22 +11,7 @@ import { type GeneratedSeason, type SeasonRequest } from './season.ts'
 // cannot be (unset, unpriced, or the hard sessions alone outrun it) the payload
 // says so rather than passing.
 
-const CORPUS: RetrievableEntry[] = CATALOGUE_CORPUS.map((session) => ({
-	entryId: stockEntryId(session.key),
-	workoutId: stockWorkoutId(session.key),
-	title: session.title,
-	description: session.description,
-	discipline: session.discipline,
-	authorship: 'system',
-	archetype: session.archetype,
-	level: session.level,
-	phases: session.phases,
-	goalEvents: session.goalEvents,
-	citationAuthor: session.citation?.author ?? null,
-	citationWork: session.citation?.work ?? null,
-	citationYear: session.citation?.year ?? null,
-	citationLocator: session.citation?.locator ?? null,
-}))
+const CORPUS = GENERATION_CORPUS
 
 /** A runner with a 5:00/km threshold: enough to read km weeks in hours. */
 const RUNNER: ConversionContext = {
@@ -56,6 +36,7 @@ function request(overrides: Partial<SeasonRequest> = {}): SeasonRequest {
 		intent: 'deliberately-building',
 		weeklyCapacityHours: 6,
 		conversionContexts: { run: RUNNER },
+		thresholds: {},
 		...overrides,
 	}
 }
