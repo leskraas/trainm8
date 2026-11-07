@@ -58,11 +58,11 @@ effort: update-branch=medium, qa=medium, implement=medium, review-fix=medium, *=
 - **`models` and `effort`** (factory 3.6): the retro of the factory on
   Bredvid/tavla (7 November 2026) found that a third of the tokens went to
   mechanical work. `update-branch`, `qa` and the design scan run on Sonnet;
-  everything else (explore, spec, design, architecture, implement, both parts
-  of review, and the other scans) on Opus, where a mistake costs the most.
-  Effort is medium for `update-branch`, QA, implement and the review's fix,
-  high elsewhere. `*=opus` stays named, so a `/factory` started on Sonnet
-  still gives the judging tasks Opus. Move QA back to Opus if more bugs reach
-  `main` after its merges.
+  everything else (explore, spec, design, architecture, implement, both parts of
+  review, and the other scans) on Opus, where a mistake costs the most. Effort
+  is medium for `update-branch`, QA, implement and the review's fix, high
+  elsewhere. `*=opus` stays named, so a `/factory` started on Sonnet still gives
+  the judging tasks Opus. Move QA back to Opus if more bugs reach `main` after
+  its merges.
 - **`design: prototype`**: the `/design` probe was not run (cloud session); this
   is the default from `factory-setup`'s runtime findings.
