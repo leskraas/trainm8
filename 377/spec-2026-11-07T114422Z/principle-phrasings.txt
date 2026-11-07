@@ -1,0 +1,19 @@
+docs/adr/0021-personal-records-derived-best-efforts.md:3:> **Revisit — Amend.** The derived-never-authored decision and the reserved
+docs/adr/0021-personal-records-derived-best-efforts.md:24:**Benchmark Kind** within a single **Discipline** — derived, never authored.
+docs/adr/0021-personal-records-derived-best-efforts.md:26:1. **Derived by a pure function, never authored.** A Personal Record is always
+docs/adr/0040-volume-continuity-and-authored-overload.md:40:1. **Per-week volume is derived, never stored.** A season carries one anchor and
+docs/adr/0040-volume-continuity-and-authored-overload.md:43:   principle the codebase already applies ad hoc — "derived, never authored"
+docs/adr/0042-intensity-emphasis-is-scoped-by-track.md:16:> which narrows §5's rule rather than overturning it.** Derived-never-authored
+docs/adr/0042-intensity-emphasis-is-scoped-by-track.md:163:### 5. The emphasis label is derived, never authored
+docs/adr/0051-the-catalogue-has-four-axes.md:103:derived-never-authored rule.** That rule is about classifying a session in an
+docs/adr/0055-a-session-archetype-is-authored-and-a-reading-is-never-stored.md:10:derived-never-authored rule is narrowed to what it was actually written about,
+docs/adr/0055-a-session-archetype-is-authored-and-a-reading-is-never-stored.md:52:ADR 0042 §5 says emphasis is **derived, never authored**. ADR 0051 §3 carved out
+docs/adr/0056-a-strength-actual-is-logged-in-app-and-a-kilo-is-not-a-kilo.md:159:the derived-never-stored rule being broken and it is not: a bodyweight-derived
+docs/adr/0058-a-strength-record-is-derived-from-the-set-row-and-tonnage-is-declined.md:86:its derived-never-authored rule reaches strength unchanged, and, unlike the
+GLOSSARY.md:212:(ADR 0055). Authoring does not breach the derived-never-authored rule below:
+GLOSSARY.md:1533:and promoted Activity Imports by a pure detection function, never authored.
+GLOSSARY.md:2698:The `%1RM` band and rep range are **derived** from it and never authored beside
+GLOSSARY.md:2901:Mix** (ADR 0042). Never authored, so no segment can be labelled for work it does
+GLOSSARY.md:3141:  **TSS** totals; they are never authored.
+GLOSSARY.md:3205:- A **Training Week**'s endurance volume target is **derived, never stored**: it
+GLOSSARY.md:3252:- A **Personal Record** is derived, never authored: it is always the output of
