@@ -1,0 +1,17 @@
+{
+ "run": {
+  "n": 50,
+  "noThresh": 13,
+  "withThresh": 21
+ },
+ "bike": {
+  "n": 41,
+  "noThresh": 38,
+  "withThresh": 38
+ },
+ "swim": {
+  "n": 36,
+  "noThresh": 0,
+  "withThresh": 11
+ }
+}
