@@ -2655,6 +2655,18 @@ warning (all three claim something the evidence does not support), `RAMP_WARN` /
 Targets** — `weekRiseWarnings`, +10 % between two loading weeks — is ADR 0084's
 amendment to §12, not a week-over-week diff on every week.
 
+**Guard Notice**: One of the three warnings a plan gives about itself without
+being asked: the **Ramp Guard**, the availability fit notice (the two **Training
+Availability** fit checks and the day clashes) and the band fit notice (sessions
+whose `%1RM` sits outside the band their **Strength Goal** derives). Each
+**warns and never blocks**, is open on arrival, and can be closed once read, for
+that visit only: closing is the athlete's decision about a warning they have
+read, never disclosure that hides one they have not. They stand in _Plan_'s lead
+under the card, once each, and are about the plan being viewed (ADR 0112). The
+mix-disagreement notices and _Hva planen ikke kan si_ are statements about the
+plan, not Guard Notices. _Avoid_: Alert (they are standing content, not news),
+guard (alone, for the notice rather than the check behind it), warning banner.
+
 **Block Boundary Step**: The optional volume change a **Training Track** authors
 at a segment's opening, default `0` — expressing a deliberate volume drop
 entering an intensity-led stretch, which a negative **Volume Ramp** would model
