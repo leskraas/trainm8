@@ -35,6 +35,7 @@ import { outlinePreviewSelect } from '../plan-outline/outline-preview.ts'
 import { weekIndexOf, weekKeyAt } from '../plan-outline/week-keys.ts'
 import {
 	clearPlanWeek,
+	deletePlanSessions,
 	readKeptSlots,
 	REPLACEABLE_SESSION,
 } from '../plan-outline/week-sessions.server.ts'
@@ -246,17 +247,7 @@ async function layWeeks(
 				}
 			}
 			const doomed = pending.filter((session) => !keptIds.has(session.id))
-			if (doomed.length > 0) {
-				await tx.workoutSession.deleteMany({
-					where: { id: { in: doomed.map((session) => session.id) } },
-				})
-				const workoutIds = doomed.flatMap((session) =>
-					session.workoutId ? [session.workoutId] : [],
-				)
-				if (workoutIds.length > 0) {
-					await tx.workout.deleteMany({ where: { id: { in: workoutIds } } })
-				}
-			}
+			await deletePlanSessions(tx, doomed)
 			// The generator's session in each slot still open (step 3).
 			const ids = await writeGeneratedSessions(
 				tx,

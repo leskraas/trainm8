@@ -135,8 +135,23 @@ export async function clearPlanWeek(
 		},
 		select: { id: true, workoutId: true },
 	})
-	if (doomed.length === 0) return 0
+	await deletePlanSessions(tx, doomed)
+	return doomed.length
+}
 
+/**
+ * Delete the plan's sessions given, then their Workouts: the `workoutId` FK
+ * cascades, so deleting a Workout while its session still pointed at it would
+ * take the session with it — the ordering `deleteWorkoutSession` established.
+ * Every Workout here is the session's own copy, never a shared row. The one
+ * writer of that ordering, for the stamp's clearing and a generated re-lay
+ * alike.
+ */
+export async function deletePlanSessions(
+	tx: Prisma.TransactionClient,
+	doomed: ReadonlyArray<{ id: string; workoutId: string | null }>,
+): Promise<void> {
+	if (doomed.length === 0) return
 	await tx.workoutSession.deleteMany({
 		where: { id: { in: doomed.map((session) => session.id) } },
 	})
@@ -146,7 +161,6 @@ export async function clearPlanWeek(
 	if (workoutIds.length > 0) {
 		await tx.workout.deleteMany({ where: { id: { in: workoutIds } } })
 	}
-	return doomed.length
 }
 
 /**
