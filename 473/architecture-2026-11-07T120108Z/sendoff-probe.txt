@@ -1,0 +1,2 @@
+send-off rows placed across 30 swim seasons: { 'swim-C1': 164 }
+swim-C1 prescribedDuration { seconds: 2000, complete: true, estimated: true } send-off residual not counted (s): 100

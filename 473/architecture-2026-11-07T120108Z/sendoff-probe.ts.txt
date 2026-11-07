@@ -1,0 +1,35 @@
+import { CATALOGUE_CORPUS, stockEntryId, stockWorkoutId } from '/tmp/claude-0/-home-user-trainm8/1c2c6ef9-a20d-5ebf-852c-fe8535461858/scratchpad/f473/wt/473-architecture/app/utils/catalogue-corpus.all.ts'
+import { generateSeason } from '/tmp/claude-0/-home-user-trainm8/1c2c6ef9-a20d-5ebf-852c-fe8535461858/scratchpad/f473/wt/473-architecture/app/utils/plan-generation/generator.ts'
+import { PRESET_KEYS } from '/tmp/claude-0/-home-user-trainm8/1c2c6ef9-a20d-5ebf-852c-fe8535461858/scratchpad/f473/wt/473-architecture/app/utils/plan-outline/presets.ts'
+import { prescribedDuration } from '/tmp/claude-0/-home-user-trainm8/1c2c6ef9-a20d-5ebf-852c-fe8535461858/scratchpad/f473/wt/473-architecture/app/utils/dashboard.ts'
+
+const corpus = CATALOGUE_CORPUS.filter((r) => r.discipline !== 'strength').map((r) => ({
+  entryId: stockEntryId(r.key), workoutId: stockWorkoutId(r.key), title: r.title,
+  discipline: r.discipline, archetype: r.archetype, level: r.level ?? null,
+  phases: r.phases ?? [], goalEvents: r.goalEvents ?? [], authorship: 'system',
+  description: r.description ?? null, citationAuthor: r.citation?.author ?? null,
+  citationWork: r.citation?.work ?? null, citationYear: r.citation?.year ?? null, citationLocator: r.citation?.locator ?? null,
+}))
+const byWorkout = new Map(CATALOGUE_CORPUS.map((r) => [stockWorkoutId(r.key), r]))
+const thresholds = { swim: { cssSecPer100m: 100, raceAnchorPaces: {} } } as any
+const hits = new Map<string, number>()
+for (const presetKey of PRESET_KEYS) for (const intent of ['first-season','deliberately-building'] as const) {
+  const s = generateSeason({ presetKey, startWeekKey: '2026-11-09', eventWeekKey: '2027-06-07',
+    tracks: [{ discipline: 'swim', currency: 'km', anchorValue: 8 }], strengthDisciplines: [],
+    trainableWeekdays: null, goalEvent: null, intent, weeklyCapacityHours: null, conversionContexts: {} } as any, corpus as any)
+  for (const x of s.sessions) { const r = byWorkout.get(x.workoutId)!; if (r.blocks.some((b: any) => b.sendOff)) hits.set(r.key, (hits.get(r.key) ?? 0) + 1) }
+}
+console.log('send-off rows placed across', PRESET_KEYS.length * 2, 'swim seasons:', Object.fromEntries(hits))
+for (const key of hits.keys()) {
+  const r = CATALOGUE_CORPUS.find((c) => c.key === key)!
+  const blocks = r.blocks.map((b: any) => ({ ...b, steps: b.steps.map((s: any) => ({ ...s, intensity: s.intensity ? JSON.stringify(s.intensity) : null, durationSec: s.durationSec ?? null })) }))
+  const d = prescribedDuration(blocks as any, { thresholds, discipline: 'swim' })
+  let missing = 0
+  for (const b of r.blocks as any[]) if (b.sendOff?.kind === 'anchored') {
+    const dist = b.steps.reduce((a: number, s: any) => a + (s.distanceM ?? 0), 0)
+    const cycle = (100 + b.sendOff.allowanceSecPer100m) * dist / 100
+    const work = prescribedDuration([{ ...b, repeatCount: 1, steps: b.steps.map((s: any) => ({ ...s, intensity: JSON.stringify(s.intensity), durationSec: null })) }] as any, { thresholds, discipline: 'swim' })!.seconds
+    missing += Math.max(0, cycle - work) * b.repeatCount * (b.seriesRepeatCount ?? 1)
+  }
+  console.log(key, 'prescribedDuration', d, 'send-off residual not counted (s):', Math.round(missing))
+}
