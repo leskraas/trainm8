@@ -324,7 +324,7 @@ const { ensureCredentialEncryptionBackfillEnqueued } =
 	await import('#app/utils/credential-backfill.server.ts')
 await ensureCredentialEncryptionBackfillEnqueued()
 
-// One-shot purge (#468, ADR 0113): every account deleted before #641 left the
+// One-shot purge (#468, ADR 0114): every account deleted before #641 left the
 // Workouts it wrote stored as Orphaned Workouts. Enqueue the purge exactly once
 // — the job row is the marker — and it erases them with `deleteAccount`'s rules.
 const { ensureOrphanedWorkoutPurgeEnqueued } =

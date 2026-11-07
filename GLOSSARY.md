@@ -1041,7 +1041,7 @@ points at directly. That one is kept **unattributed**: private, its **Catalogue
 Entry** retired and its **Attribution** deleted, so it carries no author's name
 and nobody can publish it again. A surviving fork's lineage is spliced to its
 nearest surviving ancestor, so a **Citation** still resolves through it. An
-**Orphaned Workout** gets the same treatment (ADR 0051 §5, ADR 0113). Not a
+**Orphaned Workout** gets the same treatment (ADR 0051 §5, ADR 0114). Not a
 **withdrawal**: that is the author's own reversible act, and it keeps the
 Attribution. _Avoid_: account deletion (the whole act, not the Workout policy),
 withdrawn (for the kept row), sweep
