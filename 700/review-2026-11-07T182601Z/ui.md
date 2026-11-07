@@ -1,0 +1,1 @@
+# UI\nThe diff touches one .tsx: app/routes/.../plan.generate.$eventId.route.test.tsx (+1 line, a test fixture adding `days` to a mocked season). No component, CSS or motion: UI reviews (emil-design-eng, break-ui, mobile-native) not applicable.

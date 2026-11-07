@@ -1,0 +1,6 @@
+# PR #700 — Security, by hand (security-review skill not run: base resolution in a worktree; reviewed manually)
+- Ownership/IDOR: `relayGeneratedPlan`/`layGeneratedWeek` read the outline with `{ id, athleteId: userId }`; every session query and delete is scoped by `userId: outline.athleteId` and `planOutlineId`. `readPlanWeekSource(outlineId)` is unscoped but returns only a kind/id and is called with an outline the caller already resolved for the user (findActiveOutline / relayPlanFrom). No new route, loader or action; no unauthenticated surface.
+- Deletion scope: only REPLACEABLE_SESSION rows of the plan in the week (machine-owned, scheduled, no recording, no log); trained/adopted/authored never deleted. Workouts deleted are the sessions' own copies (`WorkoutSession.workoutId @unique`; writer makes a fresh copy per session).
+- Data migration: pure SQL, `INSERT OR IGNORE`, deterministic id `'genrec_' || o.id`, fixed-epoch createdAt, touches no session/workout/number; header states no stored number moves — conforms to docs/agents/production-seed-data.md. No seed script change. Legacy filter (event, no WeekPatternDay, a generated session copied from a catalogued system Workout) cannot match an athlete-authored plan.
+- Injection/secrets/SSRF/CSRF: none introduced (Prisma only, no raw SQL in app code).
+- No security findings.
