@@ -1,0 +1,10 @@
+4-after-reload-other-kind VISIBLE 1 
+ KONDISJONEN ER REGNET UT PÅ NYTT
+
+Kondisjonen falt med opptil 14 — 62 → 48 på det meste
+
+Styrkeøkter teller ikke lenger med i kondisjon, tretthet og form. Det finnes ingen ærlig måte å prise en styrkeøkt i samme enhet som en utholdenhetsøkt, så de tre tallene gjelder nå bare utholdenhet — og sier det. Treningen din er den samme; det som er endret, er hva tallene påstår å måle.
+
+Skjønner
+HTML <h2 id="load-recompute-kicker" class="text-foreground text-overline uppercase" data-tsd-source="/app/routes/_home/timeline/home-timeline.tsx:747:4">Kondisjonen er regnet ut på nytt</h2><p class="text-foreground text-caption tabular-nums" data-tsd-source="/app/routes/_home/timeline/home-timeline.tsx:754:5">Kondisjonen falt med opptil 14 — 62 → 48 på det meste</p><p class="text-muted-foreground text-caption w-full font-normal" data-tsd-source="/app/routes/_home/timeline/home-timeline.tsx:758:4">Styrkeøkter teller ikke lenger med i kondisjon, tretthet og form. Det finnes ingen ærlig måte å prise en styrkeøkt i samme enhet som en utholdenhetsøkt, så de tre tallene gjelder nå bare utholdenhet — og sier det. Treningen din er den samme; det som er endret, er hva tallene påstår å måle.</p><form data-tsd-source="/app/routes/_home/timeline/home-timeline.tsx:761:4" data-discover="true" action="/season" method="post"><input type="hidden" data-tsd-source="/app/routes/_home/timeline/home-timeline.tsx:764:5" name="kind" value="strength-left-the-triad"><button type="submit" value="dismiss-load-recompute-notice" class="border-border text-foreground pressable text-caption hover:border-primary relative touch-manipulation rounded-full border px-3 py-1 font-semibold select-none after:absolute after:inset-x-0 after:-inset-y-2.5" data-tsd-source="/app/routes/_home/timeline/home-timeline.tsx:765:5" name="intent">Skjønner</button></form>
+pageerrors []

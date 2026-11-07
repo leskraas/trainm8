@@ -1,0 +1,527 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa[39m
+
+ [32m✓[39m app/utils/load/strength-tss-backfill.server.test.ts[2m > [22mensureStrengthTssBackfillEnqueued enqueues exactly once, ever[32m 43[2mms[22m[39m
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22mensureSwimPaceBackfillEnqueued enqueues exactly once, ever[32m 41[2mms[22m[39m
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22mswimPaceCorrection corrects a pace the old parser read from this file[32m 28[2mms[22m[39m
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22mswimPaceCorrection leaves a pace that isn't the old parser's reading[32m 16[2mms[22m[39m
+ [32m✓[39m app/utils/load/strength-tss-backfill.server.test.ts[2m > [22ma hybrid athlete's stored snapshots drop their strength load and CTL falls[33m 2111[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL rise and one notice
+[22m[39mswim pace backfill: corrected 30 pool swims {
+  count: [33m30[39m,
+  swims: [
+    {
+      importId: [32m'cmw6qt7jr00057daisfgnpbvq'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7kp000a7daip8awk9kn'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7lb000f7dains310t68'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7mb000k7dainifbe3fr'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7mp000p7dai0w622j56'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7nb000u7daimfqax79z'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7ns000z7daike820w58'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7oe00147daiov6ux6jp'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7oy00197dai853jsqp0'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7pg001e7daimbdukdzm'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7py001j7daiy6aoobn9'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7qf001o7daigh30q3xt'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7qq001t7daikiv0hrbf'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7r6001y7daiawmki9sv'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7rj00237dai8dkdf348'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7s200287daimsr3ndyg'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7sp002d7daib5u8ce5a'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7tb002i7daiu9imo1r4'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7tu002n7dail91k4739'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7ua002s7daix02ssd3o'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7um002x7daio26r2yye'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7va00327dainbir3kcw'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7vs00377dai9m1an45c'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7w3003c7dai0cc863o7'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7wf003h7daicfi0v5v9'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7wu003m7dai6ga9qfvn'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7x5003r7dain0tovk9n'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7xl003w7dai8xr465h2'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7y100417daia9q3nci6'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    },
+    {
+      importId: [32m'cmw6qt7yj00467daitm8l6gep'[39m,
+      athleteId: [32m'cmw6qt7iw00017dai00ncipuf'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    }
+  ]
+}
+
+ [32m✓[39m app/utils/load/strength-tss-backfill.server.test.ts[2m > [22mthe backfill leaves one notice naming the CTL it moved[33m 464[2mms[22m[39m
+ [32m✓[39m app/utils/load/strength-tss-backfill.server.test.ts[2m > [22man endurance-only athlete is left alone — no recompute, no notice[32m 257[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL rise and one notice
+[22m[39mprisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL rise and one notice
+[22m[39mswim pace backfill: corrected 0 pool swims { count: [33m0[39m, swims: [] }
+
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22ma month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL rise and one notice[33m 2956[2mms[22m[39m
+ [32m✓[39m app/utils/load/strength-tss-backfill.server.test.ts[2m > [22ma lifter whose sessions carry no RPE never had a strength contribution, so gets no notice[33m 311[2mms[22m[39m
+ [32m✓[39m app/utils/load/strength-tss-backfill.server.test.ts[2m > [22mwidestCtlDrop picks the day the curve moved furthest, not the last day[32m 14[2mms[22m[39m
+ [32m✓[39m app/utils/load/strength-tss-backfill.server.test.ts[2m > [22mwidestCtlDrop finds a historical drop the latest day hides entirely[32m 3[2mms[22m[39m
+ [32m✓[39m app/utils/load/strength-tss-backfill.server.test.ts[2m > [22mwidestCtlDrop ignores float noise and an unchanged curve[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/load/strength-tss-backfill.server.test.ts[2m > [22mwidestCtlDrop skips days with no counterpart on the other curve[32m 3[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma retry after the paces were written still recomputes the load
+[22m[39mswim pace backfill: corrected 0 pool swims { count: [33m0[39m, swims: [] }
+
+ [32m✓[39m app/utils/user-data-export.server.test.ts[2m > [22mthe export carries every user-owned table in the schema[32m 196[2mms[22m[39m
+ [32m✓[39m app/utils/user-data-export.server.test.ts[2m > [22mthe export holds the athlete's training record[32m 226[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22munauthenticated user sees marketing landing page[32m 146[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma swim with no kept FIT is left alone (Strava, Intervals.icu before the harvest)
+[22m[39mprisma:query - 22ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ [32m✓[39m app/utils/user-data-export.server.test.ts[2m > [22mthe export leaves out secrets and every other athlete[33m 353[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthere is no hero: the list is all there is under the top line[32m 117[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma swim with no kept FIT is left alone (Strava, Intervals.icu before the harvest)
+[22m[39mswim pace backfill: corrected 0 pool swims { count: [33m0[39m, swims: [] }
+
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22ma retry after the paces were written still recomputes the load[33m 1415[2mms[22m[39m
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22ma swim with no kept FIT is left alone (Strava, Intervals.icu before the harvest)[33m 1044[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma harvested swim keeps the provider's moving pace
+[22m[39mswim pace backfill: corrected 0 pool swims { count: [33m0[39m, swims: [] }
+
+ [32m✓[39m app/utils/user-data-export.server.test.ts[2m > [22ma moderator's export carries the reports they resolved, not the reporters' words[33m 375[2mms[22m[39m
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22ma harvested swim keeps the provider's moving pace[32m 143[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mtoday's row carries today's session, its action and the coach's line[33m 374[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe coach's line never shows a Form number on a cold start[32m 58[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma swimmer without CSS still gets the notice: the pace they read changed
+[22m[39mswim pace backfill: corrected 1 pool swim {
+  count: [33m1[39m,
+  swims: [
+    {
+      importId: [32m'cmw6qtbth00n47daifazlnx6f'[39m,
+      athleteId: [32m'cmw6qtbt000n07daiuazu8d1o'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    }
+  ]
+}
+
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe coach's line built on Garmin data carries Garmin's derived-data line beneath it (ADR 0098)[32m 71[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe coach's line owes no credit when no Garmin data is behind it[32m 64[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma swimmer without CSS still gets the notice: the pace they read changed
+[22m[39mprisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma swimmer without CSS still gets the notice: the pace they read changed
+[22m[39mswim pace backfill: corrected 0 pool swims { count: [33m0[39m, swims: [] }
+
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mtoday empty: the row says so, offers to write one, and lends Friday no action[32m 181[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2ma swimmer with no Load Snapshots gets an absent pair, never 0 → 0
+[22m[39mswim pace backfill: corrected 1 pool swim {
+  count: [33m1[39m,
+  swims: [
+    {
+      importId: [32m'cmw6qtc3r00ny7dais8i1otkw'[39m,
+      athleteId: [32m'cmw6qtc3000nw7daiysye7rox'[39m,
+      paceBefore: [33m1134.666666666667[39m,
+      paceAfter: [33m1014.6666666666666[39m
+    }
+  ]
+}
+
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22ma swimmer without CSS still gets the notice: the pace they read changed[33m 374[2mms[22m[39m
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22ma swimmer with no Load Snapshots gets an absent pair, never 0 → 0[32m 190[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mtoday done: today's row is the done session, and Friday is not headlined as today's[32m 216[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe top line names the plan and counts down to the race[32m 190[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2mthe job row records which swims it corrected, with their old and new pace
+[22m[39mprisma:query - 24ms - COMMIT
+
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mwith no plan the top line says so and leads to Plan[32m 79[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe strip renders the whole season, not a window over it[32m 114[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma strip bar is exactly as tall as its share of the season, never floored[32m 44[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe strip marks the week the stream is parked in[32m 39[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe "I dag" pill is on the top line, and quiet while today is in view[32m 39[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.server.test.ts[2m > [22man absent pair is stored as NULL on both sides and read back as one null[32m 170[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mevery week before today is mounted in full, and a strip tap jumps to one[32m 141[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.server.test.ts[2m > [22ma pair is read back as one value[32m 118[2mms[22m[39m
+[90mstdout[2m | app/utils/load/recompute-notice.server.test.ts[2m > [22m[2ma second write for the same kind neither duplicates nor overwrites, pair or not
+[22m[39mprisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+[90mstdout[2m | app/utils/load/recompute-notice.server.test.ts[2m > [22m[2ma second write for the same kind neither duplicates nor overwrites, pair or not
+[22m[39mprisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+ [32m✓[39m app/utils/load/recompute-notice.server.test.ts[2m > [22ma second write for the same kind neither duplicates nor overwrites, pair or not[32m 156[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma week header carries its range, its phase and what happened in it[32m 270[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mtoday's row carries the inline action and the chip that says where the day stands[32m 76[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.server.test.ts[2m > [22mdismissing an absent-pair notice dismisses it alone; the other kind is then shown[32m 114[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.server.test.ts[2m > [22mthe data export lists an absent pair as null, never 0[32m 166[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma completed row reads two kinds of load and names its band[32m 32[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22man unplanned session says there is no plan to compare, never a percentage[32m 37[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma missed session invents nothing[32m 24[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma planned row is an instruction: line 1 ends in "planned", line 2 is the target[32m 27[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22man imported week says so once, in its header, and its rows carry no chip[32m 261[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma Replan Note rides as a quiet chip, verbatim (ADR 0025)[32m 32[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma Replan Note stored in English before #505 round 2 reads in Norwegian[32m 29[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mrows inside a week are chronological, whatever order they arrive in[32m 50[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mtwo sessions on one day sit under one date gutter, said once[32m 124[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mevery day from today forward is a row, whether anything is on it or not[32m 73[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe empty days behind today are rows like any other, never one band[32m 74[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma single empty day behind today is a row like the rest[32m 63[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mwith nothing on today, today is still a row and still the anchor[32m 60[2mms[22m[39m
+[90mstdout[2m | app/utils/load/swim-pace-backfill.server.test.ts[2m > [22m[2mthe job row records which swims it corrected, with their old and new pace
+[22m[39mprisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+ [32m✓[39m app/utils/load/swim-pace-backfill.server.test.ts[2m > [22mthe job row records which swims it corrected, with their old and new pace[33m 2220[2mms[22m[39m
+[90mstdout[2m | app/utils/load/recompute-notice.constraints.test.ts[2m > [22m[2ma notice with only ctlBefore is refused by the database
+[22m[39mprisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.constraints.test.ts:26:36
+
+  23 	kind: string,
+  24 	ctl: { ctlBefore: number | null; ctlAfter: number | null },
+  25 ) {
+→ 26 	return prisma.loadRecomputeNotice.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: LoadRecomputeNotice_ctl_pair_both_or_neither") }), transient: false })
+
+ [32m✓[39m app/utils/load/recompute-notice.constraints.test.ts[2m > [22ma notice with only ctlBefore is refused by the database[32m 143[2mms[22m[39m
+[90mstdout[2m | app/utils/load/recompute-notice.constraints.test.ts[2m > [22m[2ma notice with only ctlAfter is refused by the database
+[22m[39mprisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.constraints.test.ts:26:36
+
+  23 	kind: string,
+  24 	ctl: { ctlBefore: number | null; ctlAfter: number | null },
+  25 ) {
+→ 26 	return prisma.loadRecomputeNotice.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: LoadRecomputeNotice_ctl_pair_both_or_neither") }), transient: false })
+
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22man empty day is never called a rest day — nothing prescribes one[33m 402[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mevery empty cell is a real button, not a clickable box[32m 92[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.constraints.test.ts[2m > [22ma notice with only ctlAfter is refused by the database[32m 127[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe near end states the query's reach, not the end of the athlete's history[32m 51[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.constraints.test.ts[2m > [22ma notice with both figures, or with neither, is accepted[32m 143[2mms[22m[39m
+[90mstdout[2m | app/utils/load/recompute-notice.constraints.test.ts[2m > [22m[2mthe rebuild kept the unique (athlete, kind) and the cascade
+[22m[39mprisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.constraints.test.ts:26:36
+
+  23 	kind: string,
+  24 	ctl: { ctlBefore: number | null; ctlAfter: number | null },
+  25 ) {
+→ 26 	return prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+ [32m✓[39m app/utils/load/recompute-notice.constraints.test.ts[2m > [22mthe rebuild kept the unique (athlete, kind) and the cascade[32m 124[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe far end says how far the plan is written, and offers to write the rest[32m 235[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe pill does not point anywhere on first paint — today is already in view[32m 84[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mcreation survives the re-composition: “Ny økt” is on the top line[32m 203[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22man athlete with no plan is offered the first run at the far end[32m 76[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe tabbed dashboard is gone — home is one stream, not three panels[32m 29[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22man outstanding notice explains the drop above the timeline[32m 42[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mthe swim notice says CTL rose, and why (ADR 0107)[32m 33[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma swim notice whose CTL did not visibly move names no movement[32m 34[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma notice with no CTL pair shows its words and Skjønner, and no movement (ADR 0113)[32m 44[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22mno notice renders nothing — a dismissed correction stays dismissed[32m 30[2mms[22m[39m
+[90mstdout[2m | app/utils/load/recompute-notice.migration.test.ts[2m > [22m[2mthe migration keeps every row and makes only the swim placeholders absent
+[22m[39mprisma:error 
+Invalid `	prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.migration.test.ts:161:30
+
+  158 // The rebuilt table kept its constraints: a half pair is refused, a second
+  159 // notice of one kind is refused.
+  160 await expect(
+→ 161 	prisma.loadRecomputeNotice.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: LoadRecomputeNotice_ctl_pair_both_or_neither") }), transient: false })
+
+[90mstdout[2m | app/utils/load/recompute-notice.migration.test.ts[2m > [22m[2mthe migration keeps every row and makes only the swim placeholders absent
+[22m[39mprisma:error 
+Invalid `	prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/e5e1eaed-2fed-5454-b446-5adde77ea698/scratchpad/run/wt/689-qa/app/utils/load/recompute-notice.migration.test.ts:166:30
+
+  163 	}),
+  164 ).rejects.toThrow()
+  165 await expect(
+→ 166 	prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+ [32m✓[39m app/utils/load/recompute-notice.migration.test.ts[2m > [22mthe migration keeps every row and makes only the swim placeholders absent[33m 337[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22ma recompute kind the app has no words for is silent, never vague copy[32m 43[2mms[22m[39m
+ [32m✓[39m app/routes/_home/index.dashboard.test.tsx[2m > [22macknowledging the notice posts the dismiss intent for that kind only[32m 165[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPlanContext[2m > [22mis null without an active plan (road-to-race frame collapses)[32m 19[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPlanContext[2m > [22msummarizes countdown, phase, week N/M and week-load %[32m 4[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPlanContext[2m > [22mweek-load is null (not fabricated) when adherence is unavailable[32m 8[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPlanContext[2m > [22mspells out the plan arc as "Week N of M · <Phase> phase" (#181)[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPlanContext[2m > [22mspells out Week Load as a share of the planned endurance load (#181, ADR 0046 §4)[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPlanContext[2m > [22mWeek Load label stays honest when adherence is unavailable (#181)[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPlanContext[2m > [22mspells out the header plan-arc chip as countdown + arc (#184)[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPlanContext[2m > [22mthe plan-arc chip uses the singular "day" on race-day eve (#184)[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPhaseBands[2m > [22mis empty without a plan[32m 7[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildPhaseBands[2m > [22mderives contiguous phase date ranges and flags the current phase[32m 4[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildTodayCard[2m > [22mis null when nothing is planned from today onward[32m 18[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildTodayCard[2m > [22mpicks the soonest upcoming planned session and flags whether it is today[32m 6[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildTodayCard[2m > [22mrounds a fractional planned TSS and carries a shared-format date label[32m 4[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildTodayCard[2m > [22mresolves the headline metric target against the athlete thresholds[32m 9[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildTodayCard[2m > [22mtarget is null (not fabricated) when the workout has no metric target[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildTodayCard[2m > [22mcarries the honest Session Status CTA — a scheduled session is viewed, never started (#179)[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildTodayCard[2m > [22ma due strength session points its action at the session runner and lists its lifts[32m 5[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildTodayCard[2m > [22ma strength lift whose sets disagree states the set count and no single weight, never an invented one[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildTodayCard[2m > [22ma cardio session keeps the Workout Detail View and grows no strength half[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22msessionCtaLabel[2m > [22ma scheduled session is "View session"[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22msessionCtaLabel[2m > [22ma completed session without a Session Log is "Log session" — time to reflect[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22msessionCtaLabel[2m > [22ma completed session with its log written goes back to "View session"[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22msessionCtaLabel[2m > [22mskipped and missed sessions are "View session" — nothing to start, nothing to log[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildSessionNudge[2m > [22mfatigued Form eases the next planned cardio session, naming the weekday[32m 4[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildSessionNudge[2m > [22mfresh Form holds the next planned session[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildSessionNudge[2m > [22mcold-start (no trustworthy Form, no sustained deviation) is unavailable[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildSessionNudge[2m > [22mno upcoming planned session yields none[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildSessionNudge[2m > [22ma miss-driven ease not yet persisted renders the honest acknowledgement, never a past-tense claim[32m 4[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildSessionNudge[2m > [22ma miss-driven ease already persisted renders the past-tense eased reason with real labels[32m 4[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildSessionNudge[2m > [22ma huge repeat on the next session is read without expanding its reps[32m 4[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildSessionNudge[2m > [22ma miss with a strength next session is held with the honest miss-driven reason[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildSessionNudge[2m > [22ma Form back-off ease is never guarded: it subsumes a co-occurring miss and keeps its reason[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildLoadRecomputeLine[2m > [22mnames the drop, its cause, and that the athlete changed nothing[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildLoadRecomputeLine[2m > [22mnever points the athlete at the discipline mix as the honest home[32m 5[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildLoadRecomputeLine[2m > [22ma correction that raised CTL says it rose (ADR 0107 §3)[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildLoadRecomputeLine[2m > [22mthe swim correction names the rest at the wall and the file it read[32m 4[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildLoadRecomputeLine[2m > [22ma huge movement is printed whole, in the units the triad shows[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildLoadRecomputeLine[2m > [22ma movement the triad cannot show is left out, never "0 — 3 → 3"[32m 2[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildLoadRecomputeLine[2m > [22ma notice with no CTL pair keeps its words and names no movement (ADR 0113)[32m 3[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildLoadRecomputeLine[2m > [22mrenders nothing when there is no notice[32m 4[2mms[22m[39m
+ [32m✓[39m app/routes/_home/presenter.test.ts[2m > [22mbuildLoadRecomputeLine[2m > [22mrenders nothing for a kind it has no words for, with a pair or without[32m 6[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.test.ts[2m > [22ma rise is the day the curve went up furthest, not the last day[32m 4[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.test.ts[2m > [22ma rise ignores days the curve fell, and a fall ignores days it rose[32m 3[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.test.ts[2m > [22mfloat noise, an unchanged curve and unmatched days are no movement[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.test.ts[2m > [22ma prescription correction cannot record a CTL pair (ADR 0113 §3)[32m 4[2mms[22m[39m
+ [32m✓[39m app/utils/load/recompute-notice.test.ts[2m > [22meach kind's writer takes the pair its declaration allows[32m 5[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery discipline has a label[32m 7[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery workout intent has a label[32m 6[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery step kind has a label[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery intensity-target kind has a label[32m 5[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery event kind, priority, and status has a label[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mthe empty target kind reads as "No target"[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mgetDisciplineLabel calls a bike a Ride but keeps the others[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mgetStatusLabel capitalizes an open-ended status[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mproviderLabel names known providers and falls back for unknown ones[32m 4[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery Volume Currency has a long label and both unit suffixes[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery Origin Platform has a name of its own, except unknown, which says nothing[32m 3[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery credit a platform can be owed has its derived-data line[32m 1[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery session owner has a label of its own[32m 1[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery branch that holds a week has its own reason, so "keep" always says why (#505 story 50)[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery Load Recompute Notice kind has its own words and declares what it moved (ADR 0113)[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mthe simple start words every Training Level: its name, its sentence and its hours note[32m 5[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mhours read with a decimal comma and time or timer, never a decimal point[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mUka di says how many sessions and how long, or that it is empty[32m 3[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mthe page header names the screen it goes back to, in Norwegian[32m 1[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mthe Norwegian weekdays run Monday first, seven distinct names[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery week role and phase rhythm has a label[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery rhythm also has a summary register, terser than the teaching one[32m 1[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery Strength Goal has a label, and the middle one names itself[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery Strength Goal also has a mid-sentence register of its own[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery Unavailable reading has a sentence that names what is missing[32m 1[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery reason a Training Track feeds no load has a phrase of its own[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery conversion convention has a noun phrase, named as a convention[32m 1[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery stored threshold the conversion reads is named as the athlete’s own[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery Week Pattern weekday and day kind has a label[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22ma pattern weekday is labelled Monday-first, ending on Sunday[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mthe Monday-first labels agree with calendarWeekdayOf, day for day[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery philosophy has its own name and a plain description, in the spec’s words[32m 4[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery week-number code has its own Norwegian words, so no "ikke målt" goes without a reason[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery sport a week header names has its own Norwegian word, and the horizon says what lies past it (#505 S9, ADR 0086)[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mthe Ukeskiftet card says a round’s volume, silence and its answers in the spec’s words (#505 S10)[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery refusal on an import row is said in words (#505 stories 80–82)[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mthe quick strength log speaks the spec’s words, and every refusal is said (#505 stories 83–84)[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery Sesong edit message says which numbers did not move, in the spec’s words[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery tab has its name in the spec’s own words[32m 1[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mMeg names every state of the intervals.icu connection in words (ADR 0083)[32m 1[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22ma Week Replan reason stored in English reads in the Norwegian the generator now writes[32m 4[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery day clash names its weekday in Norwegian, and the two-day ones both days[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22ma day clash from a day the athlete chose says so, and carries no figure[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mone clash held by several stretches of the plan names them all on one line[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22mevery planned discipline has a Norwegian name, and none shows its stored id[32m 2[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22ma sport is said lower-case inside a sentence, a Simple Activity as the athlete wrote it[32m 1[2mms[22m[39m
+ [32m✓[39m app/utils/labels.test.ts[2m > [22ma chosen day that is no longer a training day is named[32m 1[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+[2m      Tests [22m [1m[32m171 passed[39m[22m[90m (171)[39m
+[2m   Start at [22m 18:34:32
+[2m   Duration [22m 12.80s[2m (transform 7.51s, setup 9.15s, import 5.61s, tests 19.42s, environment 502ms)[22m
+

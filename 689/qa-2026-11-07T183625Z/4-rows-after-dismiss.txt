@@ -1,0 +1,1 @@
+[('n-strength', 'strength-left-the-triad', 62.4, 48.1, None), ('n-swim', 'swim-rest-left-the-pace', None, None, 1794076399101)]

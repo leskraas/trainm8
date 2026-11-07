@@ -1,0 +1,21 @@
+CREATE TABLE "LoadRecomputeNotice" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "kind" TEXT NOT NULL,
+    "ctlBefore" REAL NOT NULL,
+    "ctlAfter" REAL NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dismissedAt" DATETIME,
+    "athleteId" TEXT NOT NULL,
+    CONSTRAINT "LoadRecomputeNotice_athleteId_fkey" FOREIGN KEY ("athleteId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+)
+BEFORE
+('r1', 'strength-left-the-triad', 62.4, 48.1, 1690000000002, None, 'a')
+('r2', 'swim-rest-left-the-pace', 30.0, 36.0, 1690000000002, 1700000000000, 'b')
+('r3', 'swim-rest-left-the-pace', 41.7, 41.7, 1690000000002, None, 'c')
+('r4', 'swim-rest-left-the-pace', 0.0, 0.0, 1690000000002, 1700000005000, 'd')
+AFTER
+('r1', 'strength-left-the-triad', 62.4, 48.1, 1690000000002, None, 'a')
+('r2', 'swim-rest-left-the-pace', 30.0, 36.0, 1690000000002, 1700000000000, 'b')
+('r3', 'swim-rest-left-the-pace', None, None, 1690000000002, None, 'c')
+('r4', 'swim-rest-left-the-pace', None, None, 1690000000002, 1700000005000, 'd')
+[('CREATE TABLE "LoadRecomputeNotice" (\n    "id" TEXT NOT NULL PRIMARY KEY,\n    "kind" TEXT NOT NULL,\n    "ctlBefore" REAL,\n    "ctlAfter" REAL,\n    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n    "dismissedAt" DATETIME,\n    "athleteId" TEXT NOT NULL,\n    CONSTRAINT "LoadRecomputeNotice_athleteId_fkey" FOREIGN KEY ("athleteId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,\n    CONSTRAINT "LoadRecomputeNotice_ctl_pair_both_or_neither" CHECK (("ctlBefore" IS NULL) = ("ctlAfter" IS NULL))\n)',), ('CREATE UNIQUE INDEX "LoadRecomputeNotice_athleteId_kind_key" ON "LoadRecomputeNotice"("athleteId", "kind")',)]

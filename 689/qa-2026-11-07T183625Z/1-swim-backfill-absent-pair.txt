@@ -1,0 +1,4 @@
+ ✓ app/utils/load/swim-pace-backfill.server.test.ts > a month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL rise and one notice 2956ms
+ ✓ app/utils/load/swim-pace-backfill.server.test.ts > a swimmer with no Load Snapshots gets an absent pair, never 0 → 0 190ms
+ ✓ app/utils/load/recompute-notice.server.test.ts > an absent pair is stored as NULL on both sides and read back as one null 170ms
+ ✓ app/utils/load/recompute-notice.server.test.ts > the data export lists an absent pair as null, never 0 166ms

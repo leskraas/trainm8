@@ -1,0 +1,3 @@
+ ✓ app/utils/load/recompute-notice.test.ts > a prescription correction cannot record a CTL pair (ADR 0113 §3) 4ms
+ ✓ app/utils/load/recompute-notice.test.ts > each kind's writer takes the pair its declaration allows 5ms
+ ✓ app/utils/labels.test.ts > every Load Recompute Notice kind has its own words and declares what it moved (ADR 0113) 2ms
