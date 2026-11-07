@@ -604,6 +604,16 @@ ROUND_TOKENS = 10_000
 ON_PR = {"update-branch", "review", "qa", "merge"}
 
 
+def reviewed_head(pr):
+    """True when the PR's latest code-changing or reviewing run is a review
+    that went forward at the PR's current head."""
+    for run in reversed(markers((pr or {}).get("comments", []), "run")):
+        if run["task"] in ("implement", "update-branch", "review"):
+            return run["task"] == "review" and run["outcome"] == "forward" \
+                and run.get("head") == (pr or {}).get("head")
+    return False
+
+
 def limit_hit(runs, task, outcome, target, tokens, budget, failed):
     returns = sum(1 for r in runs if r["outcome"] == "back" and r["next"] == "implement")
     returns += outcome == "back" and target == "implement"
@@ -730,7 +740,7 @@ def decide(result, issue, pr, config, me, now, resume=None):
     if task in SCANS:
         if outcome not in ("done", "blocked"):
             raise ValueError(f"a scan ends done or blocked, not {outcome!r}")
-    elif outcome == "forward" and task in CRITERION_TASKS and \
+    elif outcome in ("forward", "back") and task in CRITERION_TASKS and \
             any(d.get("criterion") is not None for d in result.get("decisions") or []):
         # A decision that changes what a criterion asks goes to spec now, so
         # QA never judges the old text against a build that differs by design.
@@ -742,6 +752,8 @@ def decide(result, issue, pr, config, me, now, resume=None):
             raise ValueError(f"{task} cannot go forward to {target!r}")
         if task == "spec" and target in ("review", "qa") and pr is None:
             raise ValueError("spec goes forward to review or qa only on an issue with an open PR")
+        if task == "spec" and target == "qa" and not reviewed_head(pr):
+            target = "review"  # review always runs: QA only on a head review checked
         if task == "explore" and target == "implement" and level == "supervised":
             target = "spec"
         if target == "design" and config.get("design") == "off":
@@ -886,6 +898,8 @@ def decision_line(decision, task, level="doors"):
             status = " **Awaiting approval.**"
     rejected = decision.get("rejected")
     rejected = f" Rejected: {rejected}." if rejected else ""
+    criterion = decision.get("criterion")
+    task = f"{task}, changes acceptance criterion {criterion}" if criterion is not None else task
     return (f"- **{decision['title'].strip()}** ({task}): {decision['answer'].strip()}, "
             f"because {decision['reason'].strip().rstrip('.')}.{rejected} {door_text}.{status}")
 
@@ -2356,8 +2370,10 @@ def file_proposals(gh, config, result, task, me):
         if raw.get("state") != "open" or raw.get("pull_request") \
                 or "agent:proposal-from" not in (raw.get("body") or "") \
                 or (raw.get("user") or {}).get("login") != me \
-                or PROPOSAL not in {lb["name"] for lb in raw.get("labels", [])}:
-            continue
+                or PROPOSAL not in {lb["name"] for lb in raw.get("labels", [])} \
+                or any(lb["name"].startswith(PREFIX) and lb["name"] != PROPOSAL
+                       or lb["name"] == ENTRY for lb in raw.get("labels", [])):
+            continue  # a run took it, or someone asked for it: not the scan's to close
         gh.comment(n, f"The {TITLE[task].lower()} found that this no longer holds: "
                       f"{r['reason'].strip()}\n")
         gh.call("PATCH", gh.r(f"issues/{n}"), {"state": "closed", "state_reason": "not_planned"})
@@ -2500,27 +2516,30 @@ def cmd_apply(gh, config, me, result, label, repo_dir, now):
             "pr": pr["number"] if pr else None}
 
 
+MAX_MERGE_WALK = 20
+
+
 def only_merges(gh, base, head, default):
-    """True when every commit from `base` to `head` is a merge whose first
-    parent is the commit before it and whose second parent is on the default
-    branch: GitHub's «Update branch», or the factory's own update. Anything
-    else, a fix pushed after QA say, is not."""
+    """True when the first-parent chain from `head` back to `base` holds only
+    merges whose second parent is on the default branch: GitHub's «Update
+    branch», or the factory's own update. Anything else on that chain, a fix
+    pushed after QA say, is not. The commits the merges brought in from the
+    default branch are not on the chain, so they are not inspected."""
     try:
-        commits = gh.get(gh.r(f"compare/{quote(base)}...{quote(head)}")).get("commits") or []
-        if not commits or commits[-1]["sha"] != head:
-            return False
-        before = base
-        for c in commits:
-            parents = [p["sha"] for p in c.get("parents") or []]
-            if len(parents) != 2 or parents[0] != before:
+        sha = head
+        for _ in range(MAX_MERGE_WALK):
+            if sha == base:
+                return sha != head
+            parents = [p["sha"] for p in gh.get(gh.r(f"commits/{quote(sha)}")).get("parents") or []]
+            if len(parents) != 2:
                 return False
             status = gh.get(gh.r(f"compare/{quote(parents[1])}...{quote(default)}")).get("status")
             if status not in ("ahead", "identical"):
                 return False
-            before = c["sha"]
+            sha = parents[0]
     except GitHubError:
         return False
-    return True
+    return False
 
 
 NUMBERED = re.compile(r"^(\d+)[-_]")
