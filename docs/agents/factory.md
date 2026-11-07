@@ -16,8 +16,8 @@ autonomy: full
 merge: agent
 merge-method: merge
 budget: 6000000
-parallel: 3
-build-parallel: 2
+parallel: 10
+build-parallel: 6
 serial: qa, design-scan
 human-paths: .github/, .claude/, CLAUDE.md, fly.toml, other/
 human-edits: eslint.config.js, tsconfig.json, playwright.config.ts
@@ -31,15 +31,20 @@ start: npm run dev
 check: npm run lint && npm run typecheck && npx vitest run
 regenerate: npx prisma generate --sql
 schedule: none
+models: update-branch=sonnet, qa=sonnet, design-scan=sonnet, *=opus
+effort: update-branch=medium, qa=medium, implement=medium, review-fix=medium, *=high
 ```
 
 ## Why these values
 
 - **Autonomy `full`, merge `agent`**: a solo project; the factory decides,
   merges, and logs its decisions in the `Factory log` issue.
-- **Capacity**: the Team premium row. Runs are started by hand (`/factory`),
-  typically on days set aside to spend the week's remaining quota, so the full
-  row applies rather than the halved one for coding alongside.
+- **Capacity**: above the Team premium row (3/2), raised to `parallel: 10`,
+  `build-parallel: 6` on 2026-11-07 at the owner's request to spend the week's
+  remaining quota before it resets. Runs are started by hand or by
+  `/factory-dispatch`, not by a schedule. Bredvid/tavla spent a five-hour limit
+  in 2.5 hours at fifteen parallel sessions; lower it again if runs stop on a
+  usage limit.
 - **`serial: qa, design-scan`**: QA's instance runs beside a dev server on its
   own port and database ([`verify/`](verify/README.md#isolate)), but every run
   shares the same defaults (`PORT=3100`, `/tmp/trainm8-verify`), so only one QA
@@ -53,5 +58,14 @@ schedule: none
 - **`schedule: none`**: no scheduled task until three issues have gone through
   `/factory` by hand without the flow needing a fix. Rerun `/factory-setup` then
   to add it.
+- **`models` and `effort`** (factory 3.6): the retro of the factory on
+  Bredvid/tavla (7 November 2026) found that a third of the tokens went to
+  mechanical work. `update-branch`, `qa` and the design scan run on Sonnet;
+  everything else (explore, spec, design, architecture, implement, both parts
+  of review, and the other scans) on Opus, where a mistake costs the most.
+  Effort is medium for `update-branch`, QA, implement and the review's fix,
+  high elsewhere. `*=opus` stays named, so a `/factory` started on Sonnet
+  still gives the judging tasks Opus. Move QA back to Opus if more bugs reach
+  `main` after its merges.
 - **`design: prototype`**: the `/design` probe was not run (cloud session); this
   is the default from `factory-setup`'s runtime findings.
