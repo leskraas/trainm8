@@ -22,6 +22,15 @@
 -- `20260814120000_strength_anchors_programs_and_variants` and
 -- `20261018100000_lifting_is_laid_per_week` did. The two composite unique
 -- indexes `CatalogueEntry` points at are kept.
+--
+-- One deploy, not widen-then-narrow (`docs/database.md`): the app runs on one
+-- machine with a static LiteFS lease (`other/litefs.yml`), which runs this
+-- migration before the new app starts, so no instance of the old app writes a
+-- day after the backfill.
+--
+-- No stored number moves: no session, Load, Volume or anchor is written or
+-- changed, only which row a Week Pattern day points at, and the weeks laid
+-- after the deploy are the weeks laid before. No Load Recompute Notice is owed.
 
 -- RedefineTables
 PRAGMA defer_foreign_keys=ON;
