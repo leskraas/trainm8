@@ -105,10 +105,12 @@ jobs:
       - name: 🧰 Setup
         uses: ./.github/actions/setup
 
-      # The runner image already carries Chromium's system libraries, so only
-      # the browser itself is downloaded (~10s).
-      - name: 📥 Install Playwright Chromium
-        run: npx playwright install chromium
+      # The runner image already carries Chromium's system libraries, but not
+      # WebKit's, so `--with-deps` installs those. WebKit runs only the reading-
+      # position test (`playwright.config.ts`, #503): Safari has no scroll
+      # anchoring, so the app holds the position itself there.
+      - name: 📥 Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
 
       - name: 🌱 Seed Database
         run: npx prisma migrate reset --force
