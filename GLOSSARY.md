@@ -63,73 +63,73 @@ page **offers** a strength track from the athlete's own history — "Vi ser at d
 styrketrener ~2 ganger i uka. Legg til et styrkespor?" — when their last four
 complete weeks average at least one lifting session a week with sets logged;
 accepting adds a `sets` track anchored on that average, a strength block over
-the plan's weeks left at that frequency, and lifting days in the week pattern
-(the athlete's most recent strength session), so the weeks ahead get lifting
-targets and sessions with nothing set up by hand; with no such history nothing
-is offered there. The **First Run** asks instead: picking _styrke_ asks one tap,
-_1_, _2_ or _3_ a week, pre-set from that same history where there is one and
-otherwise by the **Training Level**, and the athlete's tap is stored as their
-own answer (ADR 0103). So the frequency comes from history or from the athlete's
-own answer, and is never invented. Shown to the athlete as a _filosofi_
-(training philosophy): each family is one philosophy — _Klassisk 3:1_, _Masters
-2:1_, _Stor base_, _Polarisert 80/20_, _Terskelfokus_ — with a plain sentence
-saying what it is. Polarized 80/20 and threshold focus are Klassisk's blocks,
-rhythm and lengths with a different **Quality Session Mix**: polarized is mostly
-easy plus a little very hard (zone 5 only, one or two sessions a week, no
-threshold or tempo); threshold focus is built around tempo and threshold (zones
-3–4, two a week, no zone 5). _Stor base_'s first block is **all easy** — an
-empty mix, no hard session — so its first weeks differ from Klassisk's, which
-ask for one tempo session a week; this holds for every plan made from it, while
-tracks already written keep their stored mix (ADR 0102). Every family can also
-drive an open-ended **Training Plan**: one round is one block of the family's
-opening rhythm, with that block's climb and mix — four weeks (three hard, one
-easy) on 3:1, three for Masters 2:1. The Outline **records the family it
-follows** (`PlanOutline.family`, since #505 S7) — the one place applying is not
-pure copying, because the philosophy is something the athlete sees and switches;
-a plan that records none (older, or hand-laid) is read off its rhythm, 3:1 as
-Klassisk and 2:1 as Masters. Switching philosophy mid-season re-lays the plan
-from the first week not yet begun, behind a preview (_Forhåndsvisning_) the
-athlete approves: the phases behind that week stay (the one being lived is cut
-to its lived weeks), an open-ended plan gets one round of the new family and a
-plan toward an Event the new family's season fitted to the weeks left so it
-still ends on the Event's week, and the plan's later weeks are laid again
-through the gated clearing, around the athlete's sessions: a week holding one
-keeps it and gets the plan's other days at the new targets. Weeks already lived
-(a week is begun once its Monday is past or something in it is trained) and the
-athlete's own and adopted sessions stay as they are, and the confirm applies
-only the switch the preview showed. It is picked from **an illustration of the
-load profile it lays down** rather than from a sentence describing it, and that
-picture is derived from the preset's own configuration through the real
-derivation, so it cannot promise a shape applying does not deliver. It carries,
-per phase, a name, a week count, a rhythm and whether it tapers; and per
-endurance **Training Track segment** a **Volume Ramp**, a **Block Boundary
-Step** and a **Quality Session Mix**. It carries no **Volume Currency**, no
-**Season Anchor** value and no **Plan Start Week** — a preset is shape and never
-size — and leaves `recoveryCut`/`taperCut` unset so the documented convention
-applies rather than being stored as though the athlete had chosen it. Phases are
-**fixed length**: a preset applied to a run-in it does not fill shows the plan
-ending before or after the **Target Event** and stretches nothing — and each
-shape says **where it would land against this Event** before it is picked,
-including what the **Season Fit** rule would cost if it were applied — _runs 9
-weeks past your event · fitting it shortens Base by 7 weeks and Build by 2
-weeks_ — since that is the one thing its illustration cannot show (ADR 0048 §2,
-§6). Applying **copies it in and says so** — nothing stays linked, there is no
-provenance column, and every value is editable afterwards through the ordinary
-edit paths. A preset is picked **before the plan exists**: authoring a plan
-leads with the shapes — ordered by how close each lands to this Event, which is
-a default and never a label — and the chosen one lands whole — its phases _and_
-each endurance segment's ramp, step and mix — with laying out your own blocks as
-the escape hatch beside them (ADR 0048 §1). Applying one to a plan that already
-exists is the same act on the plan surface — **until a week of it has begun**: a
-shape replaces every phase with no preview, so once the plan is under way it is
-refused, and changing method is the philosophy switch, which keeps the weeks
-lived (#505 story 14). Distinct from a **Plan Template**, which is a stored,
-identity-carrying entity and is not yet built. The athlete-facing noun on the
-surface is **a shape** — "Start from a shape" — which is the word the domain
-reads naturally in; note that it is a _season_ shape and shares nothing with the
-**Workout Shape**, which is one session's structure. Where both could be meant,
-say **season shape**. _Avoid_: Plan preset, plan template (a different thing),
-periodization model, periodization scheme
+the plan's weeks left at that frequency, and lifting days in the week pattern (a
+**Held Workout** copied from the athlete's most recent strength session), so the
+weeks ahead get lifting targets and sessions with nothing set up by hand; with
+no such history nothing is offered there. The **First Run** asks instead:
+picking _styrke_ asks one tap, _1_, _2_ or _3_ a week, pre-set from that same
+history where there is one and otherwise by the **Training Level**, and the
+athlete's tap is stored as their own answer (ADR 0103). So the frequency comes
+from history or from the athlete's own answer, and is never invented. Shown to
+the athlete as a _filosofi_ (training philosophy): each family is one philosophy
+— _Klassisk 3:1_, _Masters 2:1_, _Stor base_, _Polarisert 80/20_, _Terskelfokus_
+— with a plain sentence saying what it is. Polarized 80/20 and threshold focus
+are Klassisk's blocks, rhythm and lengths with a different **Quality Session
+Mix**: polarized is mostly easy plus a little very hard (zone 5 only, one or two
+sessions a week, no threshold or tempo); threshold focus is built around tempo
+and threshold (zones 3–4, two a week, no zone 5). _Stor base_'s first block is
+**all easy** — an empty mix, no hard session — so its first weeks differ from
+Klassisk's, which ask for one tempo session a week; this holds for every plan
+made from it, while tracks already written keep their stored mix (ADR 0102).
+Every family can also drive an open-ended **Training Plan**: one round is one
+block of the family's opening rhythm, with that block's climb and mix — four
+weeks (three hard, one easy) on 3:1, three for Masters 2:1. The Outline
+**records the family it follows** (`PlanOutline.family`, since #505 S7) — the
+one place applying is not pure copying, because the philosophy is something the
+athlete sees and switches; a plan that records none (older, or hand-laid) is
+read off its rhythm, 3:1 as Klassisk and 2:1 as Masters. Switching philosophy
+mid-season re-lays the plan from the first week not yet begun, behind a preview
+(_Forhåndsvisning_) the athlete approves: the phases behind that week stay (the
+one being lived is cut to its lived weeks), an open-ended plan gets one round of
+the new family and a plan toward an Event the new family's season fitted to the
+weeks left so it still ends on the Event's week, and the plan's later weeks are
+laid again through the gated clearing, around the athlete's sessions: a week
+holding one keeps it and gets the plan's other days at the new targets. Weeks
+already lived (a week is begun once its Monday is past or something in it is
+trained) and the athlete's own and adopted sessions stay as they are, and the
+confirm applies only the switch the preview showed. It is picked from **an
+illustration of the load profile it lays down** rather than from a sentence
+describing it, and that picture is derived from the preset's own configuration
+through the real derivation, so it cannot promise a shape applying does not
+deliver. It carries, per phase, a name, a week count, a rhythm and whether it
+tapers; and per endurance **Training Track segment** a **Volume Ramp**, a
+**Block Boundary Step** and a **Quality Session Mix**. It carries no **Volume
+Currency**, no **Season Anchor** value and no **Plan Start Week** — a preset is
+shape and never size — and leaves `recoveryCut`/`taperCut` unset so the
+documented convention applies rather than being stored as though the athlete had
+chosen it. Phases are **fixed length**: a preset applied to a run-in it does not
+fill shows the plan ending before or after the **Target Event** and stretches
+nothing — and each shape says **where it would land against this Event** before
+it is picked, including what the **Season Fit** rule would cost if it were
+applied — _runs 9 weeks past your event · fitting it shortens Base by 7 weeks
+and Build by 2 weeks_ — since that is the one thing its illustration cannot show
+(ADR 0048 §2, §6). Applying **copies it in and says so** — nothing stays linked,
+there is no provenance column, and every value is editable afterwards through
+the ordinary edit paths. A preset is picked **before the plan exists**:
+authoring a plan leads with the shapes — ordered by how close each lands to this
+Event, which is a default and never a label — and the chosen one lands whole —
+its phases _and_ each endurance segment's ramp, step and mix — with laying out
+your own blocks as the escape hatch beside them (ADR 0048 §1). Applying one to a
+plan that already exists is the same act on the plan surface — **until a week of
+it has begun**: a shape replaces every phase with no preview, so once the plan
+is under way it is refused, and changing method is the philosophy switch, which
+keeps the weeks lived (#505 story 14). Distinct from a **Plan Template**, which
+is a stored, identity-carrying entity and is not yet built. The athlete-facing
+noun on the surface is **a shape** — "Start from a shape" — which is the word
+the domain reads naturally in; note that it is a _season_ shape and shares
+nothing with the **Workout Shape**, which is one session's structure. Where both
+could be meant, say **season shape**. _Avoid_: Plan preset, plan template (a
+different thing), periodization model, periodization scheme
 
 **Workout Template**: _Not a thing — the term is retired._ It described "a
 reusable workout definition that can be scheduled multiple times", which ADR
@@ -187,22 +187,32 @@ surface — History, log, home list; do not use this term for what home shows
 ### Workout structure
 
 **Workout**: The structured training definition a **Workout Session** owns 1:1,
-and the shape a **Catalogue Entry** offers for reuse. Four orthogonal axes are
-asked of it (ADR 0051), of which two are its own columns. **Authorship** —
-`system` or `athlete`, **asserted** and never inferred from a null owner,
-because the inference cannot tell "nobody wrote this" from "the author is gone"
-and reads an orphan as trainm8's (the defect `Exercise` still ships). **Owner**
-is therefore nullable, with `SetNull` on the athlete's deletion: a **Stock
-Workout** has no author, and an orphaned athlete-authored row stays expressible.
-**Visibility** (a string, `private` by default; ADR 0037) is the third axis and
-is **live since #452**: the vocabulary is `private | public`, pinned by a CHECK,
-and `public` is written by the publish flow alone — never inherited, since a
-copy is always `private` (ADR 0052 §6). It is still `private` by default for
-every **Session Source**, and `shared` / `invited` are deliberately still
-unbuilt, because a follower- or invite-scoped read needs the social graph
-`GOAL.md` still excludes. **Membership** and **collection** are rows elsewhere.
-A Workout also carries `copiedFromId`, the back-pointer a fork keeps to what it
-was copied from. _Avoid_: Session, activity, template (say **Catalogue Entry**)
+the shape a **Catalogue Entry** offers for reuse, or a **Held Workout** a plan
+keeps for its **Week Pattern** days, and never more than one of these at once.
+Four orthogonal axes are asked of it (ADR 0051), of which two are its own
+columns. **Authorship** — `system` or `athlete`, **asserted** and never inferred
+from a null owner, because the inference cannot tell "nobody wrote this" from
+"the author is gone" and reads an orphan as trainm8's (the defect `Exercise`
+still ships). **Owner** is therefore nullable, with `SetNull` on the athlete's
+deletion: a **Stock Workout** has no author, and an orphaned athlete-authored
+row stays expressible. **Visibility** (a string, `private` by default; ADR 0037)
+is the third axis and is **live since #452**: the vocabulary is
+`private | public`, pinned by a CHECK, and `public` is written by the publish
+flow alone — never inherited, since a copy is always `private` (ADR 0052 §6). It
+is still `private` by default for every **Session Source**, and `shared` /
+`invited` are deliberately still unbuilt, because a follower- or invite-scoped
+read needs the social graph `GOAL.md` still excludes. **Membership** and
+**collection** are rows elsewhere. A Workout also carries `copiedFromId`, the
+back-pointer a fork keeps to what it was copied from. _Avoid_: Session,
+activity, template (say **Catalogue Entry**)
+
+**Held Workout**: A **Workout** a **Plan Outline** holds for its **Week
+Pattern** days: the plan's private copy of what the athlete picked, whether that
+was one of their sessions or a **Stock Workout**. No session uses it, so editing
+or deleting the session it came from leaves the plan as it was, and it goes when
+no day of the plan uses it any more. One pick is one copy, and the plan's days
+may share it (ADR 0112). _Avoid_: Pattern workout, template, the day's copy (it
+is the plan's)
 
 **Session Archetype**: _Built (#448, ADR 0055)._ The sixteen values ship as
 `SESSION_ARCHETYPES`, pinned by a CHECK on both `Workout.archetype` and
@@ -2717,34 +2727,35 @@ Track**. A pattern day is either **fixed** (a **Workout** stamped as authored,
 because intervals are prescribed and must not be scaled) or a **share** (a
 relative weight that absorbs its part of the week's derived volume), since a
 pattern cannot hold absolute quantities when the week's target changes week to
-week (ADR 0040 §1, ADR 0044). Stamping leaves ordinary standalone **Workout
-Sessions** with no live link back, so editing one stamped week never touches its
-siblings (#365) — which requires stamping to copy the **Workout** per session.
-Stored per **Plan Outline** in V1; whether a named pattern is also athlete-owned
-and reusable across plans is open. A day carries **no zone** — the zone is
-resolved from the session's own content, so the mix-disagreement check reads
-what the week holds rather than a claim a pattern day made about it (ADR 0042
-§9) — and its **Training Track** is a reference, so a swim day draws swim volume
-and never one undifferentiated pool. Weekdays run **Monday first**, matching the
-**Training Week** (ADR 0019) rather than the Sunday-first calendar index
-**Athlete Profile** stores (ADR 0005). A pattern is authored empty, or **built
-from a proposal the athlete asks for**: a starter week deals the days of their
-**Training Availability** across the endurance tracks, one share day each and at
-most one endurance session a day. The track carrying the family's **Quality
-Session Mix** (or else the largest weekly share) takes the last day, weighted
-double, as its **Long day**, and a day for each hard session plus one; each
-other track's Long day is on a day of its own, as far round the week from the
-others as it goes; a track that names its own days keeps to them (ADR 0104 §5).
-A strength track that authors a **Strength Frequency** adds a lifting day per
-session. It proposes days and never intensity — which day is a quality session
-is the **Quality Session Mix**'s to say, and the stamp says it: each week it
-lays its segment's mix on the ordinary bare **share** days, never the long day,
-as far apart as the week allows, keeping each day's share (ADR 0091); the day
-itself still carries no zone, the new Workout's intent does — and where
-availability was never set it falls back to a four-day week and says so rather
-than implying it read anything (ADR 0048 §4). _Avoid_: Week template (reserved
-for the future **Plan Template**), microcycle (as a UI/code term — recognized
-synonym only), pattern instance.
+week (ADR 0040 §1, ADR 0044). A day's Workout is always a **Held Workout**, the
+plan's own copy, never a session's (ADR 0112). Stamping leaves ordinary
+standalone **Workout Sessions** with no live link back, so editing one stamped
+week never touches its siblings (#365) — which requires stamping to copy the
+**Workout** per session. Stored per **Plan Outline** in V1; whether a named
+pattern is also athlete-owned and reusable across plans is open. A day carries
+**no zone** — the zone is resolved from the session's own content, so the
+mix-disagreement check reads what the week holds rather than a claim a pattern
+day made about it (ADR 0042 §9) — and its **Training Track** is a reference, so
+a swim day draws swim volume and never one undifferentiated pool. Weekdays run
+**Monday first**, matching the **Training Week** (ADR 0019) rather than the
+Sunday-first calendar index **Athlete Profile** stores (ADR 0005). A pattern is
+authored empty, or **built from a proposal the athlete asks for**: a starter
+week deals the days of their **Training Availability** across the endurance
+tracks, one share day each and at most one endurance session a day. The track
+carrying the family's **Quality Session Mix** (or else the largest weekly share)
+takes the last day, weighted double, as its **Long day**, and a day for each
+hard session plus one; each other track's Long day is on a day of its own, as
+far round the week from the others as it goes; a track that names its own days
+keeps to them (ADR 0104 §5). A strength track that authors a **Strength
+Frequency** adds a lifting day per session. It proposes days and never intensity
+— which day is a quality session is the **Quality Session Mix**'s to say, and
+the stamp says it: each week it lays its segment's mix on the ordinary bare
+**share** days, never the long day, as far apart as the week allows, keeping
+each day's share (ADR 0091); the day itself still carries no zone, the new
+Workout's intent does — and where availability was never set it falls back to a
+four-day week and says so rather than implying it read anything (ADR 0048 §4).
+_Avoid_: Week template (reserved for the future **Plan Template**), microcycle
+(as a UI/code term — recognized synonym only), pattern instance.
 
 **Hard day**: A day of a laid week on which any session, a track's or a **Simple
 Activity**'s, has an **Effort Word** other than _rolig_ — so a _middels_ day is
