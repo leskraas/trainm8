@@ -252,3 +252,24 @@ test('boot leaves a purge that is running now alone', async () => {
 		attempts: 1,
 	})
 })
+
+test('the run writes its record on its own row, not on another of its kind', async () => {
+	await prisma.job.deleteMany({})
+	await createOrphans()
+	// Another row of the kind, also `running`, created first.
+	const other = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
+	await prisma.job.update({
+		where: { id: other.id },
+		data: { status: 'running', startedAt: new Date() },
+	})
+	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
+	const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+	expect(await processNextJob(jobHandlers)).toBe('processed')
+	info.mockRestore()
+
+	expect((await readJob(job.id)).payload).toEqual({
+		purged: { erased: 2, keptUnattributed: 1, spliced: 0 },
+	})
+	expect((await readJob(other.id)).payload).toEqual({})
+})

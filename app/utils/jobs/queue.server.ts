@@ -133,8 +133,21 @@ export async function bestEffort<T>(
 	}
 }
 
-/** A handler runs one job kind. It receives the job's parsed JSON payload. */
-export type JobHandler = (payload: Record<string, unknown>) => Promise<void>
+/**
+ * The job a handler is running, for one that writes onto its own row (a
+ * one-time job's record). Handed in, so a handler never has to find its row
+ * by kind and status.
+ */
+export type JobContext = { id: string }
+
+/**
+ * A handler runs one job kind. It receives the job's parsed JSON payload and
+ * the job it is running.
+ */
+export type JobHandler = (
+	payload: Record<string, unknown>,
+	job: JobContext,
+) => Promise<void>
 
 /** Maps a job `kind` to the handler that runs it. */
 export type JobHandlers = Record<string, JobHandler>
@@ -158,7 +171,7 @@ export async function processNextJob(
 		if (!handler) {
 			throw new Error(`No handler registered for job kind "${job.kind}"`)
 		}
-		await handler(job.payload)
+		await handler(job.payload, { id: job.id })
 		await completeJob(job.id)
 	} catch (error) {
 		if (error instanceof DeferJob) await deferJob(job.id, error)

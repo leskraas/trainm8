@@ -205,10 +205,10 @@ export const jobHandlers: JobHandlers = {
 		// plaintext before credentials were encrypted at rest.
 		await encryptPlaintextCredentials()
 	},
-	[ORPHANED_WORKOUT_PURGE_JOB_KIND]: async () => {
+	[ORPHANED_WORKOUT_PURGE_JOB_KIND]: async (payload, job) => {
 		// One-shot (#468, ADR 0114): erase the Orphaned Workouts accounts deleted
 		// before #641 left stored, with the rules `deleteAccount` applies. One
 		// transaction, so a failure rolls back whole and the attempts retry it.
-		await runOrphanedWorkoutPurge()
+		await runOrphanedWorkoutPurge({ id: job.id, payload })
 	},
 }

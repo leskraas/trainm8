@@ -55,21 +55,25 @@ export async function ensureOrphanedWorkoutPurgeEnqueued(): Promise<void> {
 	await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
 }
 
-export async function runOrphanedWorkoutPurge(): Promise<AccountErasure> {
+/**
+ * Run the purge. `job` is the queue's row this run is (its id and the payload
+ * it was claimed with); the record is written onto that row. Called without
+ * one, it purges and logs and records nothing.
+ *
+ * The payload a run is claimed with carries the record of any earlier run
+ * that committed, since the claim reads the row after that commit.
+ */
+export async function runOrphanedWorkoutPurge(job?: {
+	id: string
+	payload: Record<string, unknown>
+}): Promise<AccountErasure> {
 	const record = await prisma.$transaction(async (tx) => {
 		const erasure = await eraseOrphanedWorkouts(tx)
-		// The job's own row. Boot enqueues exactly one of this kind, so the
-		// running one is this run.
-		const job = await tx.job.findFirst({
-			where: { kind: ORPHANED_WORKOUT_PURGE_JOB_KIND, status: 'running' },
-			select: { id: true, payload: true },
-		})
 		if (!job) return erasure
-		const payload = parsePayload(job.payload)
-		if (isErasureRecord(payload.purged)) return payload.purged
+		if (isErasureRecord(job.payload.purged)) return job.payload.purged
 		await tx.job.update({
 			where: { id: job.id },
-			data: { payload: JSON.stringify({ ...payload, purged: erasure }) },
+			data: { payload: JSON.stringify({ ...job.payload, purged: erasure }) },
 		})
 		return erasure
 	}, ERASURE_TRANSACTION_OPTIONS)
@@ -77,18 +81,6 @@ export async function runOrphanedWorkoutPurge(): Promise<AccountErasure> {
 		`[orphaned-workout-purge] erased ${record.erased}, kept unattributed ${record.keptUnattributed}, spliced ${record.spliced}`,
 	)
 	return record
-}
-
-/** The job row's payload as an object; `{}` when it is not one. */
-function parsePayload(raw: string): Record<string, unknown> {
-	try {
-		const parsed: unknown = JSON.parse(raw)
-		return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-			? (parsed as Record<string, unknown>)
-			: {}
-	} catch {
-		return {}
-	}
 }
 
 /** The record a committed run left: three counts, nothing else counts as one. */
