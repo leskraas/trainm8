@@ -1,0 +1,7 @@
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run3/wt/528-implement/app/routes/training/__exercise-combobox.tsx
+  12:1  warning  `#app/components/ui/button.tsx` import should occur before import of `#app/components/ui/command.tsx`  import/order
+
+✖ 1 problem (0 errors, 1 warning)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

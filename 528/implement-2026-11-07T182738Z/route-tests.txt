@@ -1,0 +1,268 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run3/wt/528-implement[39m
+
+ [32m✓[39m app/routes/training/sessions.$sessionId.route.test.tsx [2m([22m[2m52 tests[22m[2m)[22m[33m 17742[2mms[22m[39m
+   [33m[2m✓[22m[39m the Workout Shape strip renders with the structure even without any telemetry [33m 390[2mms[22m[39m
+   [33m[2m✓[22m[39m the strip never fabricates: a workout whose steps state nothing renders no preview region [33m 398[2mms[22m[39m
+   [33m[2m✓[22m[39m renders session log form with textarea and RPE selector [33m 1266[2mms[22m[39m
+   [33m[2m✓[22m[39m RPE selector shows all 10 values [33m 689[2mms[22m[39m
+   [33m[2m✓[22m[39m a Garmin recording reads "Garmin [device model]" by the session title and on the Recording card, never the transport (ADR 0098) [33m 391[2mms[22m[39m
+   [33m[2m✓[22m[39m an uploaded run that Garmin also delivered owes "Garmin [device model]" by the title (ADR 0096 §3) [33m 485[2mms[22m[39m
+   [33m[2m✓[22m[39m a non-Garmin recording names its source on the card only, owing nothing by the title [33m 484[2mms[22m[39m
+   [33m[2m✓[22m[39m completed session with a telemetry stream renders the overlay, not the unavailable state [33m 965[2mms[22m[39m
+   [33m[2m✓[22m[39m recording-only session with a stream renders the overlay without planned target bands [33m 353[2mms[22m[39m
+   [33m[2m✓[22m[39m a scheduled session has no second edit entry point — the detail view IS the editor (§1, B9) [33m 659[2mms[22m[39m
+   [33m[2m✓[22m[39m shows the headline Intensity Target resolved against the athlete thresholds (#130) [33m 389[2mms[22m[39m
+   [33m[2m✓[22m[39m a planned session resolves zone-label structure lines to concrete ranges against the athlete thresholds (#180) [33m 366[2mms[22m[39m
+   [33m[2m✓[22m[39m missing thresholds degrade the structure lines honestly, with a pointer to Training Settings (#180) [33m 329[2mms[22m[39m
+   [33m[2m✓[22m[39m a matched planned session with surplus detected structure reads "Diverged" [33m 486[2mms[22m[39m
+   [33m[2m✓[22m[39m a session without a Replan Note shows no replan slot at all [33m 453[2mms[22m[39m
+   [33m[2m✓[22m[39m shows update button when session log exists [33m 303[2mms[22m[39m
+   [33m[2m✓[22m[39m the reasoning behind a read archetype waits behind a tap [33m 1580[2mms[22m[39m
+   [33m[2m✓[22m[39m a refusal explains itself behind the tap [33m 1182[2mms[22m[39m
+ [32m✓[39m app/routes/_home/timeline/composer.test.tsx [2m([22m[2m15 tests[22m[2m)[22m[33m 49292[2mms[22m[39m
+   [33m[2m✓[22m[39m a free day’s “+” opens the composer in a Drawer, on that day, with the stamp as its empty state [33m 1818[2mms[22m[39m
+   [33m[2m✓[22m[39m a typed line reads back as tokens and the week sum, and Enter writes it [33m 1563[2mms[22m[39m
+   [33m[2m✓[22m[39m Styrke writes lifts through the line: the nearest name for an unknown lift, the week sum in sets, and no way off I dag (ADR 0089) [33m 21842[2mms[22m[39m
+   [33m[2m✓[22m[39m a word the reader does not know is said where it stands, with a fix, and writes nothing [33m 1864[2mms[22m[39m
+   [33m[2m✓[22m[39m Annet is chosen when writing, and the session counts in no track (owner decision 4) [33m 2350[2mms[22m[39m
+   [33m[2m✓[22m[39m a past day offers “Allerede gjort”, on, and the write says done (owner decision 5) [33m 2567[2mms[22m[39m
+   [33m[2m✓[22m[39m today and ahead have no “Allerede gjort” [33m 686[2mms[22m[39m
+   [33m[2m✓[22m[39m Bibliotek fills the line with the session as tokens; untouched, it is placed from the Catalogue [33m 2994[2mms[22m[39m
+   [33m[2m✓[22m[39m Kopier picks last week’s session; one the line cannot say is copied whole [33m 1907[2mms[22m[39m
+   [33m[2m✓[22m[39m a write that comes back with nothing keeps the composer open on what was written, and says so [33m 4488[2mms[22m[39m
+   [33m[2m✓[22m[39m the landed row carries Angre, and so does the toast — one way back (ADR 0088) [33m 3237[2mms[22m[39m
+   [33m[2m✓[22m[39m a session row and its glyph open the same Drawer at full, as the session’s details [33m 673[2mms[22m[39m
+   [33m[2m✓[22m[39m an import says what it is on the row itself: ekstra, or where a done session’s numbers will come from (audit PR D) [33m 367[2mms[22m[39m
+   [33m[2m✓[22m[39m a row built on Garmin data credits Garmin under its title, whole, and so do its details (#557) [33m 704[2mms[22m[39m
+   [33m[2m✓[22m[39m Avbryt closes the composer and writes nothing [33m 2213[2mms[22m[39m
+ [32m✓[39m app/components/forms.test.tsx [2m([22m[2m18 tests[22m[2m)[22m[33m 6917[2mms[22m[39m
+     [33m[2m✓[22m[39m applies invalid state to input fields and ties aria-describedby [33m 1286[2mms[22m[39m
+     [33m[2m✓[22m[39m applies invalid and disabled attributes for checkbox fields [33m 426[2mms[22m[39m
+     [33m[2m✓[22m[39m every field inside ReserveErrorLines keeps its line unless it opts out [33m 400[2mms[22m[39m
+     [33m[2m✓[22m[39m return on a "next" field moves to the next control, not submit [33m 1047[2mms[22m[39m
+     [33m[2m✓[22m[39m return on a "next" field submits once the fields after it are filled [33m 617[2mms[22m[39m
+     [33m[2m✓[22m[39m the code's line holds the form's error while it has none of its own [33m 539[2mms[22m[39m
+     [33m[2m✓[22m[39m a radio group field posts the chosen card, and renders no native radio [33m 706[2mms[22m[39m
+     [33m[2m✓[22m[39m a toggle group field posts each pressed pill under its name, in order [33m 458[2mms[22m[39m
+ [32m✓[39m app/routes/training/__season-chart.route.test.tsx [2m([22m[2m18 tests[22m[2m)[22m[33m 12694[2mms[22m[39m
+     [33m[2m✓[22m[39m all five plus Form are offered, and each toggles on its own [33m 3483[2mms[22m[39m
+     [33m[2m✓[22m[39m the Form layer draws nothing and says why, in plain words [33m 669[2mms[22m[39m
+     [33m[2m✓[22m[39m the projected curve carries one derivation statement for the whole line [33m 350[2mms[22m[39m
+     [33m[2m✓[22m[39m the Fitness layer declines with a reason when a week cannot be priced [33m 523[2mms[22m[39m
+     [33m[2m✓[22m[39m unit switching is a control on the chart, and not a tab [33m 406[2mms[22m[39m
+     [33m[2m✓[22m[39m opens below the chart with the week’s values, and never floats [33m 568[2mms[22m[39m
+     [33m[2m✓[22m[39m the keyboard walks the weeks and the panel follows [33m 993[2mms[22m[39m
+     [33m[2m✓[22m[39m a derived week shows the chain and the buckets it was priced from [33m 1203[2mms[22m[39m
+     [33m[2m✓[22m[39m an authored week shows no derivation, because it stands on nothing [33m 729[2mms[22m[39m
+     [33m[2m✓[22m[39m a closed conversion gate names the athlete’s own missing datum [33m 340[2mms[22m[39m
+     [33m[2m✓[22m[39m a layer turned off leaves the reading as well as the picture [33m 797[2mms[22m[39m
+     [33m[2m✓[22m[39m the ramp reads the step taken beside the rate authored for it [33m 513[2mms[22m[39m
+     [33m[2m✓[22m[39m the time axis names its own marks — a block opening and a re-anchor [33m 526[2mms[22m[39m
+   [33m[2m✓[22m[39m every value the panel can show is reachable in the hidden data table [33m 501[2mms[22m[39m
+   [33m[2m✓[22m[39m the accessible table states a derived reading is derived, in its caption [33m 421[2mms[22m[39m
+ [32m✓[39m app/components/score-stanza.test.tsx [2m([22m[2m21 tests[22m[2m)[22m[33m 1687[2mms[22m[39m
+   [33m[2m✓[22m[39m one block per line: each block is a row with a gutter, no arrows between blocks [33m 333[2mms[22m[39m
+ [32m✓[39m app/routes/_home/timeline/stream.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 5451[2mms[22m[39m
+   [33m[2m✓[22m[39m a day the plan prescribes recovery on says Rest day, and says what it means [33m 675[2mms[22m[39m
+   [33m[2m✓[22m[39m every empty day of a week is its own row, none folded into another (ADR 0086) [33m 349[2mms[22m[39m
+   [33m[2m✓[22m[39m a past free day is quieter, and can still be written into (ADR 0065 §6) [33m 1442[2mms[22m[39m
+   [33m[2m✓[22m[39m a skier’s line says what stands where no sum is, and the zone split done and planned on lines of their own [33m 308[2mms[22m[39m
+   [33m[2m✓[22m[39m a week header keeps three lines and a summary; the qualifying notes sit behind it, and in the accessible text [33m 999[2mms[22m[39m
+ [32m✓[39m app/routes/training/exercises.$exerciseId.route.test.tsx [2m([22m[2m15 tests[22m[2m)[22m[33m 3547[2mms[22m[39m
+   [33m[2m✓[22m[39m the page leads with what the lift did last time and the records read out of it [33m 390[2mms[22m[39m
+   [33m[2m✓[22m[39m the page links on to this lift's anchors, which are otherwise unreachable [33m 854[2mms[22m[39m
+   [33m[2m✓[22m[39m the session the program cut on is marked on the chart and named by a note strip that carries both weights [33m 619[2mms[22m[39m
+   [33m[2m✓[22m[39m the per-equipment variant tabs keep working beside the chart [33m 304[2mms[22m[39m
+ [32m✓[39m app/routes/settings/integrations.test.tsx [2m([22m[2m19 tests[22m[2m)[22m[33m 7011[2mms[22m[39m
+   [33m[2m✓[22m[39m connected Strava card shows plain-language state, last sync, and all three actions [33m 1391[2mms[22m[39m
+   [33m[2m✓[22m[39m "Sync now" POSTs to the existing Strava sync route [33m 617[2mms[22m[39m
+   [33m[2m✓[22m[39m disconnect asks for confirmation, then posts the disconnect intent [33m 698[2mms[22m[39m
+   [33m[2m✓[22m[39m Intervals.icu connect reveals key instructions and posts the pasted key [33m 1068[2mms[22m[39m
+   [33m[2m✓[22m[39m a rejected Intervals.icu key shows the inline error from the connect action [33m 490[2mms[22m[39m
+   [33m[2m✓[22m[39m a revoked Intervals.icu connection asks for a new key to reconnect [33m 445[2mms[22m[39m
+ [32m✓[39m app/routes/training/__strength-segment-editor.route.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 4027[2mms[22m[39m
+   [33m[2m✓[22m[39m a block the anchor opens in offers no boundary step, and says why [33m 1321[2mms[22m[39m
+   [33m[2m✓[22m[39m a block opening after the anchor authors its step as usual [33m 415[2mms[22m[39m
+   [33m[2m✓[22m[39m a re-anchor onto a later block’s opening takes that block’s step away [33m 1157[2mms[22m[39m
+   [33m[2m✓[22m[39m a block the anchor has not reached yet reads Unavailable, not re-anchored [33m 470[2mms[22m[39m
+ [32m✓[39m app/routes/settings/training/lifts.$exerciseId.route.test.tsx [2m([22m[2m15 tests[22m[2m)[22m[33m 4425[2mms[22m[39m
+   [33m[2m✓[22m[39m saving a rep max posts the rep count it is at, because the number alone is ambiguous [33m 2361[2mms[22m[39m
+ [32m✓[39m app/routes/me.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 4336[2mms[22m[39m
+   [33m[2m✓[22m[39m Form and Rekorder sit between the profile and the account sections [33m 508[2mms[22m[39m
+   [33m[2m✓[22m[39m Ukeplanen holds the Autopilot switch, showing the stored choice (#576) [33m 644[2mms[22m[39m
+   [33m[2m✓[22m[39m each term is written whole and opens its definition on a tap, not only on hover [33m 920[2mms[22m[39m
+   [33m[2m✓[22m[39m the Rekorder section lists each record with its gain and its day [33m 321[2mms[22m[39m
+   [33m[2m✓[22m[39m with no records, Rekorder has nothing derived to credit [33m 442[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.new.route.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[33m 10176[2mms[22m[39m
+   [33m[2m✓[22m[39m the flow opens by asking what the athlete is building toward, as Plan’s landing (ADR 0083, ADR 0101) [33m 1766[2mms[22m[39m
+   [33m[2m✓[22m[39m an upcoming Event is offered as the plan’s anchor [33m 662[2mms[22m[39m
+   [33m[2m✓[22m[39m an Event that already has a plan says so instead of offering itself [33m 320[2mms[22m[39m
+   [33m[2m✓[22m[39m with nothing on the calendar the athlete is pointed at the goal step [33m 363[2mms[22m[39m
+   [33m[2m✓[22m[39m setting a goal submits a named, dated goal in a discipline [33m 2077[2mms[22m[39m
+   [33m[2m✓[22m[39m “Hold meg aktiv” is offered as a plan with no race and no end [33m 1115[2mms[22m[39m
+   [33m[2m✓[22m[39m “Hold meg aktiv” submits a discipline and hours a week, pre-filled from history [33m 1531[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete who already has an open-ended plan is sent to it instead [33m 1075[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete with no plan is invited to the start above setting a season up [33m 377[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete who has a plan is not invited to the start [33m 372[2mms[22m[39m
+ [32m✓[39m app/routes/training/__workout-detail-telemetry.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 911[2mms[22m[39m
+   [33m[2m✓[22m[39m ten thousand reps alternating work and rest stay bounded, and the rests stay unpainted [33m 434[2mms[22m[39m
+ [32m✓[39m app/routes/training/__exercise-combobox.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 7256[2mms[22m[39m
+   [33m[2m✓[22m[39m typing filters the catalog by name [33m 2330[2mms[22m[39m
+   [33m[2m✓[22m[39m muscle and equipment chips narrow results and compose with the query [33m 1783[2mms[22m[39m
+   [33m[2m✓[22m[39m recently used exercises are grouped on top [33m 463[2mms[22m[39m
+   [33m[2m✓[22m[39m selecting an exercise binds its id and closes the popover [33m 477[2mms[22m[39m
+   [33m[2m✓[22m[39m inline create posts to the exercises action and selects the result [33m 1353[2mms[22m[39m
+   [33m[2m✓[22m[39m the create row only appears when there is no exact name match [33m 835[2mms[22m[39m
+ [32m✓[39m app/components/profile-bars.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 907[2mms[22m[39m
+ [32m✓[39m app/components/return-key.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 1293[2mms[22m[39m
+     [33m[2m✓[22m[39m return on a "next" field moves to the next control [33m 650[2mms[22m[39m
+ [32m✓[39m app/routes/training/__lift-chart.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 399[2mms[22m[39m
+ [32m✓[39m app/routes/training/__season-edits.route.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1507[2mms[22m[39m
+   [33m[2m✓[22m[39m a week on the plan’s own target offers no way back to it [33m 719[2mms[22m[39m
+   [33m[2m✓[22m[39m the way back is there for the hand-set track of a multi-track week [33m 331[2mms[22m[39m
+ [32m✓[39m app/routes/training/__plan-chrome.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1218[2mms[22m[39m
+   [33m[2m✓[22m[39m a closed section inside an open card points closed [33m 726[2mms[22m[39m
+ [32m✓[39m app/components/wordmark-row.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 1681[2mms[22m[39m
+   [33m[2m✓[22m[39m the wordmark links home [33m 673[2mms[22m[39m
+ [32m✓[39m app/routes/training/__phase-editor.route.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 2092[2mms[22m[39m
+   [33m[2m✓[22m[39m an existing phase is edited in Endre sesongen, pre-filled, and not on the card [33m 1018[2mms[22m[39m
+   [33m[2m✓[22m[39m the new-phase form follows the same rule, and still posts a rhythm [33m 765[2mms[22m[39m
+ [32m✓[39m app/components/shape-strip.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 137[2mms[22m[39m
+ [32m✓[39m app/routes/settings/training/resultater.route.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 1775[2mms[22m[39m
+   [33m[2m✓[22m[39m a refused time is shown at the field and announced [33m 901[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting a result moves focus to the list heading, not to the page [33m 396[2mms[22m[39m
+   [33m[2m✓[22m[39m a delete that fails brings the row back with focus on its button [33m 468[2mms[22m[39m
+ [32m✓[39m app/routes/training/__philosophy-switch.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 400[2mms[22m[39m
+   [33m[2m✓[22m[39m the Filosofi card names the philosophy the plan follows, and what it is [33m 348[2mms[22m[39m
+ [32m✓[39m app/components/ui/toggle-group.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 621[2mms[22m[39m
+   [33m[2m✓[22m[39m a segmented control switches the pressed item [33m 491[2mms[22m[39m
+ [32m✓[39m app/components/ui/select.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 555[2mms[22m[39m
+   [33m[2m✓[22m[39m the trigger renders exactly one dropdown indicator [33m 490[2mms[22m[39m
+ [32m✓[39m app/components/floating-toolbar.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 88[2mms[22m[39m
+ [32m✓[39m app/components/create-menu.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 224[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.route.test.tsx [2m([22m[2m138 tests[22m[2m)[22m[33m 188887[2mms[22m[39m
+   [33m[2m✓[22m[39m Plan opens on the plain name with the family small and the next easy week [33m 2353[2mms[22m[39m
+   [33m[2m✓[22m[39m an open-ended plan offers Legg til et løp in the lead [33m 693[2mms[22m[39m
+   [33m[2m✓[22m[39m Bytt treningsform comes after Legg til et løp in the lead, and its preview leaves Avansert closed [33m 3513[2mms[22m[39m
+   [33m[2m✓[22m[39m Avansert is closed by default, under Bibliotek, and holds the Sesong editors [33m 2033[2mms[22m[39m
+   [33m[2m✓[22m[39m a link to a reading or an edit lands on Avansert open [33m 2164[2mms[22m[39m
+   [33m[2m✓[22m[39m the season names its Event, its length and where it ends against it [33m 908[2mms[22m[39m
+   [33m[2m✓[22m[39m Plan is a tab: no way back, and the Events it plans around are on it (ADR 0083, ADR 0101) [33m 1703[2mms[22m[39m
+   [33m[2m✓[22m[39m a plan that is not finished says what is left, and where to do it [33m 1467[2mms[22m[39m
+   [33m[2m✓[22m[39m a step closes when the plan actually has the thing, not when a flag is set [33m 441[2mms[22m[39m
+   [33m[2m✓[22m[39m the track reads its own currency and its authored anchor [33m 403[2mms[22m[39m
+   [33m[2m✓[22m[39m a track’s line never wraps with its separator leading the next line [33m 603[2mms[22m[39m
+   [33m[2m✓[22m[39m the Blocks reading lists the phases in order with their spans and rhythm [33m 568[2mms[22m[39m
+   [33m[2m✓[22m[39m the Weeks reading shows each week’s role and its derived target [33m 3059[2mms[22m[39m
+   [33m[2m✓[22m[39m a week’s chevron says whether that week is open, not whether anything around it is [33m 1129[2mms[22m[39m
+   [33m[2m✓[22m[39m a week opens its target edit in Endre sesongen, pre-filled for that week and track [33m 3458[2mms[22m[39m
+   [33m[2m✓[22m[39m a week already begun shows its target and offers no edit [33m 1320[2mms[22m[39m
+   [33m[2m✓[22m[39m where a week changes, and what 0 means, is stated once under the weeks [33m 416[2mms[22m[39m
+   [33m[2m✓[22m[39m a hand-set week is marked, and says what the rule would give instead [33m 1247[2mms[22m[39m
+   [33m[2m✓[22m[39m a hand-set week the rule cannot price says so [33m 897[2mms[22m[39m
+   [33m[2m✓[22m[39m a week hand-set to 0 reads as a week without training, not as nothing [33m 956[2mms[22m[39m
+   [33m[2m✓[22m[39m a week a track cannot price can still have its target set [33m 2230[2mms[22m[39m
+   [33m[2m✓[22m[39m both readings are reachable, and the current one says so [33m 1372[2mms[22m[39m
+   [33m[2m✓[22m[39m switching reading keeps the season being read [33m 1614[2mms[22m[39m
+   [33m[2m✓[22m[39m every phase links to its own edit in Endre sesongen, and edits no name, length or rhythm itself [33m 3943[2mms[22m[39m
+   [33m[2m✓[22m[39m the season’s ends have nothing to swap with, and say so [33m 4391[2mms[22m[39m
+   [33m[2m✓[22m[39m a plan’s only phase cannot be removed — that would be deleting the plan [33m 1726[2mms[22m[39m
+   [33m[2m✓[22m[39m two phases with the same name do not both read as current — position does [33m 26117[2mms[22m[39m
+   [33m[2m✓[22m[39m the recovery weeks of the chosen rhythm are marked before saving [33m 525[2mms[22m[39m
+   [33m[2m✓[22m[39m a phase is added at a position, and the copy promises the start week stays [33m 4659[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting is confirmed, and the confirmation says what stays [33m 3872[2mms[22m[39m
+   [33m[2m✓[22m[39m a refused edit is said at the top of the reading that asked for it [33m 6556[2mms[22m[39m
+   [33m[2m✓[22m[39m a single-track plan reads its Season Span, with the total behind it [33m 463[2mms[22m[39m
+   [33m[2m✓[22m[39m a single-track headline names no discipline and carries no marker [33m 450[2mms[22m[39m
+   [33m[2m✓[22m[39m a runner who lifts reads two spans, each named, neither derived [33m 341[2mms[22m[39m
+   [33m[2m✓[22m[39m an accumulated span is marked derived, names its tracks and says why it adds up [33m 384[2mms[22m[39m
+   [33m[2m✓[22m[39m an accumulated hours span says it is calendar cost and not a dose [33m 372[2mms[22m[39m
+   [33m[2m✓[22m[39m the roster offers only the disciplines the plan does not already measure [33m 4029[2mms[22m[39m
+   [33m[2m✓[22m[39m adding a track posts its discipline, its unit and its first anchor in one act [33m 3504[2mms[22m[39m
+   [33m[2m✓[22m[39m a strength track states its unit rather than offering a dead picker [33m 3882[2mms[22m[39m
+   [33m[2m✓[22m[39m the add form proposes the unit the athlete’s own history is measured in [33m 1958[2mms[22m[39m
+   [33m[2m✓[22m[39m a partly-trained window says how many weeks it read [33m 2623[2mms[22m[39m
+   [33m[2m✓[22m[39m with no history the add form asks for the unit rather than preselecting one [33m 1172[2mms[22m[39m
+   [33m[2m✓[22m[39m switching the unit brings that unit’s own figure, not the first one relabelled [33m 3886[2mms[22m[39m
+   [33m[2m✓[22m[39m switching the discipline brings that discipline’s figure, same unit or not [33m 3150[2mms[22m[39m
+   [33m[2m✓[22m[39m the only track offers no remove control [33m 327[2mms[22m[39m
+   [33m[2m✓[22m[39m removing a track is confirmed, and says the phases stay [33m 2195[2mms[22m[39m
+   [33m[2m✓[22m[39m an authored ramp shows the number the athlete typed [33m 769[2mms[22m[39m
+   [33m[2m✓[22m[39m an unset ramp is blank and says the block holds level [33m 1802[2mms[22m[39m
+   [33m[2m✓[22m[39m an unset cut reads as the convention, not as the convention’s number [33m 1820[2mms[22m[39m
+   [33m[2m✓[22m[39m an authored cut of the convention’s own size is visibly the athlete’s [33m 2068[2mms[22m[39m
+   [33m[2m✓[22m[39m the season’s opening block offers no boundary step, and says why [33m 1824[2mms[22m[39m
+   [33m[2m✓[22m[39m a later block authors a boundary step at its opening [33m 1812[2mms[22m[39m
+   [33m[2m✓[22m[39m re-anchoring onto a later block’s opening takes its step away [33m 1300[2mms[22m[39m
+   [33m[2m✓[22m[39m a block no anchor reaches says there is no level for a step to move [33m 1184[2mms[22m[39m
+   [33m[2m✓[22m[39m a taper cut is offered only where the phase tapers [33m 1095[2mms[22m[39m
+   [33m[2m✓[22m[39m a rate with no field for it still travels, so saving cannot clear it [33m 1471[2mms[22m[39m
+   [33m[2m✓[22m[39m the guard names the block and the authored number [33m 902[2mms[22m[39m
+   [33m[2m✓[22m[39m the guard’s copy is a convention and makes no injury claim [33m 1507[2mms[22m[39m
+   [33m[2m✓[22m[39m every guard arrives open, and each offers to be closed by name [33m 1588[2mms[22m[39m
+   [33m[2m✓[22m[39m the fit check names a clashing day and why, under the counts it keeps [33m 472[2mms[22m[39m
+   [33m[2m✓[22m[39m a guard the athlete has read and decided about closes, alone [33m 2400[2mms[22m[39m
+   [33m[2m✓[22m[39m the mix offers one field per quality zone, and no fourth kind of work [33m 1857[2mms[22m[39m
+   [33m[2m✓[22m[39m a zone in the mix shows its count, and one that is not shows blank [33m 1101[2mms[22m[39m
+   [33m[2m✓[22m[39m the emphasis label and the count are read off the mix [33m 1208[2mms[22m[39m
+   [33m[2m✓[22m[39m an empty mix reads as no quality sessions, never as unknown [33m 1522[2mms[22m[39m
+   [33m[2m✓[22m[39m neither derived reading is a control the athlete could type into [33m 1835[2mms[22m[39m
+   [33m[2m✓[22m[39m a week span that outruns the trainable weekdays is noted, and blocks nothing [33m 1475[2mms[22m[39m
+   [33m[2m✓[22m[39m a single over-capacity week states its hours flatly, with no "up to" [33m 312[2mms[22m[39m
+   [33m[2m✓[22m[39m every shape is on offer, five families at three lengths, each with an Apply [33m 3167[2mms[22m[39m
+   [33m[2m✓[22m[39m once the plan has begun, no shape is offered: Bytt filosofi is, behind its preview [33m 1680[2mms[22m[39m
+   [33m[2m✓[22m[39m the edits outside Sesong v1 wait behind Avansert, which says they apply directly [33m 882[2mms[22m[39m
+   [33m[2m✓[22m[39m the gallery states the fitting rule: base first, taper never [33m 2687[2mms[22m[39m
+   [33m[2m✓[22m[39m a shape is chosen from a picture of the load profile it lays down [33m 2152[2mms[22m[39m
+   [33m[2m✓[22m[39m the picture’s numbers are reachable, not only its pixels [33m 1374[2mms[22m[39m
+   [33m[2m✓[22m[39m the ramp is stated as a convention and claims nothing about injury [33m 1535[2mms[22m[39m
+   [33m[2m✓[22m[39m the two cuts read as the convention’s, never as the shape’s own [33m 831[2mms[22m[39m
+   [33m[2m✓[22m[39m a card names what makes its shape different from the others [33m 673[2mms[22m[39m
+   [33m[2m✓[22m[39m applying replaces the blocks, and the card says so without blocking [33m 843[2mms[22m[39m
+   [33m[2m✓[22m[39m a card posts the shape it shows, against the plan being read [33m 701[2mms[22m[39m
+   [33m[2m✓[22m[39m the gallery says the plan is not stretched to reach the event [33m 681[2mms[22m[39m
+   [33m[2m✓[22m[39m the pattern lists its days Monday-first, each with its track and its kind [33m 354[2mms[22m[39m
+   [33m[2m✓[22m[39m each day says what it resolves to against the chosen week’s real target [33m 326[2mms[22m[39m
+   [33m[2m✓[22m[39m the totals say the week’s target, the fixed volume and the remainder [33m 306[2mms[22m[39m
+   [33m[2m✓[22m[39m a different week resolves to different volumes, from that week’s own target [33m 441[2mms[22m[39m
+   [33m[2m✓[22m[39m a week with no derived target reads Unavailable with its reason, never 0 [33m 492[2mms[22m[39m
+   [33m[2m✓[22m[39m a prescribed session the currency cannot read costs the shares their number [33m 428[2mms[22m[39m
+   [33m[2m✓[22m[39m fixed days over the week’s target warn, and nothing claims to correct them [33m 421[2mms[22m[39m
+   [33m[2m✓[22m[39m a pattern at either end of the order has nothing to swap with [33m 464[2mms[22m[39m
+   [33m[2m✓[22m[39m two sessions on one weekday are orderable, and the ends are disabled [33m 324[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting a pattern is confirmed, and the confirmation says what stays [33m 555[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting a pattern with no days yet reads as a sentence, never “its 0 days” [33m 594[2mms[22m[39m
+   [33m[2m✓[22m[39m a day is added by weekday, track and kind — and by no volume or zone [33m 464[2mms[22m[39m
+   [33m[2m✓[22m[39m choosing a share day asks for its weight, and a fixed one for its workout [33m 842[2mms[22m[39m
+   [33m[2m✓[22m[39m a share day opens with no shape, and never inherits the fixed day’s workout [33m 900[2mms[22m[39m
+   [33m[2m✓[22m[39m the kind selector names the kind, and the rule is said under the field [33m 680[2mms[22m[39m
+   [33m[2m✓[22m[39m the workout picker offers only the chosen track’s own discipline [33m 624[2mms[22m[39m
+   [33m[2m✓[22m[39m a track with no workout of its own discipline offers no fixed day, and says why [33m 713[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete with no workouts is told why, and pointed at authoring one [33m 493[2mms[22m[39m
+   [33m[2m✓[22m[39m the chosen week is URL state, and travels with the season being read [33m 743[2mms[22m[39m
+   [33m[2m✓[22m[39m the plan’s first week needs no param, exactly like the default reading [33m 429[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete with no pattern reads that, and is offered one [33m 517[2mms[22m[39m
+   [33m[2m✓[22m[39m the starter week names the athlete’s own days, or says it is a convention [33m 556[2mms[22m[39m
+   [33m[2m✓[22m[39m a refused pattern edit is said at the top of the reading that asked for it [33m 577[2mms[22m[39m
+   [33m[2m✓[22m[39m a lifting block is laid out along the plan’s weeks, not on a phase [33m 597[2mms[22m[39m
+   [33m[2m✓[22m[39m the section says what `sets` means and attaches no citable range to it [33m 542[2mms[22m[39m
+   [33m[2m✓[22m[39m the derived band moves with the goal, and there is no input for it [33m 744[2mms[22m[39m
+   [33m[2m✓[22m[39m nothing on a lifting block derives sets a week from the goal [33m 857[2mms[22m[39m
+   [33m[2m✓[22m[39m an unset deload cut reads as the convention, and an authored one as theirs [33m 719[2mms[22m[39m
+   [33m[2m✓[22m[39m a dismissed band note comes back when the goal moves the band [33m 1029[2mms[22m[39m
+   [33m[2m✓[22m[39m each Unavailable reading gets its own sentence and its own reason [33m 440[2mms[22m[39m
+   [33m[2m✓[22m[39m the lifter reads what the plan cannot tell them while authoring blocks [33m 893[2mms[22m[39m
+   [33m[2m✓[22m[39m a block whose window fell out of the plan is shown rather than hidden [33m 622[2mms[22m[39m
+   [33m[2m✓[22m[39m a strength track with no blocks says every week is no lifting [33m 814[2mms[22m[39m
+   [33m[2m✓[22m[39m the anchor list says the athlete re-anchored, from when and to what [33m 627[2mms[22m[39m
+   [33m[2m✓[22m[39m the earliest anchor cannot be removed, and the row says why [33m 653[2mms[22m[39m
+   [33m[2m✓[22m[39m an anchor row edits its value, and offers no unit anywhere [33m 637[2mms[22m[39m
+   [33m[2m✓[22m[39m the re-anchor form offers only weeks that carry no anchor yet [33m 834[2mms[22m[39m
+   [33m[2m✓[22m[39m weeks before the first anchor are named as Unavailable, never guessed [33m 489[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m29 passed[39m[22m[90m (29)[39m
+[2m      Tests [22m [1m[32m432 passed[39m[22m[90m (432)[39m
+[2m   Start at [22m 18:21:20
+[2m   Duration [22m 232.82s[2m (transform 63.49s, setup 124.99s, import 99.23s, tests 337.26s, environment 60.94s)[22m
+
