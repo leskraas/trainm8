@@ -1,0 +1,161 @@
+# Off-scale radii and raw text sizes left in page code, origin/main 790ac7f
+# pattern: rounded-(sm|md|lg|xl) | text-(xs|sm|base|lg|xl|2xl|3xl); excludes app/components/ui, __prototype*, tests, _marketing, _auth
+app/components/chart/chart.tsx:443:					className="bg-muted/40 text-foreground mt-3 min-h-16 rounded-xl p-3 text-sm"
+app/routes/_home/__autopilot-notice.tsx:323:					'pressable h-12 w-full rounded-full text-base',
+app/routes/_home/__bytt-okt.tsx:194:					className="text-base"
+app/routes/_home/__calm-today-view.tsx:353:							'h-12 w-full text-base font-semibold',
+app/routes/_home/__calm-today-view.tsx:429:						'mt-1 h-12 w-full rounded-full text-base',
+app/routes/_home/__calm-today-view.tsx:485:					'mt-1 h-12 w-full text-base font-semibold',
+app/routes/_home/index.tsx:111:						className="animate-slide-top text-muted-foreground xl:animate-slide-left mt-6 text-xl/7 [animation-delay:0.8s] [animation-fill-mode:backwards] xl:mt-8 xl:text-xl/6 xl:leading-10 xl:[animation-delay:1s] xl:[animation-fill-mode:backwards]"
+app/routes/_home/timeline/composer.tsx:626:						className="border-border bg-background h-9 rounded-xl border px-2 text-[16px]"
+app/routes/_home/timeline/composer.tsx:1333:				className="border-border bg-background text-foreground h-11 w-20 rounded-xl border px-3 text-[16px] tabular-nums"
+app/routes/_home/timeline/import-actions.tsx:286:						'h-12 w-full gap-2 text-base font-semibold disabled:opacity-70',
+app/routes/_home/timeline/season-pane.tsx:439:							className="pressable focus-visible:outline-ring w-full rounded-sm text-left tabular-nums focus-visible:outline-2"
+app/routes/_home/timeline/strength-log-panel.tsx:423:					className="size-11 shrink-0 rounded-full text-lg"
+app/routes/_home/timeline/strength-log-panel.tsx:460:					className="size-11 shrink-0 rounded-full text-lg"
+app/routes/_home/timeline/week-strip.tsx:361:						className="relative flex h-11 [touch-action:none] items-stretch overflow-hidden rounded-xl"
+app/routes/_home/timeline/week-strip.tsx:389:								className="border-primary pointer-events-none absolute inset-y-0 rounded-lg border-2"
+app/routes/_home/timeline/week-strip.tsx:470:			className="text-muted-foreground pressable relative flex h-11 w-7 flex-none flex-col items-center justify-center rounded-lg text-[10px]/[1] font-semibold tabular-nums after:absolute after:-inset-x-2 after:inset-y-0 disabled:opacity-40"
+app/routes/admin/cache/index.tsx:123:						<div className="text-muted-foreground flex h-16 w-14 items-center text-lg font-medium">
+app/routes/admin/moderation.tsx:118:			<p className="text-muted-foreground mb-6 text-sm">
+app/routes/admin/moderation.tsx:123:				<p className="text-muted-foreground text-sm" data-empty-queue>
+app/routes/admin/moderation.tsx:133:										<CardTitle className="text-base font-bold tracking-tight">
+app/routes/admin/moderation.tsx:159:										<p className="text-body-sm rounded-xl border p-3">
+app/routes/admin/moderation.tsx:209:			<p className="text-muted-foreground mt-8 text-sm">
+app/routes/settings/__meg-ui.tsx:254:				className={cn('md:text-base', inputProps.className)}
+app/routes/settings/__meg-ui.tsx:297:					className="w-full md:text-base"
+app/routes/settings/integrations.tsx:246:				'grid size-10 flex-none place-items-center rounded-2xl text-sm font-bold',
+app/routes/settings/training/lifts.$exerciseId.tsx:453:							<SelectTrigger id="construct" className="w-full md:text-base">
+app/routes/settings/training/resultater.tsx:292:					<SelectTrigger id="result-anchor" className="w-full md:text-base">
+app/routes/start/__first-run-frame.tsx:94: * on a phone (it was a hand-made `rounded-xl` copy beside the real pill).
+app/routes/start/niva.tsx:425:	'text-footnote text-muted-foreground decoration-muted-foreground/40 hover:text-foreground active:bg-muted/60 focus-visible:ring-ring/30 -mx-2 flex min-h-11 max-w-full items-center rounded-lg px-2 py-2 underline underline-offset-4 outline-none [text-wrap:pretty] [-webkit-tap-highlight-color:transparent] focus-visible:ring-3'
+app/routes/training/__attach-event.tsx:160:							className: 'text-base',
+app/routes/training/__attach-event.tsx:168:							className: 'text-base',
+app/routes/training/__blocks-reading.tsx:142:				<p role="alert" className="text-destructive text-sm">
+app/routes/training/__blocks-reading.tsx:323:							<p className="text-sm font-medium">
+app/routes/training/__blocks-reading.tsx:326:							<p className="text-muted-foreground text-sm">
+app/routes/training/__empty-state.tsx:54:						<span className="text-muted-foreground text-xs">
+app/routes/training/__empty-state.tsx:162:	'text-muted-foreground hover:bg-accent hover:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring inline-flex min-h-11 cursor-pointer items-center rounded-2xl px-2 text-sm outline-none focus-visible:ring-2'
+app/routes/training/__empty-state.tsx:187:					<span className="text-muted-foreground group-hover:text-foreground text-xs font-medium">
+app/routes/training/__empty-state.tsx:216:				<span className="bg-muted rounded-sm px-1.5 py-0.5 font-mono text-xs font-bold tabular-nums">
+app/routes/training/__exercise-combobox.tsx:78:	'bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 duration-press flex h-11 w-full items-center justify-between gap-1.5 rounded-3xl border border-transparent px-3 py-2 text-base whitespace-nowrap transition-[color,box-shadow,background-color] ease-out outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm'
+app/routes/training/__fit-to-event.tsx:39:			<p className="text-muted-foreground text-sm">
+app/routes/training/__intensity-popover.tsx:240:								'hover:text-foreground focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-lg px-1.5 text-sm outline-none focus-visible:ring-2',
+app/routes/training/__intensity-popover.tsx:342:							'pressable min-h-11 min-w-11 flex-1 cursor-pointer rounded-2xl px-2 text-sm font-semibold outline-none [font-variant-caps:small-caps]',
+app/routes/training/__intensity-popover.tsx:653:						'focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-full px-3 text-sm outline-none focus-visible:ring-2',
+app/routes/training/__intensity-popover.tsx:782:					className="size-11 shrink-0 rounded-3xl text-lg"
+app/routes/training/__intensity-popover.tsx:793:					className="bg-input/50 focus-visible:ring-ring/30 duration-press h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-1 text-center text-base font-medium tabular-nums transition-[box-shadow] ease-out outline-none focus-visible:ring-3"
+app/routes/training/__intensity-popover.tsx:801:					className="size-11 shrink-0 rounded-3xl text-lg"
+app/routes/training/__phase-editor.tsx:171:				<p className="text-muted-foreground pb-2 text-sm">{reading}</p>
+app/routes/training/__phase-editor.tsx:182:					<p className="text-sm">{NB_RHYTHM_CHOICE_LABELS[phase.rhythm]}</p>
+app/routes/training/__phase-editor.tsx:290:					<p className="text-muted-foreground text-sm">
+app/routes/training/__phase-editor.tsx:392:			<p className="text-muted-foreground text-sm">
+app/routes/training/__phase-editor.tsx:487:				<p className="text-muted-foreground text-sm">
+app/routes/training/__phase-editor.tsx:531:			<p className="text-muted-foreground text-sm">
+app/routes/training/__plan-chrome.tsx:190:				'text-foreground gap-4 text-base [--card-spacing:--spacing(4)] md:[--card-spacing:--spacing(6)]',
+app/routes/training/__plan-chrome.tsx:314:					<span className="block text-sm font-medium">{summary}</span>
+app/routes/training/__plan-chrome.tsx:316:						<span className="text-muted-foreground block text-xs">
+app/routes/training/__season-anchor-editor.tsx:401:				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
+app/routes/training/__season-anchor-editor.tsx:409:				<p className="text-muted-foreground text-sm">
+app/routes/training/__season-edits.tsx:151:	'relative my-2.5 w-fit text-sm underline touch-manipulation after:absolute after:inset-x-0 after:-inset-y-3'
+app/routes/training/__season-edits.tsx:347:					className: 'text-sm font-medium',
+app/routes/training/__season-edits.tsx:355:				<p className="text-muted-foreground text-sm" data-season-edit-current>
+app/routes/training/__season-edits.tsx:370:						className: 'text-sm font-medium',
+app/routes/training/__season-edits.tsx:388:					className: 'text-base',
+app/routes/training/__season-edits.tsx:432:					className: 'text-sm font-medium',
+app/routes/training/__season-edits.tsx:447:					className: 'text-base',
+app/routes/training/__season-edits.tsx:457:					className: 'text-base',
+app/routes/training/__season-edits.tsx:465:					className: 'text-sm font-medium',
+app/routes/training/__season-edits.tsx:480:					className: 'text-sm font-medium',
+app/routes/training/__season-edits.tsx:532:					className: 'text-sm font-medium',
+app/routes/training/__season-edits.tsx:540:				<p className="text-muted-foreground text-sm" data-season-edit-current>
+app/routes/training/__segment-editor.tsx:195:			<p className="text-muted-foreground mt-1 text-sm">{meaning}</p>
+app/routes/training/__segment-editor.tsx:341:				<p className="text-sm font-medium">
+app/routes/training/__segment-editor.tsx:384:						<p className="text-muted-foreground self-end text-sm">
+app/routes/training/__segment-editor.tsx:516:			<p className="text-sm font-medium">
+app/routes/training/__segment-editor.tsx:519:			<p className="text-muted-foreground text-sm">
+app/routes/training/__segment-editor.tsx:561:			<dl className="text-sm">
+app/routes/training/__segment-editor.tsx:575:			<p className="text-muted-foreground text-sm">
+app/routes/training/__sets-popover.tsx:79:	'text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-sm px-1 text-sm outline-none focus-visible:ring-2'
+app/routes/training/__sets-popover.tsx:261:					<span className="text-foreground flex-1 text-center text-base font-semibold">
+app/routes/training/__sets-popover.tsx:268:				<span className="text-muted-foreground text-xs">{S.of}</span>
+app/routes/training/__sets-popover.tsx:372:				<span className="text-foreground text-base font-medium">
+app/routes/training/__sets-popover.tsx:375:				<span className="text-muted-foreground text-xs">
+app/routes/training/__sets-popover.tsx:429:				className="size-11 shrink-0 rounded-lg text-lg"
+app/routes/training/__sets-popover.tsx:440:				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-2 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
+app/routes/training/__sets-popover.tsx:456:				className="size-11 shrink-0 rounded-lg text-lg"
+app/routes/training/__sets-popover.tsx:578:		'border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 rounded-lg border px-2 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2'
+app/routes/training/__sets-popover.tsx:603:			className="border-border/70 flex flex-col gap-1.5 rounded-lg border p-2"
+app/routes/training/__sets-popover.tsx:674:					<span className="text-muted-foreground flex-1 text-center text-sm">
+app/routes/training/__sets-popover.tsx:711:						className="text-foreground flex-1 text-center text-sm font-medium"
+app/routes/training/__sets-popover.tsx:747:					<span className="text-muted-foreground text-xs">{S.restBetween}</span>
+app/routes/training/__strength-segment-editor.tsx:487:				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
+app/routes/training/__strength-segment-editor.tsx:776:						<p className="text-muted-foreground self-end text-sm">
+app/routes/training/__strength-segment-editor.tsx:800:			<p className="text-muted-foreground text-sm">
+app/routes/training/__strength-segment-editor.tsx:858:			<dl className="text-sm">
+app/routes/training/__strength-segment-editor.tsx:919:			<p className="text-muted-foreground mt-1 text-sm">{meaning}</p>
+app/routes/training/__token-editor-controls.tsx:216:				className="size-11 shrink-0 rounded-lg text-lg"
+app/routes/training/__token-editor-controls.tsx:226:				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-3 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
+app/routes/training/__token-editor-controls.tsx:236:				className="size-11 shrink-0 rounded-lg text-lg"
+app/routes/training/__token-sentence-editor.tsx:526:	'text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground active:bg-accent active:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring relative -my-1.5 inline-flex min-h-[22px] min-w-[22px] cursor-pointer items-center justify-center self-center rounded-sm px-0.5 text-[0.85em] leading-none select-none outline-none after:absolute after:inset-x-0 after:-inset-y-2 focus-visible:ring-2 max-sm:min-h-[30px] max-sm:min-w-[30px]'
+app/routes/training/__token-sentence-editor.tsx:1548:														<span className="text-muted-foreground text-xs text-wrap">
+app/routes/training/__token-sentence-editor.tsx:1857:				className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-lg border px-3 text-base outline-none focus-visible:ring-2"
+app/routes/training/__token-sentence-editor.tsx:2135:						className="text-base"
+app/routes/training/__token-sentence-editor.tsx:2274:				<p className="text-muted-foreground text-xs">{C.noQuantity}</p>
+app/routes/training/__token-sentence-editor.tsx:2354:			<span className="text-muted-foreground text-xs">{C.discipline}</span>
+app/routes/training/__track-editor.tsx:158:						className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+app/routes/training/__validation-summary.tsx:230:			className="text-destructive max-w-64 px-2 py-1.5 text-xs font-normal text-wrap"
+app/routes/training/__validation-summary.tsx:253:				<p key={message} className="text-destructive text-xs">
+app/routes/training/__week-pattern-editor.tsx:473:				<div className="text-sm">
+app/routes/training/__week-pattern-editor.tsx:496:				<p className="text-sm font-medium tabular-nums">
+app/routes/training/__week-pattern-editor.tsx:510:				<p className="text-muted-foreground text-sm">
+app/routes/training/__weeks-reading.tsx:59:			<p className="text-sm font-medium">
+app/routes/training/__weeks-reading.tsx:63:				<p className="text-muted-foreground text-sm">
+app/routes/training/__weeks-reading.tsx:107:		<span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+app/routes/training/__weeks-reading.tsx:216:				<p role="alert" className="text-destructive text-sm">
+app/routes/training/__weeks-reading.tsx:314:					<p className="text-muted-foreground text-sm">
+app/routes/training/__weeks-reading.tsx:323:						<p key={track.discipline} className="text-muted-foreground text-sm">
+app/routes/training/__weeks-reading.tsx:328:						<p className="text-muted-foreground text-sm">
+app/routes/training/__workout-detail-telemetry.tsx:459:							<span className="bg-primary/20 ring-primary/50 size-3 rounded-sm ring-1" />{' '}
+app/routes/training/__workout-detail-telemetry.tsx:465:							<span className="bg-muted-foreground/20 size-3 rounded-sm" />{' '}
+app/routes/training/__workout-detail-telemetry.tsx:839:						className="bg-primary/30 ring-primary/60 size-2 shrink-0 rounded-sm ring-1"
+app/routes/training/__workout-editor.tsx:123:			<div className="border-border/70 bg-muted/20 rounded-lg border p-3">
+app/routes/training/__workout-editor.tsx:143:					className="border-border/70 bg-muted/20 rounded-lg border p-3"
+app/routes/training/plan.new.tsx:355:					'h-12 w-full text-base font-semibold sm:w-auto sm:px-8',
+app/routes/training/plan.tsx:1116:							<p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+app/routes/training/plan.tsx:1131:						{/* `text-xl`, not the page title's size: two spans sit side by side on
+app/routes/training/plan.tsx:1135:						<p className="text-xl font-semibold tracking-tight text-balance tabular-nums">
+app/routes/training/plan.tsx:1139:						<p className="text-muted-foreground text-sm">
+app/routes/training/sessions.$sessionId.tsx:1262:				className="focus-visible:ring-ring decoration-muted-foreground text-foreground relative rounded-sm font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:top-1/2 after:left-1/2 after:size-11 after:min-w-full after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:ring-2"
+
+# zone-* call sites (only :root values, no .dark)
+app/components/profile-bars.tsx:11: * The zone hues are the app's `zone-1…5` tokens (#505 round 2), the same five
+app/components/profile-bars.tsx:17:	1: 'bg-zone-1',
+app/components/profile-bars.tsx:18:	2: 'bg-zone-2',
+app/components/profile-bars.tsx:19:	3: 'bg-zone-3',
+app/components/profile-bars.tsx:20:	4: 'bg-zone-4',
+app/components/profile-bars.tsx:21:	5: 'bg-zone-5',
+app/components/profile-bars.tsx:35: * a zone-5 bar is still the tallest thing in the band, so a hard session and an
+app/components/score-stanza.tsx:305:	1: 'bg-[color-mix(in_srgb,var(--zone-1)_22%,var(--card))]',
+app/components/score-stanza.tsx:306:	2: 'bg-[color-mix(in_srgb,var(--zone-2)_22%,var(--card))]',
+app/components/score-stanza.tsx:307:	3: 'bg-[color-mix(in_srgb,var(--zone-3)_26%,var(--card))]',
+app/components/score-stanza.tsx:308:	4: 'bg-[color-mix(in_srgb,var(--zone-4)_24%,var(--card))]',
+app/components/score-stanza.tsx:309:	5: 'bg-[color-mix(in_srgb,var(--zone-5)_22%,var(--card))]',
+app/components/shape-strip.tsx:11:	1: 'bg-zone-1',
+app/components/shape-strip.tsx:12:	2: 'bg-zone-2',
+app/components/shape-strip.tsx:13:	3: 'bg-zone-3',
+app/components/shape-strip.tsx:14:	4: 'bg-zone-4',
+app/components/shape-strip.tsx:15:	5: 'bg-zone-5',
+app/routes/training/__season-chart.tsx:215:	3: 'bg-zone-3',
+app/routes/training/__season-chart.tsx:216:	4: 'bg-zone-4',
+app/routes/training/__season-chart.tsx:217:	5: 'bg-zone-5',
+app/styles/tailwind.css:183:	--zone-1: #5f9fe0;
+app/styles/tailwind.css:184:	--zone-2: #3fae7d;
+app/styles/tailwind.css:185:	--zone-3: #d9b13b;
+app/styles/tailwind.css:186:	--zone-4: #e08a3c;
+app/styles/tailwind.css:187:	--zone-5: #d95757;
+app/styles/tailwind.css:316:	--color-zone-1: var(--zone-1);
+app/styles/tailwind.css:317:	--color-zone-2: var(--zone-2);
+app/styles/tailwind.css:318:	--color-zone-3: var(--zone-3);
+app/styles/tailwind.css:319:	--color-zone-4: var(--zone-4);
+app/styles/tailwind.css:320:	--color-zone-5: var(--zone-5);
