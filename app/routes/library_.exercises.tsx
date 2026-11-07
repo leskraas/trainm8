@@ -168,7 +168,7 @@ export default function LibraryExercisesRoute({
 									</span>
 								) : null}
 								{exercise.own ? (
-									<span className="text-caption text-muted-foreground ml-2">
+									<span className="text-caption text-muted-foreground ml-2 font-normal">
 										{EXERCISE_LIST_LABELS.own}
 									</span>
 								) : null}

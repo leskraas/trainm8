@@ -539,7 +539,7 @@ function ControlRow({
 }) {
 	return (
 		<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-			<span className="text-caption text-muted-foreground w-14 shrink-0">
+			<span className="text-caption text-muted-foreground w-14 shrink-0 font-normal">
 				{label}
 			</span>
 			{children}
@@ -827,7 +827,7 @@ function VolumeOverlay({
 	return (
 		<>
 			<span
-				className="text-muted-foreground text-caption absolute left-1 tabular-nums"
+				className="text-muted-foreground text-caption absolute left-1 font-normal tabular-nums"
 				style={{ top: topPct(AXIS_CAPTION_TOP) }}
 			>
 				{yMax} {NB_WEEKLY_UNITS[axis.currency]}
@@ -852,7 +852,7 @@ function VolumeOverlay({
 				week.volume.available ? null : (
 					<span
 						key={`na-${week.weekKey}`}
-						className="text-muted-foreground text-caption absolute -translate-x-1/2 -translate-y-full"
+						className="text-muted-foreground text-caption absolute -translate-x-1/2 -translate-y-full font-normal"
 						style={{ left: leftPct(slotCenter(i)), top: topPct(baselineY - 6) }}
 					>
 						{SESONG_CHART_LABELS.na}
@@ -897,7 +897,7 @@ function VolumeOverlay({
 				i % numberEvery === 0 ? (
 					<span
 						key={`num-${week.weekKey}`}
-						className="text-muted-foreground text-caption absolute -translate-x-1/2 tabular-nums"
+						className="text-muted-foreground text-caption absolute -translate-x-1/2 font-normal tabular-nums"
 						style={{
 							left: leftPct(slotCenter(i)),
 							top: topPct(baselineY + 34),
@@ -983,7 +983,7 @@ function FitnessPanel({
 				)}
 				renderOverlay={(geom) => (
 					<span
-						className="text-muted-foreground text-caption absolute left-1 tabular-nums"
+						className="text-muted-foreground text-caption absolute left-1 font-normal tabular-nums"
 						style={{ top: geom.topPct(2) }}
 					>
 						{yMax} CTL
@@ -1006,7 +1006,7 @@ function FitnessPanel({
 			/>
 			{/* One derivation statement for the whole curve, never a note per point
 			    (ADR 0045 §10). */}
-			<p className="text-muted-foreground text-caption">
+			<p className="text-muted-foreground text-caption font-normal">
 				{projectionBasisSentence(fitness)}
 			</p>
 		</div>
@@ -1149,7 +1149,7 @@ function InspectReading({
 						{readingText(week.volume, axis.currency)}
 					</span>
 					{week.volume.available ? (
-						<span className="text-muted-foreground text-caption">
+						<span className="text-muted-foreground text-caption font-normal">
 							{' '}
 							·{' '}
 							{week.volume.marker === 'derived'
@@ -1162,7 +1162,7 @@ function InspectReading({
 			) : null}
 
 			{layers.includes('rhythm') ? (
-				<p className="text-muted-foreground text-caption">
+				<p className="text-muted-foreground text-caption font-normal">
 					{NB_WEEK_ROLE_CELL_LABELS[week.role]}
 				</p>
 			) : null}
@@ -1196,7 +1196,7 @@ function InspectReading({
 			) : null}
 
 			{week.anchors.length > 0 ? (
-				<p className="text-muted-foreground text-caption">
+				<p className="text-muted-foreground text-caption font-normal">
 					{week.anchors
 						.map(
 							(anchor) =>
@@ -1207,7 +1207,7 @@ function InspectReading({
 			) : null}
 
 			{week.segmentStarts.length > 0 ? (
-				<p className="text-muted-foreground text-caption">
+				<p className="text-muted-foreground text-caption font-normal">
 					{week.segmentStarts
 						.map((start) =>
 							SESONG_CHART_LABELS.blockOpens(nbTrackName(start.discipline)),
@@ -1270,7 +1270,7 @@ function Derivation({
 			{week.derivation.substitutions.map((substitution) => (
 				<p
 					key={substitution.band}
-					className="text-muted-foreground text-caption"
+					className="text-muted-foreground text-caption font-normal"
 				>
 					{SESONG_CHART_LABELS.substitution(
 						substitution.requested,

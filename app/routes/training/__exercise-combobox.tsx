@@ -59,7 +59,7 @@ function FilterChip({
 			size="sm"
 			pressed={pressed}
 			onPressedChange={onToggle}
-			className="text-caption aria-pressed:border-foreground/20 aria-pressed:text-foreground text-muted-foreground h-7 rounded-full px-2.5"
+			className="text-caption aria-pressed:border-foreground/20 aria-pressed:text-foreground text-muted-foreground h-7 rounded-full px-2.5 font-normal"
 		>
 			{label}
 		</Toggle>
@@ -305,7 +305,7 @@ export function ExerciseCombobox({
 											onSelect={() => selectExercise(ex.id)}
 										>
 											<span className="flex-1">{ex.name}</span>
-											<span className="text-caption text-muted-foreground">
+											<span className="text-caption text-muted-foreground font-normal">
 												{formatMuscleLabel(ex.primaryMuscle)}
 											</span>
 										</CommandItem>
@@ -327,7 +327,7 @@ export function ExerciseCombobox({
 											onSelect={() => selectExercise(ex.id)}
 										>
 											<span className="flex-1">{ex.name}</span>
-											<span className="text-caption text-muted-foreground">
+											<span className="text-caption text-muted-foreground font-normal">
 												{formatMuscleLabel(ex.primaryMuscle)}
 											</span>
 										</CommandItem>
@@ -350,7 +350,7 @@ export function ExerciseCombobox({
 					</Command>
 				) : (
 					<Command key="muscle-pick" loop>
-						<div className="text-caption text-muted-foreground px-3 pt-2">
+						<div className="text-caption text-muted-foreground px-3 pt-2 font-normal">
 							{L.muscleFor(createName)}
 						</div>
 						<CommandInput
@@ -384,7 +384,7 @@ export function ExerciseCombobox({
 								{L.back}
 							</Button>
 							{creating ? (
-								<span className="text-caption text-muted-foreground px-2">
+								<span className="text-caption text-muted-foreground px-2 font-normal">
 									{L.saving}
 								</span>
 							) : createFetcher.data?.error ? (

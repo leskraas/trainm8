@@ -265,7 +265,9 @@ function UniformSetsControls({
 			</div>
 
 			<div className="flex items-center gap-2">
-				<span className="text-muted-foreground text-caption">{S.of}</span>
+				<span className="text-muted-foreground text-caption font-normal">
+					{S.of}
+				</span>
 				<Select
 					value={template.kind}
 					onValueChange={(kind) =>
@@ -372,7 +374,7 @@ function UniformLoadField({
 				<span className="text-foreground text-body font-medium">
 					{authoredLoadLabel(authored!)}
 				</span>
-				<span className="text-muted-foreground text-caption">
+				<span className="text-muted-foreground text-caption font-normal">
 					{S.keptAsAuthored}
 				</span>
 			</div>
@@ -744,7 +746,7 @@ function RestBetweenSetsFooter({
 		>
 			{isSet ? (
 				<div className="flex flex-col gap-1">
-					<span className="text-muted-foreground text-caption">
+					<span className="text-muted-foreground text-caption font-normal">
 						{S.restBetween}
 					</span>
 					<div className="flex items-center gap-1.5">

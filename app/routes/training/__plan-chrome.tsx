@@ -313,7 +313,7 @@ export function Disclosure({
 				<span className="min-w-0 flex-1">
 					<span className="text-callout block">{summary}</span>
 					{detail ? (
-						<span className="text-muted-foreground text-caption block">
+						<span className="text-muted-foreground text-caption block font-normal">
 							{detail}
 						</span>
 					) : null}

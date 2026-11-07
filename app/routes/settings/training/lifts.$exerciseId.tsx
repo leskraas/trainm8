@@ -271,9 +271,7 @@ export default function ExerciseAnchorsRoute({
 	return (
 		<div className="flex flex-col gap-8">
 			<div className="flex flex-col gap-1">
-				<h2 className="text-heading [overflow-wrap:anywhere]">
-					{exerciseName}
-				</h2>
+				<h2 className="text-title [overflow-wrap:anywhere]">{exerciseName}</h2>
 				<MegNote className="tabular-nums">
 					{current ? L.readsAgainst(anchorHeadline(current)) : L.nothingOnFile}
 				</MegNote>

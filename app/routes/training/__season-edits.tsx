@@ -333,7 +333,10 @@ function WeekTargetEdit({
 						>
 							{SEASON_EDIT_LABELS.revert}
 						</Button>
-						<p id={hintId} className="text-muted-foreground text-caption">
+						<p
+							id={hintId}
+							className="text-muted-foreground text-caption font-normal"
+						>
 							{SEASON_EDIT_LABELS.revertHint}
 						</p>
 					</>
@@ -439,7 +442,7 @@ function PhaseEdit({
 					label: `${nbPhaseName(phase.name)} · ${nbWeeks(phase.weeks)} · fra ${formatNbDayMonth(dayOf(phase.fromWeekKey), 'UTC')}`,
 				}))}
 			/>
-			<p className="text-muted-foreground text-caption">
+			<p className="text-muted-foreground text-caption font-normal">
 				{SEASON_EDIT_LABELS.phaseHint}
 			</p>
 			<Field
@@ -548,7 +551,7 @@ function EasyWeekEdit({
 					{nbPhaseName(phases[chosen.phaseIndex]?.name ?? '')}
 				</p>
 			) : null}
-			<p className="text-muted-foreground text-caption">
+			<p className="text-muted-foreground text-caption font-normal">
 				{SEASON_EDIT_LABELS.easyWeekHint}
 			</p>
 		</EditShell>
@@ -740,11 +743,11 @@ function SeasonEditPreviewPanel({
 			<RiseWarningNotice warnings={preview.warnings} />
 			{preview.weeks.length > 0 ? (
 				<table className="text-footnote w-full text-left tabular-nums">
-					<caption className="text-muted-foreground text-caption pb-1 text-left">
+					<caption className="text-muted-foreground text-caption pb-1 text-left font-normal">
 						{SEASON_EDIT_LABELS.weeks}
 					</caption>
 					<thead>
-						<tr className="text-muted-foreground text-caption">
+						<tr className="text-muted-foreground text-caption font-normal">
 							<th scope="col" className="py-1 pr-2 font-medium">
 								{SEASON_EDIT_LABELS.weekColumn}
 							</th>
@@ -771,7 +774,7 @@ function SeasonEditPreviewPanel({
 					</tbody>
 				</table>
 			) : null}
-			<p className="text-muted-foreground text-caption">
+			<p className="text-muted-foreground text-caption font-normal">
 				{SEASON_EDIT_LABELS.aroundYours}
 			</p>
 			<Form
@@ -829,7 +832,7 @@ export function RiseWarningNotice({ warnings }: { warnings: string[] }) {
 					<li key={warning}>{warning}</li>
 				))}
 			</ul>
-			<p className="text-muted-foreground text-caption mt-1">
+			<p className="text-muted-foreground text-caption mt-1 font-normal">
 				{SEASON_EDIT_LABELS.warningNote}
 			</p>
 		</div>

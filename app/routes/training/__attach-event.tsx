@@ -275,7 +275,7 @@ function AttachEventPreview({
 					afterLabel={ATTACH_EVENT_LABELS.after}
 					weeks={preview.weeks}
 				/>
-				<p className="text-muted-foreground text-caption pt-2">
+				<p className="text-muted-foreground text-caption pt-2 font-normal">
 					{ATTACH_EVENT_LABELS.aroundYours}
 				</p>
 			</CollapsibleSection>

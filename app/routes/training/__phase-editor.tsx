@@ -377,7 +377,7 @@ function RecoveryPreview({ phase }: { phase: PhaseSpec }) {
 						key={index}
 						className={
 							role === 'loading'
-								? 'bg-muted text-muted-foreground text-caption rounded-full px-2 py-1 tabular-nums'
+								? 'bg-muted text-muted-foreground text-caption rounded-full px-2 py-1 font-normal tabular-nums'
 								: 'bg-primary/15 text-primary text-caption rounded-full px-2 py-1 font-semibold tabular-nums'
 						}
 					>

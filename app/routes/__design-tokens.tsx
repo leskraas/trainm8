@@ -156,7 +156,7 @@ function SwatchChip({ swatch }: { swatch: Swatch }) {
 					{swatch.name}
 				</span>
 				{swatch.note ? (
-					<span className="text-caption text-muted-foreground block truncate">
+					<span className="text-caption text-muted-foreground block truncate font-normal">
 						{swatch.note}
 					</span>
 				) : null}
@@ -181,7 +181,9 @@ function ThemePanel({ theme }: { theme: 'light' | 'dark' }) {
 			</p>
 			{COLOUR_GROUPS.map((group) => (
 				<div key={group.title} className="space-y-2">
-					<h3 className="text-caption text-muted-foreground">{group.title}</h3>
+					<h3 className="text-caption text-muted-foreground font-normal">
+						{group.title}
+					</h3>
 					<ul className="grid grid-cols-2 gap-3">
 						{group.swatches.map((swatch) => (
 							<SwatchChip key={swatch.token} swatch={swatch} />
@@ -268,7 +270,7 @@ export function TypeSection() {
 						<span className={cn(step.cls, 'min-w-0 flex-1')}>
 							{step.sample}
 						</span>
-						<span className="text-caption text-muted-foreground shrink-0 tabular-nums">
+						<span className="text-caption text-muted-foreground shrink-0 font-normal tabular-nums">
 							{step.spec}
 						</span>
 					</li>
@@ -276,7 +278,7 @@ export function TypeSection() {
 			</ul>
 			<div className="bg-card grid gap-4 rounded-4xl p-4 shadow-md sm:grid-cols-2">
 				<div className="space-y-1">
-					<p className="text-caption text-muted-foreground">
+					<p className="text-caption text-muted-foreground font-normal">
 						Proporsjonale tall
 					</p>
 					<p className="text-heading">
@@ -286,7 +288,7 @@ export function TypeSection() {
 					</p>
 				</div>
 				<div className="space-y-1">
-					<p className="text-caption text-muted-foreground">
+					<p className="text-caption text-muted-foreground font-normal">
 						<code>tabular-nums</code> — tabellsifre
 					</p>
 					<p className="text-heading tabular-nums">
@@ -354,7 +356,9 @@ export function ShapeSection() {
 									{r.px}
 								</span>
 							</p>
-							<p className="text-caption text-muted-foreground">{r.use}</p>
+							<p className="text-caption text-muted-foreground font-normal">
+								{r.use}
+							</p>
 						</li>
 					))}
 				</ul>
@@ -371,7 +375,9 @@ export function ShapeSection() {
 							className={cn(e.cls, 'bg-card space-y-1 rounded-4xl p-4')}
 						>
 							<p className="text-callout font-mono">{e.cls}</p>
-							<p className="text-caption text-muted-foreground">{e.use}</p>
+							<p className="text-caption text-muted-foreground font-normal">
+								{e.use}
+							</p>
 						</li>
 					))}
 				</ul>
@@ -390,7 +396,7 @@ export function ShapeSection() {
 							<span
 								className={cn(s.cls, 'bg-primary h-3 shrink-0 rounded-[3px]')}
 							/>
-							<span className="text-caption text-muted-foreground tabular-nums">
+							<span className="text-caption text-muted-foreground font-normal tabular-nums">
 								{s.px} px · {s.use}
 							</span>
 						</li>
@@ -440,7 +446,9 @@ function CurveDemo({ curve }: { curve: (typeof CURVES)[number] }) {
 			<div className="flex items-start justify-between gap-3">
 				<div className="min-w-0">
 					<p className="text-callout font-mono">{curve.token}</p>
-					<p className="text-caption text-muted-foreground">{curve.use}</p>
+					<p className="text-caption text-muted-foreground font-normal">
+						{curve.use}
+					</p>
 				</div>
 				<Button
 					size="sm"
@@ -503,7 +511,7 @@ export function MotionSection() {
 					))}
 				</dl>
 				<div className="flex flex-col items-start gap-2">
-					<p className="text-caption text-muted-foreground">
+					<p className="text-caption text-muted-foreground font-normal">
 						Trykk: <code>scale(0.97)</code>, 160 ms
 					</p>
 					<Button>Hold inne</Button>

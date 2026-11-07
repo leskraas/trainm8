@@ -112,7 +112,7 @@ function WeekTargetsReading({
 				>
 					{/* Named only where there is a second track to tell it apart from. */}
 					{tracks > 1 ? (
-						<span className="text-muted-foreground text-caption">
+						<span className="text-muted-foreground text-caption font-normal">
 							{nbTrackName(target.discipline)}
 						</span>
 					) : null}
@@ -232,7 +232,7 @@ export function WeeksReading({
 			>
 				<ul
 					aria-label={SESONG_PAGE_LABELS.weeksList}
-					className="divide-border/70 divide-y"
+					className="divide-border/60 divide-y"
 				>
 					{season.weeks.map((week, position) => {
 						// The block's name once, over its own run of weeks, rather than on
@@ -258,14 +258,14 @@ export function WeeksReading({
 											<span className="text-callout block font-semibold tabular-nums">
 												Uke {weekNumberOf(week)}
 											</span>
-											<span className="text-muted-foreground text-caption block tabular-nums">
+											<span className="text-muted-foreground text-caption block font-normal tabular-nums">
 												{formatNbDayMonth(week.startsAt, season.timezone)}
 											</span>
 										</span>
 										{/* The role drops off at 390 px rather than squeezing the figures: a
 										    week's target is what the athlete scans for, and the rhythm is legible
 										    from the chart above. */}
-										<span className="text-muted-foreground text-caption hidden w-20 shrink-0 sm:block">
+										<span className="text-muted-foreground text-caption hidden w-20 shrink-0 font-normal sm:block">
 											{NB_WEEK_ROLE_LABELS[week.role]}
 										</span>
 										<span className="min-w-0 flex-1">

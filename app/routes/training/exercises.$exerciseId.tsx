@@ -170,7 +170,7 @@ export default function ExerciseHistoryRoute({
 					{model.header ? (
 						<div className="mb-5 flex items-start justify-between gap-4">
 							<div>
-								<p className="text-caption text-muted-foreground">
+								<p className="text-caption text-muted-foreground font-normal">
 									{L.workingWeight}
 								</p>
 								<p className="text-title tabular-nums">
@@ -179,7 +179,7 @@ export default function ExerciseHistoryRoute({
 							</div>
 							{model.header.estOneRm ? (
 								<div className="text-right">
-									<p className="text-caption text-muted-foreground">
+									<p className="text-caption text-muted-foreground font-normal">
 										{L.estOneRm}
 									</p>
 									<p className="text-callout text-primary font-semibold tabular-nums">
@@ -188,7 +188,7 @@ export default function ExerciseHistoryRoute({
 									{/* The estimate never floats free: the set it was read off
 									    sits under it. */}
 									{model.header.estOneRmSource ? (
-										<p className="text-caption text-muted-foreground tabular-nums">
+										<p className="text-caption text-muted-foreground font-normal tabular-nums">
 											{model.header.estOneRmSource}
 										</p>
 									) : null}

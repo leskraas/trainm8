@@ -1618,7 +1618,9 @@ function FigureTile({
 }) {
 	return (
 		<div className="bg-muted/60 rounded-3xl px-4 py-3">
-			<dt className="text-caption text-muted-foreground">{label}</dt>
+			<dt className="text-caption text-muted-foreground font-normal">
+				{label}
+			</dt>
 			<dd className="text-heading mt-1 tabular-nums">{value}</dd>
 			<dd className="text-footnote text-muted-foreground mt-0.5 tabular-nums">
 				{note}
@@ -1964,7 +1966,7 @@ function RecordingPanel({
 			<CardContent className="space-y-4">
 				{phaseBars.length > 0 ? (
 					<div className="space-y-1">
-						<p className="text-caption text-muted-foreground">
+						<p className="text-caption text-muted-foreground font-normal">
 							{L.recording.zones}
 						</p>
 						<ProfileBars bars={phaseBars} className="h-8" />
@@ -1974,7 +1976,9 @@ function RecordingPanel({
 				<dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
 					{metrics.map((m) => (
 						<div key={m.label} className="space-y-0.5">
-							<dt className="text-caption text-muted-foreground">{m.label}</dt>
+							<dt className="text-caption text-muted-foreground font-normal">
+								{m.label}
+							</dt>
 							<dd className="text-callout tabular-nums">{m.value}</dd>
 						</div>
 					))}
@@ -2174,7 +2178,10 @@ function SessionLogForm({
 				/>
 
 				<div className="space-y-2">
-					<p id={rpeLabelId} className="text-caption text-muted-foreground">
+					<p
+						id={rpeLabelId}
+						className="text-caption text-muted-foreground font-normal"
+					>
 						{L.log.rpe}
 					</p>
 					{/* Ten 44px targets (ADR 0028): five to a row on a phone, all ten

@@ -230,7 +230,7 @@ function ResultRow({
 							.join(' · ')}
 					</span>
 					{result.typed ? (
-						<span className="text-caption text-muted-foreground">
+						<span className="text-caption text-muted-foreground font-normal">
 							{L.typedNote}
 						</span>
 					) : null}

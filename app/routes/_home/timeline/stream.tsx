@@ -233,7 +233,7 @@ function HorizonDivider({ far }: { far: boolean }) {
 			data-horizon-divider
 			role="separator"
 			aria-label={`${HORIZON_LABELS.name}: ${far ? HORIZON_LABELS.far : HORIZON_LABELS.plan}`}
-			className="border-foreground/30 bg-background text-muted-foreground text-caption flex min-h-11 items-center gap-1.5 border-t-[1.5px] border-dashed px-4 pt-3 pb-2"
+			className="border-foreground/30 bg-background text-muted-foreground text-caption flex min-h-11 items-center gap-1.5 border-t-[1.5px] border-dashed px-4 pt-3 pb-2 font-normal"
 		>
 			<span className="text-foreground text-overline uppercase">
 				{HORIZON_LABELS.name}

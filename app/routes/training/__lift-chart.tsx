@@ -153,7 +153,7 @@ function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 					<div key={bar.sessionId}>
 						{bar.tickLabel ? (
 							<span
-								className="text-muted-foreground text-caption absolute -translate-x-1/2 tabular-nums"
+								className="text-muted-foreground text-caption absolute -translate-x-1/2 font-normal tabular-nums"
 								style={{ left, top: topPct(baselineY + 6) }}
 							>
 								{bar.tickLabel}
@@ -161,7 +161,7 @@ function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 						) : null}
 						{unavailableRunStart(bars, i) ? (
 							<span
-								className="text-muted-foreground text-caption absolute -translate-x-1/2 -translate-y-full whitespace-nowrap"
+								className="text-muted-foreground text-caption absolute -translate-x-1/2 -translate-y-full font-normal whitespace-nowrap"
 								style={{
 									left: leftPct(
 										(slotCenter(i) + slotCenter(unavailableRunEnd(bars, i))) /

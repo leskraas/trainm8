@@ -51,7 +51,7 @@ export function KindChooserItems({
 				<DropdownMenuItem key={kind} onClick={() => onChoose(kind)}>
 					<span className="flex flex-col">
 						<span className="font-medium">{NB_STEP_KIND_LABELS[kind]}</span>
-						<span className="text-muted-foreground text-caption">
+						<span className="text-muted-foreground text-caption font-normal">
 							{STEP_KIND_HINTS[kind]}
 						</span>
 					</span>

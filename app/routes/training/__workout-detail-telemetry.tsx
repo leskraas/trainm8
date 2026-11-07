@@ -513,14 +513,14 @@ export default function TelemetryOverlay({
 					)}
 				/>
 
-				<div className="text-caption text-muted-foreground flex items-center justify-between tabular-nums">
+				<div className="text-caption text-muted-foreground flex items-center justify-between font-normal tabular-nums">
 					<span>{L.start}</span>
 					<span>{L.total(formatClockDuration(totalSec))}</span>
 				</div>
 
 				{profile.bars.length > 0 ? (
 					<div className="space-y-1">
-						<p className="text-caption text-muted-foreground">
+						<p className="text-caption text-muted-foreground font-normal">
 							{L.plannedShape}
 						</p>
 						<ProfileBars

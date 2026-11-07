@@ -1545,7 +1545,7 @@ export function TokenSentenceEditor({
 												<span className="flex max-w-64 flex-col">
 													<span>{M.makeKind(NB_STEP_KIND_LABELS[kind])}</span>
 													{draftStep ? (
-														<span className="text-muted-foreground text-caption text-wrap">
+														<span className="text-muted-foreground text-caption font-normal text-wrap">
 															{previewKindSwitch(draftStep, kind, {
 																exerciseNames,
 															})}
@@ -2271,7 +2271,9 @@ function QuantityEditor({
 					}
 				/>
 			) : (
-				<p className="text-muted-foreground text-caption">{C.noQuantity}</p>
+				<p className="text-muted-foreground text-caption font-normal">
+					{C.noQuantity}
+				</p>
 			)}
 			{unit != null ? (
 				<div className="flex justify-center">
@@ -2351,7 +2353,9 @@ function StepDisciplineSelect({
 			data-slot="step-discipline"
 			className="flex items-center gap-2 self-start"
 		>
-			<span className="text-muted-foreground text-caption">{C.discipline}</span>
+			<span className="text-muted-foreground text-caption font-normal">
+				{C.discipline}
+			</span>
 			<Select value={selected} onValueChange={(value) => select(value)}>
 				<SelectTrigger aria-label={C.stepDiscipline} size="sm">
 					<SelectValue>

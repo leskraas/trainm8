@@ -769,7 +769,10 @@ function NudgeField({
 
 	return (
 		<div className="space-y-1">
-			<label htmlFor={id} className="text-caption text-muted-foreground">
+			<label
+				htmlFor={id}
+				className="text-caption text-muted-foreground font-normal"
+			>
 				{label}
 			</label>
 			<div className="flex items-center gap-1">

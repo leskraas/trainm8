@@ -578,7 +578,7 @@ export function MixNotices({
 					</li>
 				))}
 			</ul>
-			<p className="text-caption text-muted-foreground">
+			<p className="text-caption text-muted-foreground font-normal">
 				{SESONG_PAGE_LABELS.mixNoticesNote}
 			</p>
 		</section>
