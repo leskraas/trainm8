@@ -258,7 +258,7 @@ export async function runSwimPaceBackfill(): Promise<void> {
 		// notice is owed even when CTL moved too little to show (no CSS, a lone
 		// swim, no Load Snapshots at all). Then there is no CTL movement to name,
 		// and the pair is stored absent rather than as a placeholder figure
-		// (ADR 0113); the line leaves its movement out (ADR 0107 §2). A retry
+		// (ADR 0114); the line leaves its movement out (ADR 0107 §2). A retry
 		// that wrote no pace still owes it when a crash came before the notice;
 		// the notice is create-only, so one already written stands.
 		const after = await readCtlByDate(athleteId)

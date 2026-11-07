@@ -1217,7 +1217,7 @@ prints. It is owed whenever a number the athlete read moved, so a corrected swim
 pace earns one even when CTL did not visibly move; the line then names no
 movement. A notice that moved no CTL beyond noise, and every prescription
 notice, carries no CTL figures at all: there is no movement to name, which is
-not an **Unavailable Metric** (ADR 0113). _Avoid_: Banner, alert, migration
+not an **Unavailable Metric** (ADR 0114). _Avoid_: Banner, alert, migration
 message
 
 **Load Formula**: The named method used to compute TSS for one session — one of

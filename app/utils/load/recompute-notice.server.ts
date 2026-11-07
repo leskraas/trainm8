@@ -8,7 +8,7 @@ import {
 /**
  * The **Load Recompute Notice** (GLOSSARY.md): the one-time, athlete-visible
  * explanation for a correction that moved a number the athlete had already
- * read: a **Load Snapshot** number, or one a session prescribes (ADR 0113).
+ * read: a **Load Snapshot** number, or one a session prescribes (ADR 0114).
  *
  * It exists because ADR 0008 forbids switching an athlete's numbers _silently_.
  * Where the athlete's own data has not changed there is nothing for them to opt
@@ -22,7 +22,7 @@ import {
 /**
  * Record that a recompute moved this athlete's numbers. `ctl` is typed by what
  * the kind declares it moved: a load kind passes its movement or `null`, a
- * prescription kind only `null` (ADR 0113 §3).
+ * prescription kind only `null` (ADR 0114 §3).
  *
  * Create-only on the unique `(athlete, kind)`: a retry after a partial run must
  * not overwrite the first run's `ctlBefore` with the already-corrected value,

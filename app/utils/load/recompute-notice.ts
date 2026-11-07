@@ -1,7 +1,7 @@
 /**
  * The corrections the app has words for (the **Load Recompute Notice**,
  * `recompute-notice.server.ts`), each declaring what its correction moved
- * (ADR 0113 §3):
+ * (ADR 0114 §3):
  *
  * - `'load'`: it moved a **Load Snapshot**, so the notice may name a CTL
  *   movement, or carry none when the movement was no more than noise.
@@ -43,12 +43,12 @@ export type CtlMovement = { ctlBefore: number; ctlAfter: number }
  * The CTL pair a correction that moved `M` may record. A load correction names
  * its movement, or `null` when it moved CTL by no more than noise; a
  * prescription correction moved no Load Snapshot, so it records `null` and
- * nothing else (ADR 0113 §3). Written over `LoadRecomputeMoved` itself, not
+ * nothing else (ADR 0114 §3). Written over `LoadRecomputeMoved` itself, not
  * over the kinds, so the type is pinned even before a prescription kind exists.
  * Not distributive: a kind that could be either takes only `null`.
  *
  * `null` is **no CTL movement to name**, not an **Unavailable Metric**: CTL is
- * calculable, it simply did not move (ADR 0113 §2).
+ * calculable, it simply did not move (ADR 0114 §2).
  */
 export type CtlFor<M extends LoadRecomputeMoved> = [M] extends ['load']
 	? CtlMovement | null
@@ -62,7 +62,7 @@ export type CtlForKind<K extends LoadRecomputeKind> = CtlFor<
 /**
  * A notice as the app reads it: its kind and its CTL movement as one value,
  * never two independently nullable numbers (the database's CHECK keeps the two
- * columns both-or-neither, ADR 0113 §1).
+ * columns both-or-neither, ADR 0114 §1).
  */
 export type LoadRecomputeNoticeRecord = {
 	kind: string

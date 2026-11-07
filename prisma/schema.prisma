@@ -1959,7 +1959,7 @@ model LoadSnapshot {
 ///
 /// Written once by the one-shot backfill that caused the movement, dismissed by
 /// the athlete. Unique on (athlete, kind), so a re-run can never nag twice. See
-/// ADR 0046 §2 and ADR 0113.
+/// ADR 0046 §2 and ADR 0114.
 model LoadRecomputeNotice {
   id   String @id @default(cuid())
   kind String // a `LoadRecomputeKind` (app/utils/load/recompute-notice.ts)
@@ -1968,7 +1968,7 @@ model LoadRecomputeNotice {
   /// most, so the line can name the movement it caused rather than warn in the
   /// abstract. Both null when there is no CTL movement to name: a load
   /// correction that moved CTL by no more than noise, or a prescription
-  /// correction, which moves no Load Snapshot (ADR 0113). Never one without the
+  /// correction, which moves no Load Snapshot (ADR 0114). Never one without the
   /// other: a hand-written CHECK in
   /// `20261107121546_a_notice_may_carry_no_ctl_pair` keeps them
   /// both-or-neither, and a table rebuild must restore it.
