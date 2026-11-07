@@ -26,8 +26,11 @@
 // The warnings carry numbers and no wording; the surface words them, exactly as
 // `ramp-guard.ts` and `quality-mix.ts` do.
 
-import { type DurationReading, prescribedDuration } from '../dashboard.ts'
 import { FIVE_MINUTES, inWholeFiveMinutes } from '../five-minutes.ts'
+import {
+	type DurationReading,
+	prescribedDuration,
+} from '../prescribed-duration.ts'
 import { blockRepeatTotal } from '../workout-schema.ts'
 import {
 	CURRENCY_DECIMALS,
@@ -407,6 +410,8 @@ type PrescribedBlock = {
 	repeatCount: number
 	seriesRepeatCount?: number | null
 	betweenSeriesRestSec?: number | null
+	/** Stored Send-Off JSON: a send-off rep takes its cycle (ADR 0112 §4). */
+	sendOff: string | null
 	steps: Array<{
 		/** `rest` marks a recovery step (ADR 0007); absent reads as work. */
 		kind?: string

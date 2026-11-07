@@ -21,11 +21,7 @@
  *
  * Pure: every number is passed in, nothing is queried.
  */
-import {
-	type DurationReading,
-	prescribedDuration,
-	sumBlockSets,
-} from '#app/utils/dashboard.ts'
+import { sumBlockSets } from '#app/utils/dashboard.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	approxLabel,
@@ -35,6 +31,10 @@ import {
 } from '#app/utils/labels.ts'
 import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
 import { fixedDayVolume } from '#app/utils/plan-outline/week-pattern.ts'
+import {
+	type DurationReading,
+	prescribedDuration,
+} from '#app/utils/prescribed-duration.ts'
 
 /** The prescription as this reads it — a structural slice of the loader's
  * Workout, so a test can hand one over without a database row. */
@@ -43,6 +43,8 @@ export type SummaryWorkout = {
 		repeatCount: number
 		seriesRepeatCount?: number | null
 		betweenSeriesRestSec?: number | null
+		/** Stored Send-Off JSON: a send-off rep takes its cycle (ADR 0112 §4). */
+		sendOff: string | null
 		steps: Array<{
 			kind: string
 			discipline?: string | null

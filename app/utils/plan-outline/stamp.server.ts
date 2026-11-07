@@ -872,6 +872,7 @@ function pricingBlocks(workout: CopyableWorkout) {
 		repeatCount: block.repeatCount,
 		seriesRepeatCount: block.seriesRepeatCount,
 		betweenSeriesRestSec: block.betweenSeriesRestSec,
+		sendOff: block.sendOff,
 		steps: block.steps.map((step) => ({
 			kind: step.kind,
 			discipline: step.discipline,
