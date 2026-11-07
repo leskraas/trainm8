@@ -28,6 +28,17 @@ export default defineConfig({
 				...devices['Desktop Chrome'],
 			},
 		},
+		{
+			// Safari has no scroll anchoring, so the reading position is held by
+			// the app there (`ReadingHold`, ADR 0086 §4). Only the file that pins
+			// it runs in WebKit as well (#503, ADR 0112): the rest of the suite
+			// would double CI for no criterion.
+			name: 'webkit',
+			testMatch: 'home-reading-position.test.ts',
+			use: {
+				...devices['Desktop Safari'],
+			},
+		},
 	],
 
 	webServer: {
