@@ -8,7 +8,7 @@ import {
 	recordLoadRecomputeNotice,
 } from './recompute-notice.server.ts'
 
-// The Load Recompute Notice's store (ADR 0112): an absent CTL pair is written
+// The Load Recompute Notice's store (ADR 0113): an absent CTL pair is written
 // as NULL on both sides, read back as one `ctl: null`, exported as `null`, and
 // dismissed like any other notice.
 

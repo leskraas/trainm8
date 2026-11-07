@@ -18,7 +18,7 @@ The athlete's landing page and the whole season as one bi-directional stream
   (`load-recompute-notice`): a kicker (`h2`), an optional movement line
   (_Kondisjonen steg/falt med opptil N — A → B på det meste_), the explanation
   and _Skjønner_, which dismisses that kind only. A notice with no CTL pair
-  (ADR 0112) shows no movement line at all.
+  (ADR 0113) shows no movement line at all.
 
 ## How to get to it
 

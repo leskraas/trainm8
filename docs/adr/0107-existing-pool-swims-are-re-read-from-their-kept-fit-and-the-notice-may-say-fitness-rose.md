@@ -81,7 +81,7 @@ one corrected swim (one swim moves a 42-day CTL by well under a point).
 
 When the rounded CTL did not move, the notice leaves its movement line out. It
 never prints "steg med opptil 0 — 3 → 3". The stored pair is then today's CTL on
-both sides. _(Superseded by ADR 0112 (#463): the stored pair is then absent,
+both sides. _(Superseded by ADR 0113 (#463): the stored pair is then absent,
 never today's CTL on both sides or `0`.)_
 
 The strength notice (ADR 0046 §2) keeps its own rule: it is written only when

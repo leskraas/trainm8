@@ -246,7 +246,7 @@ test('every branch that holds a week has its own reason, so "keep" always says w
 	)
 })
 
-test('every Load Recompute Notice kind has its own words and declares what it moved (ADR 0112)', () => {
+test('every Load Recompute Notice kind has its own words and declares what it moved (ADR 0113)', () => {
 	// Either side may gain a kind first; both must name every kind, so a kind
 	// with copy but no declaration, or a declaration but no copy, fails here.
 	const kinds = new Set<string>([

@@ -1,4 +1,4 @@
-// The Load Recompute Notice's CTL pair is both-or-neither (ADR 0112 §1): a
+// The Load Recompute Notice's CTL pair is both-or-neither (ADR 0113 §1): a
 // hand-written CHECK in `20261107121546_a_notice_may_carry_no_ctl_pair`, not in
 // schema.prisma. These tests pin it, because a SQLite table rebuild carries no
 // CHECK forward and a constraint nobody exercises is one a later rebuild can

@@ -884,7 +884,7 @@ describe('buildLoadRecomputeLine', () => {
 		expect(line!.explanation).toMatch(/bare lengdene du svømte/i)
 	})
 
-	test('a notice with no CTL pair keeps its words and names no movement (ADR 0112)', () => {
+	test('a notice with no CTL pair keeps its words and names no movement (ADR 0113)', () => {
 		// An absent pair is no CTL movement to name, not an Unavailable Metric:
 		// nothing stands in for the movement, not "ikke målt", not a zero.
 		const line = buildLoadRecomputeLine({

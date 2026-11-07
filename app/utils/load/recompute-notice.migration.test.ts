@@ -4,7 +4,7 @@ import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 
-// `20261107121546_a_notice_may_carry_no_ctl_pair` (#463, ADR 0112) run for
+// `20261107121546_a_notice_may_carry_no_ctl_pair` (#463, ADR 0113) run for
 // real against the table it replaced: every row survives with its dates, the
 // strength pairs and the swim pairs that moved keep their figures, and only the
 // swim placeholder pairs (equal on both sides) go absent.
