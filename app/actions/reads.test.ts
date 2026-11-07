@@ -666,3 +666,37 @@ test("a Planned TSS computed from a Polar race's pace is Polar data: withheld fr
 	})
 	expect(await plannedTss()).toMatchObject({ status: 'available', value: 30 })
 })
+
+test("a week's Planned TSS on get_today and get_season binds to the results its sessions' race paces read", async () => {
+	// ADR 0112 §4: a week total takes the union of its sessions' stored sets.
+	const world = await createWorld()
+	const ctx = ctxFor(world.userId, 'mcp')
+	const created = await createPlanOutline(world.userId, {
+		startWeekKey: '2026-10-19',
+		structure: { phases: [{ name: 'Blokk 1', weeks: 4, rhythm: '3:1' }] },
+		tracks: [{ discipline: 'run', currency: 'tss', anchorValue: 300 }],
+	})
+	expect(created.ok).toBe(true)
+	const plannedTrack = async () => {
+		const today = await done(runAction(ctx, 'get_today', {}))
+		const season = await done(runAction(ctx, 'get_season', {}))
+		return {
+			today: today.week.tracks[0]?.planned,
+			season: season.weeks.find((w) => w.weekKey === '2026-10-19')?.tracks[0]
+				?.planned,
+		}
+	}
+	expect(await plannedTrack()).toMatchObject({
+		today: { status: 'available' },
+		season: { status: 'available' },
+	})
+
+	await prisma.workoutSession.update({
+		where: { id: world.planned },
+		data: { plannedTssOrigins: JSON.stringify(['polar']) },
+	})
+	expect(await plannedTrack()).toMatchObject({
+		today: { status: 'unavailable', reason: 'source-terms' },
+		season: { status: 'unavailable', reason: 'source-terms' },
+	})
+})

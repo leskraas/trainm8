@@ -8,6 +8,9 @@
  * `detected` is the same, for the sessions whose Workout was detected from
  * their Recording: their prescribed figures are that Recording's data, so a
  * week's Planned Volume binds to them (`workoutBindingSet`).
+ *
+ * `plannedTss` is the binding set each session's Planned TSS was computed with
+ * (ADR 0112 §4), so a week's Planned TSS takes the union.
  */
 
 import {
@@ -16,6 +19,7 @@ import {
 } from '#app/integrations/shared/origin-platform.ts'
 import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { plannedTssOriginsOf } from '#app/utils/load/planned-tss.ts'
 
 export type PlatformsByDay = Map<string, Set<OriginPlatform>>
 
@@ -24,6 +28,9 @@ export type RecordedPlatforms = {
 	recorded: PlatformsByDay
 	/** Only the detected sessions': what their Planned Volume reads. */
 	detected: PlatformsByDay
+	/** The results each session's Planned TSS read (`plannedTssOrigins`, ADR
+	 * 0112 §4): what a week's Planned TSS reads, as the union. */
+	plannedTss: PlatformsByDay
 }
 
 export async function readRecordedPlatformsByDay(
@@ -31,26 +38,39 @@ export async function readRecordedPlatformsByDay(
 	window: { from: Date; to: Date },
 	timezone: string,
 ): Promise<RecordedPlatforms> {
-	const rows = await prisma.workoutSession.findMany({
-		where: {
-			userId,
-			status: 'completed',
-			recordingId: { not: null },
-			scheduledAt: { gte: window.from, lte: window.to },
-		},
-		select: {
-			scheduledAt: true,
-			source: true,
-			recording: {
-				select: {
-					originPlatform: true,
-					aliases: { select: { originPlatform: true } },
+	const inWindow = { gte: window.from, lte: window.to }
+	const [rows, planned] = await Promise.all([
+		prisma.workoutSession.findMany({
+			where: {
+				userId,
+				status: 'completed',
+				recordingId: { not: null },
+				scheduledAt: inWindow,
+			},
+			select: {
+				scheduledAt: true,
+				source: true,
+				recording: {
+					select: {
+						originPlatform: true,
+						aliases: { select: { originPlatform: true } },
+					},
 				},
 			},
-		},
-	})
+		}),
+		prisma.workoutSession.findMany({
+			where: {
+				userId,
+				plannedTssValue: { gt: 0 },
+				plannedTssOrigins: { not: null },
+				scheduledAt: inWindow,
+			},
+			select: { scheduledAt: true, plannedTssOrigins: true },
+		}),
+	])
 	const recorded: PlatformsByDay = new Map()
 	const detected: PlatformsByDay = new Map()
+	const plannedTss: PlatformsByDay = new Map()
 	const add = (byDay: PlatformsByDay, day: string, platforms: string[]) => {
 		const set = byDay.get(day) ?? new Set<OriginPlatform>()
 		for (const platform of platforms) set.add(originPlatformOf(platform))
@@ -66,7 +86,14 @@ export async function readRecordedPlatformsByDay(
 		add(recorded, day, platforms)
 		if (row.source === 'detected') add(detected, day, platforms)
 	}
-	return { recorded, detected }
+	for (const row of planned) {
+		add(
+			plannedTss,
+			localDate(row.scheduledAt, timezone),
+			plannedTssOriginsOf(row.plannedTssOrigins),
+		)
+	}
+	return { recorded, detected, plannedTss }
 }
 
 /** The binding set of the days `from` … `from + days - 1`. */

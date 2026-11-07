@@ -142,6 +142,7 @@ export const getSeasonAction = defineAction({
 				const bindingSets = {
 					recorded: platformsOver(byDay.recorded, weekKey, 7),
 					detected: platformsOver(byDay.detected, weekKey, 7),
+					plannedTss: platformsOver(byDay.plannedTss, weekKey, 7),
 				}
 				return {
 					weekKey,

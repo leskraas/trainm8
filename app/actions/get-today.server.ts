@@ -101,6 +101,7 @@ export const getTodayAction = defineAction({
 						{
 							recorded: platformsOver(weekRecorded.recorded, weekKey, 7),
 							detected: platformsOver(weekRecorded.detected, weekKey, 7),
+							plannedTss: platformsOver(weekRecorded.plannedTss, weekKey, 7),
 						},
 						ctx,
 					),
