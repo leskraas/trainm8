@@ -220,3 +220,80 @@ test('another athlete’s Week Pattern slot on the departing athlete’s Workout
 		}),
 	).toEqual({ ownerId: null, visibility: 'private' })
 })
+
+test('deleting an account removes its rows in every Better Auth table (ADR 0113 §6)', async () => {
+	const leaving = await createAthlete()
+	const staying = await createAthlete()
+	for (const user of [leaving, staying]) {
+		const { id: userId } = user
+		await prisma.authAccount.create({
+			data: {
+				id: `${userId}-credential`,
+				userId,
+				providerId: 'credential',
+				accountId: userId,
+				updatedAt: new Date(),
+			},
+		})
+		await prisma.authSession.create({
+			data: {
+				id: `${userId}-session`,
+				userId,
+				token: `${userId}-token`,
+				expiresAt: new Date(Date.now() + 86_400_000),
+				updatedAt: new Date(),
+			},
+		})
+		await prisma.authPasskey.create({
+			data: {
+				id: `${userId}-passkey`,
+				userId,
+				publicKey: 'key',
+				credentialID: `${userId}-credential-id`,
+				counter: 0,
+				deviceType: 'singleDevice',
+				backedUp: false,
+			},
+		})
+		await prisma.twoFactor.create({
+			data: {
+				id: `${userId}-two-factor`,
+				userId,
+				secret: 'secret',
+				backupCodes: 'codes',
+			},
+		})
+		await prisma.authVerification.create({
+			data: {
+				id: `${userId}-verification`,
+				identifier: `reset-password:${userId}`,
+				value: userId,
+				expiresAt: new Date(Date.now() + 3_600_000),
+				updatedAt: new Date(),
+			},
+		})
+	}
+
+	await deleteAccount(leaving.id)
+
+	const left = { userId: leaving.id }
+	expect(
+		await Promise.all([
+			prisma.authAccount.count({ where: left }),
+			prisma.authSession.count({ where: left }),
+			prisma.authPasskey.count({ where: left }),
+			prisma.twoFactor.count({ where: left }),
+			prisma.authVerification.count({ where: { value: leaving.id } }),
+		]),
+	).toEqual([0, 0, 0, 0, 0])
+	const kept = { userId: staying.id }
+	expect(
+		await Promise.all([
+			prisma.authAccount.count({ where: kept }),
+			prisma.authSession.count({ where: kept }),
+			prisma.authPasskey.count({ where: kept }),
+			prisma.twoFactor.count({ where: kept }),
+			prisma.authVerification.count({ where: { value: staying.id } }),
+		]),
+	).toEqual([1, 1, 1, 1, 1])
+})
