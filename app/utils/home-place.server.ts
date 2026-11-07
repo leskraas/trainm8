@@ -5,6 +5,7 @@
  * is one delete. Nothing here sees the search text that found the place.
  */
 import { z } from 'zod/v3'
+import { ensureAthleteProfile } from './athlete.server.ts'
 import { prisma } from './db.server.ts'
 import {
 	type HomePlace,
@@ -61,16 +62,13 @@ export async function setHomePlace(
 		county: input.county,
 		...point,
 	}
-	const profile = await prisma.athleteProfile.upsert({
-		where: { userId },
-		create: { userId },
-		update: {},
-		select: { id: true },
-	})
-	await prisma.homePlace.upsert({
-		where: { athleteProfileId: profile.id },
-		create: { athleteProfileId: profile.id, ...place },
-		update: place,
+	await prisma.$transaction(async (db) => {
+		const athleteProfileId = await ensureAthleteProfile(userId, db)
+		await db.homePlace.upsert({
+			where: { athleteProfileId },
+			create: { athleteProfileId, ...place },
+			update: place,
+		})
 	})
 	return { ok: true, place }
 }

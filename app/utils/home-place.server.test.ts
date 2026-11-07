@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import {
@@ -81,4 +82,27 @@ test('the place goes with the account', async () => {
 	await setHomePlace(id, LILLEHAMMER)
 	await prisma.user.delete({ where: { id } })
 	expect(await prisma.homePlace.count()).toBe(0)
+})
+
+test('choosing a place before the athlete has a profile creates it as every other path does, with its discipline profiles', async () => {
+	const user = await prisma.user.create({
+		data: createUser(),
+		select: { id: true },
+	})
+	await setHomePlace(user.id, LILLEHAMMER)
+	const fresh = await prisma.user.create({
+		data: createUser(),
+		select: { id: true },
+	})
+	const expected = await getOrCreateAthleteProfile(fresh.id)
+	const disciplines = await prisma.disciplineProfile.findMany({
+		where: { athleteProfile: { userId: user.id } },
+		select: { discipline: true },
+		orderBy: { discipline: 'asc' },
+	})
+	expect(disciplines.map((d) => d.discipline)).toEqual(
+		expected.disciplineProfiles.map((d) => d.discipline).sort(),
+	)
+	expect(disciplines.length).toBeGreaterThan(0)
+	expect(await readHomePlace(user.id)).toMatchObject({ name: 'Lillehammer' })
 })
