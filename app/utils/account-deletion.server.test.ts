@@ -221,7 +221,7 @@ test('another athlete’s Week Pattern slot on the departing athlete’s Workout
 	).toEqual({ ownerId: null, visibility: 'private' })
 })
 
-test('deleting an account removes its rows in every Better Auth table (ADR 0113 §6)', async () => {
+test('deleting an account removes its rows in every Better Auth table (ADR 0114 §6)', async () => {
 	const leaving = await createAthlete()
 	const staying = await createAthlete()
 	for (const user of [leaving, staying]) {

@@ -10,7 +10,7 @@ import { consoleError } from '#tests/setup/setup-test-env.ts'
 import { action, loader } from './api.auth.$.ts'
 
 /**
- * `/api/auth/*` runs dark (ADR 0113 §1–§2): 404 in production, and a foreign
+ * `/api/auth/*` runs dark (ADR 0114 §1–§2): 404 in production, and a foreign
  * `Origin` refused before Better Auth sees the request. The production gate's
  * proof that Better Auth is never constructed there is in
  * `app/utils/auth/handler.production.server.test.ts`.

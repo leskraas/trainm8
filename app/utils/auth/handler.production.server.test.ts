@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { handleAuthRequest } from './handler.server.ts'
 
 /**
- * Production never constructs Better Auth (ADR 0113 §1): the gate answers 404
+ * Production never constructs Better Auth (ADR 0114 §1): the gate answers 404
  * before `better-auth.server.ts` is imported. The mock records an import, and
  * stands in for a handler that would answer anything.
  */

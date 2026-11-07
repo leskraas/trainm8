@@ -1,5 +1,5 @@
 -- Better Auth runs dark beside Epic login (#680, ticket 0 of #554; ADR 0094
--- §2, ADR 0113).
+-- §2, ADR 0114).
 --
 -- Adds Better Auth's user columns to `User` and its five tables: `AuthSession`
 -- (a Sign-in Session), `AuthAccount` (a Sign-in Method), `AuthVerification`,

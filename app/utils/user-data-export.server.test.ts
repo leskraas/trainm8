@@ -15,7 +15,7 @@ import {
 /**
  * Every model that holds a row about a user: `User` itself and, transitively,
  * every model with a foreign key into one that does, plus every table Better
- * Auth is configured with (ADR 0113 §6), since `AuthVerification` names its
+ * Auth is configured with (ADR 0114 §6), since `AuthVerification` names its
  * user without a foreign key. Read from the Prisma schema and from
  * `getAuthTables`, so a new table, or one a Better Auth plugin or upgrade adds,
  * joins this list the moment it exists and the export test fails until the

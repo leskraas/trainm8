@@ -8,7 +8,7 @@ import { getAppOrigin } from './app-origin.server.ts'
 import { hashPassword, verifyPassword } from './password-hash.server.ts'
 
 /**
- * Better Auth's configuration, as plain options (ADR 0094 §1–§2, ADR 0113).
+ * Better Auth's configuration, as plain options (ADR 0094 §1–§2, ADR 0114).
  * Importing this file constructs nothing: the export test and the generate
  * test read it, and only `better-auth.server.ts` turns it into `auth`.
  *
@@ -17,7 +17,7 @@ import { hashPassword, verifyPassword } from './password-hash.server.ts'
  * **Workout Session**; the model names keep them apart from both, and from
  * Epic's `Session`, `Verification` and `Passkey`.
  *
- * Sign-up is closed on every path from the start (ADR 0113 §4), and the
+ * Sign-up is closed on every path from the start (ADR 0114 §4), and the
  * email copy below is a placeholder until #554 ships the athlete-facing flows.
  */
 const appOrigin = getAppOrigin()
@@ -46,7 +46,7 @@ export const authOptions = {
 	trustedOrigins: [appOrigin],
 	database: prismaAdapter(prisma, { provider: 'sqlite' }),
 	advanced: {
-		// Spelled out so tests run the same check production does (ADR 0113 §2).
+		// Spelled out so tests run the same check production does (ADR 0114 §2).
 		disableOriginCheck: false,
 	},
 	user: {

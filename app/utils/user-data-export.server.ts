@@ -101,7 +101,7 @@ export async function exportUserData({
 		Session: await prisma.session.findMany({ where: own, omit: { id: true } }),
 		Connection: await prisma.connection.findMany({ where: own }),
 		Passkey: await prisma.passkey.findMany({ where: own }),
-		// Better Auth's Sign-in Methods and Sign-in Sessions (ADR 0113 §6), each
+		// Better Auth's Sign-in Methods and Sign-in Sessions (ADR 0114 §6), each
 		// through an allow-list, so a secret column a later version adds stays
 		// out by default. A `credential` row means a password is set; `github`
 		// means GitHub is linked. Never the password hash, the provider tokens,

@@ -17,7 +17,7 @@ to Strava and Intervals.icu, and file imports. Specs to copy from:
   (`/resources/download-user-data`). Its `tables` list the Sign-in Methods
   (`AuthAccount` by `providerId`, `AuthPasskey` names and dates,
   `User.twoFactorEnabled`) and never a password hash, TOTP secret, backup code,
-  session token or one-time code. Better Auth runs dark (ADR 0113), so these
+  session token or one-time code. Better Auth runs dark (ADR 0114), so these
   tables stay empty until the login cutover.
 - Training settings and level: `/settings/training`, `/settings/level`.
 - Integrations at `/settings/integrations`: connect Strava or Intervals.icu

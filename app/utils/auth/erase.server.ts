@@ -2,7 +2,7 @@ import { type Prisma } from '@prisma/client'
 
 /**
  * Deletes every `AuthVerification` row that names a user, inside account
- * erasure's transaction (ADR 0113 §6, ADR 0105). The table has no foreign key
+ * erasure's transaction (ADR 0114 §6, ADR 0105). The table has no foreign key
  * to `User`, so the cascade that clears the other auth tables misses it. A row
  * names its user in one of three ways in Better Auth 1.7.12:
  *

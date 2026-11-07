@@ -3,7 +3,7 @@ import { getAppOrigin } from './app-origin.server.ts'
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /**
- * Everything `/api/auth/*` answers, in the order ADR 0113 §1–§2 fixes:
+ * Everything `/api/auth/*` answers, in the order ADR 0114 §1–§2 fixes:
  *
  * 1. **Production answers 404**, before the module that constructs Better
  *    Auth is imported. There is no switch: only the cutover PR, which deletes

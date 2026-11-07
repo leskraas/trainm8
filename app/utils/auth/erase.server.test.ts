@@ -6,7 +6,7 @@ import { auth } from './better-auth.server.ts'
 import { hashPassword } from './password-hash.server.ts'
 
 /**
- * Erasure clears every `AuthVerification` row that names the user (ADR 0113
+ * Erasure clears every `AuthVerification` row that names the user (ADR 0114
  * §6). One test per flow that writes such a row, each driven through
  * `auth.api` so the row has the shape Better Auth really writes: an upgrade
  * that changes a format fails here instead of leaving rows behind.

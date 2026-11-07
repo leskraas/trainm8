@@ -23,7 +23,7 @@
  *
  * Sign-in data goes too: Better Auth's tables cascade from `User`, except
  * `AuthVerification`, which names its user only by id or email and is cleared
- * by `eraseAuthVerifications` (ADR 0113 §6).
+ * by `eraseAuthVerifications` (ADR 0114 §6).
  *
  * A bookmark (`CatalogueSave`) does not keep a row: it is a pointer, not a copy,
  * and it cascades away with the row.
@@ -89,7 +89,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 			where: { ownerId: userId, id: { notIn: [...kept] } },
 		})
 		// Better Auth's verification rows name the user by id or email, not by a
-		// foreign key, so the `User` cascade misses them (ADR 0113 §6). Its other
+		// foreign key, so the `User` cascade misses them (ADR 0114 §6). Its other
 		// tables cascade.
 		const { email } = await tx.user.findUniqueOrThrow({
 			where: { id: userId },

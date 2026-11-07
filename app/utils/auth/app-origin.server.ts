@@ -1,5 +1,5 @@
 /**
- * The app's own origin, from `APP_ORIGIN` (ADR 0113 §3). Better Auth's
+ * The app's own origin, from `APP_ORIGIN` (ADR 0114 §3). Better Auth's
  * `baseURL`, its trusted origins and the passkey RP ID come from here, and the
  * `/api/auth` route refuses any other `Origin`. It is never read from the
  * request: a `Host` header the client sends must not decide email links or the
