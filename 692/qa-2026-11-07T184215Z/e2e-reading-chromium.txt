@@ -1,0 +1,30 @@
+[1A[2K[2m[WebServer] [22mGET /node_modules/.vite/deps/react-dom_client.js?v=b2c03cad 200 - - 5.351 ms
+
+[1A[2K[2m[WebServer] [22mGET /node_modules/.vite/deps/PYVV4DLY-7JHDUT4N.js?v=08c3d996 200 - - 210.525 ms
+
+[1A[2K[2m[WebServer] [22mGET /node_modules/.vite/deps/PYVV4DLY-7JHDUT4N.js?v=08c3d996 200 - - 1.117 ms
+
+[1A[2K[2m[WebServer] [22m[32m[1mLOADER[22m[39m [94mroutes/resources/imports-events[39m triggered - [37m12.85ms[39m
+
+[1A[2K[2m[WebServer] [22m[32m[1mLOADER[22m[39m [94mroutes/resources/imports-events[39m triggered - [37m6.58ms[39m
+
+[1A[2K[2m[WebServer] [22mGET /resources/imports-events 200 - - 24.993 ms
+
+[1A[2K[2m[WebServer] [22m[32m[1mLOADER[22m[39m [94mroot[39m triggered - [37m18.21ms[39m
+
+[1A[2K[2m[WebServer] [22m[94m[1mINFO[22m[39m ⏰  Server timing for route [94mroot[39m - [96mroot_loader[39m [32m[17.9ms][39m
+[2m[WebServer] [22m[94m[1mINFO[22m[39m ⏰  Server timing for route [94mroot[39m - [96mgetUserId[39m [32m[11.8ms][39m [33m["getUserId in root"][39m
+[2m[WebServer] [22m[94m[1mINFO[22m[39m ⏰  Server timing for route [94mroot[39m - [96mfind_user[39m [32m[4.5ms][39m [33m["find user in root"][39m
+[2m[WebServer] [22m[94m[1mINFO[22m[39m ⏰  Server timing for route [94mroot[39m - [96mdev_athletes[39m [32m[0ms][39m [33m["dev athlete switcher aggregates"][39m
+
+[1A[2K[2m[WebServer] [22m[32m[1mLOADER[22m[39m [94mroutes/_home/season[39m triggered - [37m34.43ms[39m
+
+[1A[2K[2m[WebServer] [22mGET /season.data 200 - - 50.913 ms
+
+[1A[2K[2m[WebServer] [22m[93m[1mACTION[22m[39m [94mroutes/imports.upload[39m triggered - [37m726.67ms[39m
+
+[1A[2K[2m[WebServer] [22mPOST /imports/upload 302 - - 771.522 ms
+
+[1A[2K[2m[WebServer] [22mGET /resources/imports-events 200 - - 15.377 ms
+
+[1A[2K  2 passed (1.2m)
