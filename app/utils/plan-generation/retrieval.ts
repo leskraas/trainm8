@@ -45,6 +45,7 @@ import {
 	type SessionArchetype,
 } from '../catalogue.ts'
 import { type QualityZone } from '../plan-outline/quality-mix.ts'
+import { type DurationBlock } from '../prescribed-duration.ts'
 import {
 	isPlaceable,
 	readSessionProvenance,
@@ -72,6 +73,12 @@ export type RetrievableEntry = ProvenanceSource & {
 	phases: CataloguePhase[]
 	/** Empty means the row is not goal-event-scoped. */
 	goalEvents: CatalogueGoalEvent[]
+	/**
+	 * The Stock Workout's blocks and steps as stored — what a placed session
+	 * copies, and what its **Placed Hours** are read from (ADR 0112). Data, so
+	 * the generator times a session without querying.
+	 */
+	blocks: DurationBlock[]
 }
 
 /**

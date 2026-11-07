@@ -48,6 +48,7 @@ function session(overrides: Partial<GeneratedSession> = {}): GeneratedSession {
 				locator: null,
 			},
 		},
+		prescribed: null,
 		...overrides,
 	}
 }
@@ -83,6 +84,7 @@ function preview(overrides: Partial<SeasonPreview['season']> = {}) {
 			levelFloor: 'intermediate',
 			goalEvent: '10k',
 			capacity: { kind: 'unset' },
+			placed: { kind: 'unset' },
 			...overrides,
 		},
 		choice: {
