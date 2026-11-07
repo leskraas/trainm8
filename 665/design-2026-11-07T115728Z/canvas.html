@@ -1,0 +1,1303 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pattern Workout Canvas</title>
+<style>
+:root{--bg:oklch(0.975 0.003 197);--card:oklch(1 0 0);--ink:oklch(0.22 0.01 230);--muted:oklch(0.5 0.01 230);--line:oklch(0.9 0.005 230);--accent:oklch(0.52 0.09 225);--soft:oklch(0.95 0.03 225);--run:oklch(0.54 0.15 32)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:oklch(0.148 0.004 228.8);--card:oklch(0.205 0.007 223.9);--ink:oklch(0.94 0.005 230);--muted:oklch(0.7 0.01 230);--line:oklch(0.3 0.008 230);--accent:oklch(0.76 0.09 225);--soft:oklch(0.28 0.04 225);--run:oklch(0.74 0.13 32)}}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif}
+main{max-width:1200px;margin:0 auto;padding:24px 16px 64px} h1{font-size:24px;margin:0 0 6px} h2{font-size:18px;margin:36px 0 10px} h3{font-size:15px;margin:18px 0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 18px} .chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:3px 11px;font-size:13px} .chip.lead{border-color:var(--accent);color:var(--accent);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px} th,td{text-align:left;vertical-align:top;padding:7px 8px;border-bottom:1px solid var(--line);overflow-wrap:anywhere} th{color:var(--muted);font-weight:600;width:22%}
+.ba{display:grid;grid-template-columns:minmax(0,1fr);gap:14px} @media(min-width:760px){.ba{grid-template-columns:1fr 1fr}}
+.box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0;background:var(--bg)} .box.held{border-color:var(--accent)} .box.sess{border-color:var(--run)}
+.arrow{color:var(--muted);font-size:13px;padding-left:12px} .muted{color:var(--muted)} .status{font-size:12px;border:1px solid var(--accent);color:var(--accent);border-radius:999px;padding:1px 8px}
+iframe.proto{width:100%;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+details{margin-top:12px} summary{cursor:pointer;font-weight:600} ol,ul{padding-left:20px} li{margin:4px 0} code{font-size:13px}
+</style></head><body><main>
+<h1>A Week Pattern day owns its Workout (#665)</h1>
+<div class="chips"><span class="chip lead">Chosen: Plan holds its copies, with 4 build fixes</span><span class="chip">run 1</span><span class="chip">9 decisions</span><span class="chip">one-way door: schema column and a data migration</span><span class="chip">Tool: logic prototype · Axis: state model</span></div>
+
+<h2>Overview</h2>
+<div class="card"><div class="ba">
+<div><h3>Today on main</h3>
+<div class="box sess">Workout Session "Terskel 5×6 min"<div class="muted">owns Workout <b>w1</b> 1:1 (ADR 0003)</div></div>
+<div class="arrow">↑ the fixed day, the share shape and the lifting slots point at <b>w1</b> itself</div>
+<div class="box">Week Pattern day · Tir · fast</div>
+<p class="muted">Delete the session: <code>CHECK constraint failed: WeekPatternDay_kind_fields</code>. Edit it: the day changes too.</p></div>
+<div><h3>Proposed: the plan holds its copies</h3>
+<div class="box sess">Workout Session "Terskel 5×6 min" → Workout <b>w1</b></div>
+<div class="arrow">↓ picking copies it once (<code>copyWorkout</code>, <code>copiedFromId → w1</code>)</div>
+<div class="box held">Workout <b>w11</b>, held by the plan (<code>heldByOutlineId</code>), owned by the athlete</div>
+<div class="arrow">↑ held by the day; a Simple Activity's days or a write's lifting slots share one copy</div>
+<div class="box">Week Pattern day · Tir · fast</div>
+<p class="muted">The session can be deleted or edited; the day keeps its title. The copy goes with the plan, or with the last day that held it.</p></div>
+</div></div>
+
+<h3>Comparison</h3>
+<div class="card"><table>
+<tr><th></th><td><b>Plan holds its copies</b> <span class="status">Chosen</span></td></tr>
+<tr><th>Axis position</th><td>State model: a private copy per pick, held by the Plan Outline; the plan's own days may share it. Not per day row, not a reference.</td></tr>
+<tr><th>Gain</th><td>The athlete's sessions and the plan never touch again. Simple Activities stay one unit, lifting slots one copy, and the delete-and-rewrite writes in <code>track-days</code> and <code>lifting-days</code> keep working with no change. Fixes today's leak: deleting a plan left its Simple Activity's Workout behind.</td></tr>
+<tr><th>Cost</th><td>A new nullable column with an FK and a CHECK; a sweep in four removal paths; a SQL data migration that deep-copies Block, Step and set rows; one owner-scoped reader learns to skip held rows.</td></tr>
+<tr><th>Criteria held</th><td>6 of 8 hold. AC3 holds only in part: two write paths still accept any Workout the athlete owns. AC6 fails on the real schema: deleting a plan or an Event fails once the migration rebuilds <code>Workout</code>. Both are fixable, and the fixes are under Decisions 6 to 9.</td></tr>
+<tr><th>Worst case</th><td>Worst case on the real schema: deleting a plan with a fixed day fails with <code>CHECK constraint failed: WeekPatternDay_kind_fields</code>. In the prototype: a session's Workout in 2 plans and 2 patterns and as a share shape, 4 stock lifting slots, a 3-day Simple Activity, a 100-character title with emoji: the migration writes one copy per plan, and all checks go green.</td></tr>
+<tr><th>Build cost</th><td class="muted">Not run (one variant)</td></tr>
+</table></div>
+
+<h3>Decisions</h3>
+<div class="card"><ol>
+<li>Who holds the copy? <b>The plan (Plan Outline), one copy per pick, shared by the plan's own days where the write shares it.</b></li>
+<li>How is a held copy marked? <b>A nullable <code>Workout.heldByOutlineId</code>, FK to PlanOutline with <code>onDelete: Cascade</code>.</b></li>
+<li>When does a copy go? <b>With the plan by cascade. When a day, pattern, track or lifting rewrite drops the last day holding it, a plan-scoped sweep removes it in the same transaction. A day choice in Avansert does not sweep, so its undo still works.</b></li>
+<li>What does the migration do? <b>For each plan, one copy of each Workout its days share with a session, a Stock Workout or another plan. A Workout only that plan's days hold gets marked held, with no copy.</b></li>
+<li>Do stock lifting slots get a copy too? <b>Yes, a held copy with <code>copiedFromId</code> pointing at the Stock Workout, so the Citation still reads through the copy.</b></li>
+<li><i>Critic.</i> What happens to a day when its Workout is deleted? <b>The delete fails. <code>WeekPatternDay.workoutId</code> changes from <code>SetNull</code> to <code>NoAction</code> in the same migration, so deleting a plan, an Event or an account cascades cleanly in any order, and deleting a held Workout that a day still uses fails loudly instead of nulling it.</b></li>
+<li><i>Critic.</i> Which Workout ids does a pattern write accept? <b>Only rows held by this plan. A session's Workout or a Stock Workout is copied in on the way. This replaces the "owned or stock" guard in <code>track-days</code> <code>checkedRestore</code> and in <code>lifting-days</code>, so an undo payload issued before the deploy cannot tie a day to a session again.</b></li>
+<li><i>Critic.</i> When does a day choice's orphaned copy go? <b>At the next write to the plan. Every write sweeps held rows that no day uses, except the ones its own undo still names. At most one write's rows wait, and nothing else lingers until the plan is deleted.</b></li>
+<li><i>Critic.</i> How is the SQL deep copy kept faithful? <b>An integration test runs the migration on fixture plans and compares the next stamped week before and after (AC5). The copy goes through every column <code>workoutCopySelect</code> carries.</b></li>
+</ol></div>
+
+<details><summary>Appendix</summary>
+<h3>Critic's scoring</h3>
+<p>The variant was scored against the code on <code>6ec5b58</code>, with the designer's Playwright probe re-run (all 18 checks on the proposed model pass, no page errors) and a new probe of the real schema: <code>critic-cascade-probe.py</code>, output in <code>critic-cascade-probe.txt</code>.</p>
+<table>
+<tr><th>AC</th><th>Verdict</th><th>What I saw</th></tr>
+<tr><td>1 Delete a fixed day's source session</td><td>holds</td><td>The day holds its own copy. <code>deleteWorkoutSession</code> deletes the session's Workout, and the copy's <code>copiedFromId</code> becomes null (<code>SetNull</code>).</td></tr>
+<tr><td>2 A share shape survives</td><td>holds</td><td>Same path. The prototype shows "formet etter" kept.</td></tr>
+<tr><td>3 Edits stay apart</td><td>partly</td><td>This holds on every path the design names. But <code>checkedRestore</code> (track-days) and the lifting rewrite accept any Workout the athlete owns, or any Stock Workout, so an undo issued before the deploy, or a crafted payload, can point a day at a session's Workout again. Fix: Decision 7.</td></tr>
+<tr><td>4 Strength offer source deletable</td><td>holds</td><td><code>acceptStrengthOffer</code> writes the slots from a single <code>workoutId</code>. That becomes one held copy.</td></tr>
+<tr><td>5 Migration keeps titles and stamps</td><td>holds</td><td>This holds in the prototype. The risk is in the SQL deep copy drifting from <code>copyWorkout</code>. Fix: Decision 9.</td></tr>
+<tr><td>6 Removal leaves no orphan, never a session's</td><td>misses</td><td>With a Prisma table redefinition of <code>Workout</code>, the plan cascade reaches the held copy before the days. The day's <code>SetNull</code> then trips <code>WeekPatternDay_kind_fields</code>, and <code>deletePlanOutline</code> and <code>deleteEvent</code> fail. With <code>ALTER … ADD COLUMN</code> it happens to pass, so the outcome depends on table order. A day choice that drops a fixed day also leaves its copy behind until some later sweep. Fix: Decisions 6 and 8.</td></tr>
+<tr><td>7 Picker shows only authored</td><td>holds</td><td>The picker reads through authored sessions (<code>getAuthoredWorkouts</code>), and held copies have none. <code>listOwnPublishableWorkouts</code> is filtered as designed.</td></tr>
+<tr><td>8 Account deletion</td><td>holds</td><td><code>deleteAccount</code> deletes the athlete's days before the Workouts. A bare <code>User</code> delete would fail in the same way as AC6. Decision 6 makes both orders safe.</td></tr>
+</table>
+<p><b>Craft.</b> Nothing new is visible. What would feel wrong in use: "Slett plan" or deleting an Event ending in an error toast (AC6), and Angre answering <code>bad-restore</code> if a sweep took the row (the design avoids this, and Decision 8 keeps it that way). In the prototype only, the "Used by" chips are clipped at the right edge. That does not ship.</p>
+<p><b>Fit.</b> This follows ADR 0051's fork-on-write, with <code>copiedFromId</code> as provenance, so slice 2 (saved and stock Workouts in the picker) is the same copy-on-pick. It adds a second "whose is this" axis on <code>Workout</code>, so every future "my Workouts" reader has to skip held rows. Put that filter in one shared <code>where</code> fragment rather than repeating it in each reader. The plan sharing one copy across its days differs from the Scope's "its own copy". The criteria do not ask for a copy per day, and a copy per day would break <code>unitsOf</code>.</p>
+<p><b>Build cost.</b> Not run (one variant).</p>
+<h3>Method</h3>
+<p>Logic and state question → Matt's prototype, logic branch (<code>.claude/skills/prototype/LOGIC.md</code>): one pure module (<code>PatternWorkouts</code>) and a thin page on top. The acceptance criteria are rendered as live checks. A Playwright probe ran every walkthrough under all three models on both data sets: Today fails AC1, 2, 3, 4 and 6 as the issue says, Copy per day splits Simple Activities, and Plan holds its copies passes everything.</p>
+<p>Code read on <code>origin/main</code> 6ec5b58: <code>track-days.server.ts</code> (<code>unitsOf</code> groups a Simple Activity by <code>workoutId</code>; <code>replaceUnitRows</code> deletes and rewrites rows; <code>checkedRestore</code> restores by <code>workoutId</code>), <code>lifting-days.server.ts</code> (<code>writeStrengthRows</code> deletes and rewrites rows, and every slot shares one id), <code>strength-offer.server.ts</code>, <code>authoring.server.ts</code> (<code>addWeekPatternDay</code>, starter pattern), <code>first-run/plan.server.ts</code>, <code>start-strength.server.ts</code> (lifting falls back to the Stock Workout), <code>account-deletion.server.ts</code>, <code>community.server.ts</code> (<code>listOwnPublishableWorkouts</code> lists every owned athlete Workout), <code>training.server.ts</code> (<code>getAuthoredWorkouts</code> reads through authored sessions), and <code>workout.server.ts</code> (<code>deleteOrphanedLineage</code> counts <code>patternDays</code>).</p>
+<h3>Rejected directions <span class="status">Rejected</span></h3>
+<ul>
+<li><b>Copy per day row</b> (the issue's Scope, read literally): a 3-day Simple Activity becomes 3 units in Avansert. Lifting slots get N identical copies. Delete-and-rewrite has to copy before deleting, and an undo restores ids that have already been swept.</li>
+<li><b>Mark copies by inference</b> ("has pattern days and no sessions"): this cannot tell a held copy from a legitimate row, and the Catalogue's "your sessions" list would show the copies.</li>
+<li><b>SQLite AFTER DELETE trigger for cleanup</b>: it fires in the middle of a rewrite and breaks undo, and Prisma cannot see it.</li>
+<li><b>FK from the Workout to the day, with cascade</b>: one owner per row, which rules out sharing. It also cascades away the copy during delete-and-rewrite.</li>
+</ul>
+<h3>Designer's note</h3><p>The designer's pick is <b>Plan holds its copies</b>, the same variant I recommend. The designer's reason: all 8 checks pass live, and a Simple Activity stays one unit. My answer: on the real schema, AC6 fails until the day FK is <code>NoAction</code>. The designer's draft also has <code>checkedRestore</code> accept held rows <i>in addition to</i> owned and stock rows. I would accept only held rows, because otherwise the tie can come back (Decision 7).</p>
+</details>
+
+<h2>Variant: Plan holds its copies <span class="status">Chosen</span></h2>
+<p class="muted">The working prototype. Use the Model switch to compare it with today's model and the rejected one.</p>
+<iframe class="proto" style="height:1700px" title="Prototype" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;&lt;script&gt;window.START_MODEL=&#x27;held&#x27;;window.START_DATA=&#x27;demo&#x27;&lt;/script&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1, viewport-fit=cover&quot;&gt;
+&lt;title&gt;Pattern Workout Ownership&lt;/title&gt;
+&lt;style&gt;
+:root{
+  --bg:oklch(0.975 0.003 197);--card:oklch(1 0 0);--ink:oklch(0.22 0.01 230);--muted:oklch(0.5 0.01 230);
+  --line:oklch(0.9 0.005 230);--accent:oklch(0.52 0.09 225);--accent-soft:oklch(0.95 0.03 225);
+  --good:oklch(0.5 0.12 150);--bad:oklch(0.54 0.17 28);--bad-soft:oklch(0.96 0.03 28);--warn:oklch(0.6 0.12 80);
+  --run:oklch(0.54 0.15 32);--strength:oklch(0.53 0.12 300);--other:oklch(0.53 0.11 78);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=&quot;light&quot;]){
+  --bg:oklch(0.148 0.004 228.8);--card:oklch(0.205 0.007 223.9);--ink:oklch(0.94 0.005 230);--muted:oklch(0.7 0.01 230);
+  --line:oklch(0.3 0.008 230);--accent:oklch(0.76 0.09 225);--accent-soft:oklch(0.28 0.04 225);
+  --good:oklch(0.75 0.13 150);--bad:oklch(0.74 0.14 28);--bad-soft:oklch(0.3 0.06 28);--warn:oklch(0.8 0.12 80);
+  --run:oklch(0.74 0.13 32);--strength:oklch(0.74 0.1 300);--other:oklch(0.8 0.12 78);}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 ui-sans-serif,system-ui,-apple-system,&quot;Segoe UI&quot;,sans-serif;-webkit-tap-highlight-color:transparent}
+main{max-width:1360px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:-0.01em}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px;font-weight:600}
+p{margin:0 0 8px}
+.lede{color:var(--muted);max-width:75ch}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;padding:8px 12px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;min-height:40px}
+.seg button[aria-pressed=&quot;true&quot;]{background:var(--accent);color:var(--card)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:1000px){.grid{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.stack&gt;*+*{margin-top:16px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.tabs button,.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;padding:7px 11px;cursor:pointer;min-height:36px;text-align:left;user-select:none}
+.tabs button[aria-selected=&quot;true&quot;]{border-color:var(--accent);background:var(--accent-soft)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--accent);color:var(--card);border-color:var(--accent)}
+.steps{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:6px}
+.steps li{display:flex;gap:8px;align-items:flex-start}
+.steps .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;border:1px solid var(--line);color:var(--muted);margin-top:7px}
+.steps li.done .n{background:var(--good);border-color:var(--good);color:var(--card)}
+.steps li.next .n{border-color:var(--accent);color:var(--accent)}
+.watch{border-left:3px solid var(--accent);padding:6px 10px;background:var(--accent-soft);border-radius:0 8px 8px 0;margin-top:10px;font-size:14px}
+.free{display:flex;flex-wrap:wrap;gap:6px}
+.msg{margin-top:12px;font-size:14px;padding:8px 10px;border-radius:8px;background:var(--accent-soft)}
+.msg.err{background:var(--bad-soft);color:var(--bad);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+th{color:var(--muted);font-weight:600;font-size:12px}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);margin:1px 2px 1px 0;max-width:100%}
+table{table-layout:fixed}
+@media (max-width:520px){.hide-sm{display:none}th,td{padding:5px 4px}}
+.tag.held{border-color:var(--accent);color:var(--accent)}
+.tag.session{border-color:var(--run);color:var(--run)}
+.tag.stock{border-color:var(--muted);color:var(--muted)}
+.tag.bad{border-color:var(--bad);color:var(--bad)}
+.day{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--line)}
+.day:last-child{border-bottom:0}
+.wd{flex:none;width:34px;font-weight:600;font-size:13px}
+.dot{flex:none;width:8px;height:8px;border-radius:50%;margin-top:6px}
+.inv{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.inv li{display:flex;gap:8px;font-size:14px}
+.inv .ok{color:var(--good);font-weight:700;flex:none;width:16px}
+.inv .no{color:var(--bad);font-weight:700;flex:none;width:16px}
+.changed{animation:none;outline:2px solid var(--warn);outline-offset:1px;border-radius:4px}
+.muted{color:var(--muted)}
+.cols{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:700px){.cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.small{font-size:13px}
+@media (hover:hover) and (pointer:fine){.btn:not(:disabled):hover,.tabs button:hover{border-color:var(--accent)}}
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;main&gt;
+&lt;h1&gt;Who holds a Week Pattern day&#x27;s Workout&lt;/h1&gt;
+&lt;p class=&quot;lede&quot;&gt;Prototype for #665. &lt;b&gt;The question:&lt;/b&gt; when a pattern day picks a Workout, which row does the day hold, and who cleans it up, so that deleting or editing the athlete&#x27;s sessions never reaches the plan, and removing the plan never leaves a Workout behind? Press the buttons; the panels on the right show the full state after every action, and the checks turn red when a rule breaks.&lt;/p&gt;
+
+&lt;div class=&quot;bar&quot;&gt;
+  &lt;span class=&quot;small muted&quot;&gt;Model&lt;/span&gt;
+  &lt;div class=&quot;seg&quot; id=&quot;models&quot; role=&quot;group&quot; aria-label=&quot;Model&quot;&gt;&lt;/div&gt;
+  &lt;span class=&quot;small muted&quot;&gt;Data&lt;/span&gt;
+  &lt;div class=&quot;seg&quot; id=&quot;datas&quot; role=&quot;group&quot; aria-label=&quot;Demo data or worst case&quot;&gt;&lt;/div&gt;
+  &lt;button class=&quot;btn&quot; id=&quot;reset&quot;&gt;Reset&lt;/button&gt;
+&lt;/div&gt;
+
+&lt;div class=&quot;grid&quot;&gt;
+  &lt;div class=&quot;stack&quot;&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;h2&gt;Guided walkthroughs&lt;/h2&gt;
+      &lt;div class=&quot;tabs&quot; id=&quot;tabs&quot; role=&quot;tablist&quot;&gt;&lt;/div&gt;
+      &lt;div id=&quot;scenario&quot;&gt;&lt;/div&gt;
+    &lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;h2&gt;Free play&lt;/h2&gt;
+      &lt;div class=&quot;free&quot; id=&quot;free&quot;&gt;&lt;/div&gt;
+      &lt;div id=&quot;msg&quot;&gt;&lt;/div&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+  &lt;div class=&quot;stack&quot;&gt;
+    &lt;section class=&quot;card&quot;&gt;&lt;h2&gt;Checks (the acceptance criteria as rules)&lt;/h2&gt;&lt;ul class=&quot;inv&quot; id=&quot;inv&quot;&gt;&lt;/ul&gt;&lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;div class=&quot;cols&quot;&gt;
+        &lt;div&gt;&lt;h2&gt;Plan in Avansert&lt;/h2&gt;&lt;div id=&quot;plans&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;div&gt;&lt;h2&gt;Calendar&lt;/h2&gt;&lt;div id=&quot;cal&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;&lt;h2&gt;Every Workout row&lt;/h2&gt;&lt;div id=&quot;workouts&quot;&gt;&lt;/div&gt;&lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;div class=&quot;cols&quot;&gt;
+        &lt;div&gt;&lt;h2&gt;Picker: recent own Workouts&lt;/h2&gt;&lt;div id=&quot;picker&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;div&gt;&lt;h2&gt;Day choice units (Avansert, Simple Activities)&lt;/h2&gt;&lt;div id=&quot;units&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+&lt;/main&gt;
+
+&lt;!-- ===================== The logic module: pure, no DOM ===================== --&gt;
+&lt;script&gt;
+const PatternWorkouts = (() =&gt; {
+  const ME = &#x27;kari&#x27;
+  const WD = [&#x27;Man&#x27;,&#x27;Tir&#x27;,&#x27;Ons&#x27;,&#x27;Tor&#x27;,&#x27;Fre&#x27;,&#x27;Lør&#x27;,&#x27;Søn&#x27;]
+  const clone = (s) =&gt; JSON.parse(JSON.stringify(s))
+
+  // model: &#x27;today&#x27;  - origin/main: a day references the picked row by id.
+  //        &#x27;perDay&#x27; - each day row gets its own copy (rejected direction).
+  //        &#x27;held&#x27;   - the plan holds private copies its days share (proposed).
+  function empty(model) {
+    return { model, seq: 1, week: 0, workouts: {}, sessions: {}, plans: {}, accountDeleted: false }
+  }
+  const nid = (s, p) =&gt; p + s.seq++
+
+  function newWorkout(s, w) {
+    const id = nid(s, &#x27;w&#x27;)
+    s.workouts[id] = { id, ownerId: ME, authorship: &#x27;athlete&#x27;, heldBy: null, copiedFromId: null, ...w }
+    return id
+  }
+  function copyWorkout(s, srcId, heldBy) {
+    const src = s.workouts[srcId]
+    return newWorkout(s, { title: src.title, discipline: src.discipline, steps: src.steps, heldBy, copiedFromId: heldBy ? srcId : null })
+  }
+  const plan = (s, id) =&gt; { const p = s.plans[id]; if (!p) throw new Error(&#x27;plan-gone&#x27;); return p }
+  const allDays = (p) =&gt; p.patterns.flatMap((pt) =&gt; pt.days)
+  const daysUsing = (s, wid) =&gt; Object.values(s.plans).flatMap((p) =&gt; allDays(p).filter((d) =&gt; d.workoutId === wid).map((d) =&gt; ({ plan: p, day: d })))
+  const sessionsUsing = (s, wid) =&gt; Object.values(s.sessions).filter((x) =&gt; x.workoutId === wid)
+
+  // What a day write stores, per model. `share` lets one write give several rows one copy.
+  function holdFor(s, planId, dayId, workoutId, share) {
+    if (workoutId == null) return null
+    const w = s.workouts[workoutId]
+    if (s.model === &#x27;today&#x27;) return workoutId
+    if (s.model === &#x27;perDay&#x27;) return copyWorkout(s, workoutId, &#x27;day:&#x27; + dayId)
+    if (w.heldBy === &#x27;plan:&#x27; + planId) return workoutId // already the plan&#x27;s own
+    if (share &amp;&amp; share.has(workoutId)) return share.get(workoutId)
+    const id = copyWorkout(s, workoutId, &#x27;plan:&#x27; + planId)
+    if (share) share.set(workoutId, id)
+    return id
+  }
+
+  // The sweep: a held copy no day of its plan holds any more goes.
+  function sweep(s) {
+    let n = 0
+    for (const w of Object.values(s.workouts)) {
+      if (!w.heldBy) continue
+      const [kind, id] = w.heldBy.split(&#x27;:&#x27;)
+      const held = kind === &#x27;plan&#x27;
+        ? s.plans[id] &amp;&amp; allDays(s.plans[id]).some((d) =&gt; d.workoutId === w.id)
+        : Object.values(s.plans).some((p) =&gt; allDays(p).some((d) =&gt; d.id === id &amp;&amp; d.workoutId === w.id))
+      if (!held) { deleteWorkoutRow(s, w.id); n++ }
+    }
+    return n
+  }
+  // Deleting a Workout row: sessions cascade (schema), days SetNull, copies&#x27; copiedFromId SetNull.
+  function deleteWorkoutRow(s, wid) {
+    for (const x of sessionsUsing(s, wid)) delete s.sessions[x.id]
+    for (const { day } of daysUsing(s, wid)) {
+      if (day.kind !== &#x27;share&#x27;) throw new Error(&#x27;CHECK constraint failed: WeekPatternDay_kind_fields&#x27;)
+      day.workoutId = null
+    }
+    for (const w of Object.values(s.workouts)) if (w.copiedFromId === wid) w.copiedFromId = null
+    delete s.workouts[wid]
+  }
+
+  // ---------- actions: (state, args) =&gt; { state, say }  (throw = refused, rolled back)
+  function run(s0, fn) { const s = clone(s0); const say = fn(s); return { state: s, say } }
+
+  const A = {
+    authorSession: (s0, { title, discipline, steps, status = &#x27;scheduled&#x27;, when = &#x27;Uke 0&#x27;, role = null }) =&gt; run(s0, (s) =&gt; {
+      const wid = newWorkout(s, { title, discipline, steps })
+      const id = nid(s, &#x27;s&#x27;)
+      s.sessions[id] = { id, workoutId: wid, source: &#x27;authored&#x27;, status, when, role }
+      return `Wrote the session &quot;${title}&quot; with its own Workout.`
+    }),
+    editSession: (s0, { sessionId, title, steps }) =&gt; run(s0, (s) =&gt; {
+      const x = s.sessions[sessionId]; if (!x) throw new Error(&#x27;session-gone&#x27;)
+      const w = s.workouts[x.workoutId]
+      if (title) w.title = title
+      if (steps) w.steps = steps
+      return `Edited the session to &quot;${w.title}&quot;.`
+    }),
+    deleteSession: (s0, { sessionId }) =&gt; run(s0, (s) =&gt; {
+      const x = s.sessions[sessionId]; if (!x) throw new Error(&#x27;session-gone&#x27;)
+      const shares = daysUsing(s, x.workoutId).filter(({ day }) =&gt; day.kind === &#x27;share&#x27;).length
+      delete s.sessions[sessionId]
+      deleteWorkoutRow(s, x.workoutId)
+      return shares ? `Deleted the session. ${shares} share day(s) lost their shape without a word.` : &#x27;Deleted the session and its Workout.&#x27;
+    }),
+    createPlan: (s0, { name, disciplines }) =&gt; run(s0, (s) =&gt; {
+      const id = nid(s, &#x27;p&#x27;)
+      const tracks = {}
+      for (const d of disciplines) { const t = nid(s, &#x27;t&#x27;); tracks[t] = { id: t, discipline: d } }
+      s.plans[id] = { id, name, tracks, patterns: [{ id: nid(s, &#x27;pt&#x27;), name: &#x27;Typisk uke&#x27;, days: [] }] }
+      return `Made the plan &quot;${name}&quot;.`
+    }),
+    addPattern: (s0, { planId, name }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      // A choice holds in every pattern (spec #588): the Simple Activity rows come along.
+      const pt = { id: nid(s, &#x27;pt&#x27;), name, days: [] }
+      p.patterns.push(pt)
+      return `Added the Week Pattern &quot;${name}&quot;.`
+    }),
+    addDay: (s0, { planId, patternIndex = 0, discipline, kind, weekday, weight = null, workoutId = null }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      const track = Object.values(p.tracks).find((t) =&gt; t.discipline === discipline)
+      if (!track) throw new Error(&#x27;track-gone&#x27;)
+      if (workoutId) {
+        const w = s.workouts[workoutId]
+        if (!w || w.ownerId !== ME) throw new Error(&#x27;workout-gone&#x27;)
+        if (w.discipline !== discipline) throw new Error(&#x27;workout-discipline-mismatch&#x27;)
+      }
+      const id = nid(s, &#x27;d&#x27;)
+      const held = holdFor(s, planId, id, workoutId)
+      p.patterns[patternIndex].days.push({ id, trackId: track.id, kind, weekday, weight: kind === &#x27;share&#x27; ? weight : null, workoutId: held })
+      const what = workoutId ? `&quot;${s.workouts[workoutId].title}&quot;` : &#x27;no shape&#x27;
+      return s.model === &#x27;today&#x27; &amp;&amp; workoutId
+        ? `Added a ${kind} day on ${WD[weekday]} pointing at ${what} (the session&#x27;s own row).`
+        : `Added a ${kind} day on ${WD[weekday]} with ${workoutId ? &#x27;its own copy of &#x27; + what : what}.`
+    }),
+    acceptStrengthOffer: (s0, { planId, perWeek = 2 }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      const last = Object.values(s.sessions).filter((x) =&gt; x.status === &#x27;completed&#x27; &amp;&amp; s.workouts[x.workoutId]?.discipline === &#x27;strength&#x27;).pop()
+      if (!last) throw new Error(&#x27;no-strength-history&#x27;)
+      let track = Object.values(p.tracks).find((t) =&gt; t.discipline === &#x27;strength&#x27;)
+      if (track) throw new Error(&#x27;discipline-already-tracked&#x27;)
+      const t = nid(s, &#x27;t&#x27;); p.tracks[t] = { id: t, discipline: &#x27;strength&#x27; }
+      const share = new Map()
+      for (let i = 0; i &lt; perWeek; i++) {
+        const id = nid(s, &#x27;d&#x27;)
+        p.patterns[0].days.push({ id, trackId: t, kind: &#x27;lifting&#x27;, weekday: null, weight: null, workoutId: holdFor(s, planId, id, last.workoutId, share) })
+      }
+      return `Accepted the strength offer: ${perWeek} lifting slots on &quot;${s.workouts[last.workoutId].title}&quot;.`
+    }),
+    liftFromStock: (s0, { planId, perWeek = 2 }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      const stock = Object.values(s.workouts).find((w) =&gt; w.authorship === &#x27;system&#x27;)
+      const t = nid(s, &#x27;t&#x27;); p.tracks[t] = { id: t, discipline: &#x27;strength&#x27; }
+      const share = new Map()
+      for (let i = 0; i &lt; perWeek; i++) {
+        const id = nid(s, &#x27;d&#x27;)
+        p.patterns[0].days.push({ id, trackId: t, kind: &#x27;lifting&#x27;, weekday: null, weight: null, workoutId: holdFor(s, planId, id, stock.id, share) })
+      }
+      return `First run: ${perWeek} lifting slots on the Stock Workout &quot;${stock.title}&quot;.`
+    }),
+    addSimpleActivity: (s0, { planId, title, weekdays }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      let track = Object.values(p.tracks).find((t) =&gt; t.discipline === &#x27;other&#x27;)
+      if (!track) { const t = nid(s, &#x27;t&#x27;); track = p.tracks[t] = { id: t, discipline: &#x27;other&#x27; } }
+      // createSimpleActivityWorkout: written for this plan, never a session&#x27;s.
+      const base = newWorkout(s, { title, discipline: &#x27;other&#x27;, steps: &#x27;1 × 60 min, middels&#x27;, heldBy: s.model === &#x27;held&#x27; ? &#x27;plan:&#x27; + planId : null })
+      for (const pt of p.patterns) for (const wd of weekdays) {
+        const id = nid(s, &#x27;d&#x27;)
+        let wid = base
+        if (s.model === &#x27;perDay&#x27;) { wid = copyWorkout(s, base, &#x27;day:&#x27; + id); s.workouts[wid].copiedFromId = null }
+        pt.days.push({ id, trackId: track.id, kind: &#x27;fixed&#x27;, weekday: wd, weight: null, workoutId: wid })
+      }
+      if (s.model === &#x27;perDay&#x27;) delete s.workouts[base]
+      s.activities = [...(s.activities ?? []), { planId }]
+      return `Added the Simple Activity &quot;${title}&quot; on ${weekdays.map((d) =&gt; WD[d]).join(&#x27;, &#x27;)} in every pattern.`
+    }),
+    // track-days.server.ts: delete the unit&#x27;s rows, write new ones with the unit&#x27;s workoutId.
+    setActivityDays: (s0, { planId, unitKey, weekdays }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      const unit = unitsOf(s, planId).find((u) =&gt; u.key === unitKey)
+      if (!unit) throw new Error(&#x27;no-unit&#x27;)
+      if (!weekdays.length) throw new Error(&#x27;no-days&#x27;)
+      s.lastUndo = { planId, unitKey, rows: p.patterns.map((pt) =&gt; pt.days.filter((d) =&gt; d.trackId === unit.trackId &amp;&amp; d.workoutId === unit.workoutId).map((d) =&gt; d.weekday)) }
+      for (const pt of p.patterns) {
+        const mine = pt.days.filter((d) =&gt; d.trackId === unit.trackId &amp;&amp; d.workoutId === unit.workoutId)
+        if (!mine.length) continue
+        pt.days = pt.days.filter((d) =&gt; !mine.includes(d))
+        for (const wd of weekdays) {
+          const id = nid(s, &#x27;d&#x27;)
+          const wid = s.model === &#x27;perDay&#x27; ? copyWorkout(s, unit.workoutId, &#x27;day:&#x27; + id) : unit.workoutId
+          pt.days.push({ id, trackId: unit.trackId, kind: &#x27;fixed&#x27;, weekday: wd, weight: null, workoutId: wid })
+        }
+      }
+      const swept = sweep(s)
+      return `Moved &quot;${unit.title}&quot; to ${weekdays.map((d) =&gt; WD[d]).join(&#x27;, &#x27;)}.` + (swept ? ` ${swept} copy row(s) swept.` : &#x27;&#x27;)
+    }),
+    stampWeek: (s0, { planId }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      s.week++
+      const pt = p.patterns[(s.week - 1) % p.patterns.length]
+      let n = 0
+      for (const d of pt.days) {
+        const disc = p.tracks[d.trackId].discipline
+        let wid
+        if (d.kind === &#x27;share&#x27;) {
+          wid = d.workoutId ? copyWorkout(s, d.workoutId, null) : newWorkout(s, { title: disc === &#x27;run&#x27; ? &#x27;Rolig løp&#x27; : &#x27;Rolig&#x27;, discipline: disc, steps: &#x27;scaled to the week&#x27; })
+          if (d.workoutId) s.workouts[wid].steps = s.workouts[d.workoutId].steps + &#x27; (scaled)&#x27;
+        } else {
+          if (!d.workoutId) throw new Error(&#x27;a fixed day with no Workout cannot be stamped&#x27;)
+          wid = copyWorkout(s, d.workoutId, null)
+        }
+        const id = nid(s, &#x27;s&#x27;)
+        s.sessions[id] = { id, workoutId: wid, source: &#x27;generated&#x27;, status: &#x27;scheduled&#x27;, when: `Uke ${s.week}` + (d.weekday == null ? &#x27; · løft&#x27; : &#x27; · &#x27; + WD[d.weekday]) }
+        n++
+      }
+      return `Stamped week ${s.week} from &quot;${pt.name}&quot;: ${n} session(s), each with its own copy.`
+    }),
+    removeDay: (s0, { planId, dayId }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      for (const pt of p.patterns) pt.days = pt.days.filter((d) =&gt; d.id !== dayId)
+      const n = sweep(s)
+      return `Removed the day.` + (n ? ` ${n} copy row(s) went with it.` : &#x27;&#x27;)
+    }),
+    removePattern: (s0, { planId, index }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      p.patterns.splice(index, 1)
+      const n = sweep(s)
+      return `Removed the Week Pattern.` + (n ? ` ${n} copy row(s) went with it.` : &#x27;&#x27;)
+    }),
+    deletePlan: (s0, { planId }) =&gt; run(s0, (s) =&gt; {
+      plan(s, planId)
+      delete s.plans[planId] // sessions stay on the calendar, unanchored
+      const n = sweep(s)
+      return `Deleted the plan.` + (n ? ` ${n} copy row(s) went with it.` : &#x27;&#x27;)
+    }),
+    // The migration: per plan, one copy of each Workout its days share with a session, a stock row
+    // or another plan; a Workout only this plan&#x27;s days hold is marked held without a copy.
+    migrate: (s0) =&gt; run(s0, (s) =&gt; {
+      if (s.model !== &#x27;today&#x27;) throw new Error(&#x27;nothing to migrate: this state is already on the new model&#x27;)
+      s.model = &#x27;held&#x27;
+      let kept = 0, copied = 0
+      for (const p of Object.values(s.plans)) {
+        const map = new Map()
+        for (const d of allDays(p)) {
+          if (!d.workoutId) continue
+          if (!map.has(d.workoutId)) {
+            const w = s.workouts[d.workoutId]
+            const elsewhere = sessionsUsing(s, w.id).length &gt; 0 || daysUsing(s, w.id).some((u) =&gt; u.plan.id !== p.id)
+            if (!elsewhere &amp;&amp; w.ownerId === ME &amp;&amp; w.authorship === &#x27;athlete&#x27; &amp;&amp; !w.heldBy) { w.heldBy = &#x27;plan:&#x27; + p.id; map.set(w.id, w.id); kept++ }
+            else { map.set(w.id, copyWorkout(s, w.id, &#x27;plan:&#x27; + p.id)); copied++ }
+          }
+          d.workoutId = map.get(d.workoutId)
+        }
+      }
+      return `Migrated: ${copied} copy row(s) written, ${kept} Workout(s) only the plan held marked as its own. Titles unchanged.`
+    }),
+    deleteAccount: (s0) =&gt; run(s0, (s) =&gt; {
+      s.plans = {}
+      s.sessions = {}
+      for (const w of Object.values(s.workouts)) if (w.ownerId === ME) delete s.workouts[w.id]
+      s.accountDeleted = true
+      return &#x27;Deleted the account: plans, sessions and every Workout of hers. Stock rows stay.&#x27;
+    }),
+  }
+
+  // ---------- reads
+  function pickerList(s, discipline) {
+    const seen = new Set(); const out = []
+    for (const x of Object.values(s.sessions).reverse()) {
+      if (x.source !== &#x27;authored&#x27;) continue
+      const w = s.workouts[x.workoutId]
+      if (!w || w.ownerId !== ME || (discipline &amp;&amp; w.discipline !== discipline)) continue
+      const key = w.discipline + &#x27;|&#x27; + w.title.trim().toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key); out.push(w)
+    }
+    return out.slice(0, 12)
+  }
+  function unitsOf(s, planId) {
+    const p = s.plans[planId]; if (!p || !p.patterns[0]) return []
+    const byW = new Map()
+    for (const d of p.patterns[0].days) {
+      if (p.tracks[d.trackId].discipline !== &#x27;other&#x27; || !d.workoutId) continue
+      byW.set(d.workoutId, [...(byW.get(d.workoutId) ?? []), d])
+    }
+    return [...byW].map(([wid, rows]) =&gt; ({ key: `activity:${rows[0].trackId}:${wid}`, trackId: rows[0].trackId, workoutId: wid, title: s.workouts[wid]?.title, days: rows.map((r) =&gt; r.weekday).sort() }))
+  }
+  function dayLabel(s, p, d) {
+    const w = d.workoutId ? s.workouts[d.workoutId] : null
+    if (d.kind === &#x27;share&#x27;) return `share ${d.weight}` + (w ? ` · formet etter ${w.title}` : &#x27; · ingen form&#x27;)
+    return (w ? w.title : &#x27;Økta er fjernet&#x27;) + (d.kind === &#x27;lifting&#x27; ? &#x27; · løft&#x27; : &#x27; · fast&#x27;)
+  }
+  function usesOf(s, wid) {
+    const u = []
+    for (const x of sessionsUsing(s, wid)) u.push({ kind: &#x27;session&#x27;, label: `${x.source} session (${x.when})` })
+    for (const { plan: p, day } of daysUsing(s, wid)) u.push({ kind: &#x27;day&#x27;, label: `${day.kind} day in ${p.name}` })
+    return u
+  }
+  function checks(s) {
+    const out = []
+    const days = Object.values(s.plans).flatMap((p) =&gt; allDays(p).map((d) =&gt; ({ p, d })))
+    const missing = days.filter(({ d }) =&gt; d.kind !== &#x27;share&#x27; &amp;&amp; !d.workoutId)
+    out.push({ ok: !missing.length, label: &#x27;Every fixed day and lifting slot holds a Workout&#x27;, why: missing.length + &#x27; without&#x27; })
+    const sharedWithSession = days.filter(({ d }) =&gt; d.workoutId &amp;&amp; sessionsUsing(s, d.workoutId).length)
+    out.push({ ok: !sharedWithSession.length, label: &#x27;No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan)&#x27;, why: sharedWithSession.length + &#x27; day(s) tied to a session&#x27; })
+    const stock = days.filter(({ d }) =&gt; d.workoutId &amp;&amp; s.workouts[d.workoutId]?.authorship === &#x27;system&#x27;)
+    const crossPlan = days.filter(({ p, d }) =&gt; d.workoutId &amp;&amp; daysUsing(s, d.workoutId).some((u) =&gt; u.plan.id !== p.id))
+    out.push({ ok: !stock.length &amp;&amp; !crossPlan.length, label: &#x27;No day holds a Stock Workout or another plan\&#x27;s row&#x27;, why: `${stock.length} on stock, ${crossPlan.length} across plans` })
+    const leaks = Object.values(s.workouts).filter((w) =&gt; w.ownerId === ME &amp;&amp; !usesOf(s, w.id).length)
+    out.push({ ok: !leaks.length, label: &#x27;No Workout of the athlete\&#x27;s is left that nothing uses&#x27;, why: leaks.map((w) =&gt; `&quot;${w.title}&quot;`).join(&#x27;, &#x27;) })
+    const picker = pickerList(s)
+    const bad = picker.filter((w) =&gt; !sessionsUsing(s, w.id).some((x) =&gt; x.source === &#x27;authored&#x27;))
+    out.push({ ok: !bad.length, label: &#x27;The picker offers only Workouts behind hand-written sessions&#x27;, why: bad.length + &#x27; extra&#x27; })
+    const split = Object.keys(s.plans).map((id) =&gt; [unitsOf(s, id).length, (s.activities ?? []).filter((a) =&gt; a.planId === id).length]).filter(([u, a]) =&gt; u &gt; a)
+    out.push({ ok: !split.length, label: &#x27;Each Simple Activity is one unit in Avansert, whatever its number of days&#x27;, why: split.map(([u, a]) =&gt; `${a} activit${a === 1 ? &#x27;y&#x27; : &#x27;ies&#x27;} listed as ${u} units`).join(&#x27;, &#x27;) })
+    return out
+  }
+  return { A, empty, pickerList, unitsOf, dayLabel, usesOf, checks, WD }
+})()
+&lt;/script&gt;
+
+&lt;!-- ===================== The page: a thin shell ===================== --&gt;
+&lt;script&gt;
+const M = PatternWorkouts
+const STEPS_T = &#x27;15 min rolig · 5×6 min terskel p 2 min · 10 min rolig&#x27;
+const ROLE = { &#x27;Terskel 5×6 min&#x27;: &#x27;threshold&#x27;, &#x27;Langtur 90 min&#x27;: &#x27;long&#x27;, &#x27;Styrke helkropp A&#x27;: &#x27;strength&#x27; }
+const findS = (s, title) =&gt; Object.values(s.sessions).find((x) =&gt; x.role === (ROLE[title] ?? title) &amp;&amp; x.source === &#x27;authored&#x27;)
+const P = (s) =&gt; Object.keys(s.plans)[0]
+
+function seed(model, data) {
+  let s = M.empty(model)
+  const apply = (fn, args) =&gt; { s = fn(s, args).state }
+  if (data === &#x27;worst&#x27;) {
+    const long = &#x27;Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️&#x27;
+    apply(M.A.authorSession, { title: long, discipline: &#x27;run&#x27;, steps: STEPS_T, status: &#x27;completed&#x27;, role: &#x27;threshold&#x27; })
+    apply(M.A.authorSession, { title: &#x27;Ø&#x27;, discipline: &#x27;run&#x27;, steps: &#x27;30 min rolig&#x27;, role: &#x27;long&#x27; })
+    apply(M.A.authorSession, { title: &#x27;Styrke helkropp A (knebøy, markløft, pullups, utfall, planke)&#x27;, discipline: &#x27;strength&#x27;, steps: &#x27;Knebøy 3×8 · Markløft 3×5 · Pullups 3×6&#x27;, status: &#x27;completed&#x27;, role: &#x27;strength&#x27; })
+    s.workouts[nidStock(s)] = { id: &#x27;stock1&#x27;, title: &#x27;Helkropp (stock)&#x27;, discipline: &#x27;strength&#x27;, steps: &#x27;3 × 5 øvelser&#x27;, ownerId: null, authorship: &#x27;system&#x27;, heldBy: null, copiedFromId: null }
+    apply(M.A.createPlan, { name: &#x27;Hold meg aktiv&#x27;, disciplines: [&#x27;run&#x27;] })
+    apply(M.A.createPlan, { name: &#x27;Holmenkollstafetten 2027&#x27;, disciplines: [&#x27;run&#x27;] })
+    const [a, b] = Object.keys(s.plans)
+    apply(M.A.addPattern, { planId: a, name: &#x27;Lett uke&#x27; })
+    const t = findS(s, &#x27;threshold&#x27;).workoutId
+    apply(M.A.addDay, { planId: a, discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: t })
+    apply(M.A.addDay, { planId: a, patternIndex: 1, discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: t })
+    apply(M.A.addDay, { planId: a, discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 5, weight: 2, workoutId: t })
+    apply(M.A.addDay, { planId: b, discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 3, workoutId: t })
+    apply(M.A.addDay, { planId: a, discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 3, weight: 1, workoutId: findS(s, &#x27;long&#x27;).workoutId })
+    apply(M.A.liftFromStock, { planId: b, perWeek: 4 })
+    apply(M.A.addSimpleActivity, { planId: a, title: &#x27;Langrenn&#x27;, weekdays: [5, 6, 2] })
+    apply(M.A.stampWeek, { planId: a })
+    return s
+  }
+  apply(M.A.authorSession, { title: &#x27;Terskel 5×6 min&#x27;, discipline: &#x27;run&#x27;, steps: STEPS_T, status: &#x27;completed&#x27;, role: &#x27;threshold&#x27; })
+  apply(M.A.authorSession, { title: &#x27;Langtur 90 min&#x27;, discipline: &#x27;run&#x27;, steps: &#x27;90 min rolig&#x27;, role: &#x27;long&#x27; })
+  apply(M.A.authorSession, { title: &#x27;Styrke helkropp A&#x27;, discipline: &#x27;strength&#x27;, steps: &#x27;Knebøy 3×8 · Markløft 3×5 · Pullups 3×6&#x27;, status: &#x27;completed&#x27;, role: &#x27;strength&#x27; })
+  s.workouts.stock1 = { id: &#x27;stock1&#x27;, title: &#x27;Helkropp (stock)&#x27;, discipline: &#x27;strength&#x27;, steps: &#x27;3 × 5 øvelser&#x27;, ownerId: null, authorship: &#x27;system&#x27;, heldBy: null, copiedFromId: null }
+  apply(M.A.createPlan, { name: &#x27;Hold meg aktiv&#x27;, disciplines: [&#x27;run&#x27;] })
+  return s
+}
+function nidStock() { return &#x27;stock1&#x27; }
+
+// A legacy plan: built on today&#x27;s model, then the deploy runs the migration.
+function legacy(data) { const s = seed(&#x27;today&#x27;, data); if (data !== &#x27;worst&#x27;) { let x = s; const t = findS(x, &#x27;Terskel 5×6 min&#x27;).workoutId
+  x = M.A.addDay(x, { planId: P(x), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: t }).state
+  x = M.A.addDay(x, { planId: P(x), discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 5, weight: 2, workoutId: findS(x, &#x27;Langtur 90 min&#x27;).workoutId }).state
+  x = M.A.acceptStrengthOffer(x, { planId: P(x) }).state
+  x = M.A.addSimpleActivity(x, { planId: P(x), title: &#x27;Langrenn&#x27;, weekdays: [5, 6] }).state
+  x = M.A.stampWeek(x, { planId: P(x) }).state
+  return x } return s }
+
+const SCEN = [
+  { id: &#x27;ac1&#x27;, name: &#x27;1 · Fixed day&#x27;, say: &#x27;A fixed day picks the Workout of the athlete\&#x27;s threshold session. Then the session is deleted.&#x27;, watch: &#x27;The delete succeeds; the Tuesday still reads &quot;Terskel 5×6 min&quot;; the next stamped week carries the same steps.&#x27;, steps: [
+    [&#x27;Pick &quot;Terskel 5×6 min&quot; for Tuesday&#x27;, (s) =&gt; M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId })],
+    [&#x27;Delete the session&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;Terskel 5×6 min&#x27;).id })],
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })]] },
+  { id: &#x27;ac2&#x27;, name: &#x27;2 · Share shape&#x27;, say: &#x27;A share day is shaped on the long run. Then the long run is deleted.&#x27;, watch: &#x27;Saturday still reads &quot;formet etter Langtur 90 min&quot;, not &quot;ingen form&quot;.&#x27;, steps: [
+    [&#x27;Share day on Saturday, shaped on &quot;Langtur 90 min&quot;&#x27;, (s) =&gt; M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 5, weight: 2, workoutId: findS(s, &#x27;Langtur 90 min&#x27;).workoutId })],
+    [&#x27;Delete the long run&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;Langtur 90 min&#x27;).id })]] },
+  { id: &#x27;ac3&#x27;, name: &#x27;3 · Edits&#x27;, say: &#x27;After the pick, the athlete edits the session; then edits a stamped session.&#x27;, watch: &#x27;Neither edit changes the Tuesday, nor the other stamped week.&#x27;, steps: [
+    [&#x27;Pick &quot;Terskel 5×6 min&quot; for Tuesday&#x27;, (s) =&gt; M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId })],
+    [&#x27;Edit the session to &quot;Terskel 4×8 min&quot;&#x27;, (s) =&gt; M.A.editSession(s, { sessionId: findS(s, &#x27;Terskel 5×6 min&#x27;).id, title: &#x27;Terskel 4×8 min&#x27;, steps: &#x27;4×8 min terskel&#x27; })],
+    [&#x27;Stamp two weeks&#x27;, (s) =&gt; { const a = M.A.stampWeek(s, { planId: P(s) }); const b = M.A.stampWeek(a.state, { planId: P(s) }); return { state: b.state, say: a.say + &#x27; &#x27; + b.say } }],
+    [&#x27;Edit week 1\&#x27;s stamped session&#x27;, (s) =&gt; M.A.editSession(s, { sessionId: Object.values(s.sessions).find((x) =&gt; x.source === &#x27;generated&#x27; &amp;&amp; x.when.startsWith(&#x27;Uke 1&#x27;)).id, title: &#x27;Terskel (kortet ned)&#x27; })]] },
+  { id: &#x27;ac4&#x27;, name: &#x27;4 · Strength offer&#x27;, say: &#x27;The athlete accepts the strength offer, built from her last completed strength session, and then deletes that session.&#x27;, watch: &#x27;The delete succeeds and the next week still lifts &quot;Styrke helkropp A&quot;. Both slots share one copy.&#x27;, steps: [
+    [&#x27;Accept the strength offer (2 a week)&#x27;, (s) =&gt; M.A.acceptStrengthOffer(s, { planId: P(s) })],
+    [&#x27;Delete the strength session&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;Styrke helkropp A&#x27;).id })],
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })]] },
+  { id: &#x27;ac5&#x27;, name: &#x27;5 · Existing plans&#x27;, legacy: true, say: &#x27;A plan built before the change: its days point at session rows and at the Stock Workout. The deploy runs the migration.&#x27;, watch: &#x27;Titles on every day are identical before and after; the checks go green; then deleting the session succeeds.&#x27;, steps: [
+    [&#x27;Run the migration&#x27;, (s) =&gt; M.A.migrate(s)],
+    [&#x27;Delete &quot;Terskel 5×6 min&quot;&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;Terskel 5×6 min&#x27;).id })],
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })]] },
+  { id: &#x27;ac6&#x27;, name: &#x27;6 · Removal&#x27;, say: &#x27;Days, a pattern, then the whole plan are removed.&#x27;, watch: &#x27;Each copy goes with the last day that held it; the session\&#x27;s own Workout is never touched.&#x27;, steps: [
+    [&#x27;Pick &quot;Terskel 5×6 min&quot; for Tuesday and Thursday&#x27;, (s) =&gt; { const a = M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId }); return M.A.addDay(a.state, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 3, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId }) }],
+    [&#x27;Add the Simple Activity &quot;Langrenn&quot; on Sat, Sun&#x27;, (s) =&gt; M.A.addSimpleActivity(s, { planId: P(s), title: &#x27;Langrenn&#x27;, weekdays: [5, 6] })],
+    [&#x27;Remove the Tuesday&#x27;, (s) =&gt; M.A.removeDay(s, { planId: P(s), dayId: s.plans[P(s)].patterns[0].days[0].id })],
+    [&#x27;Delete the whole plan&#x27;, (s) =&gt; M.A.deletePlan(s, { planId: P(s) })]] },
+  { id: &#x27;ac7&#x27;, name: &#x27;7 · Picker&#x27;, say: &#x27;Three picks and a stamp later, open the picker.&#x27;, watch: &#x27;It lists the three hand-written sessions\&#x27; Workouts only: no plan copy, no stamped copy.&#x27;, steps: [
+    [&#x27;Pick for Tuesday, shape Saturday, accept strength&#x27;, (s) =&gt; { let x = M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId }).state; x = M.A.addDay(x, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 5, weight: 2, workoutId: findS(x, &#x27;Langtur 90 min&#x27;).workoutId }).state; return M.A.acceptStrengthOffer(x, { planId: P(s) }) }],
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })]] },
+  { id: &#x27;ac8&#x27;, name: &#x27;8 · Account&#x27;, say: &#x27;The athlete with picks, slots and an activity deletes her account.&#x27;, watch: &#x27;Everything of hers goes in one go; only the Stock Workout stays.&#x27;, steps: [
+    [&#x27;Pick, accept strength, add Langrenn&#x27;, (s) =&gt; { let x = M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId }).state; x = M.A.acceptStrengthOffer(x, { planId: P(s) }).state; return M.A.addSimpleActivity(x, { planId: P(s), title: &#x27;Langrenn&#x27;, weekdays: [5] }) }],
+    [&#x27;Delete the account&#x27;, (s) =&gt; M.A.deleteAccount(s)]] },
+  { id: &#x27;act&#x27;, name: &#x27;Why the plan, not the day&#x27;, say: &#x27;A Simple Activity on two days, in two Week Patterns. Its days share one Workout: that row is the activity\&#x27;s identity in Avansert (track-days.server.ts groups by it), and moving its days deletes and rewrites the rows. Try this in &quot;Copy per day&quot; too.&#x27;, watch: &#x27;Held by the plan: one unit &quot;Langrenn&quot;, one row, before and after the move. Copy per day: the activity splits into one unit per day.&#x27;, steps: [
+    [&#x27;Add a second Week Pattern&#x27;, (s) =&gt; M.A.addPattern(s, { planId: P(s), name: &#x27;Lett uke&#x27; })],
+    [&#x27;Add &quot;Langrenn&quot; on Sat and Sun&#x27;, (s) =&gt; M.A.addSimpleActivity(s, { planId: P(s), title: &#x27;Langrenn&#x27;, weekdays: [5, 6] })],
+    [&#x27;Move it to Wed and Sat&#x27;, (s) =&gt; M.A.setActivityDays(s, { planId: P(s), unitKey: M.unitsOf(s, P(s))[0].key, weekdays: [2, 5] })]] },
+]
+
+const MODELS = [[&#x27;today&#x27;, &#x27;Today on main&#x27;], [&#x27;perDay&#x27;, &#x27;Copy per day (rejected)&#x27;], [&#x27;held&#x27;, &#x27;Plan holds its copies (proposed)&#x27;]]
+const DATAS = [[&#x27;demo&#x27;, &#x27;Demo data&#x27;], [&#x27;worst&#x27;, &#x27;Worst case&#x27;]]
+const ui = { model: window.START_MODEL || &#x27;held&#x27;, data: window.START_DATA || &#x27;demo&#x27;, tab: window.START_TAB || &#x27;ac1&#x27;, step: 0, msg: null, err: false, prev: null }
+let state
+
+function start() {
+  const sc = SCEN.find((x) =&gt; x.id === ui.tab)
+  state = sc?.legacy ? legacy(ui.data) : seed(ui.model, ui.data)
+  ui.step = 0; ui.msg = sc?.legacy ? &#x27;Built on today\&#x27;s model, as a plan made before the deploy.&#x27; : null; ui.err = false; ui.prev = null
+  render()
+}
+function act(fn) {
+  const before = state
+  try { const r = fn(state); state = r.state; ui.msg = r.say; ui.err = false; ui.prev = before }
+  catch (e) { ui.msg = &#x27;Refused, nothing changed: &#x27; + e.message; ui.err = true; ui.prev = null; return false }
+  return true
+}
+
+const esc = (t) =&gt; String(t ?? &#x27;&#x27;).replace(/[&amp;&lt;&gt;&quot;]/g, (c) =&gt; ({ &#x27;&amp;&#x27;: &#x27;&amp;amp;&#x27;, &#x27;&lt;&#x27;: &#x27;&amp;lt;&#x27;, &#x27;&gt;&#x27;: &#x27;&amp;gt;&#x27;, &#x27;&quot;&#x27;: &#x27;&amp;quot;&#x27; }[c]))
+const col = { run: &#x27;var(--run)&#x27;, strength: &#x27;var(--strength)&#x27;, other: &#x27;var(--other)&#x27; }
+
+function render() {
+  document.getElementById(&#x27;models&#x27;).innerHTML = MODELS.map(([k, l]) =&gt; `&lt;button aria-pressed=&quot;${ui.model === k}&quot; data-model=&quot;${k}&quot;&gt;${l}&lt;/button&gt;`).join(&#x27;&#x27;)
+  document.getElementById(&#x27;datas&#x27;).innerHTML = DATAS.map(([k, l]) =&gt; `&lt;button aria-pressed=&quot;${ui.data === k}&quot; data-data=&quot;${k}&quot;&gt;${l}&lt;/button&gt;`).join(&#x27;&#x27;)
+  document.getElementById(&#x27;tabs&#x27;).innerHTML = SCEN.map((x) =&gt; `&lt;button role=&quot;tab&quot; aria-selected=&quot;${ui.tab === x.id}&quot; data-tab=&quot;${x.id}&quot;&gt;${esc(x.name)}&lt;/button&gt;`).join(&#x27;&#x27;)
+  const sc = SCEN.find((x) =&gt; x.id === ui.tab)
+  document.getElementById(&#x27;scenario&#x27;).innerHTML = `&lt;p&gt;${esc(sc.say)}&lt;/p&gt;&lt;ol class=&quot;steps&quot;&gt;${sc.steps.map(([l], i) =&gt; `&lt;li class=&quot;${i &lt; ui.step ? &#x27;done&#x27; : i === ui.step ? &#x27;next&#x27; : &#x27;&#x27;}&quot;&gt;&lt;span class=&quot;n&quot;&gt;${i + 1}&lt;/span&gt;&lt;button class=&quot;btn ${i === ui.step ? &#x27;primary&#x27; : &#x27;&#x27;}&quot; data-step=&quot;${i}&quot; ${i !== ui.step ? &#x27;disabled&#x27; : &#x27;&#x27;}&gt;${esc(l)}&lt;/button&gt;&lt;/li&gt;`).join(&#x27;&#x27;)}&lt;/ol&gt;&lt;div class=&quot;watch&quot;&gt;&lt;b&gt;Watch for:&lt;/b&gt; ${esc(sc.watch)}&lt;/div&gt;`
+
+  const p = state.plans[P(state)]
+  const free = [
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })],
+    [&#x27;Delete the threshold session&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;threshold&#x27;)?.id })],
+    [&#x27;Edit the threshold session&#x27;, (s) =&gt; M.A.editSession(s, { sessionId: findS(s, &#x27;threshold&#x27;)?.id, title: &#x27;Terskel 3×10 min&#x27;, steps: &#x27;3×10 min terskel&#x27; })],
+    [&#x27;Remove the first day&#x27;, (s) =&gt; M.A.removeDay(s, { planId: P(s), dayId: s.plans[P(s)]?.patterns[0]?.days[0]?.id })],
+    [&#x27;Remove the last pattern&#x27;, (s) =&gt; M.A.removePattern(s, { planId: P(s), index: (s.plans[P(s)]?.patterns.length ?? 1) - 1 })],
+    [&#x27;Run the migration&#x27;, (s) =&gt; M.A.migrate(s)],
+    [&#x27;Delete the plan&#x27;, (s) =&gt; M.A.deletePlan(s, { planId: P(s) })],
+    [&#x27;Delete the account&#x27;, (s) =&gt; M.A.deleteAccount(s)],
+  ]
+  window.FREE = free
+  document.getElementById(&#x27;free&#x27;).innerHTML = free.map(([l], i) =&gt; `&lt;button class=&quot;btn&quot; data-free=&quot;${i}&quot;&gt;${esc(l)}&lt;/button&gt;`).join(&#x27;&#x27;)
+  document.getElementById(&#x27;msg&#x27;).innerHTML = ui.msg ? `&lt;div class=&quot;msg ${ui.err ? &#x27;err&#x27; : &#x27;&#x27;}&quot;&gt;${esc(ui.msg)}&lt;/div&gt;` : &#x27;&#x27;
+
+  document.getElementById(&#x27;inv&#x27;).innerHTML = M.checks(state).map((c) =&gt; `&lt;li&gt;&lt;span class=&quot;${c.ok ? &#x27;ok&#x27; : &#x27;no&#x27;}&quot;&gt;${c.ok ? &#x27;✓&#x27; : &#x27;✗&#x27;}&lt;/span&gt;&lt;span&gt;${esc(c.label)}${c.ok ? &#x27;&#x27; : ` &lt;span class=&quot;tag bad&quot;&gt;${esc(c.why)}&lt;/span&gt;`}&lt;/span&gt;&lt;/li&gt;`).join(&#x27;&#x27;)
+
+  const prevW = ui.prev ? ui.prev.workouts : null
+  document.getElementById(&#x27;plans&#x27;).innerHTML = Object.values(state.plans).map((pl) =&gt; `&lt;p&gt;&lt;b&gt;${esc(pl.name)}&lt;/b&gt;&lt;/p&gt;` + pl.patterns.map((pt) =&gt; `&lt;p class=&quot;small muted&quot; style=&quot;margin-top:8px&quot;&gt;${esc(pt.name)}&lt;/p&gt;` + (pt.days.length ? pt.days.slice().sort((a, b) =&gt; (a.weekday ?? 9) - (b.weekday ?? 9)).map((d) =&gt; {
+    const disc = pl.tracks[d.trackId].discipline
+    const lbl = M.dayLabel(state, pl, d)
+    const before = ui.prev?.plans[pl.id]?.patterns.find((x) =&gt; x.id === pt.id)?.days.find((x) =&gt; x.id === d.id)
+    const changed = before &amp;&amp; M.dayLabel(ui.prev, ui.prev.plans[pl.id], before) !== lbl
+    return `&lt;div class=&quot;day&quot;&gt;&lt;span class=&quot;dot&quot; style=&quot;background:${col[disc]}&quot;&gt;&lt;/span&gt;&lt;span class=&quot;wd&quot;&gt;${d.weekday == null ? &#x27;—&#x27; : M.WD[d.weekday]}&lt;/span&gt;&lt;span class=&quot;${changed ? &#x27;changed&#x27; : &#x27;&#x27;}&quot;&gt;${esc(lbl)} &lt;span class=&quot;muted small&quot;&gt;${d.workoutId ? &#x27;→ &#x27; + d.workoutId : &#x27;&#x27;}&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;`
+  }).join(&#x27;&#x27;) : &#x27;&lt;p class=&quot;small muted&quot;&gt;No days yet.&lt;/p&gt;&#x27;)).join(&#x27;&#x27;)).join(&#x27;&#x27;) || &#x27;&lt;p class=&quot;muted&quot;&gt;No plan.&lt;/p&gt;&#x27;
+
+  const ss = Object.values(state.sessions)
+  document.getElementById(&#x27;cal&#x27;).innerHTML = ss.length ? `&lt;table&gt;&lt;tr&gt;&lt;th&gt;When&lt;/th&gt;&lt;th&gt;Session&lt;/th&gt;&lt;th&gt;Source&lt;/th&gt;&lt;/tr&gt;${ss.map((x) =&gt; { const w = state.workouts[x.workoutId]; const was = ui.prev?.sessions[x.id] &amp;&amp; ui.prev.workouts[ui.prev.sessions[x.id].workoutId]; const ch = was &amp;&amp; (was.title !== w.title || was.steps !== w.steps); return `&lt;tr&gt;&lt;td&gt;${esc(x.when)}&lt;/td&gt;&lt;td class=&quot;${ch ? &#x27;changed&#x27; : &#x27;&#x27;}&quot;&gt;${esc(w.title)}&lt;br&gt;&lt;span class=&quot;muted small&quot;&gt;${esc(w.steps)}&lt;/span&gt;&lt;/td&gt;&lt;td&gt;${x.source}${x.status === &#x27;completed&#x27; ? &#x27; · done&#x27; : &#x27;&#x27;}&lt;/td&gt;&lt;/tr&gt;` }).join(&#x27;&#x27;)}&lt;/table&gt;` : &#x27;&lt;p class=&quot;muted&quot;&gt;No sessions.&lt;/p&gt;&#x27;
+
+  const ws = Object.values(state.workouts)
+  document.getElementById(&#x27;workouts&#x27;).innerHTML = `&lt;table&gt;&lt;tr&gt;&lt;th style=&quot;width:18%&quot;&gt;Row&lt;/th&gt;&lt;th&gt;Title&lt;/th&gt;&lt;th class=&quot;hide-sm&quot; style=&quot;width:12%&quot;&gt;Owner&lt;/th&gt;&lt;th style=&quot;width:16%&quot;&gt;Held by&lt;/th&gt;&lt;th&gt;Used by&lt;/th&gt;&lt;/tr&gt;${ws.map((w) =&gt; {
+    const uses = M.usesOf(state, w.id)
+    const isNew = prevW &amp;&amp; !prevW[w.id]
+    return `&lt;tr class=&quot;${isNew ? &#x27;changed&#x27; : &#x27;&#x27;}&quot;&gt;&lt;td&gt;${w.id}${w.copiedFromId ? `&lt;br&gt;&lt;span class=&quot;muted small&quot;&gt;copied from ${w.copiedFromId}&lt;/span&gt;` : &#x27;&#x27;}&lt;/td&gt;&lt;td&gt;${esc(w.title)}&lt;/td&gt;&lt;td class=&quot;hide-sm&quot;&gt;${w.authorship === &#x27;system&#x27; ? &#x27;&lt;span class=&quot;tag stock&quot;&gt;stock&lt;/span&gt;&#x27; : &#x27;Kari&#x27;}&lt;/td&gt;&lt;td&gt;${w.heldBy ? `&lt;span class=&quot;tag held&quot;&gt;${w.heldBy.startsWith(&#x27;plan&#x27;) ? &#x27;the plan&#x27; : &#x27;one day&#x27;}&lt;/span&gt;` : &#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${uses.map((u) =&gt; `&lt;span class=&quot;tag ${u.kind}&quot;&gt;${esc(u.label)}&lt;/span&gt;`).join(&#x27;&#x27;) || (w.authorship === &#x27;system&#x27; ? &#x27;&lt;span class=&quot;muted&quot;&gt;the Catalogue&lt;/span&gt;&#x27; : &#x27;&lt;span class=&quot;tag bad&quot;&gt;nothing&lt;/span&gt;&#x27;)}&lt;/td&gt;&lt;/tr&gt;`
+  }).join(&#x27;&#x27;)}&lt;/table&gt;${prevW ? `&lt;p class=&quot;small muted&quot; style=&quot;margin-top:8px&quot;&gt;${Object.keys(prevW).filter((k) =&gt; !state.workouts[k]).length} row(s) deleted by the last action.&lt;/p&gt;` : &#x27;&#x27;}`
+
+  const pick = M.pickerList(state)
+  document.getElementById(&#x27;picker&#x27;).innerHTML = pick.length ? pick.map((w) =&gt; `&lt;div class=&quot;day&quot;&gt;&lt;span class=&quot;dot&quot; style=&quot;background:${col[w.discipline]}&quot;&gt;&lt;/span&gt;&lt;span&gt;${esc(w.title)} &lt;span class=&quot;muted small&quot;&gt;${w.id}&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;`).join(&#x27;&#x27;) : &#x27;&lt;p class=&quot;muted&quot;&gt;Empty.&lt;/p&gt;&#x27;
+  const units = p ? M.unitsOf(state, p.id) : []
+  document.getElementById(&#x27;units&#x27;).innerHTML = units.length ? units.map((u) =&gt; `&lt;div class=&quot;day&quot;&gt;&lt;span class=&quot;dot&quot; style=&quot;background:var(--other)&quot;&gt;&lt;/span&gt;&lt;span&gt;${esc(u.title)} · ${u.days.map((d) =&gt; M.WD[d]).join(&#x27;, &#x27;)} &lt;span class=&quot;muted small&quot;&gt;${u.workoutId}&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;`).join(&#x27;&#x27;) : &#x27;&lt;p class=&quot;muted small&quot;&gt;No Simple Activity.&lt;/p&gt;&#x27;
+}
+
+document.addEventListener(&#x27;click&#x27;, (e) =&gt; {
+  const b = e.target.closest(&#x27;button&#x27;); if (!b) return
+  if (b.dataset.model) { ui.model = b.dataset.model; start() }
+  else if (b.dataset.data) { ui.data = b.dataset.data; start() }
+  else if (b.dataset.tab) { ui.tab = b.dataset.tab; start() }
+  else if (b.id === &#x27;reset&#x27;) start()
+  else if (b.dataset.step != null) { const sc = SCEN.find((x) =&gt; x.id === ui.tab); if (act(sc.steps[+b.dataset.step][1])) ui.step++; render() }
+  else if (b.dataset.free != null) { act(window.FREE[+b.dataset.free][1]); render() }
+})
+start()
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+
+<h2>Worst case</h2>
+<div class="card"><p><b>Critic's worst case on the real schema</b> (<code>critic-cascade-probe.txt</code>). The prototype cannot show these, because they sit at the database and the request boundary.</p>
+<table>
+<tr><th>#</th><th>Severity</th><th>Case</th><th>What happens</th><th>Fix</th></tr>
+<tr><td>1</td><td>Broken</td><td>Delete a plan or an Event with a held fixed or lifting day, after the migration Prisma generates (it rebuilds <code>Workout</code>)</td><td><code>CHECK constraint failed: WeekPatternDay_kind_fields</code>, and the plan stays</td><td>Day FK set to <code>NoAction</code>. The probe shows plan and user deletes pass, and a direct delete of a held Workout fails loudly</td></tr>
+<tr><td>2</td><td>Broken (latent)</td><td>An undo payload from before the deploy, or a crafted rewrite, carrying a session's Workout id</td><td>Passes the owned-or-stock guard, and the day is tied to the session again</td><td>Accept only this plan's held rows, and copy anything else in</td></tr>
+<tr><td>3</td><td>Fragile</td><td>A day choice drops a fixed day that holds its own copy</td><td>The copy stays until a later remove or the plan's deletion</td><td>Sweep on the next write, sparing only the current undo</td></tr>
+<tr><td>4</td><td>Fragile</td><td>A later column on Block or Step</td><td>The SQL migration copy and <code>copyWorkout</code> drift apart</td><td>A before/after stamp test for the migration</td></tr>
+<tr><td>5</td><td>Fragile</td><td>A future "my Workouts" list</td><td>It shows held copies</td><td>One shared not-held filter</td></tr>
+</table>
+<p class="muted">Held up: 100-character titles with emoji, a 3-day Simple Activity in two patterns, 4 stock lifting slots, and one Workout in 2 plans. All checks pass when the designer's probe is re-run.</p></div>
+<p class="muted">The same prototype, opened on the worst-case data (use the "Demo data / Worst case" toggle). Try "5 · Existing plans" with each model.</p>
+<iframe class="proto" style="height:1700px" title="Prototype" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;&lt;script&gt;window.START_MODEL=&#x27;held&#x27;;window.START_DATA=&#x27;worst&#x27;;window.START_TAB=&#x27;ac5&#x27;&lt;/script&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1, viewport-fit=cover&quot;&gt;
+&lt;title&gt;Pattern Workout Ownership&lt;/title&gt;
+&lt;style&gt;
+:root{
+  --bg:oklch(0.975 0.003 197);--card:oklch(1 0 0);--ink:oklch(0.22 0.01 230);--muted:oklch(0.5 0.01 230);
+  --line:oklch(0.9 0.005 230);--accent:oklch(0.52 0.09 225);--accent-soft:oklch(0.95 0.03 225);
+  --good:oklch(0.5 0.12 150);--bad:oklch(0.54 0.17 28);--bad-soft:oklch(0.96 0.03 28);--warn:oklch(0.6 0.12 80);
+  --run:oklch(0.54 0.15 32);--strength:oklch(0.53 0.12 300);--other:oklch(0.53 0.11 78);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=&quot;light&quot;]){
+  --bg:oklch(0.148 0.004 228.8);--card:oklch(0.205 0.007 223.9);--ink:oklch(0.94 0.005 230);--muted:oklch(0.7 0.01 230);
+  --line:oklch(0.3 0.008 230);--accent:oklch(0.76 0.09 225);--accent-soft:oklch(0.28 0.04 225);
+  --good:oklch(0.75 0.13 150);--bad:oklch(0.74 0.14 28);--bad-soft:oklch(0.3 0.06 28);--warn:oklch(0.8 0.12 80);
+  --run:oklch(0.74 0.13 32);--strength:oklch(0.74 0.1 300);--other:oklch(0.8 0.12 78);}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 ui-sans-serif,system-ui,-apple-system,&quot;Segoe UI&quot;,sans-serif;-webkit-tap-highlight-color:transparent}
+main{max-width:1360px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:-0.01em}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px;font-weight:600}
+p{margin:0 0 8px}
+.lede{color:var(--muted);max-width:75ch}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;padding:8px 12px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;min-height:40px}
+.seg button[aria-pressed=&quot;true&quot;]{background:var(--accent);color:var(--card)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:1000px){.grid{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.stack&gt;*+*{margin-top:16px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.tabs button,.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;padding:7px 11px;cursor:pointer;min-height:36px;text-align:left;user-select:none}
+.tabs button[aria-selected=&quot;true&quot;]{border-color:var(--accent);background:var(--accent-soft)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--accent);color:var(--card);border-color:var(--accent)}
+.steps{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:6px}
+.steps li{display:flex;gap:8px;align-items:flex-start}
+.steps .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;border:1px solid var(--line);color:var(--muted);margin-top:7px}
+.steps li.done .n{background:var(--good);border-color:var(--good);color:var(--card)}
+.steps li.next .n{border-color:var(--accent);color:var(--accent)}
+.watch{border-left:3px solid var(--accent);padding:6px 10px;background:var(--accent-soft);border-radius:0 8px 8px 0;margin-top:10px;font-size:14px}
+.free{display:flex;flex-wrap:wrap;gap:6px}
+.msg{margin-top:12px;font-size:14px;padding:8px 10px;border-radius:8px;background:var(--accent-soft)}
+.msg.err{background:var(--bad-soft);color:var(--bad);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+th{color:var(--muted);font-weight:600;font-size:12px}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);margin:1px 2px 1px 0;max-width:100%}
+table{table-layout:fixed}
+@media (max-width:520px){.hide-sm{display:none}th,td{padding:5px 4px}}
+.tag.held{border-color:var(--accent);color:var(--accent)}
+.tag.session{border-color:var(--run);color:var(--run)}
+.tag.stock{border-color:var(--muted);color:var(--muted)}
+.tag.bad{border-color:var(--bad);color:var(--bad)}
+.day{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--line)}
+.day:last-child{border-bottom:0}
+.wd{flex:none;width:34px;font-weight:600;font-size:13px}
+.dot{flex:none;width:8px;height:8px;border-radius:50%;margin-top:6px}
+.inv{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.inv li{display:flex;gap:8px;font-size:14px}
+.inv .ok{color:var(--good);font-weight:700;flex:none;width:16px}
+.inv .no{color:var(--bad);font-weight:700;flex:none;width:16px}
+.changed{animation:none;outline:2px solid var(--warn);outline-offset:1px;border-radius:4px}
+.muted{color:var(--muted)}
+.cols{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:700px){.cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.small{font-size:13px}
+@media (hover:hover) and (pointer:fine){.btn:not(:disabled):hover,.tabs button:hover{border-color:var(--accent)}}
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;main&gt;
+&lt;h1&gt;Who holds a Week Pattern day&#x27;s Workout&lt;/h1&gt;
+&lt;p class=&quot;lede&quot;&gt;Prototype for #665. &lt;b&gt;The question:&lt;/b&gt; when a pattern day picks a Workout, which row does the day hold, and who cleans it up, so that deleting or editing the athlete&#x27;s sessions never reaches the plan, and removing the plan never leaves a Workout behind? Press the buttons; the panels on the right show the full state after every action, and the checks turn red when a rule breaks.&lt;/p&gt;
+
+&lt;div class=&quot;bar&quot;&gt;
+  &lt;span class=&quot;small muted&quot;&gt;Model&lt;/span&gt;
+  &lt;div class=&quot;seg&quot; id=&quot;models&quot; role=&quot;group&quot; aria-label=&quot;Model&quot;&gt;&lt;/div&gt;
+  &lt;span class=&quot;small muted&quot;&gt;Data&lt;/span&gt;
+  &lt;div class=&quot;seg&quot; id=&quot;datas&quot; role=&quot;group&quot; aria-label=&quot;Demo data or worst case&quot;&gt;&lt;/div&gt;
+  &lt;button class=&quot;btn&quot; id=&quot;reset&quot;&gt;Reset&lt;/button&gt;
+&lt;/div&gt;
+
+&lt;div class=&quot;grid&quot;&gt;
+  &lt;div class=&quot;stack&quot;&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;h2&gt;Guided walkthroughs&lt;/h2&gt;
+      &lt;div class=&quot;tabs&quot; id=&quot;tabs&quot; role=&quot;tablist&quot;&gt;&lt;/div&gt;
+      &lt;div id=&quot;scenario&quot;&gt;&lt;/div&gt;
+    &lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;h2&gt;Free play&lt;/h2&gt;
+      &lt;div class=&quot;free&quot; id=&quot;free&quot;&gt;&lt;/div&gt;
+      &lt;div id=&quot;msg&quot;&gt;&lt;/div&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+  &lt;div class=&quot;stack&quot;&gt;
+    &lt;section class=&quot;card&quot;&gt;&lt;h2&gt;Checks (the acceptance criteria as rules)&lt;/h2&gt;&lt;ul class=&quot;inv&quot; id=&quot;inv&quot;&gt;&lt;/ul&gt;&lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;div class=&quot;cols&quot;&gt;
+        &lt;div&gt;&lt;h2&gt;Plan in Avansert&lt;/h2&gt;&lt;div id=&quot;plans&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;div&gt;&lt;h2&gt;Calendar&lt;/h2&gt;&lt;div id=&quot;cal&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;&lt;h2&gt;Every Workout row&lt;/h2&gt;&lt;div id=&quot;workouts&quot;&gt;&lt;/div&gt;&lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;div class=&quot;cols&quot;&gt;
+        &lt;div&gt;&lt;h2&gt;Picker: recent own Workouts&lt;/h2&gt;&lt;div id=&quot;picker&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;div&gt;&lt;h2&gt;Day choice units (Avansert, Simple Activities)&lt;/h2&gt;&lt;div id=&quot;units&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+&lt;/main&gt;
+
+&lt;!-- ===================== The logic module: pure, no DOM ===================== --&gt;
+&lt;script&gt;
+const PatternWorkouts = (() =&gt; {
+  const ME = &#x27;kari&#x27;
+  const WD = [&#x27;Man&#x27;,&#x27;Tir&#x27;,&#x27;Ons&#x27;,&#x27;Tor&#x27;,&#x27;Fre&#x27;,&#x27;Lør&#x27;,&#x27;Søn&#x27;]
+  const clone = (s) =&gt; JSON.parse(JSON.stringify(s))
+
+  // model: &#x27;today&#x27;  - origin/main: a day references the picked row by id.
+  //        &#x27;perDay&#x27; - each day row gets its own copy (rejected direction).
+  //        &#x27;held&#x27;   - the plan holds private copies its days share (proposed).
+  function empty(model) {
+    return { model, seq: 1, week: 0, workouts: {}, sessions: {}, plans: {}, accountDeleted: false }
+  }
+  const nid = (s, p) =&gt; p + s.seq++
+
+  function newWorkout(s, w) {
+    const id = nid(s, &#x27;w&#x27;)
+    s.workouts[id] = { id, ownerId: ME, authorship: &#x27;athlete&#x27;, heldBy: null, copiedFromId: null, ...w }
+    return id
+  }
+  function copyWorkout(s, srcId, heldBy) {
+    const src = s.workouts[srcId]
+    return newWorkout(s, { title: src.title, discipline: src.discipline, steps: src.steps, heldBy, copiedFromId: heldBy ? srcId : null })
+  }
+  const plan = (s, id) =&gt; { const p = s.plans[id]; if (!p) throw new Error(&#x27;plan-gone&#x27;); return p }
+  const allDays = (p) =&gt; p.patterns.flatMap((pt) =&gt; pt.days)
+  const daysUsing = (s, wid) =&gt; Object.values(s.plans).flatMap((p) =&gt; allDays(p).filter((d) =&gt; d.workoutId === wid).map((d) =&gt; ({ plan: p, day: d })))
+  const sessionsUsing = (s, wid) =&gt; Object.values(s.sessions).filter((x) =&gt; x.workoutId === wid)
+
+  // What a day write stores, per model. `share` lets one write give several rows one copy.
+  function holdFor(s, planId, dayId, workoutId, share) {
+    if (workoutId == null) return null
+    const w = s.workouts[workoutId]
+    if (s.model === &#x27;today&#x27;) return workoutId
+    if (s.model === &#x27;perDay&#x27;) return copyWorkout(s, workoutId, &#x27;day:&#x27; + dayId)
+    if (w.heldBy === &#x27;plan:&#x27; + planId) return workoutId // already the plan&#x27;s own
+    if (share &amp;&amp; share.has(workoutId)) return share.get(workoutId)
+    const id = copyWorkout(s, workoutId, &#x27;plan:&#x27; + planId)
+    if (share) share.set(workoutId, id)
+    return id
+  }
+
+  // The sweep: a held copy no day of its plan holds any more goes.
+  function sweep(s) {
+    let n = 0
+    for (const w of Object.values(s.workouts)) {
+      if (!w.heldBy) continue
+      const [kind, id] = w.heldBy.split(&#x27;:&#x27;)
+      const held = kind === &#x27;plan&#x27;
+        ? s.plans[id] &amp;&amp; allDays(s.plans[id]).some((d) =&gt; d.workoutId === w.id)
+        : Object.values(s.plans).some((p) =&gt; allDays(p).some((d) =&gt; d.id === id &amp;&amp; d.workoutId === w.id))
+      if (!held) { deleteWorkoutRow(s, w.id); n++ }
+    }
+    return n
+  }
+  // Deleting a Workout row: sessions cascade (schema), days SetNull, copies&#x27; copiedFromId SetNull.
+  function deleteWorkoutRow(s, wid) {
+    for (const x of sessionsUsing(s, wid)) delete s.sessions[x.id]
+    for (const { day } of daysUsing(s, wid)) {
+      if (day.kind !== &#x27;share&#x27;) throw new Error(&#x27;CHECK constraint failed: WeekPatternDay_kind_fields&#x27;)
+      day.workoutId = null
+    }
+    for (const w of Object.values(s.workouts)) if (w.copiedFromId === wid) w.copiedFromId = null
+    delete s.workouts[wid]
+  }
+
+  // ---------- actions: (state, args) =&gt; { state, say }  (throw = refused, rolled back)
+  function run(s0, fn) { const s = clone(s0); const say = fn(s); return { state: s, say } }
+
+  const A = {
+    authorSession: (s0, { title, discipline, steps, status = &#x27;scheduled&#x27;, when = &#x27;Uke 0&#x27;, role = null }) =&gt; run(s0, (s) =&gt; {
+      const wid = newWorkout(s, { title, discipline, steps })
+      const id = nid(s, &#x27;s&#x27;)
+      s.sessions[id] = { id, workoutId: wid, source: &#x27;authored&#x27;, status, when, role }
+      return `Wrote the session &quot;${title}&quot; with its own Workout.`
+    }),
+    editSession: (s0, { sessionId, title, steps }) =&gt; run(s0, (s) =&gt; {
+      const x = s.sessions[sessionId]; if (!x) throw new Error(&#x27;session-gone&#x27;)
+      const w = s.workouts[x.workoutId]
+      if (title) w.title = title
+      if (steps) w.steps = steps
+      return `Edited the session to &quot;${w.title}&quot;.`
+    }),
+    deleteSession: (s0, { sessionId }) =&gt; run(s0, (s) =&gt; {
+      const x = s.sessions[sessionId]; if (!x) throw new Error(&#x27;session-gone&#x27;)
+      const shares = daysUsing(s, x.workoutId).filter(({ day }) =&gt; day.kind === &#x27;share&#x27;).length
+      delete s.sessions[sessionId]
+      deleteWorkoutRow(s, x.workoutId)
+      return shares ? `Deleted the session. ${shares} share day(s) lost their shape without a word.` : &#x27;Deleted the session and its Workout.&#x27;
+    }),
+    createPlan: (s0, { name, disciplines }) =&gt; run(s0, (s) =&gt; {
+      const id = nid(s, &#x27;p&#x27;)
+      const tracks = {}
+      for (const d of disciplines) { const t = nid(s, &#x27;t&#x27;); tracks[t] = { id: t, discipline: d } }
+      s.plans[id] = { id, name, tracks, patterns: [{ id: nid(s, &#x27;pt&#x27;), name: &#x27;Typisk uke&#x27;, days: [] }] }
+      return `Made the plan &quot;${name}&quot;.`
+    }),
+    addPattern: (s0, { planId, name }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      // A choice holds in every pattern (spec #588): the Simple Activity rows come along.
+      const pt = { id: nid(s, &#x27;pt&#x27;), name, days: [] }
+      p.patterns.push(pt)
+      return `Added the Week Pattern &quot;${name}&quot;.`
+    }),
+    addDay: (s0, { planId, patternIndex = 0, discipline, kind, weekday, weight = null, workoutId = null }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      const track = Object.values(p.tracks).find((t) =&gt; t.discipline === discipline)
+      if (!track) throw new Error(&#x27;track-gone&#x27;)
+      if (workoutId) {
+        const w = s.workouts[workoutId]
+        if (!w || w.ownerId !== ME) throw new Error(&#x27;workout-gone&#x27;)
+        if (w.discipline !== discipline) throw new Error(&#x27;workout-discipline-mismatch&#x27;)
+      }
+      const id = nid(s, &#x27;d&#x27;)
+      const held = holdFor(s, planId, id, workoutId)
+      p.patterns[patternIndex].days.push({ id, trackId: track.id, kind, weekday, weight: kind === &#x27;share&#x27; ? weight : null, workoutId: held })
+      const what = workoutId ? `&quot;${s.workouts[workoutId].title}&quot;` : &#x27;no shape&#x27;
+      return s.model === &#x27;today&#x27; &amp;&amp; workoutId
+        ? `Added a ${kind} day on ${WD[weekday]} pointing at ${what} (the session&#x27;s own row).`
+        : `Added a ${kind} day on ${WD[weekday]} with ${workoutId ? &#x27;its own copy of &#x27; + what : what}.`
+    }),
+    acceptStrengthOffer: (s0, { planId, perWeek = 2 }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      const last = Object.values(s.sessions).filter((x) =&gt; x.status === &#x27;completed&#x27; &amp;&amp; s.workouts[x.workoutId]?.discipline === &#x27;strength&#x27;).pop()
+      if (!last) throw new Error(&#x27;no-strength-history&#x27;)
+      let track = Object.values(p.tracks).find((t) =&gt; t.discipline === &#x27;strength&#x27;)
+      if (track) throw new Error(&#x27;discipline-already-tracked&#x27;)
+      const t = nid(s, &#x27;t&#x27;); p.tracks[t] = { id: t, discipline: &#x27;strength&#x27; }
+      const share = new Map()
+      for (let i = 0; i &lt; perWeek; i++) {
+        const id = nid(s, &#x27;d&#x27;)
+        p.patterns[0].days.push({ id, trackId: t, kind: &#x27;lifting&#x27;, weekday: null, weight: null, workoutId: holdFor(s, planId, id, last.workoutId, share) })
+      }
+      return `Accepted the strength offer: ${perWeek} lifting slots on &quot;${s.workouts[last.workoutId].title}&quot;.`
+    }),
+    liftFromStock: (s0, { planId, perWeek = 2 }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      const stock = Object.values(s.workouts).find((w) =&gt; w.authorship === &#x27;system&#x27;)
+      const t = nid(s, &#x27;t&#x27;); p.tracks[t] = { id: t, discipline: &#x27;strength&#x27; }
+      const share = new Map()
+      for (let i = 0; i &lt; perWeek; i++) {
+        const id = nid(s, &#x27;d&#x27;)
+        p.patterns[0].days.push({ id, trackId: t, kind: &#x27;lifting&#x27;, weekday: null, weight: null, workoutId: holdFor(s, planId, id, stock.id, share) })
+      }
+      return `First run: ${perWeek} lifting slots on the Stock Workout &quot;${stock.title}&quot;.`
+    }),
+    addSimpleActivity: (s0, { planId, title, weekdays }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      let track = Object.values(p.tracks).find((t) =&gt; t.discipline === &#x27;other&#x27;)
+      if (!track) { const t = nid(s, &#x27;t&#x27;); track = p.tracks[t] = { id: t, discipline: &#x27;other&#x27; } }
+      // createSimpleActivityWorkout: written for this plan, never a session&#x27;s.
+      const base = newWorkout(s, { title, discipline: &#x27;other&#x27;, steps: &#x27;1 × 60 min, middels&#x27;, heldBy: s.model === &#x27;held&#x27; ? &#x27;plan:&#x27; + planId : null })
+      for (const pt of p.patterns) for (const wd of weekdays) {
+        const id = nid(s, &#x27;d&#x27;)
+        let wid = base
+        if (s.model === &#x27;perDay&#x27;) { wid = copyWorkout(s, base, &#x27;day:&#x27; + id); s.workouts[wid].copiedFromId = null }
+        pt.days.push({ id, trackId: track.id, kind: &#x27;fixed&#x27;, weekday: wd, weight: null, workoutId: wid })
+      }
+      if (s.model === &#x27;perDay&#x27;) delete s.workouts[base]
+      s.activities = [...(s.activities ?? []), { planId }]
+      return `Added the Simple Activity &quot;${title}&quot; on ${weekdays.map((d) =&gt; WD[d]).join(&#x27;, &#x27;)} in every pattern.`
+    }),
+    // track-days.server.ts: delete the unit&#x27;s rows, write new ones with the unit&#x27;s workoutId.
+    setActivityDays: (s0, { planId, unitKey, weekdays }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      const unit = unitsOf(s, planId).find((u) =&gt; u.key === unitKey)
+      if (!unit) throw new Error(&#x27;no-unit&#x27;)
+      if (!weekdays.length) throw new Error(&#x27;no-days&#x27;)
+      s.lastUndo = { planId, unitKey, rows: p.patterns.map((pt) =&gt; pt.days.filter((d) =&gt; d.trackId === unit.trackId &amp;&amp; d.workoutId === unit.workoutId).map((d) =&gt; d.weekday)) }
+      for (const pt of p.patterns) {
+        const mine = pt.days.filter((d) =&gt; d.trackId === unit.trackId &amp;&amp; d.workoutId === unit.workoutId)
+        if (!mine.length) continue
+        pt.days = pt.days.filter((d) =&gt; !mine.includes(d))
+        for (const wd of weekdays) {
+          const id = nid(s, &#x27;d&#x27;)
+          const wid = s.model === &#x27;perDay&#x27; ? copyWorkout(s, unit.workoutId, &#x27;day:&#x27; + id) : unit.workoutId
+          pt.days.push({ id, trackId: unit.trackId, kind: &#x27;fixed&#x27;, weekday: wd, weight: null, workoutId: wid })
+        }
+      }
+      const swept = sweep(s)
+      return `Moved &quot;${unit.title}&quot; to ${weekdays.map((d) =&gt; WD[d]).join(&#x27;, &#x27;)}.` + (swept ? ` ${swept} copy row(s) swept.` : &#x27;&#x27;)
+    }),
+    stampWeek: (s0, { planId }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      s.week++
+      const pt = p.patterns[(s.week - 1) % p.patterns.length]
+      let n = 0
+      for (const d of pt.days) {
+        const disc = p.tracks[d.trackId].discipline
+        let wid
+        if (d.kind === &#x27;share&#x27;) {
+          wid = d.workoutId ? copyWorkout(s, d.workoutId, null) : newWorkout(s, { title: disc === &#x27;run&#x27; ? &#x27;Rolig løp&#x27; : &#x27;Rolig&#x27;, discipline: disc, steps: &#x27;scaled to the week&#x27; })
+          if (d.workoutId) s.workouts[wid].steps = s.workouts[d.workoutId].steps + &#x27; (scaled)&#x27;
+        } else {
+          if (!d.workoutId) throw new Error(&#x27;a fixed day with no Workout cannot be stamped&#x27;)
+          wid = copyWorkout(s, d.workoutId, null)
+        }
+        const id = nid(s, &#x27;s&#x27;)
+        s.sessions[id] = { id, workoutId: wid, source: &#x27;generated&#x27;, status: &#x27;scheduled&#x27;, when: `Uke ${s.week}` + (d.weekday == null ? &#x27; · løft&#x27; : &#x27; · &#x27; + WD[d.weekday]) }
+        n++
+      }
+      return `Stamped week ${s.week} from &quot;${pt.name}&quot;: ${n} session(s), each with its own copy.`
+    }),
+    removeDay: (s0, { planId, dayId }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      for (const pt of p.patterns) pt.days = pt.days.filter((d) =&gt; d.id !== dayId)
+      const n = sweep(s)
+      return `Removed the day.` + (n ? ` ${n} copy row(s) went with it.` : &#x27;&#x27;)
+    }),
+    removePattern: (s0, { planId, index }) =&gt; run(s0, (s) =&gt; {
+      const p = plan(s, planId)
+      p.patterns.splice(index, 1)
+      const n = sweep(s)
+      return `Removed the Week Pattern.` + (n ? ` ${n} copy row(s) went with it.` : &#x27;&#x27;)
+    }),
+    deletePlan: (s0, { planId }) =&gt; run(s0, (s) =&gt; {
+      plan(s, planId)
+      delete s.plans[planId] // sessions stay on the calendar, unanchored
+      const n = sweep(s)
+      return `Deleted the plan.` + (n ? ` ${n} copy row(s) went with it.` : &#x27;&#x27;)
+    }),
+    // The migration: per plan, one copy of each Workout its days share with a session, a stock row
+    // or another plan; a Workout only this plan&#x27;s days hold is marked held without a copy.
+    migrate: (s0) =&gt; run(s0, (s) =&gt; {
+      if (s.model !== &#x27;today&#x27;) throw new Error(&#x27;nothing to migrate: this state is already on the new model&#x27;)
+      s.model = &#x27;held&#x27;
+      let kept = 0, copied = 0
+      for (const p of Object.values(s.plans)) {
+        const map = new Map()
+        for (const d of allDays(p)) {
+          if (!d.workoutId) continue
+          if (!map.has(d.workoutId)) {
+            const w = s.workouts[d.workoutId]
+            const elsewhere = sessionsUsing(s, w.id).length &gt; 0 || daysUsing(s, w.id).some((u) =&gt; u.plan.id !== p.id)
+            if (!elsewhere &amp;&amp; w.ownerId === ME &amp;&amp; w.authorship === &#x27;athlete&#x27; &amp;&amp; !w.heldBy) { w.heldBy = &#x27;plan:&#x27; + p.id; map.set(w.id, w.id); kept++ }
+            else { map.set(w.id, copyWorkout(s, w.id, &#x27;plan:&#x27; + p.id)); copied++ }
+          }
+          d.workoutId = map.get(d.workoutId)
+        }
+      }
+      return `Migrated: ${copied} copy row(s) written, ${kept} Workout(s) only the plan held marked as its own. Titles unchanged.`
+    }),
+    deleteAccount: (s0) =&gt; run(s0, (s) =&gt; {
+      s.plans = {}
+      s.sessions = {}
+      for (const w of Object.values(s.workouts)) if (w.ownerId === ME) delete s.workouts[w.id]
+      s.accountDeleted = true
+      return &#x27;Deleted the account: plans, sessions and every Workout of hers. Stock rows stay.&#x27;
+    }),
+  }
+
+  // ---------- reads
+  function pickerList(s, discipline) {
+    const seen = new Set(); const out = []
+    for (const x of Object.values(s.sessions).reverse()) {
+      if (x.source !== &#x27;authored&#x27;) continue
+      const w = s.workouts[x.workoutId]
+      if (!w || w.ownerId !== ME || (discipline &amp;&amp; w.discipline !== discipline)) continue
+      const key = w.discipline + &#x27;|&#x27; + w.title.trim().toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key); out.push(w)
+    }
+    return out.slice(0, 12)
+  }
+  function unitsOf(s, planId) {
+    const p = s.plans[planId]; if (!p || !p.patterns[0]) return []
+    const byW = new Map()
+    for (const d of p.patterns[0].days) {
+      if (p.tracks[d.trackId].discipline !== &#x27;other&#x27; || !d.workoutId) continue
+      byW.set(d.workoutId, [...(byW.get(d.workoutId) ?? []), d])
+    }
+    return [...byW].map(([wid, rows]) =&gt; ({ key: `activity:${rows[0].trackId}:${wid}`, trackId: rows[0].trackId, workoutId: wid, title: s.workouts[wid]?.title, days: rows.map((r) =&gt; r.weekday).sort() }))
+  }
+  function dayLabel(s, p, d) {
+    const w = d.workoutId ? s.workouts[d.workoutId] : null
+    if (d.kind === &#x27;share&#x27;) return `share ${d.weight}` + (w ? ` · formet etter ${w.title}` : &#x27; · ingen form&#x27;)
+    return (w ? w.title : &#x27;Økta er fjernet&#x27;) + (d.kind === &#x27;lifting&#x27; ? &#x27; · løft&#x27; : &#x27; · fast&#x27;)
+  }
+  function usesOf(s, wid) {
+    const u = []
+    for (const x of sessionsUsing(s, wid)) u.push({ kind: &#x27;session&#x27;, label: `${x.source} session (${x.when})` })
+    for (const { plan: p, day } of daysUsing(s, wid)) u.push({ kind: &#x27;day&#x27;, label: `${day.kind} day in ${p.name}` })
+    return u
+  }
+  function checks(s) {
+    const out = []
+    const days = Object.values(s.plans).flatMap((p) =&gt; allDays(p).map((d) =&gt; ({ p, d })))
+    const missing = days.filter(({ d }) =&gt; d.kind !== &#x27;share&#x27; &amp;&amp; !d.workoutId)
+    out.push({ ok: !missing.length, label: &#x27;Every fixed day and lifting slot holds a Workout&#x27;, why: missing.length + &#x27; without&#x27; })
+    const sharedWithSession = days.filter(({ d }) =&gt; d.workoutId &amp;&amp; sessionsUsing(s, d.workoutId).length)
+    out.push({ ok: !sharedWithSession.length, label: &#x27;No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan)&#x27;, why: sharedWithSession.length + &#x27; day(s) tied to a session&#x27; })
+    const stock = days.filter(({ d }) =&gt; d.workoutId &amp;&amp; s.workouts[d.workoutId]?.authorship === &#x27;system&#x27;)
+    const crossPlan = days.filter(({ p, d }) =&gt; d.workoutId &amp;&amp; daysUsing(s, d.workoutId).some((u) =&gt; u.plan.id !== p.id))
+    out.push({ ok: !stock.length &amp;&amp; !crossPlan.length, label: &#x27;No day holds a Stock Workout or another plan\&#x27;s row&#x27;, why: `${stock.length} on stock, ${crossPlan.length} across plans` })
+    const leaks = Object.values(s.workouts).filter((w) =&gt; w.ownerId === ME &amp;&amp; !usesOf(s, w.id).length)
+    out.push({ ok: !leaks.length, label: &#x27;No Workout of the athlete\&#x27;s is left that nothing uses&#x27;, why: leaks.map((w) =&gt; `&quot;${w.title}&quot;`).join(&#x27;, &#x27;) })
+    const picker = pickerList(s)
+    const bad = picker.filter((w) =&gt; !sessionsUsing(s, w.id).some((x) =&gt; x.source === &#x27;authored&#x27;))
+    out.push({ ok: !bad.length, label: &#x27;The picker offers only Workouts behind hand-written sessions&#x27;, why: bad.length + &#x27; extra&#x27; })
+    const split = Object.keys(s.plans).map((id) =&gt; [unitsOf(s, id).length, (s.activities ?? []).filter((a) =&gt; a.planId === id).length]).filter(([u, a]) =&gt; u &gt; a)
+    out.push({ ok: !split.length, label: &#x27;Each Simple Activity is one unit in Avansert, whatever its number of days&#x27;, why: split.map(([u, a]) =&gt; `${a} activit${a === 1 ? &#x27;y&#x27; : &#x27;ies&#x27;} listed as ${u} units`).join(&#x27;, &#x27;) })
+    return out
+  }
+  return { A, empty, pickerList, unitsOf, dayLabel, usesOf, checks, WD }
+})()
+&lt;/script&gt;
+
+&lt;!-- ===================== The page: a thin shell ===================== --&gt;
+&lt;script&gt;
+const M = PatternWorkouts
+const STEPS_T = &#x27;15 min rolig · 5×6 min terskel p 2 min · 10 min rolig&#x27;
+const ROLE = { &#x27;Terskel 5×6 min&#x27;: &#x27;threshold&#x27;, &#x27;Langtur 90 min&#x27;: &#x27;long&#x27;, &#x27;Styrke helkropp A&#x27;: &#x27;strength&#x27; }
+const findS = (s, title) =&gt; Object.values(s.sessions).find((x) =&gt; x.role === (ROLE[title] ?? title) &amp;&amp; x.source === &#x27;authored&#x27;)
+const P = (s) =&gt; Object.keys(s.plans)[0]
+
+function seed(model, data) {
+  let s = M.empty(model)
+  const apply = (fn, args) =&gt; { s = fn(s, args).state }
+  if (data === &#x27;worst&#x27;) {
+    const long = &#x27;Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️&#x27;
+    apply(M.A.authorSession, { title: long, discipline: &#x27;run&#x27;, steps: STEPS_T, status: &#x27;completed&#x27;, role: &#x27;threshold&#x27; })
+    apply(M.A.authorSession, { title: &#x27;Ø&#x27;, discipline: &#x27;run&#x27;, steps: &#x27;30 min rolig&#x27;, role: &#x27;long&#x27; })
+    apply(M.A.authorSession, { title: &#x27;Styrke helkropp A (knebøy, markløft, pullups, utfall, planke)&#x27;, discipline: &#x27;strength&#x27;, steps: &#x27;Knebøy 3×8 · Markløft 3×5 · Pullups 3×6&#x27;, status: &#x27;completed&#x27;, role: &#x27;strength&#x27; })
+    s.workouts[nidStock(s)] = { id: &#x27;stock1&#x27;, title: &#x27;Helkropp (stock)&#x27;, discipline: &#x27;strength&#x27;, steps: &#x27;3 × 5 øvelser&#x27;, ownerId: null, authorship: &#x27;system&#x27;, heldBy: null, copiedFromId: null }
+    apply(M.A.createPlan, { name: &#x27;Hold meg aktiv&#x27;, disciplines: [&#x27;run&#x27;] })
+    apply(M.A.createPlan, { name: &#x27;Holmenkollstafetten 2027&#x27;, disciplines: [&#x27;run&#x27;] })
+    const [a, b] = Object.keys(s.plans)
+    apply(M.A.addPattern, { planId: a, name: &#x27;Lett uke&#x27; })
+    const t = findS(s, &#x27;threshold&#x27;).workoutId
+    apply(M.A.addDay, { planId: a, discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: t })
+    apply(M.A.addDay, { planId: a, patternIndex: 1, discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: t })
+    apply(M.A.addDay, { planId: a, discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 5, weight: 2, workoutId: t })
+    apply(M.A.addDay, { planId: b, discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 3, workoutId: t })
+    apply(M.A.addDay, { planId: a, discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 3, weight: 1, workoutId: findS(s, &#x27;long&#x27;).workoutId })
+    apply(M.A.liftFromStock, { planId: b, perWeek: 4 })
+    apply(M.A.addSimpleActivity, { planId: a, title: &#x27;Langrenn&#x27;, weekdays: [5, 6, 2] })
+    apply(M.A.stampWeek, { planId: a })
+    return s
+  }
+  apply(M.A.authorSession, { title: &#x27;Terskel 5×6 min&#x27;, discipline: &#x27;run&#x27;, steps: STEPS_T, status: &#x27;completed&#x27;, role: &#x27;threshold&#x27; })
+  apply(M.A.authorSession, { title: &#x27;Langtur 90 min&#x27;, discipline: &#x27;run&#x27;, steps: &#x27;90 min rolig&#x27;, role: &#x27;long&#x27; })
+  apply(M.A.authorSession, { title: &#x27;Styrke helkropp A&#x27;, discipline: &#x27;strength&#x27;, steps: &#x27;Knebøy 3×8 · Markløft 3×5 · Pullups 3×6&#x27;, status: &#x27;completed&#x27;, role: &#x27;strength&#x27; })
+  s.workouts.stock1 = { id: &#x27;stock1&#x27;, title: &#x27;Helkropp (stock)&#x27;, discipline: &#x27;strength&#x27;, steps: &#x27;3 × 5 øvelser&#x27;, ownerId: null, authorship: &#x27;system&#x27;, heldBy: null, copiedFromId: null }
+  apply(M.A.createPlan, { name: &#x27;Hold meg aktiv&#x27;, disciplines: [&#x27;run&#x27;] })
+  return s
+}
+function nidStock() { return &#x27;stock1&#x27; }
+
+// A legacy plan: built on today&#x27;s model, then the deploy runs the migration.
+function legacy(data) { const s = seed(&#x27;today&#x27;, data); if (data !== &#x27;worst&#x27;) { let x = s; const t = findS(x, &#x27;Terskel 5×6 min&#x27;).workoutId
+  x = M.A.addDay(x, { planId: P(x), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: t }).state
+  x = M.A.addDay(x, { planId: P(x), discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 5, weight: 2, workoutId: findS(x, &#x27;Langtur 90 min&#x27;).workoutId }).state
+  x = M.A.acceptStrengthOffer(x, { planId: P(x) }).state
+  x = M.A.addSimpleActivity(x, { planId: P(x), title: &#x27;Langrenn&#x27;, weekdays: [5, 6] }).state
+  x = M.A.stampWeek(x, { planId: P(x) }).state
+  return x } return s }
+
+const SCEN = [
+  { id: &#x27;ac1&#x27;, name: &#x27;1 · Fixed day&#x27;, say: &#x27;A fixed day picks the Workout of the athlete\&#x27;s threshold session. Then the session is deleted.&#x27;, watch: &#x27;The delete succeeds; the Tuesday still reads &quot;Terskel 5×6 min&quot;; the next stamped week carries the same steps.&#x27;, steps: [
+    [&#x27;Pick &quot;Terskel 5×6 min&quot; for Tuesday&#x27;, (s) =&gt; M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId })],
+    [&#x27;Delete the session&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;Terskel 5×6 min&#x27;).id })],
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })]] },
+  { id: &#x27;ac2&#x27;, name: &#x27;2 · Share shape&#x27;, say: &#x27;A share day is shaped on the long run. Then the long run is deleted.&#x27;, watch: &#x27;Saturday still reads &quot;formet etter Langtur 90 min&quot;, not &quot;ingen form&quot;.&#x27;, steps: [
+    [&#x27;Share day on Saturday, shaped on &quot;Langtur 90 min&quot;&#x27;, (s) =&gt; M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 5, weight: 2, workoutId: findS(s, &#x27;Langtur 90 min&#x27;).workoutId })],
+    [&#x27;Delete the long run&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;Langtur 90 min&#x27;).id })]] },
+  { id: &#x27;ac3&#x27;, name: &#x27;3 · Edits&#x27;, say: &#x27;After the pick, the athlete edits the session; then edits a stamped session.&#x27;, watch: &#x27;Neither edit changes the Tuesday, nor the other stamped week.&#x27;, steps: [
+    [&#x27;Pick &quot;Terskel 5×6 min&quot; for Tuesday&#x27;, (s) =&gt; M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId })],
+    [&#x27;Edit the session to &quot;Terskel 4×8 min&quot;&#x27;, (s) =&gt; M.A.editSession(s, { sessionId: findS(s, &#x27;Terskel 5×6 min&#x27;).id, title: &#x27;Terskel 4×8 min&#x27;, steps: &#x27;4×8 min terskel&#x27; })],
+    [&#x27;Stamp two weeks&#x27;, (s) =&gt; { const a = M.A.stampWeek(s, { planId: P(s) }); const b = M.A.stampWeek(a.state, { planId: P(s) }); return { state: b.state, say: a.say + &#x27; &#x27; + b.say } }],
+    [&#x27;Edit week 1\&#x27;s stamped session&#x27;, (s) =&gt; M.A.editSession(s, { sessionId: Object.values(s.sessions).find((x) =&gt; x.source === &#x27;generated&#x27; &amp;&amp; x.when.startsWith(&#x27;Uke 1&#x27;)).id, title: &#x27;Terskel (kortet ned)&#x27; })]] },
+  { id: &#x27;ac4&#x27;, name: &#x27;4 · Strength offer&#x27;, say: &#x27;The athlete accepts the strength offer, built from her last completed strength session, and then deletes that session.&#x27;, watch: &#x27;The delete succeeds and the next week still lifts &quot;Styrke helkropp A&quot;. Both slots share one copy.&#x27;, steps: [
+    [&#x27;Accept the strength offer (2 a week)&#x27;, (s) =&gt; M.A.acceptStrengthOffer(s, { planId: P(s) })],
+    [&#x27;Delete the strength session&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;Styrke helkropp A&#x27;).id })],
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })]] },
+  { id: &#x27;ac5&#x27;, name: &#x27;5 · Existing plans&#x27;, legacy: true, say: &#x27;A plan built before the change: its days point at session rows and at the Stock Workout. The deploy runs the migration.&#x27;, watch: &#x27;Titles on every day are identical before and after; the checks go green; then deleting the session succeeds.&#x27;, steps: [
+    [&#x27;Run the migration&#x27;, (s) =&gt; M.A.migrate(s)],
+    [&#x27;Delete &quot;Terskel 5×6 min&quot;&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;Terskel 5×6 min&#x27;).id })],
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })]] },
+  { id: &#x27;ac6&#x27;, name: &#x27;6 · Removal&#x27;, say: &#x27;Days, a pattern, then the whole plan are removed.&#x27;, watch: &#x27;Each copy goes with the last day that held it; the session\&#x27;s own Workout is never touched.&#x27;, steps: [
+    [&#x27;Pick &quot;Terskel 5×6 min&quot; for Tuesday and Thursday&#x27;, (s) =&gt; { const a = M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId }); return M.A.addDay(a.state, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 3, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId }) }],
+    [&#x27;Add the Simple Activity &quot;Langrenn&quot; on Sat, Sun&#x27;, (s) =&gt; M.A.addSimpleActivity(s, { planId: P(s), title: &#x27;Langrenn&#x27;, weekdays: [5, 6] })],
+    [&#x27;Remove the Tuesday&#x27;, (s) =&gt; M.A.removeDay(s, { planId: P(s), dayId: s.plans[P(s)].patterns[0].days[0].id })],
+    [&#x27;Delete the whole plan&#x27;, (s) =&gt; M.A.deletePlan(s, { planId: P(s) })]] },
+  { id: &#x27;ac7&#x27;, name: &#x27;7 · Picker&#x27;, say: &#x27;Three picks and a stamp later, open the picker.&#x27;, watch: &#x27;It lists the three hand-written sessions\&#x27; Workouts only: no plan copy, no stamped copy.&#x27;, steps: [
+    [&#x27;Pick for Tuesday, shape Saturday, accept strength&#x27;, (s) =&gt; { let x = M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId }).state; x = M.A.addDay(x, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;share&#x27;, weekday: 5, weight: 2, workoutId: findS(x, &#x27;Langtur 90 min&#x27;).workoutId }).state; return M.A.acceptStrengthOffer(x, { planId: P(s) }) }],
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })]] },
+  { id: &#x27;ac8&#x27;, name: &#x27;8 · Account&#x27;, say: &#x27;The athlete with picks, slots and an activity deletes her account.&#x27;, watch: &#x27;Everything of hers goes in one go; only the Stock Workout stays.&#x27;, steps: [
+    [&#x27;Pick, accept strength, add Langrenn&#x27;, (s) =&gt; { let x = M.A.addDay(s, { planId: P(s), discipline: &#x27;run&#x27;, kind: &#x27;fixed&#x27;, weekday: 1, workoutId: findS(s, &#x27;Terskel 5×6 min&#x27;).workoutId }).state; x = M.A.acceptStrengthOffer(x, { planId: P(s) }).state; return M.A.addSimpleActivity(x, { planId: P(s), title: &#x27;Langrenn&#x27;, weekdays: [5] }) }],
+    [&#x27;Delete the account&#x27;, (s) =&gt; M.A.deleteAccount(s)]] },
+  { id: &#x27;act&#x27;, name: &#x27;Why the plan, not the day&#x27;, say: &#x27;A Simple Activity on two days, in two Week Patterns. Its days share one Workout: that row is the activity\&#x27;s identity in Avansert (track-days.server.ts groups by it), and moving its days deletes and rewrites the rows. Try this in &quot;Copy per day&quot; too.&#x27;, watch: &#x27;Held by the plan: one unit &quot;Langrenn&quot;, one row, before and after the move. Copy per day: the activity splits into one unit per day.&#x27;, steps: [
+    [&#x27;Add a second Week Pattern&#x27;, (s) =&gt; M.A.addPattern(s, { planId: P(s), name: &#x27;Lett uke&#x27; })],
+    [&#x27;Add &quot;Langrenn&quot; on Sat and Sun&#x27;, (s) =&gt; M.A.addSimpleActivity(s, { planId: P(s), title: &#x27;Langrenn&#x27;, weekdays: [5, 6] })],
+    [&#x27;Move it to Wed and Sat&#x27;, (s) =&gt; M.A.setActivityDays(s, { planId: P(s), unitKey: M.unitsOf(s, P(s))[0].key, weekdays: [2, 5] })]] },
+]
+
+const MODELS = [[&#x27;today&#x27;, &#x27;Today on main&#x27;], [&#x27;perDay&#x27;, &#x27;Copy per day (rejected)&#x27;], [&#x27;held&#x27;, &#x27;Plan holds its copies (proposed)&#x27;]]
+const DATAS = [[&#x27;demo&#x27;, &#x27;Demo data&#x27;], [&#x27;worst&#x27;, &#x27;Worst case&#x27;]]
+const ui = { model: window.START_MODEL || &#x27;held&#x27;, data: window.START_DATA || &#x27;demo&#x27;, tab: window.START_TAB || &#x27;ac1&#x27;, step: 0, msg: null, err: false, prev: null }
+let state
+
+function start() {
+  const sc = SCEN.find((x) =&gt; x.id === ui.tab)
+  state = sc?.legacy ? legacy(ui.data) : seed(ui.model, ui.data)
+  ui.step = 0; ui.msg = sc?.legacy ? &#x27;Built on today\&#x27;s model, as a plan made before the deploy.&#x27; : null; ui.err = false; ui.prev = null
+  render()
+}
+function act(fn) {
+  const before = state
+  try { const r = fn(state); state = r.state; ui.msg = r.say; ui.err = false; ui.prev = before }
+  catch (e) { ui.msg = &#x27;Refused, nothing changed: &#x27; + e.message; ui.err = true; ui.prev = null; return false }
+  return true
+}
+
+const esc = (t) =&gt; String(t ?? &#x27;&#x27;).replace(/[&amp;&lt;&gt;&quot;]/g, (c) =&gt; ({ &#x27;&amp;&#x27;: &#x27;&amp;amp;&#x27;, &#x27;&lt;&#x27;: &#x27;&amp;lt;&#x27;, &#x27;&gt;&#x27;: &#x27;&amp;gt;&#x27;, &#x27;&quot;&#x27;: &#x27;&amp;quot;&#x27; }[c]))
+const col = { run: &#x27;var(--run)&#x27;, strength: &#x27;var(--strength)&#x27;, other: &#x27;var(--other)&#x27; }
+
+function render() {
+  document.getElementById(&#x27;models&#x27;).innerHTML = MODELS.map(([k, l]) =&gt; `&lt;button aria-pressed=&quot;${ui.model === k}&quot; data-model=&quot;${k}&quot;&gt;${l}&lt;/button&gt;`).join(&#x27;&#x27;)
+  document.getElementById(&#x27;datas&#x27;).innerHTML = DATAS.map(([k, l]) =&gt; `&lt;button aria-pressed=&quot;${ui.data === k}&quot; data-data=&quot;${k}&quot;&gt;${l}&lt;/button&gt;`).join(&#x27;&#x27;)
+  document.getElementById(&#x27;tabs&#x27;).innerHTML = SCEN.map((x) =&gt; `&lt;button role=&quot;tab&quot; aria-selected=&quot;${ui.tab === x.id}&quot; data-tab=&quot;${x.id}&quot;&gt;${esc(x.name)}&lt;/button&gt;`).join(&#x27;&#x27;)
+  const sc = SCEN.find((x) =&gt; x.id === ui.tab)
+  document.getElementById(&#x27;scenario&#x27;).innerHTML = `&lt;p&gt;${esc(sc.say)}&lt;/p&gt;&lt;ol class=&quot;steps&quot;&gt;${sc.steps.map(([l], i) =&gt; `&lt;li class=&quot;${i &lt; ui.step ? &#x27;done&#x27; : i === ui.step ? &#x27;next&#x27; : &#x27;&#x27;}&quot;&gt;&lt;span class=&quot;n&quot;&gt;${i + 1}&lt;/span&gt;&lt;button class=&quot;btn ${i === ui.step ? &#x27;primary&#x27; : &#x27;&#x27;}&quot; data-step=&quot;${i}&quot; ${i !== ui.step ? &#x27;disabled&#x27; : &#x27;&#x27;}&gt;${esc(l)}&lt;/button&gt;&lt;/li&gt;`).join(&#x27;&#x27;)}&lt;/ol&gt;&lt;div class=&quot;watch&quot;&gt;&lt;b&gt;Watch for:&lt;/b&gt; ${esc(sc.watch)}&lt;/div&gt;`
+
+  const p = state.plans[P(state)]
+  const free = [
+    [&#x27;Stamp next week&#x27;, (s) =&gt; M.A.stampWeek(s, { planId: P(s) })],
+    [&#x27;Delete the threshold session&#x27;, (s) =&gt; M.A.deleteSession(s, { sessionId: findS(s, &#x27;threshold&#x27;)?.id })],
+    [&#x27;Edit the threshold session&#x27;, (s) =&gt; M.A.editSession(s, { sessionId: findS(s, &#x27;threshold&#x27;)?.id, title: &#x27;Terskel 3×10 min&#x27;, steps: &#x27;3×10 min terskel&#x27; })],
+    [&#x27;Remove the first day&#x27;, (s) =&gt; M.A.removeDay(s, { planId: P(s), dayId: s.plans[P(s)]?.patterns[0]?.days[0]?.id })],
+    [&#x27;Remove the last pattern&#x27;, (s) =&gt; M.A.removePattern(s, { planId: P(s), index: (s.plans[P(s)]?.patterns.length ?? 1) - 1 })],
+    [&#x27;Run the migration&#x27;, (s) =&gt; M.A.migrate(s)],
+    [&#x27;Delete the plan&#x27;, (s) =&gt; M.A.deletePlan(s, { planId: P(s) })],
+    [&#x27;Delete the account&#x27;, (s) =&gt; M.A.deleteAccount(s)],
+  ]
+  window.FREE = free
+  document.getElementById(&#x27;free&#x27;).innerHTML = free.map(([l], i) =&gt; `&lt;button class=&quot;btn&quot; data-free=&quot;${i}&quot;&gt;${esc(l)}&lt;/button&gt;`).join(&#x27;&#x27;)
+  document.getElementById(&#x27;msg&#x27;).innerHTML = ui.msg ? `&lt;div class=&quot;msg ${ui.err ? &#x27;err&#x27; : &#x27;&#x27;}&quot;&gt;${esc(ui.msg)}&lt;/div&gt;` : &#x27;&#x27;
+
+  document.getElementById(&#x27;inv&#x27;).innerHTML = M.checks(state).map((c) =&gt; `&lt;li&gt;&lt;span class=&quot;${c.ok ? &#x27;ok&#x27; : &#x27;no&#x27;}&quot;&gt;${c.ok ? &#x27;✓&#x27; : &#x27;✗&#x27;}&lt;/span&gt;&lt;span&gt;${esc(c.label)}${c.ok ? &#x27;&#x27; : ` &lt;span class=&quot;tag bad&quot;&gt;${esc(c.why)}&lt;/span&gt;`}&lt;/span&gt;&lt;/li&gt;`).join(&#x27;&#x27;)
+
+  const prevW = ui.prev ? ui.prev.workouts : null
+  document.getElementById(&#x27;plans&#x27;).innerHTML = Object.values(state.plans).map((pl) =&gt; `&lt;p&gt;&lt;b&gt;${esc(pl.name)}&lt;/b&gt;&lt;/p&gt;` + pl.patterns.map((pt) =&gt; `&lt;p class=&quot;small muted&quot; style=&quot;margin-top:8px&quot;&gt;${esc(pt.name)}&lt;/p&gt;` + (pt.days.length ? pt.days.slice().sort((a, b) =&gt; (a.weekday ?? 9) - (b.weekday ?? 9)).map((d) =&gt; {
+    const disc = pl.tracks[d.trackId].discipline
+    const lbl = M.dayLabel(state, pl, d)
+    const before = ui.prev?.plans[pl.id]?.patterns.find((x) =&gt; x.id === pt.id)?.days.find((x) =&gt; x.id === d.id)
+    const changed = before &amp;&amp; M.dayLabel(ui.prev, ui.prev.plans[pl.id], before) !== lbl
+    return `&lt;div class=&quot;day&quot;&gt;&lt;span class=&quot;dot&quot; style=&quot;background:${col[disc]}&quot;&gt;&lt;/span&gt;&lt;span class=&quot;wd&quot;&gt;${d.weekday == null ? &#x27;—&#x27; : M.WD[d.weekday]}&lt;/span&gt;&lt;span class=&quot;${changed ? &#x27;changed&#x27; : &#x27;&#x27;}&quot;&gt;${esc(lbl)} &lt;span class=&quot;muted small&quot;&gt;${d.workoutId ? &#x27;→ &#x27; + d.workoutId : &#x27;&#x27;}&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;`
+  }).join(&#x27;&#x27;) : &#x27;&lt;p class=&quot;small muted&quot;&gt;No days yet.&lt;/p&gt;&#x27;)).join(&#x27;&#x27;)).join(&#x27;&#x27;) || &#x27;&lt;p class=&quot;muted&quot;&gt;No plan.&lt;/p&gt;&#x27;
+
+  const ss = Object.values(state.sessions)
+  document.getElementById(&#x27;cal&#x27;).innerHTML = ss.length ? `&lt;table&gt;&lt;tr&gt;&lt;th&gt;When&lt;/th&gt;&lt;th&gt;Session&lt;/th&gt;&lt;th&gt;Source&lt;/th&gt;&lt;/tr&gt;${ss.map((x) =&gt; { const w = state.workouts[x.workoutId]; const was = ui.prev?.sessions[x.id] &amp;&amp; ui.prev.workouts[ui.prev.sessions[x.id].workoutId]; const ch = was &amp;&amp; (was.title !== w.title || was.steps !== w.steps); return `&lt;tr&gt;&lt;td&gt;${esc(x.when)}&lt;/td&gt;&lt;td class=&quot;${ch ? &#x27;changed&#x27; : &#x27;&#x27;}&quot;&gt;${esc(w.title)}&lt;br&gt;&lt;span class=&quot;muted small&quot;&gt;${esc(w.steps)}&lt;/span&gt;&lt;/td&gt;&lt;td&gt;${x.source}${x.status === &#x27;completed&#x27; ? &#x27; · done&#x27; : &#x27;&#x27;}&lt;/td&gt;&lt;/tr&gt;` }).join(&#x27;&#x27;)}&lt;/table&gt;` : &#x27;&lt;p class=&quot;muted&quot;&gt;No sessions.&lt;/p&gt;&#x27;
+
+  const ws = Object.values(state.workouts)
+  document.getElementById(&#x27;workouts&#x27;).innerHTML = `&lt;table&gt;&lt;tr&gt;&lt;th style=&quot;width:18%&quot;&gt;Row&lt;/th&gt;&lt;th&gt;Title&lt;/th&gt;&lt;th class=&quot;hide-sm&quot; style=&quot;width:12%&quot;&gt;Owner&lt;/th&gt;&lt;th style=&quot;width:16%&quot;&gt;Held by&lt;/th&gt;&lt;th&gt;Used by&lt;/th&gt;&lt;/tr&gt;${ws.map((w) =&gt; {
+    const uses = M.usesOf(state, w.id)
+    const isNew = prevW &amp;&amp; !prevW[w.id]
+    return `&lt;tr class=&quot;${isNew ? &#x27;changed&#x27; : &#x27;&#x27;}&quot;&gt;&lt;td&gt;${w.id}${w.copiedFromId ? `&lt;br&gt;&lt;span class=&quot;muted small&quot;&gt;copied from ${w.copiedFromId}&lt;/span&gt;` : &#x27;&#x27;}&lt;/td&gt;&lt;td&gt;${esc(w.title)}&lt;/td&gt;&lt;td class=&quot;hide-sm&quot;&gt;${w.authorship === &#x27;system&#x27; ? &#x27;&lt;span class=&quot;tag stock&quot;&gt;stock&lt;/span&gt;&#x27; : &#x27;Kari&#x27;}&lt;/td&gt;&lt;td&gt;${w.heldBy ? `&lt;span class=&quot;tag held&quot;&gt;${w.heldBy.startsWith(&#x27;plan&#x27;) ? &#x27;the plan&#x27; : &#x27;one day&#x27;}&lt;/span&gt;` : &#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${uses.map((u) =&gt; `&lt;span class=&quot;tag ${u.kind}&quot;&gt;${esc(u.label)}&lt;/span&gt;`).join(&#x27;&#x27;) || (w.authorship === &#x27;system&#x27; ? &#x27;&lt;span class=&quot;muted&quot;&gt;the Catalogue&lt;/span&gt;&#x27; : &#x27;&lt;span class=&quot;tag bad&quot;&gt;nothing&lt;/span&gt;&#x27;)}&lt;/td&gt;&lt;/tr&gt;`
+  }).join(&#x27;&#x27;)}&lt;/table&gt;${prevW ? `&lt;p class=&quot;small muted&quot; style=&quot;margin-top:8px&quot;&gt;${Object.keys(prevW).filter((k) =&gt; !state.workouts[k]).length} row(s) deleted by the last action.&lt;/p&gt;` : &#x27;&#x27;}`
+
+  const pick = M.pickerList(state)
+  document.getElementById(&#x27;picker&#x27;).innerHTML = pick.length ? pick.map((w) =&gt; `&lt;div class=&quot;day&quot;&gt;&lt;span class=&quot;dot&quot; style=&quot;background:${col[w.discipline]}&quot;&gt;&lt;/span&gt;&lt;span&gt;${esc(w.title)} &lt;span class=&quot;muted small&quot;&gt;${w.id}&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;`).join(&#x27;&#x27;) : &#x27;&lt;p class=&quot;muted&quot;&gt;Empty.&lt;/p&gt;&#x27;
+  const units = p ? M.unitsOf(state, p.id) : []
+  document.getElementById(&#x27;units&#x27;).innerHTML = units.length ? units.map((u) =&gt; `&lt;div class=&quot;day&quot;&gt;&lt;span class=&quot;dot&quot; style=&quot;background:var(--other)&quot;&gt;&lt;/span&gt;&lt;span&gt;${esc(u.title)} · ${u.days.map((d) =&gt; M.WD[d]).join(&#x27;, &#x27;)} &lt;span class=&quot;muted small&quot;&gt;${u.workoutId}&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;`).join(&#x27;&#x27;) : &#x27;&lt;p class=&quot;muted small&quot;&gt;No Simple Activity.&lt;/p&gt;&#x27;
+}
+
+document.addEventListener(&#x27;click&#x27;, (e) =&gt; {
+  const b = e.target.closest(&#x27;button&#x27;); if (!b) return
+  if (b.dataset.model) { ui.model = b.dataset.model; start() }
+  else if (b.dataset.data) { ui.data = b.dataset.data; start() }
+  else if (b.dataset.tab) { ui.tab = b.dataset.tab; start() }
+  else if (b.id === &#x27;reset&#x27;) start()
+  else if (b.dataset.step != null) { const sc = SCEN.find((x) =&gt; x.id === ui.tab); if (act(sc.steps[+b.dataset.step][1])) ui.step++; render() }
+  else if (b.dataset.free != null) { act(window.FREE[+b.dataset.free][1]); render() }
+})
+start()
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+
+<h2>Earlier runs</h2>
+<details><summary>None</summary><p class="muted">This is the first design run on #665.</p></details>
+</main></body></html>

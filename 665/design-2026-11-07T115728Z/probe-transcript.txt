@@ -1,0 +1,109 @@
+[today/demo/ac1] Added a fixed day on Tir pointing at "Terskel 5×6 min" (the session's own row). | Refused, nothing changed: CHECK constraint failed: WeekPatternDay_kind_fields | (stuck at 3)
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 1 day(s) tied to a session
+[today/demo/ac2] Added a share day on Lør pointing at "Langtur 90 min" (the session's own row). | Deleted the session. 1 share day(s) lost their shape without a word.
+   FAILS: none
+[today/demo/ac3] Added a fixed day on Tir pointing at "Terskel 5×6 min" (the session's own row). | Edited the session to "Terskel 4×8 min". | Stamped week 1 from "Typisk uke": 1 session(s), each with its own copy. Stamped week 2 from "Typisk uke": 1 session(s), each with its own copy. | Edited the session to "Terskel (kortet ned)".
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 1 day(s) tied to a session
+[today/demo/ac4] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A". | Refused, nothing changed: CHECK constraint failed: WeekPatternDay_kind_fields | (stuck at 3)
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 2 day(s) tied to a session
+[today/demo/ac5] Migrated: 3 copy row(s) written, 1 Workout(s) only the plan held marked as its own. Titles unchanged. | Deleted the session and its Workout. | Stamped week 2 from "Typisk uke": 6 session(s), each with its own copy.
+   FAILS: none
+[today/demo/ac6] Added a fixed day on Tor pointing at "Terskel 5×6 min" (the session's own row). | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Removed the day. | Deleted the plan.
+   FAILS: No Workout of the athlete's is left that nothing uses "Langrenn"
+[today/demo/ac7] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A". | Stamped week 1 from "Typisk uke": 4 session(s), each with its own copy.
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 4 day(s) tied to a session
+[today/demo/ac8] Added the Simple Activity "Langrenn" on Lør in every pattern. | Deleted the account: plans, sessions and every Workout of hers. Stock rows stay.
+   FAILS: none
+[today/demo/act] Added the Week Pattern "Lett uke". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Moved "Langrenn" to Ons, Lør.
+   FAILS: none
+[today/worst/ac1] Added a fixed day on Tir pointing at "Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️" (the session's own row). | Refused, nothing changed: CHECK constraint failed: WeekPatternDay_kind_fields | (stuck at 3)
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 6 day(s) tied to a session ;; No day holds a Stock Workout or another plan's row 4 on stock, 5 across plans
+[today/worst/ac2] Added a share day on Lør pointing at "Ø" (the session's own row). | Deleted the session. 2 share day(s) lost their shape without a word.
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 4 day(s) tied to a session ;; No day holds a Stock Workout or another plan's row 4 on stock, 4 across plans
+[today/worst/ac3] Added a fixed day on Tir pointing at "Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️" (the session's own row). | Edited the session to "Terskel 4×8 min". | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy. Stamped week 3 from "Typisk uke": 7 session(s), each with its own copy. | Edited the session to "Terskel (kortet ned)".
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 6 day(s) tied to a session ;; No day holds a Stock Workout or another plan's row 4 on stock, 5 across plans
+[today/worst/ac4] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A (knebøy, markløft, pullups, utfall, planke)". | Refused, nothing changed: CHECK constraint failed: WeekPatternDay_kind_fields | (stuck at 3)
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 7 day(s) tied to a session ;; No day holds a Stock Workout or another plan's row 4 on stock, 4 across plans
+[today/worst/ac5] Migrated: 4 copy row(s) written, 1 Workout(s) only the plan held marked as its own. Titles unchanged. | Deleted the session and its Workout. | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: none
+[today/worst/ac6] Added a fixed day on Tor pointing at "Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️" (the session's own row). | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Removed the day. | Deleted the plan.
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 1 day(s) tied to a session ;; No day holds a Stock Workout or another plan's row 4 on stock, 0 across plans ;; No Workout of the athlete's is left that nothing uses "Langrenn", "Langrenn"
+[today/worst/ac7] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A (knebøy, markløft, pullups, utfall, planke)". | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 9 day(s) tied to a session ;; No day holds a Stock Workout or another plan's row 4 on stock, 5 across plans
+[today/worst/ac8] Added the Simple Activity "Langrenn" on Lør in every pattern. | Deleted the account: plans, sessions and every Workout of hers. Stock rows stay.
+   FAILS: none
+[today/worst/act] Added the Week Pattern "Lett uke". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Moved "Langrenn" to Ons, Lør.
+   FAILS: No pattern day holds a Workout a session owns (deleting or editing a session never reaches the plan) 5 day(s) tied to a session ;; No day holds a Stock Workout or another plan's row 4 on stock, 4 across plans
+[perDay/demo/ac1] Added a fixed day on Tir with its own copy of "Terskel 5×6 min". | Deleted the session and its Workout. | Stamped week 1 from "Typisk uke": 1 session(s), each with its own copy.
+   FAILS: none
+[perDay/demo/ac2] Added a share day on Lør with its own copy of "Langtur 90 min". | Deleted the session and its Workout.
+   FAILS: none
+[perDay/demo/ac3] Added a fixed day on Tir with its own copy of "Terskel 5×6 min". | Edited the session to "Terskel 4×8 min". | Stamped week 1 from "Typisk uke": 1 session(s), each with its own copy. Stamped week 2 from "Typisk uke": 1 session(s), each with its own copy. | Edited the session to "Terskel (kortet ned)".
+   FAILS: none
+[perDay/demo/ac4] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A". | Deleted the session and its Workout. | Stamped week 1 from "Typisk uke": 2 session(s), each with its own copy.
+   FAILS: none
+[perDay/demo/ac5] Migrated: 3 copy row(s) written, 1 Workout(s) only the plan held marked as its own. Titles unchanged. | Deleted the session and its Workout. | Stamped week 2 from "Typisk uke": 6 session(s), each with its own copy.
+   FAILS: none
+[perDay/demo/ac6] Added a fixed day on Tor with its own copy of "Terskel 5×6 min". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Removed the day. 1 copy row(s) went with it. | Deleted the plan. 3 copy row(s) went with it.
+   FAILS: none
+[perDay/demo/ac7] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A". | Stamped week 1 from "Typisk uke": 4 session(s), each with its own copy.
+   FAILS: none
+[perDay/demo/ac8] Added the Simple Activity "Langrenn" on Lør in every pattern. | Deleted the account: plans, sessions and every Workout of hers. Stock rows stay.
+   FAILS: none
+[perDay/demo/act] Added the Week Pattern "Lett uke". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Moved "Langrenn" to Ons, Lør. 1 copy row(s) swept.
+   FAILS: Each Simple Activity is one unit in Avansert, whatever its number of days 1 activity listed as 3 units
+[perDay/worst/ac1] Added a fixed day on Tir with its own copy of "Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️". | Deleted the session and its Workout. | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: Each Simple Activity is one unit in Avansert, whatever its number of days 1 activity listed as 3 units
+[perDay/worst/ac2] Added a share day on Lør with its own copy of "Ø". | Deleted the session and its Workout.
+   FAILS: Each Simple Activity is one unit in Avansert, whatever its number of days 1 activity listed as 3 units
+[perDay/worst/ac3] Added a fixed day on Tir with its own copy of "Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️". | Edited the session to "Terskel 4×8 min". | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy. Stamped week 3 from "Typisk uke": 7 session(s), each with its own copy. | Edited the session to "Terskel (kortet ned)".
+   FAILS: Each Simple Activity is one unit in Avansert, whatever its number of days 1 activity listed as 3 units
+[perDay/worst/ac4] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A (knebøy, markløft, pullups, utfall, planke)". | Deleted the session and its Workout. | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: Each Simple Activity is one unit in Avansert, whatever its number of days 1 activity listed as 3 units
+[perDay/worst/ac5] Migrated: 4 copy row(s) written, 1 Workout(s) only the plan held marked as its own. Titles unchanged. | Deleted the session and its Workout. | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: none
+[perDay/worst/ac6] Added a fixed day on Tor with its own copy of "Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Removed the day. 1 copy row(s) went with it. | Deleted the plan. 15 copy row(s) went with it.
+   FAILS: none
+[perDay/worst/ac7] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A (knebøy, markløft, pullups, utfall, planke)". | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: Each Simple Activity is one unit in Avansert, whatever its number of days 1 activity listed as 3 units
+[perDay/worst/ac8] Added the Simple Activity "Langrenn" on Lør in every pattern. | Deleted the account: plans, sessions and every Workout of hers. Stock rows stay.
+   FAILS: none
+[perDay/worst/act] Added the Week Pattern "Lett uke". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Moved "Langrenn" to Ons, Lør. 1 copy row(s) swept.
+   FAILS: Each Simple Activity is one unit in Avansert, whatever its number of days 2 activities listed as 6 units
+[held/demo/ac1] Added a fixed day on Tir with its own copy of "Terskel 5×6 min". | Deleted the session and its Workout. | Stamped week 1 from "Typisk uke": 1 session(s), each with its own copy.
+   FAILS: none
+[held/demo/ac2] Added a share day on Lør with its own copy of "Langtur 90 min". | Deleted the session and its Workout.
+   FAILS: none
+[held/demo/ac3] Added a fixed day on Tir with its own copy of "Terskel 5×6 min". | Edited the session to "Terskel 4×8 min". | Stamped week 1 from "Typisk uke": 1 session(s), each with its own copy. Stamped week 2 from "Typisk uke": 1 session(s), each with its own copy. | Edited the session to "Terskel (kortet ned)".
+   FAILS: none
+[held/demo/ac4] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A". | Deleted the session and its Workout. | Stamped week 1 from "Typisk uke": 2 session(s), each with its own copy.
+   FAILS: none
+[held/demo/ac5] Migrated: 3 copy row(s) written, 1 Workout(s) only the plan held marked as its own. Titles unchanged. | Deleted the session and its Workout. | Stamped week 2 from "Typisk uke": 6 session(s), each with its own copy.
+   FAILS: none
+[held/demo/ac6] Added a fixed day on Tor with its own copy of "Terskel 5×6 min". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Removed the day. 1 copy row(s) went with it. | Deleted the plan. 2 copy row(s) went with it.
+   FAILS: none
+[held/demo/ac7] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A". | Stamped week 1 from "Typisk uke": 4 session(s), each with its own copy.
+   FAILS: none
+[held/demo/ac8] Added the Simple Activity "Langrenn" on Lør in every pattern. | Deleted the account: plans, sessions and every Workout of hers. Stock rows stay.
+   FAILS: none
+[held/demo/act] Added the Week Pattern "Lett uke". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Moved "Langrenn" to Ons, Lør.
+   FAILS: none
+[held/worst/ac1] Added a fixed day on Tir with its own copy of "Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️". | Deleted the session and its Workout. | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: none
+[held/worst/ac2] Added a share day on Lør with its own copy of "Ø". | Deleted the session and its Workout.
+   FAILS: none
+[held/worst/ac3] Added a fixed day on Tir with its own copy of "Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️". | Edited the session to "Terskel 4×8 min". | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy. Stamped week 3 from "Typisk uke": 7 session(s), each with its own copy. | Edited the session to "Terskel (kortet ned)".
+   FAILS: none
+[held/worst/ac4] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A (knebøy, markløft, pullups, utfall, planke)". | Deleted the session and its Workout. | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: none
+[held/worst/ac5] Migrated: 4 copy row(s) written, 1 Workout(s) only the plan held marked as its own. Titles unchanged. | Deleted the session and its Workout. | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: none
+[held/worst/ac6] Added a fixed day on Tor with its own copy of "Terskelintervaller 5×6 min på 10 km-fart med 2 min joggepause og progressiv nedjogg – Sørkedalen 🏃‍♀️". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Removed the day. 1 copy row(s) went with it. | Deleted the plan. 7 copy row(s) went with it.
+   FAILS: none
+[held/worst/ac7] Accepted the strength offer: 2 lifting slots on "Styrke helkropp A (knebøy, markløft, pullups, utfall, planke)". | Stamped week 2 from "Lett uke": 4 session(s), each with its own copy.
+   FAILS: none
+[held/worst/ac8] Added the Simple Activity "Langrenn" on Lør in every pattern. | Deleted the account: plans, sessions and every Workout of hers. Stock rows stay.
+   FAILS: none
+[held/worst/act] Added the Week Pattern "Lett uke". | Added the Simple Activity "Langrenn" on Lør, Søn in every pattern. | Moved "Langrenn" to Ons, Lør.
+   FAILS: none
+page errors: []

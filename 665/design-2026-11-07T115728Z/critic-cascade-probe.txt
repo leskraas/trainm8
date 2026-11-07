@@ -1,0 +1,26 @@
+# Critic probe, #665: real schema from prisma/migrations on 6ec5b58 + Workout.heldByOutlineId (FK PlanOutline, ON DELETE CASCADE). 'alter' = ALTER TABLE ADD COLUMN; 'redefine' = the table redefinition prisma migrate emits on SQLite. Script: critic-cascade-probe.py
+mode alter day FK SET NULL
+DELETE PlanOutline (plan with a held fixed-day copy) -> OK
+DELETE User (account deletion cascade) -> OK
+DELETE the held Workout a fixed day still holds -> IntegrityError CHECK constraint failed: WeekPatternDay_kind_fields
+
+mode redefine day FK SET NULL
+DELETE PlanOutline (plan with a held fixed-day copy) -> IntegrityError CHECK constraint failed: WeekPatternDay_kind_fields
+DELETE User (account deletion cascade) -> IntegrityError CHECK constraint failed: WeekPatternDay_kind_fields
+DELETE the held Workout a fixed day still holds -> IntegrityError CHECK constraint failed: WeekPatternDay_kind_fields
+
+mode redefine day FK SET NULL
+DELETE PlanOutline (plan with a held fixed-day copy) -> IntegrityError CHECK constraint failed: WeekPatternDay_kind_fields
+DELETE User (account deletion cascade) -> IntegrityError CHECK constraint failed: WeekPatternDay_kind_fields
+DELETE the held Workout a fixed day still holds -> IntegrityError CHECK constraint failed: WeekPatternDay_kind_fields
+
+mode redefine day FK NO ACTION
+DELETE PlanOutline (plan with a held fixed-day copy) -> OK
+DELETE User (account deletion cascade) -> OK
+DELETE the held Workout a fixed day still holds -> IntegrityError FOREIGN KEY constraint failed
+
+mode redefine day FK CASCADE
+DELETE PlanOutline (plan with a held fixed-day copy) -> OK
+DELETE User (account deletion cascade) -> OK
+DELETE the held Workout a fixed day still holds -> OK
+
