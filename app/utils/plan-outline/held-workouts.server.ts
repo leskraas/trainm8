@@ -1,8 +1,10 @@
 // **Held Workouts** (ADR 0112): a Plan Outline holds a private copy of every
 // Workout its Week Pattern days use. This module is the one place that rule
-// lives. Every write that gives a day a Workout takes its id from `hold`, every
-// undo that puts rows back is checked by `acceptsOnly`, and every write that
-// can leave a held row unused ends with `sweep`.
+// lives. Every write that gives a day an existing Workout takes its id from
+// `hold`, every undo that puts rows back is checked by `acceptsOnly`, and every
+// write that can leave a held row unused ends with `sweep`. The one row written
+// held from the start is the first run's new Simple Activity, which no session
+// owns (`createSimpleActivityWorkout`'s `heldByOutlineId`, ADR 0112 §1).
 //
 // - **A copy per pick, shared by the plan.** `hold` copies the athlete's own
 //   Workout or a Stock Workout once per write (`copyWorkout`, owned by the

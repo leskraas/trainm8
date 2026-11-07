@@ -296,11 +296,13 @@ model Workout {
   copies       Workout[] @relation("WorkoutLineage")
 
   /// **Held Workout** (ADR 0112): the Plan Outline that holds this row as its
-  /// private copy of what a Week Pattern day picked. Set only by
+  /// private copy of what a Week Pattern day picked. Set by
   /// `plan-outline/held-workouts.server.ts`, which copies a session's Workout
   /// or a Stock Workout in (`copyWorkout`, owned by the athlete, `copiedFromId`
-  /// at the source); the plan's own days may share one held row. No session
-  /// ever points at a held row: the stamp copies it per session.
+  /// at the source), and by `createSimpleActivityWorkout` when the first run
+  /// writes a Simple Activity no session owns straight into its plan. The
+  /// plan's own days may share one held row. No session ever points at a held
+  /// row: the stamp copies it per session.
   ///
   /// `Cascade`: a plan's held rows go with the plan, its Event or its athlete.
   /// The migration's CHECK is the implication `heldByOutlineId IS NULL OR
