@@ -1,0 +1,1290 @@
+
+> lint
+> eslint .
+
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/app/actions/run.server.ts
+  29:1  warning  `./paths.ts` import should occur before import of `./reading.ts`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/app/actions/session-summary.server.ts
+  21:1  warning  `#app/utils/intensity-target.ts` import should occur before import of `#app/utils/labels.ts`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/app/routes/imports.share-target.server.test.ts
+  6:1  warning  `#app/utils/db.server.ts` import should occur before import of `#app/utils/toast.server.ts`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/app/routes/start/plan-ready.route.test.ts
+  9:1  warning  `#app/utils/labels.ts` import should occur before import of `#app/utils/load/propose-next-round.ts`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/app/routes/training/__exercise-combobox.tsx
+  12:1  warning  `#app/components/ui/button.tsx` import should occur before import of `#app/components/ui/command.tsx`  import/order
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/app/routes/training/sessions.$sessionId_.log.route.test.tsx
+  280:13  warning  '_' is assigned a value but never used. Allowed unused vars must match /^ignored/u  @typescript-eslint/no-unused-vars
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/app/utils/day-stamp.server.ts
+  20:15  warning  'CardioDiscipline' is defined but never used. Allowed unused vars must match /^ignored/u  @typescript-eslint/no-unused-vars
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/docs/design/strength-program-handoff/support.js
+  192:10  warning  React Hook React.useMemo has an unnecessary dependency: 'entry.propsMeta'. Either exclude it or remove the dependency array. Outer scope values like 'entry.propsMeta' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/home-large-screen.test.ts
+  123:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  128:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  135:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  150:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  152:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  153:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  162:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  166:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  177:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  183:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  187:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  196:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  201:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  221:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  224:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  248:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  250:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/home-timeline.test.ts
+     9:1   warning  `#app/utils/db.server.ts` import should occur before import of `#app/utils/load/week-change.ts`       import/order
+   168:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   551:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   609:26  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   615:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   714:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   723:20  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   811:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   854:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   859:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   898:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1152:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1271:2   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1293:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1338:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1342:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1438:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1439:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1441:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1444:18  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1736:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1745:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1750:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1811:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1836:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1897:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1963:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1973:18  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2102:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2108:22  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2133:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2152:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2155:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2160:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2185:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2203:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2204:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2214:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2216:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2220:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2421:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2565:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2695:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2700:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2705:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2715:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2716:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2747:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2753:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2759:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2764:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2765:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2770:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2771:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2794:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2797:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2798:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2805:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2807:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2811:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2858:14  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2864:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  2885:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/imports.test.ts
+  254:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  313:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  359:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/mobile-dashboard.test.ts
+  107:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  122:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/mobile-overflow.test.ts
+  174:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  270:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  277:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/plan-authoring.test.ts
+  187:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  223:19  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/season-edits.test.ts
+  116:3  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/session-authoring.test.ts
+  34:19  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  46:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  47:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  57:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/settings-profile.test.ts
+  73:8  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/start-motion.test.ts
+  344:9   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  414:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  477:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  493:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  496:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  503:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  596:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/start.test.ts
+  107:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  107:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  120:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  122:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  125:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  127:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/strength-screens.test.ts
+   603:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   651:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   681:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   757:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   793:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+   797:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1089:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1106:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1178:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1344:8   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  1411:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/tab-bar.test.ts
+  42:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/week-change.test.ts
+   7:1   warning  `#app/utils/app-tabs.ts` import should occur before import of `#app/utils/athlete-calendar.ts`        import/order
+  39:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/e2e/writing-line.test.ts
+   84:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  133:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  138:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  148:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  154:17  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  172:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  202:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  209:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  216:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  223:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  282:21  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  293:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  301:15  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  312:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  317:3   warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+✖ 146 problems (0 errors, 146 warnings)
+  0 errors and 7 warnings potentially fixable with the `--fix` option.
+
+
+> typecheck
+> react-router typegen && tsc
+
+🖼️  Generated SVG spritesheet in app/components/ui/icons
+TS Generated icon types in app/components/ui/icons/types.ts
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement[39m
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": SQLite database "base.db.24089.tmp" at "file:/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/prisma/base.db.24089.tmp"
+
+SQLite database base.db.24089.tmp created at file:/tmp/claude-0/-home-user-trainm8/61aef314-a7e1-50e5-b313-73f44204ec22/scratchpad/run2/wt/377-implement/tests/prisma/base.db.24089.tmp
+
+Applying migration `20250221233640_init`
+Applying migration `20260416140410_add_training_domain`
+Applying migration `20260508093352_remove_notes_domain`
+Applying migration `20260508095402_add_session_log`
+Applying migration `20260514074656_add_workout_authoring_fields`
+Applying migration `20260519120108_rename_scheduled_session_to_workout_session`
+Applying migration `20260519120112_rename_activity_to_discipline`
+Applying migration `20260519120706_add_workout_intent`
+Applying migration `20260519125819_add_activity_import_inbox`
+Applying migration `20260519125835_add_event_entity`
+Applying migration `20260519125854_add_athlete_profile_thresholds`
+Applying migration `20260519130231_add_step_discriminated_union`
+Applying migration `20260520000001_backfill_intensity_json`
+Applying migration `20260520065953_tss_triad_load_snapshot`
+Applying migration `20260528184726_add_account_connection`
+Applying migration `20260528200421_add_job_queue`
+Applying migration `20260606120000_add_training_availability`
+Applying migration `20260607071940_add_generated_plan_persistence`
+Applying migration `20260608055031_add_planned_tss`
+Applying migration `20260626140523_add_activity_import_metrics`
+Applying migration `20260626150459_add_activity_import_phase_bars`
+Applying migration `20260629100206_add_activity_stream`
+Applying migration `20260705212920_add_week_replan`
+Applying migration `20260707141528_relax_account_connection_for_key_providers`
+Applying migration `20260715150052_add_structure_detection_groundwork`
+Applying migration `20260716065940_add_run_power_threshold`
+Applying migration `20260727190451_relational_plan_outline`
+Applying migration `20260727202553_drop_redundant_plan_outline_indexes`
+Applying migration `20260730141217_retire_volume_landmarks`
+Applying migration `20260731070614_add_load_recompute_notice`
+Applying migration `20260731100000_backfill_endurance_segments`
+Applying migration `20260731203000_require_strength_goal_and_frequency`
+Applying migration `20260808162757_add_weekly_capacity`
+Applying migration `20260808173119_default_zone_recipe_per_discipline`
+Applying migration `20260809053306_add_structure_and_quantities`
+Applying migration `20260809065500_add_performance_result`
+Applying migration `20260809073956_add_catalogue_four_axes`
+Applying migration `20260809081502_add_session_adoption`
+Applying migration `20260809090000_add_community_tier`
+Applying migration `20260813120000_threshold_provenance_construct_and_protocol`
+Applying migration `20260813130000_session_archetype_on_workout`
+Applying migration `20260813140000_exercise_set_log`
+Applying migration `20260814120000_strength_anchors_programs_and_variants`
+Applying migration `20260817090000_exercise_laterality_is_a_statement_not_a_default`
+Applying migration `20260817140000_program_session_application`
+Applying migration `20260818120000_ship_the_exercise_corpus_and_the_three_programs`
+Applying migration `20260818160000_an_orphaned_exercise_belongs_to_nobody_and_is_healed_only_where_the_corpus_knows_it`
+Applying migration `20260819090000_a_logged_set_outlives_the_prescription_it_answered`
+Applying migration `20260819140000_a_logged_set_states_which_realization_it_was`
+Applying migration `20261007175838_the_week_replan_proposes_and_a_session_can_be_handed_back`
+Applying migration `20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them`
+Applying migration `20261007190320_the_week_change_runs_each_step_once`
+Applying migration `20261007191933_an_open_ended_plan_owns_itself_and_the_sessions_it_laid`
+Applying migration `20261007212213_a_plan_records_the_philosophy_it_follows`
+Applying migration `20261007225432_a_session_may_count_in_no_track`
+Applying migration `20261008041623_an_import_remembers_what_the_athlete_said_about_it`
+Applying migration `20261011061500_an_account_connection_remembers_when_it_last_checked`
+Applying migration `20261011120000_the_lifts_answer_to_their_norwegian_names`
+Applying migration `20261013120000_an_import_is_keyed_by_its_athlete`
+Applying migration `20261013130000_every_import_records_its_origin_platform`
+Applying migration `20261013140000_one_activity_is_one_row`
+Applying migration `20261013150000_the_harvest_budget_is_the_keys`
+Applying migration `20261017130000_an_applied_proposal_keeps_its_before_image`
+Applying migration `20261017160000_the_athlete_keeps_their_training_level`
+Applying migration `20261017170000_a_simple_activity_is_a_planned_session`
+Applying migration `20261017185740_the_athlete_answers_how_often_they_lift`
+Applying migration `20261017185741_the_start_lifts_a_full_body_stock_workout`
+Applying migration `20261017185742_the_athlete_keeps_their_session_preferences`
+Applying migration `20261017190000_the_simple_activities_share_a_track_on_other`
+Applying migration `20261018060000_the_autopilot_applies_at_the_close`
+Applying migration `20261018070000_a_juster_keeps_what_it_replaced`
+Applying migration `20261018080000_the_autopilot_notice_is_seen_and_kept`
+Applying migration `20261018090000_the_autopilot_is_on_for_everyone`
+Applying migration `20261018100000_lifting_is_laid_per_week`
+Applying migration `20261018110000_a_track_names_its_own_days`
+Applying migration `20261024120000_strava_streams_checked`
+Applying migration `20261025090000_grade_is_a_band`
+Applying migration `20261025090100_the_hill_rows_state_their_grade`
+
+Database reset successful
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20250221233640_init/
+    └─ migration.sql
+  └─ 20260416140410_add_training_domain/
+    └─ migration.sql
+  └─ 20260508093352_remove_notes_domain/
+    └─ migration.sql
+  └─ 20260508095402_add_session_log/
+    └─ migration.sql
+  └─ 20260514074656_add_workout_authoring_fields/
+    └─ migration.sql
+  └─ 20260519120108_rename_scheduled_session_to_workout_session/
+    └─ migration.sql
+  └─ 20260519120112_rename_activity_to_discipline/
+    └─ migration.sql
+  └─ 20260519120706_add_workout_intent/
+    └─ migration.sql
+  └─ 20260519125819_add_activity_import_inbox/
+    └─ migration.sql
+  └─ 20260519125835_add_event_entity/
+    └─ migration.sql
+  └─ 20260519125854_add_athlete_profile_thresholds/
+    └─ migration.sql
+  └─ 20260519130231_add_step_discriminated_union/
+    └─ migration.sql
+  └─ 20260520000001_backfill_intensity_json/
+    └─ migration.sql
+  └─ 20260520065953_tss_triad_load_snapshot/
+    └─ migration.sql
+  └─ 20260528184726_add_account_connection/
+    └─ migration.sql
+  └─ 20260528200421_add_job_queue/
+    └─ migration.sql
+  └─ 20260606120000_add_training_availability/
+    └─ migration.sql
+  └─ 20260607071940_add_generated_plan_persistence/
+    └─ migration.sql
+  └─ 20260608055031_add_planned_tss/
+    └─ migration.sql
+  └─ 20260626140523_add_activity_import_metrics/
+    └─ migration.sql
+  └─ 20260626150459_add_activity_import_phase_bars/
+    └─ migration.sql
+  └─ 20260629100206_add_activity_stream/
+    └─ migration.sql
+  └─ 20260705212920_add_week_replan/
+    └─ migration.sql
+  └─ 20260707141528_relax_account_connection_for_key_providers/
+    └─ migration.sql
+  └─ 20260715150052_add_structure_detection_groundwork/
+    └─ migration.sql
+  └─ 20260716065940_add_run_power_threshold/
+    └─ migration.sql
+  └─ 20260727190451_relational_plan_outline/
+    └─ migration.sql
+  └─ 20260727202553_drop_redundant_plan_outline_indexes/
+    └─ migration.sql
+  └─ 20260730141217_retire_volume_landmarks/
+    └─ migration.sql
+  └─ 20260731070614_add_load_recompute_notice/
+    └─ migration.sql
+  └─ 20260731100000_backfill_endurance_segments/
+    └─ migration.sql
+  └─ 20260731203000_require_strength_goal_and_frequency/
+    └─ migration.sql
+  └─ 20260808162757_add_weekly_capacity/
+    └─ migration.sql
+  └─ 20260808173119_default_zone_recipe_per_discipline/
+    └─ migration.sql
+  └─ 20260809053306_add_structure_and_quantities/
+    └─ migration.sql
+  └─ 20260809065500_add_performance_result/
+    └─ migration.sql
+  └─ 20260809073956_add_catalogue_four_axes/
+    └─ migration.sql
+  └─ 20260809081502_add_session_adoption/
+    └─ migration.sql
+  └─ 20260809090000_add_community_tier/
+    └─ migration.sql
+  └─ 20260813120000_threshold_provenance_construct_and_protocol/
+    └─ migration.sql
+  └─ 20260813130000_session_archetype_on_workout/
+    └─ migration.sql
+  └─ 20260813140000_exercise_set_log/
+    └─ migration.sql
+  └─ 20260814120000_strength_anchors_programs_and_variants/
+    └─ migration.sql
+  └─ 20260817090000_exercise_laterality_is_a_statement_not_a_default/
+    └─ migration.sql
+  └─ 20260817140000_program_session_application/
+    └─ migration.sql
+  └─ 20260818120000_ship_the_exercise_corpus_and_the_three_programs/
+    └─ migration.sql
+  └─ 20260818160000_an_orphaned_exercise_belongs_to_nobody_and_is_healed_only_where_the_corpus_knows_it/
+    └─ migration.sql
+  └─ 20260819090000_a_logged_set_outlives_the_prescription_it_answered/
+    └─ migration.sql
+  └─ 20260819140000_a_logged_set_states_which_realization_it_was/
+    └─ migration.sql
+  └─ 20261007175838_the_week_replan_proposes_and_a_session_can_be_handed_back/
+    └─ migration.sql
+  └─ 20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them/
+    └─ migration.sql
+  └─ 20261007190320_the_week_change_runs_each_step_once/
+    └─ migration.sql
+  └─ 20261007191933_an_open_ended_plan_owns_itself_and_the_sessions_it_laid/
+    └─ migration.sql
+  └─ 20261007212213_a_plan_records_the_philosophy_it_follows/
+    └─ migration.sql
+  └─ 20261007225432_a_session_may_count_in_no_track/
+    └─ migration.sql
+  └─ 20261008041623_an_import_remembers_what_the_athlete_said_about_it/
+    └─ migration.sql
+  └─ 20261011061500_an_account_connection_remembers_when_it_last_checked/
+    └─ migration.sql
+  └─ 20261011120000_the_lifts_answer_to_their_norwegian_names/
+    └─ migration.sql
+  └─ 20261013120000_an_import_is_keyed_by_its_athlete/
+    └─ migration.sql
+  └─ 20261013130000_every_import_records_its_origin_platform/
+    └─ migration.sql
+  └─ 20261013140000_one_activity_is_one_row/
+    └─ migration.sql
+  └─ 20261013150000_the_harvest_budget_is_the_keys/
+    └─ migration.sql
+  └─ 20261017130000_an_applied_proposal_keeps_its_before_image/
+    └─ migration.sql
+  └─ 20261017160000_the_athlete_keeps_their_training_level/
+    └─ migration.sql
+  └─ 20261017170000_a_simple_activity_is_a_planned_session/
+    └─ migration.sql
+  └─ 20261017185740_the_athlete_answers_how_often_they_lift/
+    └─ migration.sql
+  └─ 20261017185741_the_start_lifts_a_full_body_stock_workout/
+    └─ migration.sql
+  └─ 20261017185742_the_athlete_keeps_their_session_preferences/
+    └─ migration.sql
+  └─ 20261017190000_the_simple_activities_share_a_track_on_other/
+    └─ migration.sql
+  └─ 20261018060000_the_autopilot_applies_at_the_close/
+    └─ migration.sql
+  └─ 20261018070000_a_juster_keeps_what_it_replaced/
+    └─ migration.sql
+  └─ 20261018080000_the_autopilot_notice_is_seen_and_kept/
+    └─ migration.sql
+  └─ 20261018090000_the_autopilot_is_on_for_everyone/
+    └─ migration.sql
+  └─ 20261018100000_lifting_is_laid_per_week/
+    └─ migration.sql
+  └─ 20261018110000_a_track_names_its_own_days/
+    └─ migration.sql
+  └─ 20261024120000_strava_streams_checked/
+    └─ migration.sql
+  └─ 20261025090000_grade_is_a_band/
+    └─ migration.sql
+  └─ 20261025090100_the_hill_rows_state_their_grade/
+    └─ migration.sql
+
+ [31m❯[39m app/routes/_home/timeline/presenter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/authoring.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/training.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength-program.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/workout-notation.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__runner-presenter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/program-engine.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/workout.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.$sessionId.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength-log.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/timeline/row-content.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength-records.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/stamp.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/derive.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.$sessionId_.log.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/index.dashboard.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/week-replan-proposals.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/volume-conversion.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.new.token-editing.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/imports.upload.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.$sessionId.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/records.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/program-rules.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/session-adjust.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength-anchors.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/webhook.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength-runner.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/workout-schema.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/week-replan.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/stamp.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength-quick-log.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/presenter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/labels.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/first-run/plan.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/intensity-target.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__exercise-history-presenter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/first-run/start-draft.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/copy-week.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.new.intensity-popover.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/track-days.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/timeline/composer.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/actions/reads.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/week-volumes.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/presets.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.new.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.new.structural-chrome.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/zones/resolve.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/session-nudge.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/availability-fit.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/timeline/large-screen.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/catalogue.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/exercise-seed.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/week-change.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.$sessionId.inline-edit.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/open-ended-round.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/plates.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.new.absent-facets.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/sync.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/constraints.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.new.$eventId.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/philosophy.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/activity-import.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/lifting-days.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/week-replan-undo.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.new.$eventId.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/session-nudge.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/week-pattern.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/index.writing-line.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/import-link.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-detection/detect-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/sync.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/session-adjust.swap.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/index.calm-view.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__season-chart.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/format.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/one-rm.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/autopilot.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/actions/parity.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/season-chart.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/open-ended.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-detection/detection-lifecycle.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/workout-sentence.lifts.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/forms.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/__calm-today.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/timeline/use-timeline-scroll.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/timeline/stream.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/score-stanza.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/compute.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/dashboard.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/fit-harvest.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/import-link.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/training/index.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/community.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/start/simple-start.route.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/zones/recipes.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/autopilot-notice.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/exercise-history.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-detection/analyze.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/archetype-classification/classify.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/account-connection.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/week-change.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/integrations.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/athlete.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/planned-load.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/exercises.$exerciseId.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/pinned-days.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/zone-equivalent.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/from-rows.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/season-edit.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/catalogue.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-generation/generate.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.new.empty-state.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/catalogue.constraints.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength-log.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/programs.run.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.season-edits.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/season-edit.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/index.day-stamp.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/workout-authoring.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/start/start-options.route.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/first-run/draft.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/workout-sentence.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/index.composer.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/profile-analysis/estimate.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/timeline/anchoring.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.generate.$eventId.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.$sessionId_.log.outcome.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/anchors.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.new.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/session-profile.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/starter-pattern.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/swim-pace-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/athlete-calendar.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/first-run/start-simple-activities.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.new.step-kind.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/mcp/mcp.http.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-detection/detect-job.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/training/lifts.$exerciseId.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-generation/deterministic.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/shape-strip.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.new.server-errors.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/first-run/simple-activities-plan.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/training/lifts.$exerciseId_.propose.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/snapshot.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/strength-tss-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/performance-result-writer.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/programs.start.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/first-run/start-strength.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/autopilot-for-everyone.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/reconcile.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/start/start-entry.route.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/index.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/session-title.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/week-replan.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/proposal.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-adherence.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/propose-week-change.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/start/plan-ready.route.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/warmup.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/week-sum.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/programs.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.copy-week.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/shared/file-activity-import.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/week-volumes.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/workout-server-errors.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.philosophy.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-detection/eval/eval.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/strength-offer.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/planned-tss.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/ingest.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.treningsform.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/reconcile.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-generation/capacity.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/simple-activity.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/timeline/composer-model.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/polar/ingest.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/imports.share-target.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/catalogue-corpus.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_auth/auth.$provider/callback.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__strength-segment-editor.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/event.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/events.new.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/index.calm.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength-program-seed.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/adherence.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/catalogue-seed.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/user-data-export.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/first-run/first-run.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/defer.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/profile-analysis/analyze.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/shared/ingest-fit.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/events.$eventId.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/commensurability.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/me.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/strength-log.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/rate-limit.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/jobs/queue.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/autopilot.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/season-span.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/attach-event.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/first-run/start-strength.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.new.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/tcx-stream-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/community.constraints.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/step-kind-reconciliation.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.attach-event.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/account-deletion.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/start/start-strength.route.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__exercise-combobox.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/day-rule.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/formulas.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/start/start-simple-activities.route.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/__me-form-records-presenter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/actions/run.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.$sessionId.scheduled-strength.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/shared/origin-platform-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/tcx-parser.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/eased-prescription.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/telemetry-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/ramp-guard.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__workout-detail-summary.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/integrations.strava.rate-limited.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/fit-parser.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__workout-detail-telemetry.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/training.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/integrations.strava.callback.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/ingest.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/training/analyze.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__outcome-panel-presenter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/archetype-classification/read-session.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength-sets.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/exercise-variants.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/archetype-classification/read-structure.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/profile/index.weekly-capacity.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/integrations.intervalsicu.connect.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/simple-activity.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/laps-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/integrations.strava.sync.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/laps-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/session-log.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/profile-bars.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/integrations.loader.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/fit-proposal.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-generation/retrieval.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-generation/provenance.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/session-review.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/season.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/fitness-projection.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/np-tss-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/activity-stream.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/effort-word.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/session-swap.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-detection/mine.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/plan.new.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__copy-week.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/copy-week.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/elevate-fixtures.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/personal-records.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/return-key.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-detection/classify.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/auth.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__lift-chart.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/catalogue.report.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/webhook.strava.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/integrations.sync.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/integrations.intervalsicu.sync.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__season-edits.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/timeline/strip.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/sessions.$sessionId.simple-activity.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__intensity-editor.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/shared/every-ingest-path-dedupes.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/credential-crypto.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/volume-conversion.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/planned-discipline.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/profile-analysis/mean-maximal.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__plan-chrome.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__phase-editor.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/training/index.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/discipline-allocation.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/coach.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/personal-records.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__treningsform.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/source-terms.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/normalized-power.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/event-schema.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/profile-analysis/cp-fit.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/catalogue.publish.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/source-attribution.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/credential-backfill.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/juster.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/planned-tss.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/level.route.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/wordmark-row.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/session-annet.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/pattern-picker.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/zones/words.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/session-presenter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/week-replan-demo-seed.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/training/resultater.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/strength-goal.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/band-fit.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__event-target.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/catalogue.place.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/me.loader.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/activity-telemetry.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/exercises.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/imports.upload.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/workout-reps.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/mcp/dev-token.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-detection/eval/fit.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__catalogue-card.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/source-terms.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/shared/source-events-with-aliases.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/reconcile-sweep.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/index.error-boundary.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/labels.workout-detail.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/labels.token-editor.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/fit-compressed-timestamps.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/admin/moderation.route.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/session-release.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/labels.plan-new.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_marketing/privacy.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/imports-events.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/session-ledger-rows.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_seo/sitemap[.]xml.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/session-placement.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/app-tabs.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/week-change.failure.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/catalogue.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/structure-detection/signal.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/deferred-job.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/trustworthiness.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/exercise-search.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/labels.plan-generate.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/misc.use-double-check.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/session-comparison.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/rest.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-generation/generator.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/integrations.strava.connect.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/exercise-aliases-nb.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/week-sum.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/shape-strip.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/day-stamp.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/zones/pace-unit.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/laps.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/load-curve.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/profile/index.delete-data.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/first-run/plan-start-options.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/recording-profile.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_home/timeline/composer-sentence.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/credential-storage.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/labels.token-sentence.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/readiness.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__philosophy-switch.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/quality-mix.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/session-ownership.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/library.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/jobs/handlers.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/shared/fit-file-key.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/__meg-text.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/polar/webhook.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/sync-rate-limited.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/performance-result.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/strength/kilo-input.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/jobs/worker.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/oauth.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__preset-gallery.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/philosophy.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/resources/download-user-data.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/labels.account-deletion.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/imports-events.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/juster.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/actions/run.failure.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/ui/toggle-group.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/recompute-notice.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/ui/select.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/actions/labels.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/__token-sentence-editor.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/load/snapshot-week-change.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/most-trained-discipline.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/floating-toolbar.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/pacer.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/intervalsicu/discipline-map.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/week-keys.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/strava/discipline-map.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/integrations/sync-summary.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/headers.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/plan-outline/event-fit.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/env.server.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/training/history.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/misc.error-message.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/misc.cn.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/polyline.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/actions/vocabulary.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/components/create-menu.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/utils/five-minutes.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/training/index.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/_auth/verify.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/imports._index.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/settings/index.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m app/routes/events.test.ts [2m([22m[2m0 test[22m[2m)[22m
+
+[31m⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 405 [49m[22m[31m⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m app/actions/labels.test.ts[2m [ app/actions/labels.test.ts ][22m
+[41m[1m FAIL [22m[49m app/actions/parity.test.ts[2m [ app/actions/parity.test.ts ][22m
+[41m[1m FAIL [22m[49m app/actions/reads.test.ts[2m [ app/actions/reads.test.ts ][22m
+[41m[1m FAIL [22m[49m app/actions/run.failure.test.ts[2m [ app/actions/run.failure.test.ts ][22m
+[41m[1m FAIL [22m[49m app/actions/run.test.ts[2m [ app/actions/run.test.ts ][22m
+[41m[1m FAIL [22m[49m app/actions/vocabulary.test.ts[2m [ app/actions/vocabulary.test.ts ][22m
+[41m[1m FAIL [22m[49m app/components/create-menu.test.tsx[2m [ app/components/create-menu.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/components/floating-toolbar.test.tsx[2m [ app/components/floating-toolbar.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/components/forms.test.tsx[2m [ app/components/forms.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/components/profile-bars.test.tsx[2m [ app/components/profile-bars.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/components/return-key.test.tsx[2m [ app/components/return-key.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/components/score-stanza.test.tsx[2m [ app/components/score-stanza.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/components/shape-strip.test.tsx[2m [ app/components/shape-strip.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/components/wordmark-row.test.tsx[2m [ app/components/wordmark-row.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/integrations/reconcile-sweep.server.test.ts[2m [ app/integrations/reconcile-sweep.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/sync-summary.server.test.ts[2m [ app/integrations/sync-summary.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/mcp/dev-token.test.ts[2m [ app/mcp/dev-token.test.ts ][22m
+[41m[1m FAIL [22m[49m app/mcp/mcp.http.test.ts[2m [ app/mcp/mcp.http.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/__me-form-records-presenter.test.ts[2m [ app/routes/__me-form-records-presenter.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/events.test.ts[2m [ app/routes/events.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/imports._index.test.ts[2m [ app/routes/imports._index.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/imports.share-target.server.test.ts[2m [ app/routes/imports.share-target.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/imports.upload.server.test.ts[2m [ app/routes/imports.upload.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/imports.upload.test.tsx[2m [ app/routes/imports.upload.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/integrations.intervalsicu.connect.test.ts[2m [ app/routes/integrations.intervalsicu.connect.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/integrations.intervalsicu.sync.test.ts[2m [ app/routes/integrations.intervalsicu.sync.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/integrations.strava.callback.test.ts[2m [ app/routes/integrations.strava.callback.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/integrations.strava.connect.test.ts[2m [ app/routes/integrations.strava.connect.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/integrations.strava.rate-limited.test.ts[2m [ app/routes/integrations.strava.rate-limited.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/integrations.strava.sync.test.ts[2m [ app/routes/integrations.strava.sync.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/integrations.sync.test.ts[2m [ app/routes/integrations.sync.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/library.test.ts[2m [ app/routes/library.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/me.loader.test.ts[2m [ app/routes/me.loader.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/me.test.tsx[2m [ app/routes/me.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/webhook.strava.test.ts[2m [ app/routes/webhook.strava.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/account-connection.server.test.ts[2m [ app/utils/account-connection.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/account-deletion.server.test.ts[2m [ app/utils/account-deletion.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/activity-import.server.test.ts[2m [ app/utils/activity-import.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/activity-stream.test.ts[2m [ app/utils/activity-stream.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/activity-telemetry.server.test.ts[2m [ app/utils/activity-telemetry.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/app-tabs.test.ts[2m [ app/utils/app-tabs.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/athlete-calendar.test.ts[2m [ app/utils/athlete-calendar.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/athlete.server.test.ts[2m [ app/utils/athlete.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/auth.server.test.ts[2m [ app/utils/auth.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/catalogue-corpus.test.ts[2m [ app/utils/catalogue-corpus.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/catalogue-seed.server.test.ts[2m [ app/utils/catalogue-seed.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/catalogue.constraints.test.ts[2m [ app/utils/catalogue.constraints.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/catalogue.server.test.ts[2m [ app/utils/catalogue.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/catalogue.test.ts[2m [ app/utils/catalogue.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/community.constraints.test.ts[2m [ app/utils/community.constraints.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/community.server.test.ts[2m [ app/utils/community.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/credential-backfill.server.test.ts[2m [ app/utils/credential-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/credential-crypto.server.test.ts[2m [ app/utils/credential-crypto.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/credential-storage.server.test.ts[2m [ app/utils/credential-storage.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/dashboard.test.ts[2m [ app/utils/dashboard.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/day-stamp.test.ts[2m [ app/utils/day-stamp.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/effort-word.test.ts[2m [ app/utils/effort-word.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/env.server.test.ts[2m [ app/utils/env.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/event-schema.test.ts[2m [ app/utils/event-schema.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/event.server.test.ts[2m [ app/utils/event.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/exercise-aliases-nb.test.ts[2m [ app/utils/exercise-aliases-nb.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/exercise-search.test.ts[2m [ app/utils/exercise-search.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/exercise-seed.server.test.ts[2m [ app/utils/exercise-seed.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/exercise-variants.server.test.ts[2m [ app/utils/exercise-variants.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/fit-compressed-timestamps.server.test.ts[2m [ app/utils/fit-compressed-timestamps.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/fit-parser.server.test.ts[2m [ app/utils/fit-parser.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/five-minutes.test.ts[2m [ app/utils/five-minutes.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/format.test.ts[2m [ app/utils/format.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/headers.server.test.ts[2m [ app/utils/headers.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/import-link.server.test.ts[2m [ app/utils/import-link.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/imports-events.server.test.ts[2m [ app/utils/imports-events.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/imports-events.test.tsx[2m [ app/utils/imports-events.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/utils/intensity-target.test.ts[2m [ app/utils/intensity-target.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/juster.server.test.ts[2m [ app/utils/juster.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/juster.test.ts[2m [ app/utils/juster.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/labels.account-deletion.test.ts[2m [ app/utils/labels.account-deletion.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/labels.plan-generate.test.ts[2m [ app/utils/labels.plan-generate.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/labels.plan-new.test.ts[2m [ app/utils/labels.plan-new.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/labels.test.ts[2m [ app/utils/labels.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/labels.token-editor.test.ts[2m [ app/utils/labels.token-editor.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/labels.token-sentence.test.ts[2m [ app/utils/labels.token-sentence.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/labels.workout-detail.test.ts[2m [ app/utils/labels.workout-detail.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/misc.cn.test.ts[2m [ app/utils/misc.cn.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/misc.error-message.test.ts[2m [ app/utils/misc.error-message.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/misc.use-double-check.test.tsx[2m [ app/utils/misc.use-double-check.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/utils/most-trained-discipline.test.ts[2m [ app/utils/most-trained-discipline.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/pattern-picker.server.test.ts[2m [ app/utils/pattern-picker.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/performance-result-writer.server.test.ts[2m [ app/utils/performance-result-writer.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/performance-result.test.ts[2m [ app/utils/performance-result.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/personal-records.server.test.ts[2m [ app/utils/personal-records.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/personal-records.test.ts[2m [ app/utils/personal-records.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/planned-discipline.test.ts[2m [ app/utils/planned-discipline.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/polyline.test.ts[2m [ app/utils/polyline.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/recording-profile.test.ts[2m [ app/utils/recording-profile.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/session-comparison.test.ts[2m [ app/utils/session-comparison.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/session-ledger-rows.test.ts[2m [ app/utils/session-ledger-rows.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/session-log.server.test.ts[2m [ app/utils/session-log.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/session-ownership.server.test.ts[2m [ app/utils/session-ownership.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/session-presenter.test.ts[2m [ app/utils/session-presenter.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/session-profile.test.ts[2m [ app/utils/session-profile.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/session-review.test.ts[2m [ app/utils/session-review.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/session-title.test.ts[2m [ app/utils/session-title.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/shape-strip.test.ts[2m [ app/utils/shape-strip.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/simple-activity.server.test.ts[2m [ app/utils/simple-activity.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/simple-activity.test.ts[2m [ app/utils/simple-activity.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/source-attribution.test.ts[2m [ app/utils/source-attribution.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/source-terms.server.test.ts[2m [ app/utils/source-terms.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/source-terms.test.ts[2m [ app/utils/source-terms.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/step-kind-reconciliation.test.ts[2m [ app/utils/step-kind-reconciliation.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength-anchors.server.test.ts[2m [ app/utils/strength-anchors.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength-log.server.test.ts[2m [ app/utils/strength-log.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength-log.test.ts[2m [ app/utils/strength-log.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength-program-seed.server.test.ts[2m [ app/utils/strength-program-seed.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength-program.server.test.ts[2m [ app/utils/strength-program.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength-quick-log.server.test.ts[2m [ app/utils/strength-quick-log.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength-records.server.test.ts[2m [ app/utils/strength-records.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength-runner.server.test.ts[2m [ app/utils/strength-runner.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength-sets.test.ts[2m [ app/utils/strength-sets.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-adherence.test.ts[2m [ app/utils/structure-adherence.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/tcx-parser.server.test.ts[2m [ app/utils/tcx-parser.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/tcx-stream-backfill.server.test.ts[2m [ app/utils/tcx-stream-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/training.server.test.ts[2m [ app/utils/training.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/training.test.ts[2m [ app/utils/training.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/user-data-export.server.test.ts[2m [ app/utils/user-data-export.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/workout-authoring.test.ts[2m [ app/utils/workout-authoring.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/workout-notation.test.ts[2m [ app/utils/workout-notation.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/workout-reps.test.ts[2m [ app/utils/workout-reps.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/workout-schema.test.ts[2m [ app/utils/workout-schema.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/workout-sentence.lifts.test.ts[2m [ app/utils/workout-sentence.lifts.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/workout-sentence.test.ts[2m [ app/utils/workout-sentence.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/workout-server-errors.test.ts[2m [ app/utils/workout-server-errors.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/workout.server.test.ts[2m [ app/utils/workout.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/zone-equivalent.test.ts[2m [ app/utils/zone-equivalent.test.ts ][22m
+[41m[1m FAIL [22m[49m app/components/ui/select.test.tsx[2m [ app/components/ui/select.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/components/ui/toggle-group.test.tsx[2m [ app/components/ui/toggle-group.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/backfill.server.test.ts[2m [ app/integrations/intervalsicu/backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/discipline-map.test.ts[2m [ app/integrations/intervalsicu/discipline-map.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/fit-harvest.server.test.ts[2m [ app/integrations/intervalsicu/fit-harvest.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/ingest.server.test.ts[2m [ app/integrations/intervalsicu/ingest.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/laps-backfill.server.test.ts[2m [ app/integrations/intervalsicu/laps-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/laps.server.test.ts[2m [ app/integrations/intervalsicu/laps.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/pacer.test.ts[2m [ app/integrations/intervalsicu/pacer.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/reconcile.server.test.ts[2m [ app/integrations/intervalsicu/reconcile.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/sync.server.test.ts[2m [ app/integrations/intervalsicu/sync.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/intervalsicu/telemetry-backfill.server.test.ts[2m [ app/integrations/intervalsicu/telemetry-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/polar/ingest.server.test.ts[2m [ app/integrations/polar/ingest.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/polar/webhook.server.test.ts[2m [ app/integrations/polar/webhook.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/shared/every-ingest-path-dedupes.server.test.ts[2m [ app/integrations/shared/every-ingest-path-dedupes.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/shared/file-activity-import.server.test.ts[2m [ app/integrations/shared/file-activity-import.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/shared/fit-file-key.test.ts[2m [ app/integrations/shared/fit-file-key.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/shared/ingest-fit.server.test.ts[2m [ app/integrations/shared/ingest-fit.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/shared/origin-platform-backfill.server.test.ts[2m [ app/integrations/shared/origin-platform-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/shared/source-events-with-aliases.server.test.ts[2m [ app/integrations/shared/source-events-with-aliases.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/backfill.server.test.ts[2m [ app/integrations/strava/backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/defer.server.test.ts[2m [ app/integrations/strava/defer.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/deferred-job.server.test.ts[2m [ app/integrations/strava/deferred-job.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/discipline-map.test.ts[2m [ app/integrations/strava/discipline-map.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/ingest.server.test.ts[2m [ app/integrations/strava/ingest.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/laps-backfill.server.test.ts[2m [ app/integrations/strava/laps-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/oauth.server.test.ts[2m [ app/integrations/strava/oauth.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/rate-limit.test.ts[2m [ app/integrations/strava/rate-limit.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/reconcile.server.test.ts[2m [ app/integrations/strava/reconcile.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/sync-rate-limited.server.test.ts[2m [ app/integrations/strava/sync-rate-limited.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/sync.server.test.ts[2m [ app/integrations/strava/sync.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/integrations/strava/webhook.server.test.ts[2m [ app/integrations/strava/webhook.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_auth/verify.test.ts[2m [ app/routes/_auth/verify.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/__calm-today.test.ts[2m [ app/routes/_home/__calm-today.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/index.calm-view.test.tsx[2m [ app/routes/_home/index.calm-view.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/index.calm.test.ts[2m [ app/routes/_home/index.calm.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/index.composer.test.ts[2m [ app/routes/_home/index.composer.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/index.dashboard.test.tsx[2m [ app/routes/_home/index.dashboard.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/index.day-stamp.test.ts[2m [ app/routes/_home/index.day-stamp.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/index.error-boundary.test.tsx[2m [ app/routes/_home/index.error-boundary.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/index.test.ts[2m [ app/routes/_home/index.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/index.writing-line.test.ts[2m [ app/routes/_home/index.writing-line.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/presenter.test.ts[2m [ app/routes/_home/presenter.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/season.test.ts[2m [ app/routes/_home/season.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_marketing/privacy.test.tsx[2m [ app/routes/_marketing/privacy.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/_seo/sitemap[.]xml.test.ts[2m [ app/routes/_seo/sitemap[.]xml.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/admin/moderation.route.test.tsx[2m [ app/routes/admin/moderation.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/autopilot.test.ts[2m [ app/routes/resources/autopilot.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/download-user-data.test.ts[2m [ app/routes/resources/download-user-data.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/import-link.test.ts[2m [ app/routes/resources/import-link.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/session-adjust.swap.test.ts[2m [ app/routes/resources/session-adjust.swap.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/session-adjust.test.ts[2m [ app/routes/resources/session-adjust.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/session-annet.test.ts[2m [ app/routes/resources/session-annet.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/session-release.test.ts[2m [ app/routes/resources/session-release.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/session-swap.test.ts[2m [ app/routes/resources/session-swap.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/strength-log.test.ts[2m [ app/routes/resources/strength-log.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/week-change.failure.test.ts[2m [ app/routes/resources/week-change.failure.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/week-change.test.ts[2m [ app/routes/resources/week-change.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/resources/week-sum.test.ts[2m [ app/routes/resources/week-sum.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/__meg-text.test.ts[2m [ app/routes/settings/__meg-text.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/index.test.ts[2m [ app/routes/settings/index.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/integrations.loader.test.ts[2m [ app/routes/settings/integrations.loader.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/integrations.test.tsx[2m [ app/routes/settings/integrations.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/level.route.test.ts[2m [ app/routes/settings/level.route.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/start/plan-ready.route.test.ts[2m [ app/routes/start/plan-ready.route.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/start/simple-start.route.test.ts[2m [ app/routes/start/simple-start.route.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/start/start-entry.route.test.ts[2m [ app/routes/start/start-entry.route.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/start/start-options.route.test.ts[2m [ app/routes/start/start-options.route.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/start/start-simple-activities.route.test.ts[2m [ app/routes/start/start-simple-activities.route.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/start/start-strength.route.test.ts[2m [ app/routes/start/start-strength.route.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__catalogue-card.test.ts[2m [ app/routes/training/__catalogue-card.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__copy-week.route.test.tsx[2m [ app/routes/training/__copy-week.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__event-target.test.ts[2m [ app/routes/training/__event-target.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__exercise-combobox.test.tsx[2m [ app/routes/training/__exercise-combobox.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__exercise-history-presenter.test.ts[2m [ app/routes/training/__exercise-history-presenter.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__intensity-editor.test.ts[2m [ app/routes/training/__intensity-editor.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__lift-chart.test.tsx[2m [ app/routes/training/__lift-chart.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__outcome-panel-presenter.test.ts[2m [ app/routes/training/__outcome-panel-presenter.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__phase-editor.route.test.tsx[2m [ app/routes/training/__phase-editor.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__philosophy-switch.test.tsx[2m [ app/routes/training/__philosophy-switch.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__plan-chrome.test.tsx[2m [ app/routes/training/__plan-chrome.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__preset-gallery.test.tsx[2m [ app/routes/training/__preset-gallery.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__runner-presenter.test.ts[2m [ app/routes/training/__runner-presenter.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__season-chart.route.test.tsx[2m [ app/routes/training/__season-chart.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__season-edits.route.test.tsx[2m [ app/routes/training/__season-edits.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__strength-segment-editor.route.test.tsx[2m [ app/routes/training/__strength-segment-editor.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__token-sentence-editor.test.ts[2m [ app/routes/training/__token-sentence-editor.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__treningsform.test.tsx[2m [ app/routes/training/__treningsform.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__workout-detail-summary.test.ts[2m [ app/routes/training/__workout-detail-summary.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/__workout-detail-telemetry.test.tsx[2m [ app/routes/training/__workout-detail-telemetry.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/catalogue.place.route.test.tsx[2m [ app/routes/training/catalogue.place.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/catalogue.publish.route.test.tsx[2m [ app/routes/training/catalogue.publish.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/catalogue.report.route.test.tsx[2m [ app/routes/training/catalogue.report.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/catalogue.route.test.tsx[2m [ app/routes/training/catalogue.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/events.$eventId.test.ts[2m [ app/routes/training/events.$eventId.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/events.new.test.ts[2m [ app/routes/training/events.new.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/exercises.$exerciseId.route.test.tsx[2m [ app/routes/training/exercises.$exerciseId.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/exercises.test.ts[2m [ app/routes/training/exercises.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/index.test.ts[2m [ app/routes/training/index.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.attach-event.test.ts[2m [ app/routes/training/plan.attach-event.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.copy-week.test.ts[2m [ app/routes/training/plan.copy-week.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.generate.$eventId.route.test.tsx[2m [ app/routes/training/plan.generate.$eventId.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.new.$eventId.route.test.tsx[2m [ app/routes/training/plan.new.$eventId.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.new.$eventId.test.ts[2m [ app/routes/training/plan.new.$eventId.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.new.route.test.tsx[2m [ app/routes/training/plan.new.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.new.test.ts[2m [ app/routes/training/plan.new.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.philosophy.test.ts[2m [ app/routes/training/plan.philosophy.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.route.test.tsx[2m [ app/routes/training/plan.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.season-edits.test.ts[2m [ app/routes/training/plan.season-edits.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.test.ts[2m [ app/routes/training/plan.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/plan.treningsform.test.ts[2m [ app/routes/training/plan.treningsform.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/programs.route.test.tsx[2m [ app/routes/training/programs.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/programs.run.route.test.tsx[2m [ app/routes/training/programs.run.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/programs.start.route.test.tsx[2m [ app/routes/training/programs.start.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.$sessionId.inline-edit.route.test.tsx[2m [ app/routes/training/sessions.$sessionId.inline-edit.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.$sessionId.route.test.tsx[2m [ app/routes/training/sessions.$sessionId.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.$sessionId.scheduled-strength.route.test.tsx[2m [ app/routes/training/sessions.$sessionId.scheduled-strength.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.$sessionId.simple-activity.route.test.tsx[2m [ app/routes/training/sessions.$sessionId.simple-activity.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.$sessionId.test.ts[2m [ app/routes/training/sessions.$sessionId.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.$sessionId_.log.outcome.route.test.tsx[2m [ app/routes/training/sessions.$sessionId_.log.outcome.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.$sessionId_.log.route.test.tsx[2m [ app/routes/training/sessions.$sessionId_.log.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.new.absent-facets.route.test.tsx[2m [ app/routes/training/sessions.new.absent-facets.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.new.empty-state.route.test.tsx[2m [ app/routes/training/sessions.new.empty-state.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.new.intensity-popover.route.test.tsx[2m [ app/routes/training/sessions.new.intensity-popover.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.new.route.test.tsx[2m [ app/routes/training/sessions.new.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.new.server-errors.route.test.tsx[2m [ app/routes/training/sessions.new.server-errors.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.new.step-kind.route.test.tsx[2m [ app/routes/training/sessions.new.step-kind.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.new.structural-chrome.route.test.tsx[2m [ app/routes/training/sessions.new.structural-chrome.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.new.test.ts[2m [ app/routes/training/sessions.new.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/training/sessions.new.token-editing.route.test.tsx[2m [ app/routes/training/sessions.new.token-editing.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/utils/archetype-classification/classify.test.ts[2m [ app/utils/archetype-classification/classify.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/archetype-classification/read-session.test.ts[2m [ app/utils/archetype-classification/read-session.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/archetype-classification/read-structure.test.ts[2m [ app/utils/archetype-classification/read-structure.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/first-run/draft.test.ts[2m [ app/utils/first-run/draft.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/first-run/first-run.test.ts[2m [ app/utils/first-run/first-run.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/first-run/plan-start-options.test.ts[2m [ app/utils/first-run/plan-start-options.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/first-run/plan.server.test.ts[2m [ app/utils/first-run/plan.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/first-run/simple-activities-plan.server.test.ts[2m [ app/utils/first-run/simple-activities-plan.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/first-run/start-draft.test.ts[2m [ app/utils/first-run/start-draft.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/first-run/start-simple-activities.test.ts[2m [ app/utils/first-run/start-simple-activities.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/first-run/start-strength.server.test.ts[2m [ app/utils/first-run/start-strength.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/first-run/start-strength.test.ts[2m [ app/utils/first-run/start-strength.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/jobs/handlers.server.test.ts[2m [ app/utils/jobs/handlers.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/jobs/queue.server.test.ts[2m [ app/utils/jobs/queue.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/jobs/worker.server.test.ts[2m [ app/utils/jobs/worker.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/adherence.test.ts[2m [ app/utils/load/adherence.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/autopilot-for-everyone.server.test.ts[2m [ app/utils/load/autopilot-for-everyone.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/autopilot-notice.server.test.ts[2m [ app/utils/load/autopilot-notice.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/autopilot.server.test.ts[2m [ app/utils/load/autopilot.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/coach.test.ts[2m [ app/utils/load/coach.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/compute.test.ts[2m [ app/utils/load/compute.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/discipline-allocation.test.ts[2m [ app/utils/load/discipline-allocation.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/eased-prescription.test.ts[2m [ app/utils/load/eased-prescription.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/elevate-fixtures.test.ts[2m [ app/utils/load/elevate-fixtures.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/fitness-projection.test.ts[2m [ app/utils/load/fitness-projection.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/formulas.test.ts[2m [ app/utils/load/formulas.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/load-curve.test.ts[2m [ app/utils/load/load-curve.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/normalized-power.test.ts[2m [ app/utils/load/normalized-power.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/np-tss-backfill.server.test.ts[2m [ app/utils/load/np-tss-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/open-ended-round.server.test.ts[2m [ app/utils/load/open-ended-round.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/planned-tss.server.test.ts[2m [ app/utils/load/planned-tss.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/planned-tss.test.ts[2m [ app/utils/load/planned-tss.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/propose-week-change.test.ts[2m [ app/utils/load/propose-week-change.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/readiness.test.ts[2m [ app/utils/load/readiness.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/recompute-notice.test.ts[2m [ app/utils/load/recompute-notice.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/session-nudge.server.test.ts[2m [ app/utils/load/session-nudge.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/session-nudge.test.ts[2m [ app/utils/load/session-nudge.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/snapshot-week-change.server.test.ts[2m [ app/utils/load/snapshot-week-change.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/snapshot.server.test.ts[2m [ app/utils/load/snapshot.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/strength-tss-backfill.server.test.ts[2m [ app/utils/load/strength-tss-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/swim-pace-backfill.server.test.ts[2m [ app/utils/load/swim-pace-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/trustworthiness.test.ts[2m [ app/utils/load/trustworthiness.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/week-change.server.test.ts[2m [ app/utils/load/week-change.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/week-replan-demo-seed.test.ts[2m [ app/utils/load/week-replan-demo-seed.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/week-replan-proposals.server.test.ts[2m [ app/utils/load/week-replan-proposals.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/week-replan-undo.server.test.ts[2m [ app/utils/load/week-replan-undo.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/week-replan.server.test.ts[2m [ app/utils/load/week-replan.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/load/week-replan.test.ts[2m [ app/utils/load/week-replan.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-generation/capacity.test.ts[2m [ app/utils/plan-generation/capacity.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-generation/deterministic.test.ts[2m [ app/utils/plan-generation/deterministic.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-generation/generate.server.test.ts[2m [ app/utils/plan-generation/generate.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-generation/generator.test.ts[2m [ app/utils/plan-generation/generator.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-generation/provenance.test.ts[2m [ app/utils/plan-generation/provenance.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-generation/retrieval.test.ts[2m [ app/utils/plan-generation/retrieval.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/attach-event.test.ts[2m [ app/utils/plan-outline/attach-event.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/authoring.server.test.ts[2m [ app/utils/plan-outline/authoring.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/availability-fit.test.ts[2m [ app/utils/plan-outline/availability-fit.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/band-fit.test.ts[2m [ app/utils/plan-outline/band-fit.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/commensurability.test.ts[2m [ app/utils/plan-outline/commensurability.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/constraints.test.ts[2m [ app/utils/plan-outline/constraints.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/copy-week.server.test.ts[2m [ app/utils/plan-outline/copy-week.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/copy-week.test.ts[2m [ app/utils/plan-outline/copy-week.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/day-rule.test.ts[2m [ app/utils/plan-outline/day-rule.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/derive.test.ts[2m [ app/utils/plan-outline/derive.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/event-fit.test.ts[2m [ app/utils/plan-outline/event-fit.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/fit-proposal.test.ts[2m [ app/utils/plan-outline/fit-proposal.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/from-rows.test.ts[2m [ app/utils/plan-outline/from-rows.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/lifting-days.server.test.ts[2m [ app/utils/plan-outline/lifting-days.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/open-ended.server.test.ts[2m [ app/utils/plan-outline/open-ended.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/philosophy.server.test.ts[2m [ app/utils/plan-outline/philosophy.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/philosophy.test.ts[2m [ app/utils/plan-outline/philosophy.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/pinned-days.test.ts[2m [ app/utils/plan-outline/pinned-days.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/planned-load.test.ts[2m [ app/utils/plan-outline/planned-load.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/presets.test.ts[2m [ app/utils/plan-outline/presets.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/proposal.test.ts[2m [ app/utils/plan-outline/proposal.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/quality-mix.test.ts[2m [ app/utils/plan-outline/quality-mix.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/ramp-guard.test.ts[2m [ app/utils/plan-outline/ramp-guard.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/season-chart.test.ts[2m [ app/utils/plan-outline/season-chart.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/season-edit.server.test.ts[2m [ app/utils/plan-outline/season-edit.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/season-edit.test.ts[2m [ app/utils/plan-outline/season-edit.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/season-span.test.ts[2m [ app/utils/plan-outline/season-span.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/session-placement.test.ts[2m [ app/utils/plan-outline/session-placement.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/stamp.server.test.ts[2m [ app/utils/plan-outline/stamp.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/stamp.test.ts[2m [ app/utils/plan-outline/stamp.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/starter-pattern.test.ts[2m [ app/utils/plan-outline/starter-pattern.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/strength-goal.test.ts[2m [ app/utils/plan-outline/strength-goal.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/strength-offer.server.test.ts[2m [ app/utils/plan-outline/strength-offer.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/track-days.server.test.ts[2m [ app/utils/plan-outline/track-days.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/volume-conversion.server.test.ts[2m [ app/utils/plan-outline/volume-conversion.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/volume-conversion.test.ts[2m [ app/utils/plan-outline/volume-conversion.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/week-keys.test.ts[2m [ app/utils/plan-outline/week-keys.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/week-pattern.test.ts[2m [ app/utils/plan-outline/week-pattern.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/week-sum.test.ts[2m [ app/utils/plan-outline/week-sum.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/week-volumes.server.test.ts[2m [ app/utils/plan-outline/week-volumes.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/plan-outline/week-volumes.test.ts[2m [ app/utils/plan-outline/week-volumes.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/profile-analysis/analyze.server.test.ts[2m [ app/utils/profile-analysis/analyze.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/profile-analysis/cp-fit.test.ts[2m [ app/utils/profile-analysis/cp-fit.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/profile-analysis/estimate.test.ts[2m [ app/utils/profile-analysis/estimate.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/profile-analysis/mean-maximal.test.ts[2m [ app/utils/profile-analysis/mean-maximal.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/anchors.test.ts[2m [ app/utils/strength/anchors.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/exercise-history.test.ts[2m [ app/utils/strength/exercise-history.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/kilo-input.test.ts[2m [ app/utils/strength/kilo-input.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/one-rm.test.ts[2m [ app/utils/strength/one-rm.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/plates.test.ts[2m [ app/utils/strength/plates.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/program-engine.test.ts[2m [ app/utils/strength/program-engine.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/program-rules.test.ts[2m [ app/utils/strength/program-rules.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/records.test.ts[2m [ app/utils/strength/records.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/rest.test.ts[2m [ app/utils/strength/rest.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/strength/warmup.test.ts[2m [ app/utils/strength/warmup.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-detection/analyze.test.ts[2m [ app/utils/structure-detection/analyze.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-detection/classify.test.ts[2m [ app/utils/structure-detection/classify.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-detection/detect-backfill.server.test.ts[2m [ app/utils/structure-detection/detect-backfill.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-detection/detect-job.server.test.ts[2m [ app/utils/structure-detection/detect-job.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-detection/detection-lifecycle.server.test.ts[2m [ app/utils/structure-detection/detection-lifecycle.server.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-detection/mine.test.ts[2m [ app/utils/structure-detection/mine.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-detection/signal.test.ts[2m [ app/utils/structure-detection/signal.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/zones/pace-unit.test.ts[2m [ app/utils/zones/pace-unit.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/zones/recipes.test.ts[2m [ app/utils/zones/recipes.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/zones/resolve.test.ts[2m [ app/utils/zones/resolve.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/zones/words.test.ts[2m [ app/utils/zones/words.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_auth/auth.$provider/callback.test.ts[2m [ app/routes/_auth/auth.$provider/callback.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/anchoring.test.ts[2m [ app/routes/_home/timeline/anchoring.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/composer-model.test.ts[2m [ app/routes/_home/timeline/composer-model.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/composer-sentence.test.ts[2m [ app/routes/_home/timeline/composer-sentence.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/composer.test.tsx[2m [ app/routes/_home/timeline/composer.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/large-screen.test.tsx[2m [ app/routes/_home/timeline/large-screen.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/presenter.test.ts[2m [ app/routes/_home/timeline/presenter.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/row-content.test.ts[2m [ app/routes/_home/timeline/row-content.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/stream.test.tsx[2m [ app/routes/_home/timeline/stream.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/strip.test.ts[2m [ app/routes/_home/timeline/strip.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/_home/timeline/use-timeline-scroll.test.tsx[2m [ app/routes/_home/timeline/use-timeline-scroll.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/profile/index.delete-data.test.ts[2m [ app/routes/settings/profile/index.delete-data.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/profile/index.weekly-capacity.test.ts[2m [ app/routes/settings/profile/index.weekly-capacity.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/training/analyze.route.test.tsx[2m [ app/routes/settings/training/analyze.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/training/history.test.ts[2m [ app/routes/settings/training/history.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/training/index.route.test.tsx[2m [ app/routes/settings/training/index.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/training/index.test.ts[2m [ app/routes/settings/training/index.test.ts ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/training/lifts.$exerciseId.route.test.tsx[2m [ app/routes/settings/training/lifts.$exerciseId.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/training/lifts.$exerciseId_.propose.route.test.tsx[2m [ app/routes/settings/training/lifts.$exerciseId_.propose.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/routes/settings/training/resultater.route.test.tsx[2m [ app/routes/settings/training/resultater.route.test.tsx ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-detection/eval/eval.test.ts[2m [ app/utils/structure-detection/eval/eval.test.ts ][22m
+[41m[1m FAIL [22m[49m app/utils/structure-detection/eval/fit.test.ts[2m [ app/utils/structure-detection/eval/fit.test.ts ][22m
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'split')[39m
+[36m [2m❯[22m app/utils/session.server.ts:[2m9:39[22m[39m
+    [90m  7| [39m  path[33m:[39m [32m'/'[39m[33m,[39m
+    [90m  8| [39m  httpOnly[33m:[39m [35mtrue[39m[33m,[39m
+    [90m  9| [39m  secrets[33m:[39m process[33m.[39menv[33m.[39m[33mSESSION_SECRET[39m[33m.[39m[34msplit[39m([32m','[39m)[33m,[39m
+    [90m   | [39m                                      [31m^[39m
+    [90m 10| [39m  secure[33m:[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m===[39m [32m'production'[39m[33m,[39m
+    [90m 11| [39m }[33m,[39m
+[90m [2m❯[22m app/utils/auth.server.ts:[2m11:1[22m[39m
+[90m [2m❯[22m tests/setup/custom-matchers.ts:[2m3:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/405]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m405 failed[39m[22m[90m (405)[39m
+[2m      Tests [22m [2mno tests[22m
+[2m   Start at [22m 12:00:21
+[2m   Duration [22m 245.37s[2m (transform 5.31s, setup 0ms, import 0ms, tests 0ms, environment 66.68s)[22m
+
