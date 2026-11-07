@@ -1,0 +1,871 @@
+[WebServer] 
+[WebServer] > start:mocks
+[WebServer] > cross-env NODE_ENV=production MOCKS=true node index.ts
+[WebServer] 
+
+[WebServer] 🔶 Mock server installed
+
+[WebServer] Starting production server
+
+[WebServer] 🚀  We have liftoff!
+[WebServer] Local:            http://localhost:3530
+[WebServer] 
+[WebServer] Press Ctrl+C to stop
+
+(node:28963) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 2 workers
+
+(node:29314) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/4] [chromium] › tests/e2e/home-reading-position.test.ts:96:1 › a live import on a day the reader has scrolled past does not move the row they are reading
+(node:29311) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2/4] [chromium] › tests/e2e/home-reading-position.test.ts:155:1 › weeks that mount after the first paint never move the row the reader is reading
+[chromium] › tests/e2e/home-reading-position.test.ts:96:1 › a live import on a day the reader has scrolled past does not move the row they are reading
+prisma:query - 50ms - INSERT INTO `main`.`User` (`id`, `email`, `username`, `name`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?) RETURNING `id` AS `id`
+
+prisma:query - 35ms - COMMIT
+
+prisma:query - 249ms - INSERT INTO `main`.`Session` (`id`, `expirationDate`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?) RETURNING `id` AS `id`
+
+prisma:query - 64ms - INSERT INTO `main`.`AthleteProfile` (`id`, `preferredUnits`, `weekStartsOn`, `timezone`, `autopilot`, `autopilotIntroPending`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `birthdate` AS `birthdate`, `weightKg` AS `weightKg`, `heightCm` AS `heightCm`, `sex` AS `sex`, `preferredUnits` AS `preferredUnits`, `weekStartsOn` AS `weekStartsOn`, `timezone` AS `timezone`, `autopilot` AS `autopilot`, `autopilotIntroPending` AS `autopilotIntroPending`, `trainableWeekdays` AS `trainableWeekdays`, `defaultTrainingTime` AS `defaultTrainingTime`, `weeklyCapacityHours` AS `weeklyCapacityHours`, `trainingLevel` AS `trainingLevel`, `strengthPerWeek` AS `strengthPerWeek`, `sessionPreferences` AS `sessionPreferences`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`
+
+prisma:query - 33ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 68ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 20ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 23ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 58ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[WebServer] prisma:query - 175ms - SELECT `main`.`Job`.`id`, `main`.`Job`.`kind`, `main`.`Job`.`payload`, `main`.`Job`.`status`, `main`.`Job`.`attempts`, `main`.`Job`.`maxAttempts`, `main`.`Job`.`runAt`, `main`.`Job`.`lastError`, `main`.`Job`.`startedAt`, `main`.`Job`.`completedAt`, `main`.`Job`.`createdAt`, `main`.`Job`.`updatedAt` FROM `main`.`Job` WHERE (`main`.`Job`.`status` = ? AND `main`.`Job`.`runAt` <= ?) ORDER BY `main`.`Job`.`runAt` ASC LIMIT ? OFFSET ?
+
+prisma:query - 58ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 23ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[chromium] › tests/e2e/home-reading-position.test.ts:155:1 › weeks that mount after the first paint never move the row the reader is reading
+prisma:query - 58ms - BEGIN IMMEDIATE
+
+prisma:query - 50ms - COMMIT
+
+[chromium] › tests/e2e/home-reading-position.test.ts:96:1 › a live import on a day the reader has scrolled past does not move the row they are reading
+prisma:query - 79ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 22ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 74ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 64ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 24ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[chromium] › tests/e2e/home-reading-position.test.ts:155:1 › weeks that mount after the first paint never move the row the reader is reading
+prisma:query - 565ms - INSERT INTO `main`.`Session` (`id`, `expirationDate`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?) RETURNING `id` AS `id`
+
+[chromium] › tests/e2e/home-reading-position.test.ts:96:1 › a live import on a day the reader has scrolled past does not move the row they are reading
+prisma:query - 41ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[chromium] › tests/e2e/home-reading-position.test.ts:155:1 › weeks that mount after the first paint never move the row the reader is reading
+prisma:query - 115ms - INSERT INTO `main`.`AthleteProfile` (`id`, `preferredUnits`, `weekStartsOn`, `timezone`, `autopilot`, `autopilotIntroPending`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `birthdate` AS `birthdate`, `weightKg` AS `weightKg`, `heightCm` AS `heightCm`, `sex` AS `sex`, `preferredUnits` AS `preferredUnits`, `weekStartsOn` AS `weekStartsOn`, `timezone` AS `timezone`, `autopilot` AS `autopilot`, `autopilotIntroPending` AS `autopilotIntroPending`, `trainableWeekdays` AS `trainableWeekdays`, `defaultTrainingTime` AS `defaultTrainingTime`, `weeklyCapacityHours` AS `weeklyCapacityHours`, `trainingLevel` AS `trainingLevel`, `strengthPerWeek` AS `strengthPerWeek`, `sessionPreferences` AS `sessionPreferences`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`
+
+prisma:query - 28ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[chromium] › tests/e2e/home-reading-position.test.ts:96:1 › a live import on a day the reader has scrolled past does not move the row they are reading
+prisma:query - 142ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 24ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 27ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[chromium] › tests/e2e/home-reading-position.test.ts:155:1 › weeks that mount after the first paint never move the row the reader is reading
+prisma:query - 270ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 44ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 44ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 22ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 25ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 30ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 91ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 20ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 28ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 55ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 22ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 36ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 36ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 72ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 25ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 26ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 23ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 22ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 22ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 56ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[WebServer] responseMode: 'json' drops mid-call notifications. subscriptions/listen streams are always served over SSE regardless; other notifications emitted before a result are dropped.
+
+[WebServer] (node:29142) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+[WebServer] GET /manifest-6a6d8a45.js 200 - - 5.089 ms
+[WebServer] GET /preload-helper-BXl3LOEh.js 200 - - 13.161 ms
+[WebServer] GET /index-pOaxvIR-.js 200 - - 18.018 ms
+[WebServer] GET /entry.client-V0gjbPzI.js 200 - - 5.735 ms
+[WebServer] GET /chunk-JZWAC4HX-BrPgsPVH.js 200 - - 15.468 ms
+[WebServer] GET /season 200 - - 8735.443 ms
+[WebServer] GET /season 200 - - 1761.892 ms
+
+[WebServer] GET /motion-CK8OlWIJ.js 200 249 - 6.544 ms
+[WebServer] GET /view-morph-CU7dvaZP.js 200 - - 7.674 ms
+[WebServer] GET /root-MfThUr6b.js 200 - - 5.985 ms
+[WebServer] GET /icon-_3KtMCYL.js 200 - - 5.615 ms
+[WebServer] GET /sprite-ksOb09Fk.svg 200 - - 7.647 ms
+[WebServer] GET /honeypot-BtcjPnmg.js 200 894 - 5.181 ms
+[WebServer] GET /error-boundary-CJQYFTQs.js 200 638 - 6.993 ms
+[WebServer] GET /app-tabs-CNMyLJZv.js 200 847 - 6.423 ms
+[WebServer] GET /index-7PjMYw_z.js 200 - - 7.453 ms
+[WebServer] GET /button-X9IuXdmj.js 200 - - 7.070 ms
+
+[WebServer] GET /tailwind-1W0pQtC-.css 200 - - 6.987 ms
+
+[WebServer] GET /index-BEOGX0de.js 200 208 - 5.533 ms
+[WebServer] GET /vocabulary-6HG46GpM.js 200 - - 6.701 ms
+[WebServer] GET /parse-7qVzaR2j.js 200 - - 5.463 ms
+[WebServer] GET /hooks-BjeKrKUQ.js 200 - - 5.131 ms
+[WebServer] GET /helpers-DUdUxqSb.js 200 - - 4.632 ms
+[WebServer] GET /preload-helper-BXl3LOEh.js 200 - - 7.959 ms
+[WebServer] GET /index-pOaxvIR-.js 200 - - 8.690 ms
+[WebServer] GET /view-morph-CU7dvaZP.js 200 - - 9.190 ms
+[WebServer] GET /manifest-6a6d8a45.js 200 - - 6.320 ms
+[WebServer] GET /chunk-JZWAC4HX-BrPgsPVH.js 200 - - 7.522 ms
+[WebServer] GET /entry.client-V0gjbPzI.js 200 - - 7.090 ms
+
+[WebServer] GET /nonce-provider-FlonQjwl.js 200 184 - 2.319 ms
+[WebServer] GET /user-B-jmA5Or.js 200 303 - 2.513 ms
+[WebServer] GET /types-CqOqBg-a.js 200 - - 2.738 ms
+[WebServer] GET /debug-build-BYX0I243.js 200 - - 2.534 ms
+[WebServer] GET /useRenderElement-3VHJOCcv.js 200 - - 2.527 ms
+[WebServer] GET /dom-CSO_I1Ct.js 200 - - 2.369 ms
+
+[WebServer] GET /motion-CK8OlWIJ.js 200 249 - 2.728 ms
+
+[WebServer] GET /root-MfThUr6b.js 200 - - 2.658 ms
+
+[WebServer] GET /tailwind-1W0pQtC-.css 200 - - 0.965 ms
+
+[WebServer] GET /ZodError-D2irriyn.js 200 - - 2.787 ms
+[WebServer] GET /session-composer-BD-9s802.js 200 - - 2.108 ms
+
+[WebServer] GET /FloatingRootStore-D6LgUOCn.js 200 - - 3.428 ms
+[WebServer] GET /DialogTrigger-D_KNQJUt.js 200 - - 3.346 ms
+[WebServer] GET /season-DgpGVWon.js 200 - - 2.551 ms
+
+[WebServer] GET /honeypot-BtcjPnmg.js 200 894 - 9.209 ms
+
+[WebServer] GET /error-boundary-CJQYFTQs.js 200 638 - 8.673 ms
+[WebServer] GET /app-tabs-CNMyLJZv.js 200 847 - 7.974 ms
+[WebServer] GET /composer-drawer-DFCPLxPR.js 200 - - 2.488 ms
+[WebServer] GET /icon-_3KtMCYL.js 200 - - 9.675 ms
+[WebServer] GET /athlete-calendar-CpQWeEPI.js 200 - - 8.678 ms
+[WebServer] GET /DialogPopup-C_isGh5r.js 200 - - 9.637 ms
+[WebServer] GET /index-7PjMYw_z.js 200 - - 8.569 ms
+[WebServer] GET /button-X9IuXdmj.js 200 - - 8.332 ms
+[WebServer] GET /i-dag-XpsCxyTB.js 200 - - 8.452 ms
+[WebServer] GET /season-pane-Du5ODute.js 200 - - 7.943 ms
+[WebServer] GET /first-run-BzQplVXc.js 200 - - 7.574 ms
+[WebServer] GET /week-change-C_qPxA70.js 200 - - 5.981 ms
+
+[WebServer] GET /index-BEOGX0de.js 200 208 - 12.563 ms
+
+[WebServer] GET /vocabulary-6HG46GpM.js 200 - - 12.911 ms
+
+[WebServer] GET /parse-7qVzaR2j.js 200 - - 12.776 ms
+
+[WebServer] GET /hooks-BjeKrKUQ.js 200 - - 12.453 ms
+
+[WebServer] GET /helpers-DUdUxqSb.js 200 - - 12.198 ms
+
+[WebServer] GET /types-CqOqBg-a.js 200 - - 11.879 ms
+
+[WebServer] GET /nonce-provider-FlonQjwl.js 200 184 - 34.746 ms
+
+[WebServer] GET /autopilot-schema-Drmpjxiy.js 200 406 - 26.556 ms
+
+[WebServer] GET /calendar-key-schema-CcbjO2X5.js 200 274 - 26.149 ms
+
+[WebServer] GET /useControlled-BIggQtOu.js 200 303 - 37.453 ms
+
+[WebServer] GET /forms-DjiD93m_.js 200 - - 26.088 ms
+[WebServer] GET /checkbox-CA501aSf.js 200 - - 37.529 ms
+[WebServer] GET /useLabelableId-BjKvCk5p.js 200 - - 37.477 ms
+[WebServer] GET /user-B-jmA5Or.js 200 303 - 41.977 ms
+
+[WebServer] GET /debug-build-BYX0I243.js 200 - - 41.592 ms
+[WebServer] GET /useRenderElement-3VHJOCcv.js 200 - - 41.281 ms
+
+[WebServer] GET /dom-CSO_I1Ct.js 200 - - 47.105 ms
+
+[WebServer] GET /ZodError-D2irriyn.js 200 - - 35.084 ms
+[WebServer] GET /useValueChanged-DimyLPX7.js 200 274 - 23.754 ms
+
+[WebServer] GET /season-DgpGVWon.js 200 - - 44.980 ms
+
+[WebServer] GET /public-sans-latin-wght-normal-DdeTHZLK.woff2 200 26832 - 122.694 ms
+
+[WebServer] GET /label-BI7A3QS4.js 200 456 - 123.732 ms
+
+[WebServer] GET /useBaseUiId-BCamSlgJ.js 200 - - 25.506 ms
+
+[WebServer] GET /useOpenChangeComplete-BqRYA6tU.js 200 - - 23.981 ms
+
+[WebServer] GET /field-Jc6JkOue.js 200 - - 123.655 ms
+
+[WebServer] GET /session-composer-BD-9s802.js 200 - - 136.573 ms
+[WebServer] GET /FloatingRootStore-D6LgUOCn.js 200 - - 147.888 ms
+[WebServer] GET /public-sans-latin-wght-normal-DdeTHZLK.woff2 200 26832 - 16.330 ms
+[WebServer] GET /input-DvgiDj91.js 200 - - 36.859 ms
+[WebServer] GET /DialogTrigger-D_KNQJUt.js 200 - - 17.227 ms
+[WebServer] GET /DialogPopup-C_isGh5r.js 200 - - 16.811 ms
+[WebServer] GET /composer-drawer-DFCPLxPR.js 200 - - 122.732 ms
+[WebServer] GET /radio-group-DHyI6SEv.js 200 - - 16.298 ms
+[WebServer] GET /CompositeRoot-CRpFlQaR.js 200 - - 16.064 ms
+[WebServer] GET /useOpenInteractionType-DPmoj5vH.js 200 - - 16.360 ms
+[WebServer] GET /usePositioner-D4YC-AxL.js 200 - - 9.380 ms
+[WebServer] GET /CompositeItem-hQD3kXWx.js 200 866 - 5.416 ms
+[WebServer] GET /select-DfHJoAH3.js 200 - - 10.193 ms
+[WebServer] GET /textarea-DJrPAU5h.js 200 791 - 5.239 ms
+[WebServer] GET /toggle-group-CDHOd7WT.js 200 - - 12.753 ms
+[WebServer] GET /toggle-CSgqPV8C.js 200 - - 12.703 ms
+[WebServer] GET /format-YeVr6bQE.js 200 - - 12.297 ms
+[WebServer] GET /profile-bars-DWFHk32l.js 200 - - 14.761 ms
+[WebServer] GET /integrations-BMYzydQa.js 200 - - 15.479 ms
+[WebServer] GET /plan-domain-D9ocX-nK.js 200 - - 14.659 ms
+
+[WebServer] GET /index-CmgXWyMb.js 200 200 - 9.767 ms
+[WebServer] GET /dashboard-CPJl-bVx.js 200 - - 14.585 ms
+[WebServer] GET /intensity-target-CAxcx88u.js 200 - - 14.438 ms
+
+[WebServer] GET /workout-schema-DQXRdaup.js 200 - - 14.151 ms
+[WebServer] GET /recipes-DoGxaQBv.js 200 - - 9.543 ms
+
+[WebServer] GET /autopilot-schema-Drmpjxiy.js 200 406 - 5.769 ms
+[WebServer] GET /athlete-calendar-CpQWeEPI.js 200 - - 20.649 ms
+[WebServer] GET /first-run-BzQplVXc.js 200 - - 5.962 ms
+
+[WebServer] GET /season-pane-Du5ODute.js 200 - - 20.417 ms
+
+[WebServer] GET /i-dag-XpsCxyTB.js 200 - - 20.803 ms
+[WebServer] GET /week-change-C_qPxA70.js 200 - - 5.723 ms
+
+[WebServer] GET /calendar-key-schema-CcbjO2X5.js 200 274 - 64.436 ms
+
+[WebServer] GET /useControlled-BIggQtOu.js 200 303 - 81.668 ms
+
+[WebServer] GET /forms-DjiD93m_.js 200 - - 70.957 ms
+
+[WebServer] GET /checkbox-CA501aSf.js 200 - - 75.146 ms
+
+[WebServer] GET /useLabelableId-BjKvCk5p.js 200 - - 85.497 ms
+
+[WebServer] GET /useBaseUiId-BCamSlgJ.js 200 - - 101.368 ms
+
+[WebServer] GET /useValueChanged-DimyLPX7.js 200 274 - 133.402 ms
+
+[WebServer] GET /label-BI7A3QS4.js 200 456 - 66.628 ms
+
+[WebServer] GET /planned-discipline--qD2ke14.js 200 723 - 72.781 ms
+
+[WebServer] GET /session-title-C7I9Mt7k.js 200 547 - 77.997 ms
+[WebServer] GET /strength-log-BUMeI5v5.js 200 799 - 82.964 ms
+[WebServer] GET /useOpenChangeComplete-BqRYA6tU.js 200 - - 113.505 ms
+
+[WebServer] GET /field-Jc6JkOue.js 200 - - 56.888 ms
+[WebServer] GET /integrations-BincPf7k.js 200 - - 83.921 ms
+[WebServer] GET /score-stanza-DTXbx9MS.js 200 - - 83.738 ms
+
+[WebServer] GET /anchors-DyaBnSYL.js 200 - - 83.368 ms
+
+[WebServer] GET /input-DvgiDj91.js 200 - - 64.741 ms
+
+[WebServer] GET /radio-group-DHyI6SEv.js 200 - - 63.310 ms
+
+[WebServer] GET /useOpenInteractionType-DPmoj5vH.js 200 - - 88.078 ms
+
+[WebServer] GET /constraint-Cw-SUbDO.js 200 - - 49.107 ms
+
+[WebServer] GET /CompositeRoot-CRpFlQaR.js 200 - - 48.498 ms
+
+[WebServer] GET /week-keys-CaulCRqF.js 200 219 - 37.518 ms
+
+[WebServer] GET /drawer-BJ6BDhH2.js 200 - - 48.215 ms
+
+[WebServer] GET /simple-activity-DLUYUQsc.js 200 874 - 57.569 ms
+
+[WebServer] GET /week-pattern-0AkV-FbO.js 200 - - 45.147 ms
+
+[WebServer] GET /CompositeItem-hQD3kXWx.js 200 866 - 69.363 ms
+
+[WebServer] GET /kilo-input-CfUSJOTk.js 200 626 - 80.879 ms
+
+[WebServer] GET /select-DfHJoAH3.js 200 - - 45.287 ms
+[WebServer] GET /usePositioner-D4YC-AxL.js 200 - - 35.600 ms
+[WebServer] GET /textarea-DJrPAU5h.js 200 791 - 99.764 ms
+
+[WebServer] GET /source-credits-Cl8JzJyw.js 200 443 - 32.503 ms
+
+[WebServer] GET /valueToPercent-CfQKDXCr.js 200 601 - 33.798 ms
+
+[WebServer] GET /toggle-group-CDHOd7WT.js 200 - - 64.220 ms
+[WebServer] GET /toggle-CSgqPV8C.js 200 - - 41.156 ms
+
+[WebServer] GET /meter-BKlvq9yP.js 200 - - 34.173 ms
+
+[WebServer] GET /usePopupHandleStore-CY5ppLCS.js 200 - - 24.068 ms
+[WebServer] GET /popover-BnLpfkxY.js 200 - - 24.729 ms
+
+[WebServer] GET /integrations-BMYzydQa.js 200 - - 24.149 ms
+[WebServer] GET /safePolygon-BVLom6gh.js 200 - - 23.971 ms
+
+[WebServer] GET /chart-C5l7ydfN.js 200 - - 45.166 ms
+[WebServer] GET /format-YeVr6bQE.js 200 - - 47.426 ms
+[WebServer] GET /profile-bars-DWFHk32l.js 200 - - 47.496 ms
+[WebServer] GET /sprite-ksOb09Fk.svg 200 - - 47.440 ms
+
+[WebServer] GET /sw.js 200 531 - 100.050 ms
+
+[WebServer] GET /plan-domain-D9ocX-nK.js 200 - - 47.545 ms
+
+[WebServer] GET /dashboard-CPJl-bVx.js 200 - - 96.223 ms
+
+[WebServer] GET /intensity-target-CAxcx88u.js 200 - - 96.171 ms
+
+[WebServer] GET /workout-schema-DQXRdaup.js 200 - - 96.667 ms
+[WebServer] GET /index-CmgXWyMb.js 200 200 - 6.243 ms
+
+[WebServer] GET /recipes-DoGxaQBv.js 200 - - 6.284 ms
+
+[WebServer] GET /planned-discipline--qD2ke14.js 200 723 - 181.433 ms
+
+[WebServer] GET /session-title-C7I9Mt7k.js 200 547 - 188.104 ms
+
+[WebServer] GET /strength-log-BUMeI5v5.js 200 799 - 53.921 ms
+
+[WebServer] GET /score-stanza-DTXbx9MS.js 200 - - 157.630 ms
+
+[WebServer] GET /anchors-DyaBnSYL.js 200 - - 54.239 ms
+
+[WebServer] GET /integrations-BincPf7k.js 200 - - 196.992 ms
+
+[WebServer] GET /constraint-Cw-SUbDO.js 200 - - 14.306 ms
+[WebServer] GET /drawer-BJ6BDhH2.js 200 - - 11.771 ms
+[WebServer] GET /week-pattern-0AkV-FbO.js 200 - - 7.988 ms
+
+[WebServer] GET /week-keys-CaulCRqF.js 200 219 - 4.444 ms
+
+[WebServer] GET /simple-activity-DLUYUQsc.js 200 874 - 8.730 ms
+
+[WebServer] GET /kilo-input-CfUSJOTk.js 200 626 - 20.549 ms
+[WebServer] GET /source-credits-Cl8JzJyw.js 200 443 - 19.861 ms
+
+[WebServer] GET /valueToPercent-CfQKDXCr.js 200 601 - 20.953 ms
+
+[WebServer] GET /meter-BKlvq9yP.js 200 - - 21.032 ms
+
+[WebServer] GET /popover-BnLpfkxY.js 200 - - 25.085 ms
+
+[WebServer] GET /sw.js 200 531 - 75.995 ms
+
+[WebServer] GET /usePopupHandleStore-CY5ppLCS.js 200 - - 45.486 ms
+
+[WebServer] GET /chart-C5l7ydfN.js 200 - - 75.874 ms
+
+[WebServer] GET /safePolygon-BVLom6gh.js 200 - - 75.903 ms
+
+prisma:query - 41ms - DELETE FROM `main`.`User` WHERE `main`.`User`.`id` = ?
+
+[WebServer] GET /resources/imports-events 200 - - 37.337 ms
+
+[WebServer] prisma:query - 43ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] prisma:query - 62ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] prisma:query - 44ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] prisma:query - 24ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] prisma:query - 29ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] GET /season.data 200 - - 267.940 ms
+
+[WebServer] prisma:query - 31ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] prisma:query - 83ms - SELECT `main`.`AthleteProfile`.`id`, `main`.`AthleteProfile`.`timezone` FROM `main`.`AthleteProfile` WHERE (`main`.`AthleteProfile`.`userId` = ? AND 1=1) LIMIT ? OFFSET ?
+
+[WebServer] prisma:query - 28ms - COMMIT
+
+[WebServer] prisma:query - 24ms - COMMIT
+
+[WebServer] prisma:query - 31ms - INSERT INTO `main`.`ActivityStream` (`id`, `resolutionSec`, `sampleCount`, `timeSec`, `power`, `heartrate`, `pace`, `createdAt`, `activityImportId`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`activityImportId`) DO UPDATE SET `resolutionSec` = ?, `sampleCount` = ?, `timeSec` = ?, `power` = ?, `heartrate` = ?, `pace` = ? WHERE (`main`.`ActivityStream`.`activityImportId` = ? AND 1=1) RETURNING `id` AS `id`, `resolutionSec` AS `resolutionSec`, `sampleCount` AS `sampleCount`, `timeSec` AS `timeSec`, `power` AS `power`, `heartrate` AS `heartrate`, `pace` AS `pace`, `createdAt` AS `createdAt`, `activityImportId` AS `activityImportId`
+
+[WebServer] prisma:query - 21ms - INSERT INTO `main`.`Job` (`id`, `kind`, `payload`, `status`, `attempts`, `maxAttempts`, `runAt`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `kind` AS `kind`, `payload` AS `payload`, `status` AS `status`, `attempts` AS `attempts`, `maxAttempts` AS `maxAttempts`, `runAt` AS `runAt`, `lastError` AS `lastError`, `startedAt` AS `startedAt`, `completedAt` AS `completedAt`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+[WebServer] POST /imports/upload 302 - - 3730.221 ms
+
+(node:29710) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[chromium] › tests/e2e/home-reading-position.test.ts:96:1 › a live import on a day the reader has scrolled past does not move the row they are reading
+prisma:query - 86ms - DELETE FROM `main`.`User` WHERE `main`.`User`.`id` = ?
+
+[WebServer] GET /resources/imports-events 200 - - 54.951 ms
+
+[3/4] [webkit] › tests/e2e/home-reading-position.test.ts:96:1 › a live import on a day the reader has scrolled past does not move the row they are reading
+[WebServer] prisma:query - 22ms - COMMIT
+
+[WebServer] prisma:query - 48ms - UPDATE `main`.`Job` SET `status` = ?, `completedAt` = ?, `lastError` = ?, `updatedAt` = ? WHERE (`main`.`Job`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `kind` AS `kind`, `payload` AS `payload`, `status` AS `status`, `attempts` AS `attempts`, `maxAttempts` AS `maxAttempts`, `runAt` AS `runAt`, `lastError` AS `lastError`, `startedAt` AS `startedAt`, `completedAt` AS `completedAt`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+[webkit] › tests/e2e/home-reading-position.test.ts:96:1 › a live import on a day the reader has scrolled past does not move the row they are reading
+prisma:query - 32ms - COMMIT
+
+prisma:query - 68ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 31ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 22ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 25ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 23ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 41ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 20ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 29ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 23ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 44ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 28ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 31ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 129ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 35ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 23ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 50ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 30ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 38ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 61ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 47ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 21ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 38ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 85ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 20ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+(node:29743) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+prisma:query - 26ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[WebServer] GET /season 200 - - 213.523 ms
+
+[WebServer] GET /site.webmanifest 200 810 - 12.577 ms
+
+[WebServer] GET /sprite-ksOb09Fk.svg 200 - - 11.717 ms
+
+[WebServer] GET /preload-helper-BXl3LOEh.js 200 - - 4.976 ms
+
+[WebServer] GET /manifest-6a6d8a45.js 200 - - 4.748 ms
+
+[WebServer] GET /entry.client-V0gjbPzI.js 200 - - 5.036 ms
+
+[WebServer] GET /chunk-JZWAC4HX-BrPgsPVH.js 200 - - 3.721 ms
+
+[WebServer] GET /index-pOaxvIR-.js 200 - - 0.444 ms
+
+[WebServer] GET /motion-CK8OlWIJ.js 200 249 - 1.117 ms
+
+[WebServer] GET /view-morph-CU7dvaZP.js 200 - - 1.413 ms
+
+[WebServer] GET /honeypot-BtcjPnmg.js 200 894 - 35.547 ms
+
+[WebServer] GET /error-boundary-CJQYFTQs.js 200 638 - 35.699 ms
+
+[WebServer] GET /root-MfThUr6b.js 200 - - 35.603 ms
+[WebServer] GET /button-X9IuXdmj.js 200 - - 34.973 ms
+[WebServer] GET /icon-_3KtMCYL.js 200 - - 36.442 ms
+[WebServer] GET /index-7PjMYw_z.js 200 - - 35.652 ms
+
+[WebServer] GET /app-tabs-CNMyLJZv.js 200 847 - 4.134 ms
+
+[WebServer] GET /index-BEOGX0de.js 200 208 - 4.008 ms
+[WebServer] GET /vocabulary-6HG46GpM.js 200 - - 3.601 ms
+[WebServer] GET /parse-7qVzaR2j.js 200 - - 4.001 ms
+[WebServer] GET /helpers-DUdUxqSb.js 200 - - 1.919 ms
+[WebServer] GET /hooks-BjeKrKUQ.js 200 - - 2.065 ms
+[WebServer] GET /types-CqOqBg-a.js 200 - - 5.474 ms
+[WebServer] GET /nonce-provider-FlonQjwl.js 200 184 - 5.020 ms
+[WebServer] GET /user-B-jmA5Or.js 200 303 - 5.536 ms
+[WebServer] GET /debug-build-BYX0I243.js 200 - - 5.834 ms
+
+[WebServer] GET /useRenderElement-3VHJOCcv.js 200 - - 6.306 ms
+[WebServer] GET /dom-CSO_I1Ct.js 200 - - 6.266 ms
+
+[WebServer] GET /ZodError-D2irriyn.js 200 - - 4.348 ms
+[WebServer] GET /season-DgpGVWon.js 200 - - 4.156 ms
+[WebServer] GET /session-composer-BD-9s802.js 200 - - 3.183 ms
+[WebServer] GET /FloatingRootStore-D6LgUOCn.js 200 - - 3.030 ms
+[WebServer] GET /DialogTrigger-D_KNQJUt.js 200 - - 3.319 ms
+[WebServer] GET /composer-drawer-DFCPLxPR.js 200 - - 2.360 ms
+
+[WebServer] GET /DialogPopup-C_isGh5r.js 200 - - 0.434 ms
+
+[WebServer] GET /athlete-calendar-CpQWeEPI.js 200 - - 0.778 ms
+[WebServer] GET /i-dag-XpsCxyTB.js 200 - - 0.912 ms
+
+[WebServer] GET /season-pane-Du5ODute.js 200 - - 1.050 ms
+[WebServer] GET /first-run-BzQplVXc.js 200 - - 0.905 ms
+
+[WebServer] GET /autopilot-schema-Drmpjxiy.js 200 406 - 7.567 ms
+[WebServer] GET /calendar-key-schema-CcbjO2X5.js 200 274 - 7.588 ms
+[WebServer] GET /useControlled-BIggQtOu.js 200 303 - 7.830 ms
+[WebServer] GET /week-change-C_qPxA70.js 200 - - 7.595 ms
+[WebServer] GET /forms-DjiD93m_.js 200 - - 7.547 ms
+[WebServer] GET /checkbox-CA501aSf.js 200 - - 7.779 ms
+[WebServer] GET /useValueChanged-DimyLPX7.js 200 274 - 3.255 ms
+[WebServer] GET /label-BI7A3QS4.js 200 456 - 2.387 ms
+[WebServer] GET /useLabelableId-BjKvCk5p.js 200 - - 3.048 ms
+[WebServer] GET /useBaseUiId-BCamSlgJ.js 200 - - 2.839 ms
+[WebServer] GET /useOpenChangeComplete-BqRYA6tU.js 200 - - 3.385 ms
+[WebServer] GET /field-Jc6JkOue.js 200 - - 2.839 ms
+[WebServer] GET /input-DvgiDj91.js 200 - - 2.528 ms
+[WebServer] GET /radio-group-DHyI6SEv.js 200 - - 2.452 ms
+[WebServer] GET /useOpenInteractionType-DPmoj5vH.js 200 - - 2.357 ms
+[WebServer] GET /CompositeRoot-CRpFlQaR.js 200 - - 4.251 ms
+[WebServer] GET /select-DfHJoAH3.js 200 - - 3.857 ms
+[WebServer] GET /usePositioner-D4YC-AxL.js 200 - - 3.813 ms
+[WebServer] GET /CompositeItem-hQD3kXWx.js 200 866 - 3.148 ms
+[WebServer] GET /textarea-DJrPAU5h.js 200 791 - 4.353 ms
+[WebServer] GET /toggle-group-CDHOd7WT.js 200 - - 4.380 ms
+[WebServer] GET /toggle-CSgqPV8C.js 200 - - 6.328 ms
+[WebServer] GET /integrations-BMYzydQa.js 200 - - 6.392 ms
+[WebServer] GET /format-YeVr6bQE.js 200 - - 5.387 ms
+
+[WebServer] GET /profile-bars-DWFHk32l.js 200 - - 12.543 ms
+[WebServer] GET /index-CmgXWyMb.js 200 200 - 19.162 ms
+
+[WebServer] GET /plan-domain-D9ocX-nK.js 200 - - 9.315 ms
+[WebServer] GET /dashboard-CPJl-bVx.js 200 - - 17.111 ms
+[WebServer] GET /intensity-target-CAxcx88u.js 200 - - 17.845 ms
+[WebServer] GET /workout-schema-DQXRdaup.js 200 - - 19.181 ms
+[WebServer] GET /planned-discipline--qD2ke14.js 200 723 - 22.104 ms
+
+[WebServer] GET /session-title-C7I9Mt7k.js 200 547 - 21.316 ms
+
+[WebServer] GET /recipes-DoGxaQBv.js 200 - - 13.863 ms
+
+[4/4] [webkit] › tests/e2e/home-reading-position.test.ts:155:1 › weeks that mount after the first paint never move the row the reader is reading
+[WebServer] GET /integrations-BincPf7k.js 200 - - 28.749 ms
+[WebServer] GET /score-stanza-DTXbx9MS.js 200 - - 27.369 ms
+[WebServer] GET /anchors-DyaBnSYL.js 200 - - 30.228 ms
+[WebServer] GET /strength-log-BUMeI5v5.js 200 799 - 29.441 ms
+
+[WebServer] GET /constraint-Cw-SUbDO.js 200 - - 21.657 ms
+[WebServer] GET /drawer-BJ6BDhH2.js 200 - - 36.060 ms
+[WebServer] GET /week-keys-CaulCRqF.js 200 219 - 43.501 ms
+[WebServer] GET /simple-activity-DLUYUQsc.js 200 874 - 34.115 ms
+[WebServer] GET /kilo-input-CfUSJOTk.js 200 626 - 36.798 ms
+[WebServer] GET /week-pattern-0AkV-FbO.js 200 - - 41.215 ms
+[WebServer] GET /source-credits-Cl8JzJyw.js 200 443 - 34.931 ms
+[WebServer] GET /valueToPercent-CfQKDXCr.js 200 601 - 25.993 ms
+[WebServer] GET /meter-BKlvq9yP.js 200 - - 28.755 ms
+
+[WebServer] GET /popover-BnLpfkxY.js 200 - - 24.891 ms
+
+[WebServer] GET /usePopupHandleStore-CY5ppLCS.js 200 - - 15.821 ms
+
+[WebServer] GET /safePolygon-BVLom6gh.js 200 - - 19.968 ms
+[WebServer] GET /chart-C5l7ydfN.js 200 - - 12.224 ms
+
+[WebServer] GET /tailwind-1W0pQtC-.css 200 - - 11.426 ms
+[WebServer] GET /sprite-ksOb09Fk.svg 200 - - 7.175 ms
+
+[WebServer] GET /public-sans-latin-wght-normal-DdeTHZLK.woff2 200 26832 - 6.852 ms
+
+[WebServer] GET /sw.js 200 531 - 1.000 ms
+
+[WebServer] GET /preload-helper-BXl3LOEh.js 200 - - 1.394 ms
+[WebServer] GET /view-morph-CU7dvaZP.js 200 - - 2.464 ms
+
+[webkit] › tests/e2e/home-reading-position.test.ts:155:1 › weeks that mount after the first paint never move the row the reader is reading
+prisma:query - 21ms - COMMIT
+
+prisma:query - 56ms - INSERT INTO `main`.`AthleteProfile` (`id`, `preferredUnits`, `weekStartsOn`, `timezone`, `autopilot`, `autopilotIntroPending`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `birthdate` AS `birthdate`, `weightKg` AS `weightKg`, `heightCm` AS `heightCm`, `sex` AS `sex`, `preferredUnits` AS `preferredUnits`, `weekStartsOn` AS `weekStartsOn`, `timezone` AS `timezone`, `autopilot` AS `autopilot`, `autopilotIntroPending` AS `autopilotIntroPending`, `trainableWeekdays` AS `trainableWeekdays`, `defaultTrainingTime` AS `defaultTrainingTime`, `weeklyCapacityHours` AS `weeklyCapacityHours`, `trainingLevel` AS `trainingLevel`, `strengthPerWeek` AS `strengthPerWeek`, `sessionPreferences` AS `sessionPreferences`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`
+
+prisma:query - 27ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 27ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 29ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 30ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 27ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 53ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 20ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 42ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 30ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 39ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 25ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 20ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 55ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 27ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 26ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 31ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 84ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 55ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 64ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 38ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 53ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 21ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 47ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+prisma:query - 49ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[WebServer] GET /season 200 - - 382.318 ms
+
+[WebServer] GET /sprite-ksOb09Fk.svg 200 - - 12.431 ms
+
+[WebServer] GET /manifest-6a6d8a45.js 200 - - 24.909 ms
+
+[WebServer] GET /preload-helper-BXl3LOEh.js 200 - - 9.002 ms
+
+[WebServer] GET /view-morph-CU7dvaZP.js 200 - - 13.148 ms
+[WebServer] GET /index-pOaxvIR-.js 200 - - 12.905 ms
+
+[WebServer] GET /entry.client-V0gjbPzI.js 200 - - 22.712 ms
+[WebServer] GET /motion-CK8OlWIJ.js 200 249 - 1.409 ms
+
+[WebServer] GET /honeypot-BtcjPnmg.js 200 894 - 19.265 ms
+
+[WebServer] GET /error-boundary-CJQYFTQs.js 200 638 - 21.574 ms
+
+[WebServer] GET /chunk-JZWAC4HX-BrPgsPVH.js 200 - - 13.099 ms
+
+[WebServer] GET /root-MfThUr6b.js 200 - - 18.655 ms
+
+[WebServer] GET /icon-_3KtMCYL.js 200 - - 21.316 ms
+
+[WebServer] GET /index-7PjMYw_z.js 200 - - 12.805 ms
+
+[WebServer] GET /app-tabs-CNMyLJZv.js 200 847 - 14.804 ms
+[WebServer] GET /button-X9IuXdmj.js 200 - - 14.713 ms
+[WebServer] GET /index-BEOGX0de.js 200 208 - 11.931 ms
+[WebServer] GET /vocabulary-6HG46GpM.js 200 - - 11.977 ms
+
+[WebServer] GET /parse-7qVzaR2j.js 200 - - 11.964 ms
+[WebServer] GET /hooks-BjeKrKUQ.js 200 - - 11.966 ms
+
+[WebServer] GET /nonce-provider-FlonQjwl.js 200 184 - 62.317 ms
+[WebServer] GET /user-B-jmA5Or.js 200 303 - 56.579 ms
+[WebServer] GET /helpers-DUdUxqSb.js 200 - - 66.823 ms
+[WebServer] GET /types-CqOqBg-a.js 200 - - 62.447 ms
+[WebServer] GET /useRenderElement-3VHJOCcv.js 200 - - 14.624 ms
+[WebServer] GET /debug-build-BYX0I243.js 200 - - 14.923 ms
+[WebServer] GET /dom-CSO_I1Ct.js 200 - - 10.977 ms
+[WebServer] GET /ZodError-D2irriyn.js 200 - - 4.322 ms
+
+[WebServer] GET /season-DgpGVWon.js 200 - - 4.597 ms
+
+[WebServer] GET /session-composer-BD-9s802.js 200 - - 11.070 ms
+
+[WebServer] GET /FloatingRootStore-D6LgUOCn.js 200 - - 10.717 ms
+[WebServer] GET /DialogPopup-C_isGh5r.js 200 - - 11.813 ms
+[WebServer] GET /athlete-calendar-CpQWeEPI.js 200 - - 11.621 ms
+[WebServer] GET /composer-drawer-DFCPLxPR.js 200 - - 4.734 ms
+[WebServer] GET /DialogTrigger-D_KNQJUt.js 200 - - 11.902 ms
+[WebServer] prisma:query - 29ms - INSERT INTO `main`.`ActivityImport` (`id`, `athleteId`, `externalProvider`, `externalId`, `originPlatform`, `deviceName`, `fitFileKey`, `startedAt`, `endedAt`, `durationSec`, `distanceM`, `discipline`, `hrAvg`, `hrMax`, `powerAvg`, `powerMax`, `powerWeightedAvg`, `cadenceAvg`, `paceAvgSecPerKm`, `speedMaxMps`, `elevationGainM`, `kilojoules`, `polyline`, `lapsJson`, `rawJson`, `createdAt`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `startedAt` AS `startedAt`, `endedAt` AS `endedAt`, `discipline` AS `discipline`
+
+[WebServer] GET /i-dag-XpsCxyTB.js 200 - - 32.735 ms
+
+[WebServer] GET /autopilot-schema-Drmpjxiy.js 200 406 - 32.660 ms
+[WebServer] GET /calendar-key-schema-CcbjO2X5.js 200 274 - 22.244 ms
+
+[WebServer] GET /season-pane-Du5ODute.js 200 - - 43.901 ms
+[WebServer] GET /first-run-BzQplVXc.js 200 - - 33.190 ms
+[WebServer] GET /week-change-C_qPxA70.js 200 - - 33.026 ms
+
+[WebServer] GET /useControlled-BIggQtOu.js 200 303 - 40.479 ms
+
+[WebServer] GET /useValueChanged-DimyLPX7.js 200 274 - 20.284 ms
+[WebServer] GET /forms-DjiD93m_.js 200 - - 54.725 ms
+
+[WebServer] GET /checkbox-CA501aSf.js 200 - - 54.580 ms
+
+[WebServer] GET /useBaseUiId-BCamSlgJ.js 200 - - 16.519 ms
+
+[WebServer] GET /useLabelableId-BjKvCk5p.js 200 - - 31.446 ms
+
+[WebServer] GET /label-BI7A3QS4.js 200 456 - 115.665 ms
+
+[WebServer] GET /useOpenChangeComplete-BqRYA6tU.js 200 - - 37.531 ms
+
+[WebServer] GET /field-Jc6JkOue.js 200 - - 91.296 ms
+
+[WebServer] GET /input-DvgiDj91.js 200 - - 99.028 ms
+
+[WebServer] GET /radio-group-DHyI6SEv.js 200 - - 92.140 ms
+
+[WebServer] GET /useOpenInteractionType-DPmoj5vH.js 200 - - 91.750 ms
+
+[WebServer] GET /CompositeItem-hQD3kXWx.js 200 866 - 14.458 ms
+[WebServer] GET /textarea-DJrPAU5h.js 200 791 - 14.951 ms
+[WebServer] GET /CompositeRoot-CRpFlQaR.js 200 - - 13.802 ms
+[WebServer] GET /usePositioner-D4YC-AxL.js 200 - - 13.252 ms
+[WebServer] GET /toggle-group-CDHOd7WT.js 200 - - 14.784 ms
+[WebServer] GET /select-DfHJoAH3.js 200 - - 15.445 ms
+
+[WebServer] prisma:query - 62ms - UPDATE `main`.`WorkoutSession` SET `tssValue` = ?, `tssFormula` = ?, `tssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[WebServer] GET /integrations-BMYzydQa.js 200 - - 23.477 ms
+[WebServer] GET /format-YeVr6bQE.js 200 - - 8.456 ms
+[WebServer] GET /toggle-CSgqPV8C.js 200 - - 24.853 ms
+[WebServer] GET /profile-bars-DWFHk32l.js 200 - - 4.204 ms
+[WebServer] GET /dashboard-CPJl-bVx.js 200 - - 16.995 ms
+[WebServer] GET /plan-domain-D9ocX-nK.js 200 - - 4.597 ms
+
+[WebServer] GET /index-CmgXWyMb.js 200 200 - 23.376 ms
+[WebServer] GET /planned-discipline--qD2ke14.js 200 723 - 23.518 ms
+[WebServer] GET /session-title-C7I9Mt7k.js 200 547 - 23.719 ms
+
+[WebServer] GET /workout-schema-DQXRdaup.js 200 - - 23.405 ms
+
+[WebServer] GET /intensity-target-CAxcx88u.js 200 - - 3.332 ms
+[WebServer] GET /recipes-DoGxaQBv.js 200 - - 23.515 ms
+
+[WebServer] GET /integrations-BincPf7k.js 200 - - 102.236 ms
+[WebServer] GET /anchors-DyaBnSYL.js 200 - - 121.842 ms
+[WebServer] GET /season.data 200 - - 428.701 ms
+
+[WebServer] GET /score-stanza-DTXbx9MS.js 200 - - 101.895 ms
+[WebServer] GET /strength-log-BUMeI5v5.js 200 799 - 23.871 ms
+
+[WebServer] GET /constraint-Cw-SUbDO.js 200 - - 23.651 ms
+
+[WebServer] GET /drawer-BJ6BDhH2.js 200 - - 44.926 ms
+
+[WebServer] GET /week-keys-CaulCRqF.js 200 219 - 30.240 ms
+
+[WebServer] GET /simple-activity-DLUYUQsc.js 200 874 - 52.904 ms
+
+[WebServer] GET /kilo-input-CfUSJOTk.js 200 626 - 54.186 ms
+
+[WebServer] GET /week-pattern-0AkV-FbO.js 200 - - 30.617 ms
+
+[WebServer] GET /source-credits-Cl8JzJyw.js 200 443 - 28.865 ms
+
+[WebServer] GET /valueToPercent-CfQKDXCr.js 200 601 - 63.359 ms
+
+[WebServer] GET /meter-BKlvq9yP.js 200 - - 63.564 ms
+
+[WebServer] GET /popover-BnLpfkxY.js 200 - - 33.796 ms
+[WebServer] GET /usePopupHandleStore-CY5ppLCS.js 200 - - 33.316 ms
+
+[WebServer] GET /safePolygon-BVLom6gh.js 200 - - 32.855 ms
+
+[WebServer] GET /chart-C5l7ydfN.js 200 - - 8.382 ms
+
+[WebServer] GET /site.webmanifest 200 810 - 2.845 ms
+
+[WebServer] GET /sprite-ksOb09Fk.svg 200 - - 2.148 ms
+[WebServer] GET /tailwind-1W0pQtC-.css 200 - - 3.913 ms
+
+[WebServer] prisma:query - 30ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] prisma:query - 31ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] prisma:query - 25ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] prisma:query - 77ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] prisma:query - 27ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+[WebServer] GET /sprite-ksOb09Fk.svg 200 - - 2.819 ms
+
+[WebServer] GET /public-sans-latin-wght-normal-DdeTHZLK.woff2 200 26832 - 7.189 ms
+
+[WebServer] prisma:query - 36ms - COMMIT
+
+[WebServer] POST /imports/upload 302 - - 1480.084 ms
+
+[WebServer] GET /resources/imports-events 200 - - 29.580 ms
+
+[WebServer] GET /sw.js 200 531 - 2.776 ms
+
+[WebServer] GET /preload-helper-BXl3LOEh.js 200 - - 1.137 ms
+[WebServer] GET /view-morph-CU7dvaZP.js 200 - - 1.026 ms
+
+[WebServer] GET /sprite-ksOb09Fk.svg 200 - - 8.037 ms
+
+[WebServer] prisma:query - 119ms - COMMIT
+
+[WebServer] prisma:query - 23ms - UPDATE `main`.`Job` SET `status` = ?, `completedAt` = ?, `lastError` = ?, `updatedAt` = ? WHERE (`main`.`Job`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `kind` AS `kind`, `payload` AS `payload`, `status` AS `status`, `attempts` AS `attempts`, `maxAttempts` AS `maxAttempts`, `runAt` AS `runAt`, `lastError` AS `lastError`, `startedAt` AS `startedAt`, `completedAt` AS `completedAt`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+
+prisma:query - 43ms - DELETE FROM `main`.`User` WHERE `main`.`User`.`id` = ?
+
+[WebServer] GET /resources/imports-events 200 - - 19.116 ms
+
+  4 passed (57.8s)
