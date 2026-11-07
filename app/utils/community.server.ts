@@ -21,6 +21,7 @@ import {
 } from './catalogue.ts'
 import { type ReportReason, isPublished } from './community.ts'
 import { prisma } from './db.server.ts'
+import { notHeld } from './plan-outline/held-workouts.server.ts'
 
 export const attributionSelect = {
 	displayName: true,
@@ -107,7 +108,12 @@ export type PublishResult =
 	| { ok: true; workoutId: string }
 	| {
 			ok: false
-			reason: 'not-found' | 'not-yours' | 'not-athlete-authored' | 'taken-down'
+			reason:
+				| 'not-found'
+				| 'not-yours'
+				| 'not-athlete-authored'
+				| 'held-by-plan'
+				| 'taken-down'
 	  }
 
 /**
@@ -146,11 +152,18 @@ export async function publishWorkout({
 			id: true,
 			ownerId: true,
 			authorship: true,
+			heldByOutlineId: true,
 			attribution: { select: { takenDownAt: true } },
 		},
 	})
 	if (workout == null) return { ok: false, reason: 'not-found' }
 	if (workout.ownerId !== userId) return { ok: false, reason: 'not-yours' }
+	// A **Held Workout** is a plan's private copy (ADR 0113 §5): published, it
+	// would be deleted with the plan, and its Attribution and Catalogue Entry
+	// with it. No list offers one; this refuses a crafted id.
+	if (workout.heldByOutlineId != null) {
+		return { ok: false, reason: 'held-by-plan' }
+	}
 	// Belt and braces over the schema's own CHECK: a Stock Workout carries a
 	// Citation and can never carry an Attribution, so it can never be published by
 	// an athlete either.
@@ -420,11 +433,13 @@ export async function attributionsFor(workoutIds: string[]) {
  * "your sessions" section offers to publish.
  *
  * Owner-scoped on purpose: this is the one list on the Catalogue surface that is
- * about the athlete rather than about the corpus.
+ * about the athlete rather than about the corpus. A plan's **Held Workouts**
+ * are left out (ADR 0113 §5): they are the plan's copies, not sessions the
+ * athlete wrote.
  */
 export async function listOwnPublishableWorkouts(userId: string, take = 20) {
 	return prisma.workout.findMany({
-		where: { ownerId: userId, authorship: 'athlete' },
+		where: { ownerId: userId, authorship: 'athlete', ...notHeld },
 		orderBy: { updatedAt: 'desc' },
 		take,
 		select: {
@@ -441,10 +456,13 @@ export async function listOwnPublishableWorkouts(userId: string, take = 20) {
 	})
 }
 
-/** Everything the publish screen needs about one Workout. */
+/**
+ * Everything the publish screen needs about one Workout. A plan's Held
+ * Workout reads as absent, as the list leaves it out (ADR 0113 §5).
+ */
 export async function readPublishTarget(userId: string, workoutId: string) {
-	const workout = await prisma.workout.findUnique({
-		where: { id: workoutId },
+	const workout = await prisma.workout.findFirst({
+		where: { id: workoutId, ...notHeld },
 		select: {
 			id: true,
 			title: true,
