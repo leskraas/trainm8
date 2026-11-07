@@ -37,8 +37,8 @@ ADR 0111 named the hazard and proposed fork-on-pick for the owner to confirm.
    again.
 4. **Every write to a plan sweeps.** In the same transaction it deletes the
    plan's held rows that no day uses, sparing only the ids its own undo payload
-   names. This covers removing a day, a pattern or a track, and rewriting days.
-   Deleting the plan, its Event or the account cascades.
+   names. This covers adding or removing a day, removing a pattern or a track,
+   and rewriting days. Deleting the plan, its Event or the account cascades.
 5. **The mark is a column and never an inference.** A Workout with days and no
    sessions cannot be told apart from a legitimate row, so `heldByOutlineId` is
    stated. Readers that list the athlete's own Workouts

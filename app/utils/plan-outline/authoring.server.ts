@@ -3092,12 +3092,13 @@ export async function addWeekPatternDay(
 		// cannot do, and the reason it is here rather than only in the picker: a
 		// day's volume comes out of its track, so a Workout of another Discipline
 		// would fund one track's week with another discipline's work.
+		const holder = heldWorkouts(tx, {
+			outlineId: pattern.outlineId,
+			athleteId: userId,
+		})
 		let workoutId: string | null = null
 		if (add.workoutId != null) {
-			const held = await heldWorkouts(tx, {
-				outlineId: pattern.outlineId,
-				athleteId: userId,
-			}).hold(add.workoutId, track.discipline)
+			const held = await holder.hold(add.workoutId, track.discipline)
 			if (!held.ok) return refuse(held.reason)
 			workoutId = held.workoutId
 		}
@@ -3115,6 +3116,9 @@ export async function addWeekPatternDay(
 				workoutId,
 			},
 		})
+		// A held row an earlier write spared for its undo goes now: at most
+		// one write's rows wait (ADR 0112 §4).
+		await holder.sweep()
 		return { ok: true as const }
 	})
 }

@@ -426,6 +426,32 @@ test('sweep deletes the plan’s held rows no day uses, sparing what the undo na
 	).toBe(3)
 })
 
+test('adding a day sweeps a held row an earlier write left for its undo (ADR 0112 §4)', async () => {
+	const userId = await athlete()
+	const { outlineId, patternId, runTrackId } = await racePlan(userId)
+	const waiting = await authoredSession(userId, 'Venter')
+	const picked = await authoredSession(userId, 'Valgt')
+	// A held row no day uses: what a rewrite spares for its undo.
+	const spared = await prisma.$transaction((tx) =>
+		heldWorkouts(tx, { outlineId, athleteId: userId }).hold(waiting.workoutId),
+	)
+	if (!spared.ok) throw new Error(spared.reason)
+
+	const added = await addWeekPatternDay(userId, {
+		patternId,
+		kind: 'fixed',
+		trackId: runTrackId,
+		weekday: WED,
+		workoutId: picked.workoutId,
+	})
+	expect(added).toEqual({ ok: true })
+
+	const [day] = await daysOf(patternId)
+	expect((await heldBy(outlineId)).map((row) => row.id)).toEqual([
+		day?.workoutId,
+	])
+})
+
 // ── The athlete's sessions are theirs again ─────────────────────────────────
 
 test('a session a fixed day picked can be deleted; the day keeps its Workout and the weeks laid afterwards are the same', async () => {
