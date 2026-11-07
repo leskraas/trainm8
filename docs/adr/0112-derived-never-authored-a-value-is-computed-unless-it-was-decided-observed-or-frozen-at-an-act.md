@@ -66,11 +66,17 @@ that decision. The **Week Change**'s **Week Replan** is the app's: under the
 (ADR 0025, ADR 0100 §1–§2). What makes it a decision is not who made it but that
 it is made once, at a dated act, and never re-derived. A decision the app
 authors says what it did and can be undone (ADR 0100 §4–§5). This is the
-glossary's **authorship**, `system` or `athlete`.
+glossary's **authorship**, `system` or `athlete`. An **Assistant** is never "the
+app" here: the app's decisions are the rules' own (the **Proposal Author**
+`rules`), and an assistant's proposal applies only on the athlete's explicit yes
+(ADR 0093 §2–§3).
 
 Where the value is the athlete's own (§6), only the athlete's act makes it a
-decision, and an **Assistant** never supplies that act: its proposal applies
-only on the athlete's explicit yes (ADR 0093).
+decision. An Assistant may propose the value, but accepting it is the athlete's
+yes in trainm8, which an assistant never gives (ADR 0093 §1, §3). What an
+assistant writes on the athlete's say-so (a session, a _Gjort_, a set log) is
+the athlete's own act (ADR 0093 §5), so a load it logs is baked as the athlete's
+(§1.3).
 
 ### 3. Materialization is a clause of the principle, not an exception to it
 
@@ -133,7 +139,7 @@ from then on it is an authored decision, never re-read from its source. This is
 not the materialization of §3, which stores a derived value with no act and
 keeps it derived, nor the app's own decision of §2. The derivation is shown as a
 pre-fill; the athlete's act is what makes it theirs, and an **Assistant** never
-supplies that act (ADR 0093, §2).
+supplies that act (ADR 0093 §3; §2 above).
 
 - **Weekly Capacity** (ADR 0050 §2): proposed from recent weekly hours, and once
   authored "nothing re-reads history". History says what the athlete did; a
