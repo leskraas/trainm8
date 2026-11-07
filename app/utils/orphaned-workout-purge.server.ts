@@ -4,7 +4,7 @@ import {
 	eraseOrphanedWorkouts,
 } from './account-deletion.server.ts'
 import { prisma } from './db.server.ts'
-import { enqueueJob } from './jobs/queue.server.ts'
+import { enqueueJob, failStaleJobs } from './jobs/queue.server.ts'
 
 /**
  * One-time purge of the **Orphaned Workouts** every account deleted before #641
@@ -27,10 +27,26 @@ import { enqueueJob } from './jobs/queue.server.ts'
 export const ORPHANED_WORKOUT_PURGE_JOB_KIND = 'orphaned-workout-purge'
 
 /**
+ * How long a purge may say `running` before boot takes it for one whose machine
+ * stopped mid-run. The run is one transaction capped at
+ * `ERASURE_TRANSACTION_OPTIONS.timeout` (30 s) plus a log line, so ten minutes
+ * is far past any live run.
+ */
+const PURGE_STALE_AFTER_MS = 10 * 60 * 1000
+
+/**
  * Enqueue the one-time purge if it has never been enqueued. Any job of this
  * kind, in any state, means boot does not enqueue another.
+ *
+ * A purge left `running` by a machine that stopped mid-run (its transaction
+ * rolled back) is failed first, so the queue retries it: otherwise its row
+ * would block every later enqueue and the purge would never run.
  */
 export async function ensureOrphanedWorkoutPurgeEnqueued(): Promise<void> {
+	await failStaleJobs({
+		kind: ORPHANED_WORKOUT_PURGE_JOB_KIND,
+		staleAfterMs: PURGE_STALE_AFTER_MS,
+	})
 	const existing = await prisma.job.findFirst({
 		where: { kind: ORPHANED_WORKOUT_PURGE_JOB_KIND },
 		select: { id: true },

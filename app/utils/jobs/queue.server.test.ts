@@ -7,6 +7,7 @@ import {
 	DeferJob,
 	enqueueJob,
 	failJob,
+	failStaleJobs,
 	processNextJob,
 } from './queue.server.ts'
 
@@ -214,4 +215,30 @@ test('a job with no registered handler fails rather than spinning', async () => 
 	const row = await prisma.job.findUniqueOrThrow({ where: { id: enqueued.id } })
 	expect(row.status).toBe('failed')
 	expect(row.lastError).toMatch(/handler/i)
+})
+
+test('failStaleJobs fails only long-running jobs of its kind', async () => {
+	const longAgo = new Date(Date.now() - 60 * 60 * 1000)
+	const running = (kind: string, startedAt: Date, attempts = 1) =>
+		enqueueJob({ kind, maxAttempts: 2 }).then((job) =>
+			prisma.job.update({
+				where: { id: job.id },
+				data: { status: 'running', startedAt, attempts },
+			}),
+		)
+	const stranded = await running('one-shot', longAgo)
+	const spent = await running('one-shot', longAgo, 2)
+	const live = await running('one-shot', new Date())
+	const otherKind = await running('strava-backfill', longAgo)
+
+	expect(
+		await failStaleJobs({ kind: 'one-shot', staleAfterMs: 10 * 60 * 1000 }),
+	).toBe(2)
+
+	const status = async (id: string) =>
+		(await prisma.job.findUniqueOrThrow({ where: { id } })).status
+	expect(await status(stranded.id)).toBe('pending')
+	expect(await status(spent.id)).toBe('failed')
+	expect(await status(live.id)).toBe('running')
+	expect(await status(otherKind.id)).toBe('running')
 })

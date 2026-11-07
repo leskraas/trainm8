@@ -207,6 +207,38 @@ export async function failJob(id: string, error: unknown): Promise<void> {
 }
 
 /**
+ * Fail every job of `kind` that has said `running` for longer than
+ * `staleAfterMs`: its worker stopped mid-run (a deploy, a crash) and nothing
+ * else will ever move it on. Each goes through {@link failJob}, so it is retried
+ * with backoff, or ends `failed` once its attempts are spent. Only a kind whose
+ * run has a hard upper bound may use this, with `staleAfterMs` well past that
+ * bound, or a live run would be claimed twice. Returns how many it failed.
+ */
+export async function failStaleJobs({
+	kind,
+	staleAfterMs,
+}: {
+	kind: string
+	staleAfterMs: number
+}): Promise<number> {
+	const stale = await prisma.job.findMany({
+		where: {
+			kind,
+			status: 'running',
+			startedAt: { lt: new Date(Date.now() - staleAfterMs) },
+		},
+		select: { id: true },
+	})
+	for (const { id } of stale) {
+		await failJob(
+			id,
+			new Error('The worker stopped while this job was running'),
+		)
+	}
+	return stale.length
+}
+
+/**
  * How long a job may keep deferring before a deferral that made no progress
  * counts as an attempt.
  */

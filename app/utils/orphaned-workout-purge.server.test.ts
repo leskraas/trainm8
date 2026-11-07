@@ -199,3 +199,56 @@ test('a purge that fails partway erases nothing and is retried', async () => {
 	})
 	expect(row.payload).toEqual({})
 })
+
+test('a purge a crash stranded in running is retried by the next boot', async () => {
+	await prisma.job.deleteMany({})
+	const { erasable } = await createOrphans()
+	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
+	// The worker claimed it, then the machine stopped mid-purge (a deploy, a
+	// crash): the transaction rolled back, but the row still says `running`.
+	await prisma.job.update({
+		where: { id: job.id },
+		data: {
+			status: 'running',
+			attempts: 1,
+			startedAt: new Date(Date.now() - 60 * 60 * 1000),
+		},
+	})
+
+	await ensureOrphanedWorkoutPurgeEnqueued()
+	const requeued = await readJob(job.id)
+	expect(requeued).toMatchObject({ status: 'pending', attempts: 1 })
+	await prisma.job.update({
+		where: { id: job.id },
+		data: { runAt: new Date(0) },
+	})
+	const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+	expect(await processNextJob(jobHandlers)).toBe('processed')
+	info.mockRestore()
+
+	expect((await readJob(job.id)).status).toBe('completed')
+	expect(await prisma.workout.count({ where: { id: { in: erasable } } })).toBe(
+		0,
+	)
+	expect(
+		await prisma.job.count({
+			where: { kind: ORPHANED_WORKOUT_PURGE_JOB_KIND },
+		}),
+	).toBe(1)
+})
+
+test('boot leaves a purge that is running now alone', async () => {
+	await prisma.job.deleteMany({})
+	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
+	await prisma.job.update({
+		where: { id: job.id },
+		data: { status: 'running', attempts: 1, startedAt: new Date() },
+	})
+
+	await ensureOrphanedWorkoutPurgeEnqueued()
+
+	expect(await readJob(job.id)).toMatchObject({
+		status: 'running',
+		attempts: 1,
+	})
+})
