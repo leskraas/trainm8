@@ -183,7 +183,10 @@ export default function HomePlaceRoute({ loaderData }: Route.ComponentProps) {
 					</section>
 				) : null}
 
-				<p role="status" className="text-footnote empty:hidden">
+				{/* Live regions stay in the accessibility tree while empty (out of
+				    the layout, not hidden), so a screen reader announces them when
+				    they fill. */}
+				<p role="status" className="text-footnote empty:sr-only">
 					{written?.ok ? written.message : null}
 				</p>
 				{written && 'error' in written ? (
@@ -251,7 +254,7 @@ export default function HomePlaceRoute({ loaderData }: Route.ComponentProps) {
 					</CommandList>
 				</Command>
 
-				<div aria-live="polite" className="text-footnote empty:hidden">
+				<div aria-live="polite" className="text-footnote empty:sr-only">
 					{pending && search.state !== 'idle' ? (
 						<p className="text-muted-foreground">{L.searching}</p>
 					) : answer?.status === 'unavailable' ? (
@@ -266,7 +269,8 @@ export default function HomePlaceRoute({ loaderData }: Route.ComponentProps) {
 						href={L.creditHref}
 						target="_blank"
 						rel="noreferrer"
-						className="self-start underline-offset-4 hover:underline"
+						// A caption-high link: an invisible hit area brings it to 44px.
+						className="relative self-start underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-3.5 hover:underline"
 					>
 						{L.credit}
 					</a>
