@@ -1,0 +1,89 @@
+# Probe 1: Athlete Calendar caches its Intl.DateTimeFormat per timezone (throwaway patch, reverted)
+cseed1 hydrated 2424 long tasks [194, 144, 135, 120, 91, 77, 76, 74]
+cfix1 hydrated 3792 long tasks [401, 167, 157, 151, 145, 140, 137, 122]
+cseed2 hydrated 2677 long tasks [206, 142, 130, 127, 121, 118, 118, 110]
+cfix2 hydrated 4149 long tasks [663, 210, 186, 178, 172, 157, 139, 123]
+
+CPU samples in longest task: 404ms
+  self by file:
+       121ms  app/utils/session-profile.ts
+        68ms  presenter-CQ-VX3Sf.js
+        45ms  athlete-calendar-CZJ3g64C.js
+        31ms  nm/zod/v3/types.js
+        29ms  ((garbage collector))
+        23ms  app/utils/format.ts
+        22ms  app/utils/intensity-target.ts
+        22ms  app/utils/workout-reps.ts
+         8ms  nm/zod/v3/helpers/parseUtil.js
+         6ms  app/utils/zones/resolve.ts
+         5ms  season-DnqxfJH1.js
+         5ms  app/utils/dashboard.ts
+         4ms  source-attribution-NUy77Hog.js
+         3ms  ((program))
+         3ms  app/utils/zones/band-for-zone.ts
+         2ms  nm/tailwind-merge/dist/bundle-mjs.mjs
+         2ms  nm/react-dom/cjs/react-dom-client.production.js
+         2ms  app/utils/plan-outline/week-pattern.ts
+         1ms  nm/react/cjs/react.production.js
+         1ms  app/utils/planned-discipline.ts
+         1ms  app/utils/labels/vocabulary.ts
+         0ms  app/utils/plan-outline/derive.ts
+         0ms  nm/zod/v3/helpers/util.js
+         0ms  app/utils/workout-schema.ts
+         0ms  app/utils/zones/pace-unit.ts
+  self by function:
+
+## where main-thread time goes from navigation to hydrated (CPU samples)
+cseed1 nav→hydrated 2424 ms
+     1333 browser native (parse HTML, style, layout, paint)
+      386 react hydrate (react-dom itself)
+      165 inline scripts
+      123 react render: app components
+       72 other JS (module eval etc.)
+       66 idle
+       32 GC
+cfix1 nav→hydrated 3792 ms
+     2005 browser native (parse HTML, style, layout, paint)
+      600 react hydrate (react-dom itself)
+      297 react render: app components
+      264 inline scripts
+      176 other JS (module eval etc.)
+       79 idle
+       73 GC
+cseed2 nav→hydrated 2677 ms
+     1514 browser native (parse HTML, style, layout, paint)
+      430 react hydrate (react-dom itself)
+      216 inline scripts
+      135 react render: app components
+      118 other JS (module eval etc.)
+       56 idle
+       39 GC
+cfix2 nav→hydrated 4149 ms
+     2165 browser native (parse HTML, style, layout, paint)
+      709 react hydrate (react-dom itself)
+      382 react render: app components
+      266 inline scripts
+      185 other JS (module eval etc.)
+       89 GC
+       86 idle
+
+## style recalcs until hydrated
+cseed1 n 66 total ms 610 elements 12062 top: 67ms/886@812 64ms/1334@1426 63ms/1339@1297 61ms/1333@2528 59ms/1334@1596 53ms/1010@963
+cfix1 n 79 total ms 1013 elements 15610 top: 126ms/1676@2216 99ms/1193@1186 96ms/1675@4006 93ms/1219@1784 81ms/1189@1055 79ms/1203@1407
+cseed2 n 73 total ms 749 elements 11551 top: 106ms/1334@1422 103ms/1334@1709 68ms/1338@1275 64ms/1007@867 64ms/1021@1056 59ms/1013@973
+cfix2 n 77 total ms 1059 elements 15580 top: 141ms/1873@2027 118ms/1900@1790 117ms/1199@1264 106ms/1676@2436 90ms/1208@1514 87ms/1675@4305
+
+# Probe 2: probe 1 plus each WeekBlock in its own <Suspense> (selective hydration; throwaway, reverted)
+sseed1 hydrated 2589 long tasks [493, 326, 189, 159, 126, 102, 84, 80]
+sseed2 hydrated 2352 long tasks [399, 260, 154, 132, 116, 105, 98, 77]
+sfix1 hydrated 3367 long tasks [467, 378, 255, 163, 146, 130, 123, 116]
+sfix2 hydrated 2840 long tasks [465, 453, 204, 188, 182, 102, 95, 76]
+longest task after hydrated, seed:
+  self by function:
+        26ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+        24ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+        13ms  prepareToHydrateHostInstance nm/react-dom/cjs/react-dom-client.production.js:2748
+        12ms  (anon) presenter-CQ-VX3Sf.js:
+        12ms  matchMedia (matchMedia):
+        11ms  Nn presenter-CQ-VX3Sf.js:
+        10ms  completeWork nm/react-dom/cjs/react-dom-client.production.js:7955

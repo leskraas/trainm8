@@ -1,0 +1,241 @@
+# #503 in-app navigation I dag -> Se hele sesongen, main build, 4x CPU; longest task after the click
+
+## nfix1
+main 31525:31525 long tasks (>50ms):
+  @648ms dur 350ms {"EventDispatch":0,"CommitLoad":0} | EventDispatch ; EventDispatch ; EventDispatch
+  @1242ms dur 127ms {"ParseHTML":113,"EvaluateScript":44,"v8.compile":1,"v8.run":41,"v8.produceCache":0} | ParseHTML ; HTMLDocumentParser::DocumentElementAvailable ; v8.compileModule manifest-6e12f586.js
+  @1475ms dur 63ms {"FireAnimationFrame":1,"v8.callFunction":1,"FunctionCall":0,"UpdateLayoutTree":13,"Layout":23,"PrePaint":4,"Paint":12,"Layerize":1} | FireAnimationFrame ; v8.callFunction ; FunctionCall poll
+  @1559ms dur 124ms {"FireAnimationFrame":1,"v8.callFunction":1,"FunctionCall":1,"UpdateLayoutTree":40,"Layout":70,"PrePaint":2,"Paint":3,"Layerize":0} | FireAnimationFrame ; v8.callFunction ; FunctionCall poll
+  @1733ms dur 206ms {"MinorGC":17,"V8.GCScavenger":16,"V8.GC_SCAVENGER":15,"RunMicrotasks":0} | v8.evaluateModule ; V8.BytecodeBudgetInterruptWithStackCheck ; V8.BytecodeBudgetInterrupt
+  @2011ms dur 265ms {"v8.callFunction":265,"FunctionCall":7,"RunMicrotasks":258,"MinorGC":65,"V8.GCScavenger":59,"V8.GC_SCAVENGER":59} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; v8.newInstance
+  @2324ms dur 156ms {"v8.callFunction":157,"FunctionCall":155,"RunMicrotasks":1} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; V8.BytecodeBudgetInterrupt
+  @2591ms dur 1953ms {"v8.callFunction":1953,"FunctionCall":1952,"MinorGC":16,"V8.GCScavenger":16,"V8.GC_SCAVENGER":16,"RunMicrotasks":1} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; v8.newInstance
+  @4710ms dur 58ms {"v8.callFunction":58,"FunctionCall":58,"RunMicrotasks":0} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; V8.StackGuard
+  @4826ms dur 111ms {} | V8.GCPhantomHandleProcessingCallback ; V8.GC_HEAP_EXTERNAL_SECOND_PASS_CALLBACKS
+  @8099ms dur 67ms {"PrePaint":1,"HitTest":0,"EventDispatch":57,"v8.callFunction":57,"FunctionCall":50,"RunMicrotasks":6,"UpdateLayoutTree":6,"Layout":1} | PrePaint ; HitTest ; EventDispatch
+  @8416ms dur 90ms {"RunMicrotasks":90,"MinorGC":33,"V8.GCScavenger":32,"V8.GC_SCAVENGER":28,"v8.callFunction":1,"FunctionCall":1} | RunMicrotasks ; V8.BytecodeBudgetInterruptWithStackCheck ; V8.BytecodeBudgetInterruptWithStackCheck
+  @8567ms dur 1895ms {"v8.callFunction":1895,"FunctionCall":1895,"MinorGC":8,"V8.GCScavenger":8,"V8.GC_SCAVENGER":7,"RunMicrotasks":0} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; V8.BytecodeBudgetInterrupt
+  @11297ms dur 370ms {"v8.callFunction":375,"FunctionCall":370,"ParseHTML":0,"EventDispatch":0,"UpdateLayoutTree":63,"Layout":69,"RunMicrotasks":5} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; V8.BytecodeBudgetInterrupt
+  @11667ms dur 633ms {"UpdateLayoutTree":325,"Layout":108,"PrePaint":39,"HitTest":1,"EventDispatch":1,"v8.callFunction":14,"FunctionCall":13,"FireAnimationFrame":0,"RunMicrotasks":0,"IntersectionObserverController::computeIntersections":1,"Paint":120,"Layerize":31} | UpdateLayoutTree ; Layout ; PrePaint
+  @12520ms dur 107ms {"RunMicrotasks":0,"EventDispatch":31,"v8.callFunction":30,"FunctionCall":25,"UpdateLayoutTree":3,"Layout":5,"PrePaint":11,"IntersectionObserverController::computeIntersections":0,"Paint":61,"Layerize":9} | RunMicrotasks ; EventDispatch ; v8.callFunction
+  @12817ms dur 246ms {} | V8.GCPhantomHandleProcessingCallback ; V8.GC_HEAP_EXTERNAL_SECOND_PASS_CALLBACKS
+  @14677ms dur 60ms {"RunMicrotasks":7} | v8.newInstance ; v8.newInstance ; v8.newInstance
+
+CPU samples in longest task: 1900ms
+  self by file:
+      1263ms  app/utils/athlete-calendar.ts
+       251ms  app/utils/session-profile.ts
+        64ms  app/utils/intensity-target.ts
+        58ms  app/routes/_home/timeline/presenter.ts
+        49ms  nm/zod/v3/types.js
+        45ms  app/utils/format.ts
+        31ms  app/utils/plan-outline/week-volumes.ts
+        28ms  app/routes/_home/timeline/row-content.ts
+        23ms  app/utils/workout-reps.ts
+        12ms  ((garbage collector))
+        12ms  nm/zod/v3/helpers/parseUtil.js
+         9ms  app/utils/plan-outline/week-pattern.ts
+         8ms  nm/zod/v3/helpers/util.js
+         5ms  nm/react-dom/cjs/react-dom-client.production.js
+         4ms  app/utils/dashboard.ts
+         4ms  app/utils/zones/resolve.ts
+         4ms  app/utils/source-attribution.ts
+         4ms  app/utils/zones/band-for-zone.ts
+         4ms  app/routes/_home/timeline/import-link.ts
+         3ms  app/utils/source-terms.ts
+         3ms  app/utils/planned-discipline.ts
+         2ms  app/utils/plan-outline/week-keys.ts
+         2ms  (RegExp: ^z\\s*([1-7])$)
+         2ms  app/routes/_home/timeline/week-words.ts
+         1ms  app/utils/session-ledger-rows.ts
+  self by function:
+       653ms  tzOffsetMs app/utils/athlete-calendar.ts:31
+       559ms  localDate app/utils/athlete-calendar.ts:17
+       230ms  stepToZone app/utils/session-profile.ts:183
+        62ms  parseAuthoredIntensity app/utils/intensity-target.ts:475
+        34ms  nbParts app/utils/format.ts:290
+        27ms  addDays app/utils/athlete-calendar.ts:130
+        16ms  workoutReps app/utils/workout-reps.ts:115
+        14ms  buildWeek app/routes/_home/timeline/presenter.ts:846
+        14ms  get path nm/zod/v3/types.js:14
+        12ms  (garbage collector) ((garbage collector)):
+        11ms  row app/routes/_home/timeline/presenter.ts:1125
+        10ms  localWallClockUTC app/utils/athlete-calendar.ts:55
+         9ms  t app/utils/athlete-calendar.ts:42
+         9ms  buildDay app/routes/_home/timeline/presenter.ts:1083
+         9ms  trackWeek app/utils/plan-outline/week-volumes.ts:584
+         8ms  buildSession app/routes/_home/timeline/presenter.ts:1151
+         7ms  deriveSessionProfile app/utils/session-profile.ts:303
+         7ms  y nm/zod/v3/types.js:255
+         7ms  parseRecordingPhaseBars app/utils/session-profile.ts:41
+         6ms  _parse nm/zod/v3/types.js:1936
+         6ms  params nm/zod/v3/helpers/parseUtil.js:3
+         6ms  zoneLabelToZone app/utils/session-profile.ts:94
+         6ms  _parse nm/zod/v3/types.js:2270
+         6ms  fixedDayVolume app/utils/plan-outline/week-pattern.ts:485
+         6ms  buildWeekVolumes app/utils/plan-outline/week-volumes.ts:464
+         5ms  (anon) app/utils/plan-outline/week-volumes.ts:339
+         5ms  r.jsonStringifyReplacer nm/zod/v3/helpers/util.js:55
+         5ms  hrCeiling app/routes/_home/timeline/row-content.ts:602
+         5ms  paceWindow app/routes/_home/timeline/row-content.ts:533
+         4ms  buildRowContent app/routes/_home/timeline/row-content.ts:142
+  inclusive by app file:
+      1882ms  app/routes/_home/timeline/home-timeline.tsx
+      1881ms  app/routes/_home/timeline/presenter.ts
+      1263ms  app/utils/athlete-calendar.ts
+       349ms  app/utils/plan-outline/week-volumes.ts
+       346ms  app/utils/session-profile.ts
+       267ms  app/utils/workout-reps.ts
+       258ms  app/utils/planned-discipline.ts
+       143ms  app/routes/_home/timeline/strength-log.ts
+       103ms  app/routes/_home/timeline/row-content.ts
+        74ms  app/utils/intensity-target.ts
+        71ms  app/routes/_home/timeline/import-link.ts
+        48ms  app/utils/session-ledger-rows.ts
+        45ms  app/utils/format.ts
+        11ms  app/utils/plan-outline/week-pattern.ts
+        10ms  app/utils/zones/resolve.ts
+         9ms  app/routes/_home/timeline/week-words.ts
+         7ms  app/utils/source-attribution.ts
+         4ms  app/utils/dashboard.ts
+         4ms  app/utils/zones/band-for-zone.ts
+         3ms  app/utils/source-terms.ts
+         2ms  app/utils/plan-outline/week-keys.ts
+         1ms  app/utils/labels/sesong.ts
+         1ms  app/utils/plan-outline/derive.ts
+         1ms  app/utils/simple-activity.ts
+         1ms  app/utils/labels/i-dag.ts
+
+## nseed1
+main 30806:30806 long tasks (>50ms):
+  @336ms dur 321ms {"EventDispatch":0,"CommitLoad":1} | EventDispatch ; EventDispatch ; EventDispatch
+  @1158ms dur 60ms {"ParseHTML":0,"EventDispatch":0,"UpdateLayoutTree":18,"Layout":2,"PrePaint":1} | DocumentLoader::DocumentLoader ; DocumentLoader::CommitNavigation ; DocumentLoader::InitializeWindow
+  @1218ms dur 55ms {"FireAnimationFrame":1,"v8.callFunction":1,"FunctionCall":1,"UpdateLayoutTree":41,"Layout":6,"PrePaint":0,"Paint":1,"Layerize":0} | FireAnimationFrame ; v8.callFunction ; FunctionCall poll
+  @1312ms dur 190ms {"FireAnimationFrame":0,"v8.callFunction":0,"FunctionCall":0,"UpdateLayoutTree":114,"Layout":66,"PrePaint":3,"Paint":3,"Layerize":1} | FireAnimationFrame ; v8.callFunction ; FunctionCall poll
+  @1620ms dur 77ms {"MinorGC":9,"V8.GCScavenger":8,"V8.GC_SCAVENGER":8,"RunMicrotasks":0} | v8.evaluateModule ; V8.BytecodeBudgetInterruptWithStackCheck ; V8.BytecodeBudgetInterrupt
+  @1739ms dur 83ms {"v8.callFunction":82,"FunctionCall":9,"RunMicrotasks":73,"MinorGC":7,"V8.GCScavenger":7,"V8.GC_SCAVENGER":6} | v8.newInstance ; v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya
+  @2047ms dur 905ms {"v8.callFunction":905,"FunctionCall":904,"MinorGC":18,"V8.GCScavenger":17,"V8.GC_SCAVENGER":16,"RunMicrotasks":0} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; v8.newInstance
+  @7800ms dur 55ms {"EvaluateScript":52} | EvaluateScript ; v8.newInstance ; v8.newInstance
+  @7984ms dur 107ms {"PrePaint":2,"HitTest":0,"EventDispatch":93,"v8.callFunction":95,"FunctionCall":79,"RunMicrotasks":10,"UpdateLayoutTree":7,"Layout":1} | PrePaint ; HitTest ; EventDispatch
+  @8217ms dur 199ms {"v8.callFunction":218,"FunctionCall":195,"MinorGC":1,"V8.GCScavenger":1,"V8.GC_SCAVENGER":1,"ParseHTML":0,"RunMicrotasks":22,"EventDispatch":0} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; V8.BytecodeBudgetInterrupt
+  @8493ms dur 717ms {"v8.callFunction":716,"FunctionCall":716,"MinorGC":11,"V8.GCScavenger":9,"V8.GC_SCAVENGER":9,"RunMicrotasks":0} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; V8.StackGuard
+  @9842ms dur 600ms {"v8.callFunction":601,"FunctionCall":600,"ParseHTML":4,"EventDispatch":1,"UpdateLayoutTree":146,"Layout":132,"MajorGC":28,"V8.GCFinalizeMC":28,"RunMicrotasks":0} | v8.callFunction ; FunctionCall entry.client-V0gjbPzI.js Ya ; V8.BytecodeBudgetInterrupt
+  @10442ms dur 139ms {"UpdateLayoutTree":21,"Layout":21,"PrePaint":14,"HitTest":3,"EventDispatch":4,"v8.callFunction":10,"FunctionCall":8,"FireAnimationFrame":1,"RunMicrotasks":0,"IntersectionObserverController::computeIntersections":0,"Paint":59,"Layerize":6} | UpdateLayoutTree ; Layout ; PrePaint
+  @10583ms dur 161ms {} | V8.GCPhantomHandleProcessingCallback ; V8.GC_HEAP_EXTERNAL_SECOND_PASS_CALLBACKS
+  @10776ms dur 76ms {} | 
+  @10860ms dur 140ms {"RunMicrotasks":1,"EventDispatch":60,"v8.callFunction":57,"FunctionCall":31,"UpdateLayoutTree":4,"Layout":4,"PrePaint":14,"IntersectionObserverController::computeIntersections":0,"Paint":90,"Layerize":4} | RunMicrotasks ; EventDispatch ; v8.callFunction
+
+CPU samples in longest task: 559ms
+  self by file:
+       354ms  app/utils/athlete-calendar.ts
+        28ms  app/utils/format.ts
+        27ms  app/utils/session-profile.ts
+        27ms  app/routes/_home/timeline/presenter.ts
+        26ms  nm/zod/v3/helpers/parseUtil.js
+        19ms  app/utils/plan-outline/week-volumes.ts
+        14ms  nm/zod/v3/types.js
+        14ms  app/utils/intensity-target.ts
+         9ms  app/routes/_home/timeline/week-words.ts
+         6ms  ((garbage collector))
+         5ms  app/routes/_home/timeline/home-timeline.tsx
+         4ms  app/routes/_home/timeline/row-content.ts
+         4ms  app/utils/zones/resolve.ts
+         4ms  app/utils/dashboard.ts
+         3ms  nm/zod/v3/locales/en.js
+         2ms  nm/tailwind-merge/dist/bundle-mjs.mjs
+         2ms  app/utils/workout-reps.ts
+         2ms  app/utils/source-terms.ts
+         1ms  app/utils/plan-outline/week-pattern.ts
+         1ms  app/utils/labels/vocabulary.ts
+         1ms  ((program))
+         1ms  app/routes/_home/timeline/strip.ts
+         1ms  app/utils/source-attribution.ts
+         1ms  app/utils/training.ts
+         1ms  app/utils/plan-outline/week-keys.ts
+  self by function:
+       247ms  tzOffsetMs app/utils/athlete-calendar.ts:31
+        90ms  localDate app/utils/athlete-calendar.ts:17
+        23ms  params nm/zod/v3/helpers/parseUtil.js:3
+        20ms  nbParts app/utils/format.ts:290
+        17ms  stepToZone app/utils/session-profile.ts:183
+        12ms  buildWeekVolumes app/utils/plan-outline/week-volumes.ts:464
+        11ms  parseAuthoredIntensity app/utils/intensity-target.ts:475
+         8ms  buildWeek app/routes/_home/timeline/presenter.ts:846
+         6ms  (garbage collector) ((garbage collector)):
+         6ms  value app/routes/_home/timeline/week-words.ts:166
+         6ms  parseRecordingPhaseBars app/utils/session-profile.ts:41
+         6ms  addDays app/utils/athlete-calendar.ts:130
+         5ms  y nm/zod/v3/types.js:255
+         5ms  localWallClockUTC app/utils/athlete-calendar.ts:55
+         4ms  TimelineFrame app/routes/_home/timeline/home-timeline.tsx:164
+         3ms  key app/routes/_home/timeline/presenter.ts:914
+         3ms  row app/routes/_home/timeline/presenter.ts:1125
+         3ms  volumeSessionOf app/utils/plan-outline/week-volumes.ts:268
+         3ms  formatNbWeekdayShort app/utils/format.ts:312
+         3ms  mergeObjectSync nm/zod/v3/helpers/parseUtil.js:82
+         3ms  localTimeUTC app/utils/athlete-calendar.ts:87
+         3ms  buildSession app/routes/_home/timeline/presenter.ts:1151
+         3ms  ae nm/zod/v3/locales/en.js:3
+         3ms  resolveIntensity app/utils/zones/resolve.ts:214
+         2ms  zoneLabelToZone app/utils/session-profile.ts:94
+         2ms  _parseSync nm/zod/v3/types.js:99
+         2ms  middayOf app/routes/_home/timeline/presenter.ts:1147
+         2ms  resolveStepRange app/utils/intensity-target.ts:499
+         2ms  buildDay app/routes/_home/timeline/presenter.ts:1083
+         2ms  t app/utils/athlete-calendar.ts:42
+  inclusive by app file:
+       551ms  app/routes/_home/timeline/home-timeline.tsx
+       541ms  app/routes/_home/timeline/presenter.ts
+       354ms  app/utils/athlete-calendar.ts
+        94ms  app/utils/plan-outline/week-volumes.ts
+        70ms  app/utils/session-profile.ts
+        31ms  app/routes/_home/timeline/strength-log.ts
+        28ms  app/utils/format.ts
+        25ms  app/utils/planned-discipline.ts
+        24ms  app/routes/_home/timeline/row-content.ts
+        24ms  app/utils/workout-reps.ts
+        20ms  app/utils/intensity-target.ts
+        12ms  app/routes/_home/timeline/week-words.ts
+         8ms  app/routes/_home/presenter.ts
+         5ms  app/utils/zones/resolve.ts
+         4ms  app/utils/dashboard.ts
+         3ms  app/utils/source-attribution.ts
+         2ms  app/utils/plan-outline/week-pattern.ts
+         2ms  app/utils/timeline-window.ts
+         2ms  app/utils/misc.tsx
+         2ms  app/utils/source-terms.ts
+         1ms  app/utils/labels/vocabulary.ts
+         1ms  app/routes/_home/timeline/strip.ts
+         1ms  app/utils/relative-week.ts
+         1ms  app/utils/training.ts
+         1ms  app/routes/_home/timeline/season-pane.tsx
+
+## I dag (calm view) load before the click, fixture
+CPU samples in longest task: 1953ms
+  self by file:
+      1187ms  app/utils/athlete-calendar.ts
+       194ms  app/utils/session-profile.ts
+       126ms  app/routes/_home/timeline/presenter.ts
+        86ms  nm/zod/v3/types.js
+        50ms  app/utils/format.ts
+        46ms  app/utils/plan-outline/week-volumes.ts
+        43ms  app/utils/intensity-target.ts
+        37ms  app/routes/_home/timeline/row-content.ts
+        26ms  app/utils/workout-reps.ts
+        21ms  nm/zod/v3/helpers/parseUtil.js
+        18ms  app/routes/_home/timeline/import-link.ts
+        15ms  ((garbage collector))
+        13ms  app/utils/dashboard.ts
+        10ms  app/routes/_home/timeline/strength-log.ts
+         8ms  app/utils/zones/band-for-zone.ts
+         7ms  app/utils/zones/resolve.ts
+         6ms  app/utils/labels/i-dag.ts
+         5ms  nm/react-dom/cjs/react-dom-client.production.js
+         4ms  app/utils/planned-discipline.ts
+         4ms  app/routes/_home/timeline/week-words.ts
+         4ms  app/utils/training.ts
+         3ms  app/utils/plan-outline/week-pattern.ts
+         3ms  nm/zod/v3/locales/en.js
+         3ms  nm/zod/v3/helpers/util.js
+         3ms  app/utils/labels/vocabulary.ts
+  self by function:

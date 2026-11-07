@@ -1,0 +1,20 @@
+port 3000 run 1
+{"fcp":792,"hydrated":2101.8000000000466,"longTasks":10,"longTaskMs":1059,"blockingMs":559,"longestTask":374,"todayTop":122,"dayRows":196,"weeks":28,"nodes":3981,"streamHeight":13137,"backJumps":0,"frames":313,"median":16.599999999976717,"p90":20.5,"over32":4}
+port 3001 run 1
+{"fcp":1732,"hydrated":7334.599999999977,"longTasks":17,"longTaskMs":5448,"blockingMs":4598,"longestTask":3236,"todayTop":122,"dayRows":364,"weeks":52,"nodes":8939,"streamHeight":27059,"backJumps":0,"frames":661,"median":16.70000000006985,"p90":23.400000000023283,"over32":41}
+port 3000 run 2
+{"fcp":860,"hydrated":3756.6999999999534,"longTasks":16,"longTaskMs":2700,"blockingMs":1900,"longestTask":1107,"todayTop":122,"dayRows":196,"weeks":28,"nodes":3981,"streamHeight":13137,"backJumps":0,"frames":313,"median":16.599999999976717,"p90":20.29999999993015,"over32":4}
+port 3001 run 2
+{"fcp":1056,"hydrated":5306.599999999977,"longTasks":16,"longTaskMs":3754,"blockingMs":2954,"longestTask":1792,"todayTop":122,"dayRows":364,"weeks":52,"nodes":8939,"streamHeight":27059,"backJumps":0,"frames":661,"median":16.599999999976717,"p90":18.599999999976717,"over32":16}
+port 3000 run 3
+{"fcp":652,"hydrated":2207.399999999907,"longTasks":11,"longTaskMs":1181,"blockingMs":631,"longestTask":407,"todayTop":122,"dayRows":196,"weeks":28,"nodes":3981,"streamHeight":13137,"backJumps":0,"frames":313,"median":16.699999999953434,"p90":18.099999999976717,"over32":2}
+port 3001 run 3
+{"fcp":828,"hydrated":3525,"longTasks":14,"longTaskMs":2244,"blockingMs":1544,"longestTask":1050,"todayTop":122,"dayRows":364,"weeks":52,"nodes":8939,"streamHeight":27059,"backJumps":0,"frames":661,"median":16.599999999976717,"p90":21.599999999976717,"over32":44}
+port 3000 run 4
+{"fcp":544,"hydrated":2359.1999999999534,"longTasks":14,"longTaskMs":1467,"blockingMs":767,"longestTask":471,"todayTop":122,"dayRows":196,"weeks":28,"nodes":3981,"streamHeight":13137,"backJumps":0,"frames":313,"median":16.599999999976717,"p90":18.199999999953434,"over32":5}
+port 3001 run 4
+{"fcp":920,"hydrated":3732.399999999907,"longTasks":14,"longTaskMs":2228,"blockingMs":1528,"longestTask":1026,"todayTop":122,"dayRows":364,"weeks":52,"nodes":8939,"streamHeight":27059,"backJumps":0,"frames":661,"median":16.600000000093132,"p90":20.800000000046566,"over32":37}
+port 3000 run 5
+{"fcp":648,"hydrated":2336.6999999999534,"longTasks":12,"longTaskMs":1284,"blockingMs":684,"longestTask":427,"todayTop":122,"dayRows":196,"weeks":28,"nodes":3981,"streamHeight":13137,"backJumps":0,"frames":313,"median":16.599999999976717,"p90":18.5,"over32":12}
+port 3001 run 5
+{"fcp":768,"hydrated":3432.9000000000233,"longTasks":14,"longTaskMs":2107,"blockingMs":1407,"longestTask":980,"todayTop":122,"dayRows":364,"weeks":52,"nodes":8939,"streamHeight":27059,"backJumps":0,"frames":661,"median":16.600000000093132,"p90":19.800000000046566,"over32":34}
