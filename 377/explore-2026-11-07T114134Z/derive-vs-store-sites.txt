@@ -1,0 +1,66 @@
+# derive-vs-store sites at 0bb01ce
+
+## ADR and GLOSSARY lines
+docs/adr/0025-adaptive-week-replan.md:29:   first evaluation **wins**: late-arriving data for the closed week never
+docs/adr/0055-a-session-archetype-is-authored-and-a-reading-is-never-stored.md:1:# A session's Session Archetype is authored, and a reading of it is never stored
+docs/adr/0055-a-session-archetype-is-authored-and-a-reading-is-never-stored.md:52:ADR 0042 §5 says emphasis is **derived, never authored**. ADR 0051 §3 carved out
+docs/adr/0055-a-session-archetype-is-authored-and-a-reading-is-never-stored.md:99:### 3. A reading is never stored — which is where this deviates from the research
+docs/adr/0055-a-session-archetype-is-authored-and-a-reading-is-never-stored.md:110:for a reading to become a statement. That is derived-then-authored, the rule ADR
+docs/adr/0040-volume-continuity-and-authored-overload.md:40:1. **Per-week volume is derived, never stored.** A season carries one anchor and
+docs/adr/0040-volume-continuity-and-authored-overload.md:43:   principle the codebase already applies ad hoc — "derived, never authored"
+docs/adr/0048-a-season-shape-is-picked-before-a-plan-exists.md:65:unset: a convention is still never stored as though it had been authored (ADR
+docs/adr/0021-personal-records-derived-best-efforts.md:24:**Benchmark Kind** within a single **Discipline** — derived, never authored.
+docs/adr/0021-personal-records-derived-best-efforts.md:26:1. **Derived by a pure function, never authored.** A Personal Record is always
+docs/adr/0057-a-strength-anchor-is-per-exercise-and-a-rep-max-is-a-peer-of-a-1rm.md:195:A 1RM computed for a chart is a **display artefact** and may be recomputed
+docs/adr/0042-intensity-emphasis-is-scoped-by-track.md:163:### 5. The emphasis label is derived, never authored
+docs/adr/0043-volume-currency-belongs-to-the-training-track.md:485:[ADR 0050](./0050-training-availability-carries-a-derived-then-authored-weekly-capacity.md)
+docs/adr/0054-a-threshold-may-be-proposed-from-the-athletes-own-history.md:9:[ADR 0050](./0050-training-availability-carries-a-derived-then-authored-weekly-capacity.md)
+docs/adr/0054-a-threshold-may-be-proposed-from-the-athletes-own-history.md:10:(derived-then-authored), [ADR 0033](./0033-detection-confidence-honesty-bar.md)
+docs/adr/0054-a-threshold-may-be-proposed-from-the-athletes-own-history.md:70:all. ADR 0050's **derived-then-authored** rule applies unchanged: once accepted,
+docs/adr/0054-a-threshold-may-be-proposed-from-the-athletes-own-history.md:151:is the stated proxy. The internal 0–1 score is never stored and never displayed.
+docs/adr/0019-plan-adherence-planned-tss.md:32:2. **Materialized, never per-render.** Store `plannedTssValue` +
+docs/adr/0047-strength-progresses-by-anchor-and-ramp.md:449:Derived and never stored: the weekly sets target (ADR 0040 §3's formula, with
+docs/adr/0102-the-first-run-shows-up-to-three-start-options-as-real-weeks-and-stor-base-starts-all-easy.md:35:the stamp (ADR 0091 §1). It is a reading, never stored. The UI calls the set
+docs/adr/0056-a-strength-actual-is-logged-in-app-and-a-kilo-is-not-a-kilo.md:162:beside it so the number can be audited and re-derived. The same resolve-and-bake
+docs/adr/0045-mix-aware-conversion-decomposes-volume-into-intensity-buckets.md:535:never stored. `GLOSSARY.md` says so explicitly so the two do not merge on first
+docs/adr/0092-every-athlete-operation-is-one-typed-action-and-the-routes-the-mcp-server-and-an-agent-are-its-readers.md:146:Annotations are derived, never written by hand:
+docs/adr/0091-the-stamp-lays-the-quality-session-mix-and-the-first-run-starts-at-what-you-train-now.md:16:[ADR 0050](./0050-training-availability-carries-a-derived-then-authored-weekly-capacity.md)
+docs/adr/0006-zone-system-in-code.md:119:never stored (ADR 0045 §9).
+GLOSSARY.md:280:athlete's thresholds, every time it is needed, and it is never stored. Every
+GLOSSARY.md:476:it, on ADR 0050's derived-then-authored rule. Not a number but a
+GLOSSARY.md:762:them down is impossible if the split was never stored. It carries the **Load
+GLOSSARY.md:1435:guidelines, and never stored (ADR 0045 §9). It never reads a **Week Pattern**
+GLOSSARY.md:1533:and promoted Activity Imports by a pure detection function, never authored.
+GLOSSARY.md:1785:day (ADR 0102) — a **reading, never stored**. Up to three are shown (_Polarisert
+GLOSSARY.md:2207:raise the ceiling. The internal 0–1 score is never stored — only the grade or
+GLOSSARY.md:2243:— display-derived (a pure function of the two stored structures, never stored),
+GLOSSARY.md:2677:intensity distribution ADR 0040 refused — distribution stays derived, never
+GLOSSARY.md:2698:The `%1RM` band and rep range are **derived** from it and never authored beside
+GLOSSARY.md:2786:Wednesday the fixed session, Saturday 16.8 km". A **reading, never stored**, and
+GLOSSARY.md:3017:  **Workout Session** containing the same **Exercise**; it is never stored.
+GLOSSARY.md:3141:  **TSS** totals; they are never authored.
+GLOSSARY.md:3188:  **derived** from the **Quality Session Mix** and never stored, so no segment
+GLOSSARY.md:3205:- A **Training Week**'s endurance volume target is **derived, never stored**: it
+GLOSSARY.md:3252:- A **Personal Record** is derived, never authored: it is always the output of
+
+## schema
+918:  /// same resolve-and-bake as a Step's resolved intensity ranges.
+981:  /// same resolve-and-bake `effectiveKg` gets, and for the same reason: the key a
+1028:  plannedTssValue      Float? // null = unavailable (no step resolved)
+1599:model WeekVolumeOverride {
+1903:model LoadSnapshot {
+1935:model LoadRecomputeNotice {
+1962:model WeekReplan {
+2019:model WeekReplanProposal {
+
+## no PersonalRecord model
+0
+
+## week target derivation
+471:export function weekTarget(
+503:export function derivedWeekTarget(
+558:export function weekTargets(
+577:export function derivedWeekTargets(
+
+## ADRs mentioning Unavailable Metric
+40
