@@ -26,6 +26,9 @@ check: pnpm check
 regenerate: pnpm db:generate
 deploy-check: pnpm test:image
 schedule: hourly
+models: qa=sonnet, update-branch=sonnet, design-scan=sonnet, *=opus
+effort: update-branch=low, qa=medium, implement=medium, review-fix=medium, *=high
+session-model: claude-sonnet-5-5
 ```
 ````
 
@@ -51,6 +54,9 @@ schedule: hourly
 | `regenerate` | command | – | Regenerates numbered files (migrations) after `update-branch` merges the default branch. |
 | `deploy-check` | command | – | Proves the change runs as deployed: build the image, run the migrations against data shaped like production. QA runs it when the PR touches what it covers. |
 | `schedule` | `hourly`, `none` | `none` | Whether a scheduled task runs `/factory-dispatch` every hour; always `none` with `tracker: local`. Every [handoff](handoff.md) says from this whether the next task runs on its own or waits for someone to type `/factory`. |
+| `models` | `task=model` pairs, `*` for the rest; models `haiku`, `sonnet`, `opus`, `fable` | – (the session's) | The model each task's subagent runs on, passed to the Agent tool. Review's parts can be set apart as `review-read` and `review-fix`. Name `*` whenever you name any, or the tasks you leave out inherit the session's model, which may be the cheap one. Put the cheaper model where the work is mechanical: `update-branch`, `qa`, `design-scan`. Keep the strongest where a mistake costs the most: `spec`, `design`, `architecture`, `implement`, `review`. |
+| `effort` | `task=effort` pairs, `*` for the rest; `low`, `medium`, `high`, `xhigh`, `max` | – (the session's) | The reasoning effort of each task's subagent. Lower it where the task follows a recipe (`update-branch`, the review's fix), keep it high where it judges. |
+| `session-model` | a model ID | – (the dispatcher's) | The model of each session `/factory-dispatch` starts: the orchestrator, which only runs `conductor.py` and writes briefs. Its subagents take `models`. |
 
 How QA starts and drives the app lives next to this file, in
 `docs/agents/verify/` (`factory-setup`'s `references/verify.md`).
