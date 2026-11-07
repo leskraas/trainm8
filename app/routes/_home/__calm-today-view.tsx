@@ -755,8 +755,8 @@ function WeekList({
  * days alike, and it stacks below 20rem instead: the column goes and the
  * weather joins the stacked day line, so no title breaks inside a word on a
  * 320–352px phone. A row with no weather gives the empty column to its title.
- * The last column is at least 2rem: wider only for a missed day's text mark,
- * and a missed day is past, so it never carries weather.
+ * The last column is at least 2rem: wider only for a missed session's text
+ * mark, which is only ever today's or a past day's, rows with no weather.
  *
  * Every class that differs between the two layouts lives in one entry here,
  * so a row picks its layout once and never switches class by class. Written
