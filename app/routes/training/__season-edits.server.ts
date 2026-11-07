@@ -8,7 +8,12 @@
  */
 import { parseWithZod } from '@conform-to/zod/v3'
 import { data } from 'react-router'
+import { formatNbVolumeFigure } from '#app/utils/format.ts'
 import {
+	NB_VOLUME_UNITS,
+	NB_WEEK_ROLE_LABELS,
+	nbPhaseName,
+	SEASON_ANCHOR_EDIT_LABELS,
 	SEASON_EDIT_LABELS,
 	SEASON_EDIT_REFUSAL_LABELS,
 } from '#app/utils/labels.ts'
@@ -17,6 +22,7 @@ import {
 	seasonEditOf,
 } from '#app/utils/plan-outline/season-edit-schema.ts'
 import {
+	seasonEditDerivationMessage,
 	seasonEditMessage,
 	seasonEditWarningMessage,
 } from '#app/utils/plan-outline/season-edit-words.ts'
@@ -32,6 +38,7 @@ import {
 } from '#app/utils/plan-outline/season-edit.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
+	type SeasonAnchorPreviewView,
 	type SeasonEditPreviewView,
 	type SeasonEditReply,
 } from './__season-edits.tsx'
@@ -51,6 +58,56 @@ function previewView(
 		message: seasonEditMessage(preview),
 		warnings: preview.warnings.map(seasonEditWarningMessage),
 		edit,
+		anchor: anchorView(preview),
+	}
+}
+
+/**
+ * A Season Anchor preview's rows, worded (ADR 0112 §1): each changed week of
+ * the edited track, before → after, with its `authored | derived` marker and
+ * how a derived after-value was worked out; then the hand-set weeks held.
+ */
+function anchorView(
+	preview: SeasonEditPreview,
+): SeasonAnchorPreviewView | undefined {
+	const { summary } = preview
+	if (summary.kind !== 'season-anchor') return undefined
+	const { currency } = summary
+	const unit = NB_VOLUME_UNITS[currency]
+	const figure = (value: number | null | undefined) =>
+		value == null ? '–' : formatNbVolumeFigure(value, currency)
+	return {
+		unit,
+		changedWeeks: SEASON_ANCHOR_EDIT_LABELS.changedWeeks(summary.changedWeeks),
+		rows: preview.weeks.flatMap((week) => {
+			const index = week.after?.targets.findIndex(
+				(target) => target.trackId === summary.trackId,
+			)
+			if (index == null || index < 0) return []
+			const before = week.before?.targets[index]
+			const after = week.after!.targets[index]!
+			if (before?.value === after.value) return []
+			const derivation = week.derivations[index] ?? null
+			const phaseName = week.after!.phaseName
+			return [
+				{
+					weekKey: week.weekKey,
+					weekNumber: week.weekNumber,
+					where: `${NB_WEEK_ROLE_LABELS[week.after!.role]} · ${nbPhaseName(phaseName)}`,
+					before: figure(before?.value),
+					after: figure(after.value),
+					authored: after.overridden,
+					how: derivation
+						? seasonEditDerivationMessage(derivation, currency, phaseName)
+						: null,
+				},
+			]
+		}),
+		held: preview.heldWeeks.map((week) => ({
+			weekKey: week.weekKey,
+			weekNumber: week.weekNumber,
+			figure: `${formatNbVolumeFigure(week.value, week.currency)} ${unit}`,
+		})),
 	}
 }
 
@@ -88,6 +145,12 @@ export async function seasonEditAction(
 					result: submission.reply({
 						formErrors: [SEASON_EDIT_REFUSAL_LABELS[preview.reason]],
 					}),
+					refusal: preview.reason,
+					// The edit the domain offers instead (`segment-lived`), for the
+					// page to render as one button.
+					...('offer' in preview && preview.offer
+						? { offer: preview.offer }
+						: {}),
 				},
 				400,
 			)
@@ -97,6 +160,8 @@ export async function seasonEditAction(
 			edit: kind,
 			result: submission.reply(),
 			preview: previewView(preview, edit),
+			// Asked for from a refusal's offer, so the form is re-filled with it.
+			...(formData.get('fromOffer') === 'on' ? { fromOffer: true } : {}),
 		})
 	}
 
@@ -108,6 +173,22 @@ export async function seasonEditAction(
 		// Said under the preview as it stands now when there is one, so the
 		// athlete reads what would land and confirms that instead.
 		const message = SEASON_EDIT_REFUSAL_LABELS[applied.reason]
+		// A Season Anchor's stale confirm says nothing was saved and offers a
+		// fresh preview, rather than showing one at once: its preview can be the
+		// rest of the season, and numbers that are no longer true must not read
+		// as the ones about to land (#673's design).
+		if (edit.kind === 'season-anchor' && applied.reason === 'preview-stale') {
+			return reply(
+				{
+					edit: kind,
+					confirmResult: submission.reply({
+						formErrors: [SEASON_ANCHOR_EDIT_LABELS.stale],
+					}),
+					stale: true,
+				},
+				400,
+			)
+		}
 		const fresh = await readSeasonEdit(userId, outlineId, edit)
 		return reply(
 			fresh.ok
@@ -131,7 +212,10 @@ export async function seasonEditAction(
 	}
 	return redirectWithToast(`${url.pathname}${url.search}`, {
 		type: 'success',
-		title: SEASON_EDIT_LABELS.done,
+		title:
+			edit.kind === 'season-anchor'
+				? SEASON_ANCHOR_EDIT_LABELS.done
+				: SEASON_EDIT_LABELS.done,
 		description: seasonEditMessage(applied),
 	})
 }

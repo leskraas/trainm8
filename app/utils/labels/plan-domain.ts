@@ -428,10 +428,131 @@ export const SEASON_EDIT_LABELS = {
 } as const
 
 /**
+ * _Endre startnivået_ in _Endre sesongen_ (#673, ADR 0112): a track's **Season
+ * Anchor** — the number every week is worked out from — changed behind the
+ * same preview as the other Sesong edits.
+ */
+export const SEASON_ANCHOR_EDIT_LABELS = {
+	open: 'Endre startnivået',
+	openDetail: 'Tallet hver uke regnes fra',
+	track: 'Spor',
+	actLegend: 'Hva vil du gjøre?',
+	add: 'Start på nytt fra en uke',
+	addDetail: 'Ukene fra den uka regnes fra et nytt tall. Ukene før står.',
+	set: 'Endre tallet i et startnivå',
+	setDetail: 'Hver uke det gjelder for, får nytt mål.',
+	remove: 'Fjern et nytt startnivå',
+	removeDetail: 'Ukene regnes fra startnivået før igjen.',
+	fromWeek: 'Fra uke',
+	segment: 'Startnivå',
+	/** `Starter på (km)` */
+	startsAt: (unit: string) => `Starter på (${unit})`,
+	/** `Nytt tall (km)` */
+	newValue: (unit: string) => `Nytt tall (${unit})`,
+	addHint:
+		'Stigningen starter på nytt her: uka du velger er dette tallet, og de harde ukene etter stiger fra det.',
+	setHint: 'Endrer hver uke startnivået gjelder for, fram til neste startnivå.',
+	/** `Sesongstarten (Fra uke 41 · 5. okt · 40 km) kan endres, men ikke fjernes, så den står ikke her.` */
+	removeHint: (earliest: string) =>
+		`Sesongstarten (${earliest}) kan endres, men ikke fjernes, så den står ikke her.`,
+	/** The earliest segment, in the set picker. */
+	seasonStart: 'sesongstart',
+	/** A week in the fresh-start picker that already has a segment. */
+	hasSegment: 'har startnivå',
+	/** `Uka har allerede et startnivå (45 km). Det endres, det kommer ikke et til.` */
+	mergesInto: (figure: string) =>
+		`Uka har allerede et startnivå (${figure}). Det endres, det kommer ikke et til.`,
+	/** `Nå: 25 km, lett uke.` */
+	nowAt: (figure: string, role: string) => `Nå: ${figure}, ${role}.`,
+	valueRequired: 'Skriv et tall å starte fra.',
+	valuePositive: 'Et startnivå er et tall over 0.',
+	pickSegment: 'Velg et startnivå.',
+	/** The refusal of a value change on a segment that covers lived weeks. */
+	livedTitle: 'Kan ikke endre tallet her',
+	/** `Startnivået fra uke 41 gjelder også uke 41–46, som du har trent. …` */
+	lived: (from: number, to: number) =>
+		`Startnivået fra uke ${from} gjelder også ${from === to ? `uke ${from}` : `uke ${from}–${to}`}, som du har trent. De står som de ble, så tallet kan ikke endres der.`,
+	/** `Start på nytt fra uke 47 med 45 km` */
+	offer: (week: number, figure: string) =>
+		`Start på nytt fra uke ${week} med ${figure}`,
+	weeks: 'Ukene som endres',
+	weeksHint: 'Trykk på en uke for å se hvordan tallet er regnet ut.',
+	derived: 'regnet ut',
+	/** Read for the arrow between before and after. */
+	becomes: 'blir',
+	held: 'Står som før',
+	handSet: 'Satt selv',
+	handSetDetail:
+		'Du satte uka selv. Den står, og kan fortsatt settes tilbake i Endre ukemålet.',
+	stale:
+		'Planen har endret seg siden forhåndsvisningen, eller en uke har begynt. Ingenting er lagret.',
+	refresh: 'Vis ny forhåndsvisning',
+	done: 'Startnivået er endret',
+	/** `29 uker får nytt mål` — on the sticky confirm, and in the headline. */
+	changedWeeks: (count: number) =>
+		count === 0
+			? 'Ingen uker får nytt mål'
+			: count === 1
+				? '1 uke får nytt mål'
+				: `${count} uker får nytt mål`,
+} as const
+
+/** How a changed week's target was worked out (ADR 0112 §1), worded. */
+export type SeasonAnchorDerivationWords = {
+	anchor: { figure: string; weekNumber: number }
+	ramps: Array<{ percent: string; loadingWeeks: number; phaseName: string }>
+	boundarySteps: Array<{ percent: string; phaseName: string }>
+	role: WeekRole
+	/** The role's factor as a percent, `70`. */
+	factorPercent: number
+	referenceWeekNumber: number
+	referenceIsAnchor: boolean
+	phaseName: string
+}
+
+/**
+ * `Startnivå 40 km fra uke 41, så +5 % for hver av de 3 harde ukene i Base.
+ * Lett uke i Base: 70 % av uke 43.`
+ */
+export function seasonAnchorDerivationSentence(
+	words: SeasonAnchorDerivationWords,
+): string {
+	const steps = [
+		...words.ramps.map(
+			(ramp) =>
+				`+${ramp.percent} % for ${ramp.loadingWeeks === 1 ? 'den harde uka' : `hver av de ${ramp.loadingWeeks} harde ukene`} i ${nbPhaseName(ramp.phaseName)}`,
+		),
+		...words.boundarySteps.map(
+			(step) =>
+				`${step.percent.startsWith('-') ? step.percent.replace('-', '−') : `+${step.percent}`} % inn i ${nbPhaseName(step.phaseName)}`,
+		),
+	]
+	const start = `Startnivå ${words.anchor.figure} fra uke ${words.anchor.weekNumber}`
+	const climb =
+		steps.length === 0
+			? `${start}: uka starter der.`
+			: `${start}, så ${steps.length === 1 ? steps[0] : `${steps.slice(0, -1).join(', ')} og ${steps.at(-1)}`}.`
+	const from = words.referenceIsAnchor
+		? 'startnivået'
+		: `uke ${words.referenceWeekNumber}`
+	const role = NB_WEEK_ROLE_LABELS[words.role]
+	const phase = nbPhaseName(words.phaseName)
+	// `Nedtrapping i Nedtrapping` says nothing twice: the phase is named only
+	// where it is not the role's own word.
+	const where = `${role.charAt(0).toUpperCase()}${role.slice(1)}${
+		phase.toLowerCase() === role.toLowerCase() ? '' : ` i ${phase}`
+	}`
+	return words.role === 'loading'
+		? `${climb} ${where}.`
+		: `${climb} ${where}: ${words.factorPercent} % av ${from}.`
+}
+
+/**
  * _Avansert_ on Sesong (#505 story 75, ADR 0084 §1): the plan's rules that are
- * outside the four Sesong edits of v1 — a segment's climb and quality mix, a
- * phase's place, a Season Anchor, a lifting block, a shape, the Event fit.
- * They apply directly, and the disclosure says so before it opens.
+ * outside the Sesong edits — a segment's climb and quality mix, a phase's
+ * place, a lifting block, a shape, the Event fit, and the direct Season Anchor
+ * editor kept beside _Endre startnivået_ (ADR 0112 §3). They apply directly,
+ * and the disclosure says so before it opens.
  */
 export const SEASON_ADVANCED_LABELS = {
 	title: 'Avansert',
@@ -486,13 +607,24 @@ export const SEASON_EDIT_REFUSAL_LABELS: Record<
 	'outline-not-found': 'Fant ikke planen.',
 	'preview-stale':
 		'Planen har endret seg siden forhåndsvisningen. Se over den nye forhåndsvisningen før du godkjenner.',
+	'segment-lived':
+		'Det startnivået gjelder også uker du har trent. De står som de ble, så tallet kan ikke endres der.',
+	'earliest-anchor': 'Sesongstarten kan endres, men ikke fjernes.',
+	'anchor-not-found': 'Det startnivået er ikke lenger en del av planen.',
+	'no-season-anchor':
+		'Sporet har ikke noe startnivå ennå. Det første legger du til under Startnivå i Avansert.',
+	'not-endurance-track':
+		'Startnivået endres her for løping, sykling og svømming. Styrke planlegges i blokker under Avansert.',
 }
 
 /**
  * The numbers an edit left where they were, as the message names them
  * (#505 story 77): `Fasen og de andre ukene står som før.`
  */
-export const HELD_NUMBER_LABELS: Record<HeldNumber, string> = {
+export const HELD_NUMBER_LABELS: Record<
+	HeldNumber,
+	string | ((weekNumber: number) => string)
+> = {
 	phase: 'fasen',
 	'phase-name': 'navnet',
 	'phase-length': 'lengden på fasen',
@@ -500,11 +632,25 @@ export const HELD_NUMBER_LABELS: Record<HeldNumber, string> = {
 	'week-targets': 'ukemålene',
 	'plan-start': 'starten på planen',
 	'other-phases': 'de andre fasene',
+	phases: 'fasene',
+	/** The edit's own week (ADR 0112 §4): `ukene før uke 47`. */
+	'weeks-before': (weekNumber) => `ukene før uke ${weekNumber}`,
+	'other-tracks': 'de andre sporene',
+	'hand-set-weeks': 'ukene du har satt selv',
 }
 
-/** `Fasen og de andre ukene står som før.` — empty when nothing is named. */
-export function heldSentence(held: readonly HeldNumber[]): string {
-	const words = held.map((number) => HELD_NUMBER_LABELS[number])
+/**
+ * `Fasen og de andre ukene står som før.` — empty when nothing is named.
+ * `weekNumber` is the edit's own week, which `weeks-before` names.
+ */
+export function heldSentence(
+	held: readonly HeldNumber[],
+	weekNumber = 0,
+): string {
+	const words = held.map((number) => {
+		const label = HELD_NUMBER_LABELS[number]
+		return typeof label === 'function' ? label(weekNumber) : label
+	})
 	if (words.length === 0) return ''
 	const list =
 		words.length === 1
@@ -536,6 +682,18 @@ export type SeasonEditWords =
 			weekNumber: number
 			previousWeekNumber: number | null
 	  }
+	| {
+			kind: 'season-anchor'
+			/** The track's name: `Løping`. */
+			track: string
+			act: 'add' | 'set' | 'remove'
+			merged: boolean
+			weekNumber: number
+			before: string | null
+			after: string | null
+			unit: string
+			changedWeeks: number
+	  }
 
 /**
  * What an edit does, then what it left alone (#505 story 77):
@@ -545,7 +703,10 @@ export function seasonEditSentence(
 	words: SeasonEditWords,
 	held: readonly HeldNumber[],
 ): string {
-	return [seasonEditHeadline(words), heldSentence(held)]
+	return [
+		seasonEditHeadline(words),
+		heldSentence(held, 'weekNumber' in words ? words.weekNumber : 0),
+	]
 		.filter(Boolean)
 		.join(' ')
 }
@@ -593,6 +754,17 @@ function seasonEditHeadline(words: SeasonEditWords): string {
 			return words.previousWeekNumber == null
 				? `${words.phaseName}: uke ${words.weekNumber} blir den lette uka.`
 				: `${words.phaseName}: den lette uka flyttes fra uke ${words.previousWeekNumber} til uke ${words.weekNumber}.`
+		case 'season-anchor': {
+			const { track, weekNumber: week, before, after, unit } = words
+			const count = `${SEASON_ANCHOR_EDIT_LABELS.changedWeeks(words.changedWeeks)}.`
+			const what =
+				words.act === 'remove'
+					? `${track}: startnivået fra uke ${week} (${before} ${unit}) fjernes, og ukene regnes fra startnivået før.`
+					: words.act === 'add'
+						? `${track} fra uke ${week}: nytt startnivå ${after} ${unit}, og stigningen starter på nytt der.`
+						: `${track}: startnivået fra uke ${week} endres fra ${before} til ${after} ${unit}.${words.merged ? ' Uka hadde allerede et startnivå, så det endres i stedet for å legge til et nytt.' : ''}`
+			return `${what} ${count}`
+		}
 	}
 }
 

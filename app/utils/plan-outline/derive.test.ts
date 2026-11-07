@@ -7,6 +7,7 @@ import {
 	derivedWeekTarget,
 	phaseIndexForWeek,
 	phaseWeekRoles,
+	rampLevelAt,
 	strengthBoundaryStepInForce,
 	strengthWeekRole,
 	strengthWeekTarget,
@@ -14,6 +15,7 @@ import {
 	totalWeeks,
 	weekRole,
 	weekTarget,
+	weekTargetDerivation,
 	weekTargets,
 	type AnchorPlacement,
 	type PhaseSpec,
@@ -1179,5 +1181,95 @@ describe('strengthBoundaryStepInForce', () => {
 				)
 			}
 		}
+	})
+})
+
+describe('the derivation behind a week target (ADR 0112 §1)', () => {
+	const stepped = track({
+		segments: phases.map((_, phaseIndex) => ({
+			kind: 'endurance' as const,
+			phaseIndex,
+			ramp: 0.05,
+			boundaryStep: phaseIndex === 1 ? 0.1 : null,
+			recoveryCut: null,
+			taperCut: null,
+		})),
+	})
+
+	test('its value is the derived target, on every week of the season', () => {
+		for (let week = 0; week < totalWeeks(phases); week++) {
+			expect(weekTargetDerivation(phases, stepped, week)?.value).toBe(
+				derivedWeekTarget(phases, stepped, week),
+			)
+		}
+	})
+
+	test('names the anchor, the ramps stepped, the boundary crossed and the role', () => {
+		// Week 7 is Build's easy week: cut off week 6, the last loading week.
+		expect(weekTargetDerivation(phases, stepped, 7)).toEqual({
+			value: expect.closeTo(50 * 1.05 ** 3 * 1.1 * 1.05 ** 2 * 0.7, 6),
+			anchor: { fromWeekIndex: 0, value: 50 },
+			ramps: [
+				{ phaseIndex: 0, loadingWeeks: 3, ramp: 0.05 },
+				{ phaseIndex: 1, loadingWeeks: 2, ramp: 0.05 },
+			],
+			boundarySteps: [{ phaseIndex: 1, step: 0.1 }],
+			role: 'recovery',
+			factor: 1 - DEFAULT_RECOVERY_CUT,
+			referenceWeekIndex: 6,
+		})
+	})
+
+	test('is null wherever the target is', () => {
+		expect(weekTargetDerivation(phases, track({ anchors: [] }), 2)).toBeNull()
+		expect(weekTargetDerivation(phases, stepped, 99)).toBeNull()
+	})
+})
+
+describe('the Volume Ramp’s level at a week (ADR 0112 §2)', () => {
+	test('is the target on a loading week', () => {
+		expect(rampLevelAt(phases, track(), 2)).toBe(
+			derivedWeekTarget(phases, track(), 2),
+		)
+	})
+
+	test('is one ramp step above target ÷ role factor on an easy week', () => {
+		const target = derivedWeekTarget(phases, track(), 3)!
+		expect(rampLevelAt(phases, track(), 3)).toBeCloseTo(
+			(target / (1 - DEFAULT_RECOVERY_CUT)) * 1.05,
+			9,
+		)
+	})
+
+	test('a re-anchor on an easy week at its level keeps every week after it', () => {
+		const level = rampLevelAt(phases, track(), 3)!
+		const reAnchored = track({
+			anchors: [
+				{ fromWeekIndex: 0, value: 50 },
+				{ fromWeekIndex: 3, value: level },
+			],
+		})
+		const before = weekTargets(phases, track()).map(round)
+		const after = weekTargets(phases, reAnchored).map(round)
+		// Only the picked easy week moves, and by one ramp step.
+		expect(after.slice(4)).toEqual(before.slice(4))
+		expect(after.slice(0, 3)).toEqual(before.slice(0, 3))
+		expect(after[3]).toBe(round(before[3]! * 1.05))
+	})
+
+	test('on a taper week, ignores the taper cut', () => {
+		// Week 10 opens the taper: the level is where the ramp stopped.
+		const loadingBefore = derivedWeekTarget(phases, track(), 9)!
+		expect(rampLevelAt(phases, track(), 10)).toBeCloseTo(
+			loadingBefore * 1.05,
+			9,
+		)
+	})
+
+	test('ignores an override on the week', () => {
+		const handSet = track({ overrides: [{ weekIndex: 2, value: 1 }] })
+		expect(rampLevelAt(phases, handSet, 2)).toBe(
+			derivedWeekTarget(phases, track(), 2),
+		)
 	})
 })

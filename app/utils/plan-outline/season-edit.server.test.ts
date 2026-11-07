@@ -380,3 +380,101 @@ test('a new rhythm lands behind its preview and clears the easy week chosen unde
 		}),
 	).toEqual({ rhythm: '2:1', recoveryWeekIndex: null })
 })
+
+test('a Season Anchor fresh start lays only the changed weeks again: the machine’s untrained sessions, never the athlete’s, and the other weeks byte-equal', async () => {
+	const { userId, outlineId, trackId } = await plan()
+	const all = () =>
+		prisma.workoutSession.findMany({
+			where: { userId },
+			orderBy: { id: 'asc' },
+		})
+	// The athlete wrote a session of their own into the week of 21 Jan.
+	const own = await prisma.workoutSession.create({
+		data: {
+			userId,
+			scheduledAt: new Date('2030-01-22T16:00:00Z'),
+			status: 'scheduled',
+			source: 'authored',
+		},
+	})
+	const before = await all()
+	const [machine] = await sessionsOn(userId, '2030-01-21')
+
+	const edit = {
+		kind: 'season-anchor' as const,
+		trackId,
+		action: 'add' as const,
+		fromWeekKey: '2030-01-21',
+		value: 36,
+	}
+	const preview = await readSeasonEdit(userId, outlineId, edit, WEDNESDAY)
+	if (!preview.ok) throw new Error(preview.reason)
+	expect(preview.relayWeekKeys[0]).toBe('2030-01-21')
+	expect(preview.relayWeekKeys).not.toContain('2030-01-14')
+
+	const applied = await applySeasonEdit(userId, outlineId, edit, WEDNESDAY, {
+		digest: preview.digest,
+	})
+	expect(applied).toEqual(preview)
+	expect(
+		await prisma.seasonAnchorSegment.findMany({
+			where: { trackId },
+			orderBy: { fromWeekKey: 'asc' },
+			select: { fromWeekKey: true, value: true },
+		}),
+	).toEqual([
+		{ fromWeekKey: PLAN_START, value: 30 },
+		{ fromWeekKey: '2030-01-21', value: 36 },
+	])
+
+	// The machine's session in the changed week is laid again at the new target …
+	const relaid = await sessionsOn(userId, '2030-01-21')
+	expect(relaid).toHaveLength(1)
+	expect(relaid[0]!.id).not.toBe(machine!.id)
+	expect(relaid[0]!.source).toBe('generated')
+	// … the athlete's own session is exactly as it was, and every session
+	// outside the changed weeks is byte-equal.
+	const after = await all()
+	expect(after.find((session) => session.id === own.id)).toEqual(own)
+	const outside = (sessions: typeof before) =>
+		sessions.filter(
+			(session) => session.scheduledAt < new Date('2030-01-21T00:00:00Z'),
+		)
+	expect(outside(after)).toEqual(outside(before))
+})
+
+test('a Season Anchor confirm gone stale is refused and writes nothing', async () => {
+	const { userId, outlineId, trackId } = await plan()
+	const edit = {
+		kind: 'season-anchor' as const,
+		trackId,
+		action: 'add' as const,
+		fromWeekKey: '2030-01-14',
+		value: 36,
+	}
+	const preview = await readSeasonEdit(userId, outlineId, edit, WEDNESDAY)
+	if (!preview.ok) throw new Error(preview.reason)
+	// A week later, the week of 14 Jan has begun: the edit is no longer the
+	// one shown, and nothing lands.
+	const nextWednesday = new Date('2030-01-16T12:00:00Z')
+	expect(
+		await applySeasonEdit(userId, outlineId, edit, nextWednesday, {
+			digest: preview.digest,
+		}),
+	).toEqual({ ok: false, reason: 'week-lived' })
+	// The plan changed under the preview: refused as stale.
+	await prisma.weekVolumeOverride.create({
+		data: { trackId, weekKey: '2030-01-28', value: 20 },
+	})
+	expect(
+		await applySeasonEdit(userId, outlineId, edit, WEDNESDAY, {
+			digest: preview.digest,
+		}),
+	).toEqual({ ok: false, reason: 'preview-stale' })
+	expect(
+		await prisma.seasonAnchorSegment.findMany({
+			where: { trackId },
+			select: { fromWeekKey: true },
+		}),
+	).toEqual([{ fromWeekKey: PLAN_START }])
+})

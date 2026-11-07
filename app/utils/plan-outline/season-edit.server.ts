@@ -19,9 +19,12 @@ import { relayPlanFrom } from './open-ended.server.ts'
 import { outlinePreviewSelect } from './outline-preview.ts'
 import {
 	previewSeasonEdit,
+	seasonAnchorChoices,
+	type SeasonAnchorChoice,
 	type SeasonEdit,
 	type SeasonEditPreview,
 	type SeasonEditRefusal,
+	type SeasonEditRefused,
 } from './season-edit.ts'
 
 export type ApplySeasonEditRefusal =
@@ -33,7 +36,8 @@ export type ApplySeasonEditRefusal =
 
 export type SeasonEditServerResult =
 	| SeasonEditPreview
-	| { ok: false; reason: ApplySeasonEditRefusal }
+	| SeasonEditRefused
+	| { ok: false; reason: Exclude<ApplySeasonEditRefusal, SeasonEditRefusal> }
 
 type Db = Prisma.TransactionClient
 
@@ -76,7 +80,7 @@ export async function readSeasonEdit(
 }
 
 /**
- * Apply `edit` (#505 stories 72–74): the write the preview shows, recomputed
+ * Apply `edit` (#505 stories 72–74, #673): the write the preview shows, recomputed
  * and written in one transaction, then the weeks it changed laid again.
  * Returns what was applied — the same model the preview returned.
  *
@@ -140,6 +144,30 @@ export async function applySeasonEdit(
 					data: { recoveryWeekIndex: write.recoveryWeekIndex },
 				})
 				break
+			case 'season-anchor':
+				// One segment per week per track (`@@unique([trackId, fromWeekKey])`):
+				// a fresh start on a week that has one is an edit of it (ADR 0112 §1).
+				if (write.value == null) {
+					await tx.seasonAnchorSegment.deleteMany({
+						where: { trackId: write.trackId, fromWeekKey: write.fromWeekKey },
+					})
+					break
+				}
+				await tx.seasonAnchorSegment.upsert({
+					where: {
+						trackId_fromWeekKey: {
+							trackId: write.trackId,
+							fromWeekKey: write.fromWeekKey,
+						},
+					},
+					create: {
+						trackId: write.trackId,
+						fromWeekKey: write.fromWeekKey,
+						value: write.value,
+					},
+					update: { value: write.value },
+				})
+				break
 		}
 		return computed
 	})
@@ -156,4 +184,29 @@ export async function applySeasonEdit(
 		}
 	}
 	return result
+}
+
+/**
+ * What _Endre startnivået_ and Plan's _Ukevolum_ rows offer (#673): each cardio
+ * track with a Season Anchor, its segments and the weeks from
+ * `firstUnbegunWeekKey` on, read from the same rows the edit previews over.
+ */
+export async function readSeasonAnchorChoices(
+	userId: string,
+	outlineId: string,
+	firstUnbegunWeekKey: string,
+): Promise<SeasonAnchorChoice[]> {
+	const outline = await prisma.planOutline.findFirst({
+		where: { id: outlineId, athleteId: userId },
+		select: outlinePreviewSelect,
+	})
+	if (!outline) return []
+	return seasonAnchorChoices(
+		{
+			startWeekKey: outline.startWeekKey,
+			phases: outline.phases,
+			tracks: outline.tracks,
+		},
+		firstUnbegunWeekKey,
+	)
 }

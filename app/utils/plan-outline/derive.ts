@@ -505,17 +505,45 @@ export function derivedWeekTarget(
 	track: TrackSpec,
 	weekIndex: number,
 ): number | null {
+	return weekTargetDerivation(phases, track, weekIndex)?.value ?? null
+}
+
+/**
+ * How {@link derivedWeekTarget} arrived at a week's number, step by step: the
+ * **Season Anchor** in force and its week, the loading weeks stepped in each
+ * phase with that phase's **Volume Ramp**, the **Block Boundary Steps** crossed,
+ * and the week's role with the factor it applies (ADR 0040 §3). Null exactly
+ * where `derivedWeekTarget` is: no anchor in force, or a week outside the plan.
+ *
+ * The derivation *is* the walk, and `derivedWeekTarget` is its `value`, so a
+ * surface that explains a number ("regnet ut") cannot explain a different
+ * arithmetic from the one that produced it (ADR 0112 §1).
+ */
+export type WeekTargetDerivation = {
+	value: number
+	anchor: { fromWeekIndex: number; value: number }
+	/** One entry per phase the walk stepped a ramp in, earliest first. */
+	ramps: Array<{ phaseIndex: number; loadingWeeks: number; ramp: number }>
+	/** One entry per Block Boundary Step the walk crossed, earliest first. */
+	boundarySteps: Array<{ phaseIndex: number; step: number }>
+	role: WeekRole
+	/** The role's factor: 1 on a loading week, the cut on an easy or taper one. */
+	factor: number
+	/**
+	 * The loading week the ramp froze at — the week itself on a loading week,
+	 * the last loading week before it otherwise (ADR 0040 §2).
+	 */
+	referenceWeekIndex: number
+}
+
+export function weekTargetDerivation(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	weekIndex: number,
+): WeekTargetDerivation | null {
 	if (phaseIndexForWeek(phases, weekIndex) == null) return null
 	const anchor = anchorInForce(track.anchors, weekIndex)
 	if (!anchor) return null
-
-	// A phase addresses endurance segments only: a strength segment carries no
-	// `phaseIndex`, by ADR 0047 §6, so there is nothing here for it to match.
-	const segmentFor = (phaseIndex: number) =>
-		track.segments.find(
-			(s): s is EnduranceSegmentSpec =>
-				s.kind === 'endurance' && s.phaseIndex === phaseIndex,
-		)
 
 	// The ramp product freezes at the **last loading week**, because "a recovery
 	// week is last loading week × (1 − cut)" and "the next loading week resumes one
@@ -523,22 +551,87 @@ export function derivedWeekTarget(
 	// week inherit the step that a loading week in its position would have taken
 	// would quietly make the deload's reference the ramp rather than the loading
 	// peak — and the loading peak is the survey's strongest convergence.
+	const role = weekRole(phases, weekIndex)
 	const reference =
-		weekRole(phases, weekIndex) === 'loading'
+		role === 'loading'
 			? weekIndex
 			: lastLoadingWeekBefore(phases, weekIndex, anchor.fromWeekIndex)
+	const level = rampWalk(phases, track, anchor, weekIndex, reference)
+	const toPhase = phaseIndexForWeek(phases, weekIndex)!
+	const factor = roleFactor(
+		phases,
+		enduranceSegmentFor(track, toPhase),
+		weekIndex,
+	)
+	return {
+		...level,
+		value: level.value * factor,
+		anchor: { fromWeekIndex: anchor.fromWeekIndex, value: anchor.value },
+		role,
+		factor,
+		referenceWeekIndex: reference,
+	}
+}
 
+/**
+ * The level the **Volume Ramp** has reached at a week: what a **loading** week
+ * there derives to — the anchor in force, the ramp over the loading weeks before
+ * it and the boundary steps crossed — with no role factor, and ignoring any
+ * override. Null where the week cannot be derived.
+ *
+ * On a loading week it is the week's target. On an easy or taper week it is the
+ * number the next loading week climbs from, one ramp step above the target ÷ its
+ * role factor. That makes it the pre-fill of a fresh start (ADR 0112 §2): left
+ * untouched, a re-anchor here keeps every loading week after it where it was.
+ */
+export function rampLevelAt(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	weekIndex: number,
+): number | null {
+	if (phaseIndexForWeek(phases, weekIndex) == null) return null
+	const anchor = anchorInForce(track.anchors, weekIndex)
+	if (!anchor) return null
+	return rampWalk(phases, track, anchor, weekIndex, weekIndex).value
+}
+
+/** A phase's endurance segment: a strength segment carries no `phaseIndex`. */
+function enduranceSegmentFor(
+	track: TrackSpec,
+	phaseIndex: number,
+): EnduranceSegmentSpec | undefined {
+	return track.segments.find(
+		(s): s is EnduranceSegmentSpec =>
+			s.kind === 'endurance' && s.phaseIndex === phaseIndex,
+	)
+}
+
+/**
+ * The anchor times the ramps and boundary steps from the anchor's week to
+ * `weekIndex`, counting the loading weeks before `reference` — the one walk
+ * behind {@link weekTargetDerivation} and {@link rampLevelAt}.
+ */
+function rampWalk(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	anchor: { fromWeekIndex: number; value: number },
+	weekIndex: number,
+	reference: number,
+): Pick<WeekTargetDerivation, 'value' | 'ramps' | 'boundarySteps'> {
 	let value = anchor.value
+	const ramps: WeekTargetDerivation['ramps'] = []
+	const boundarySteps: WeekTargetDerivation['boundarySteps'] = []
 	const fromPhase = phaseIndexForWeek(phases, anchor.fromWeekIndex) ?? 0
 	const toPhase = phaseIndexForWeek(phases, weekIndex)!
 
 	for (let p = fromPhase; p <= toPhase; p++) {
-		const segment = segmentFor(p)
+		const segment = enduranceSegmentFor(track, p)
 		// A boundary is crossed only where the anchor did not restart the product:
 		// re-anchoring makes its own week the new base (ADR 0040 §5). The step
 		// belongs to the segment the week sits in, so it applies even in a taper.
 		if (p > fromPhase && segment?.boundaryStep != null) {
 			value *= 1 + segment.boundaryStep
+			boundarySteps.push({ phaseIndex: p, step: segment.boundaryStep })
 		}
 		const steps = loadingWeeksBetween(
 			phases,
@@ -548,10 +641,10 @@ export function derivedWeekTarget(
 		)
 		if (segment?.ramp != null && steps > 0) {
 			value *= Math.pow(1 + segment.ramp, steps)
+			ramps.push({ phaseIndex: p, loadingWeeks: steps, ramp: segment.ramp })
 		}
 	}
-
-	return value * roleFactor(phases, segmentFor(toPhase), weekIndex)
+	return { value, ramps, boundarySteps }
 }
 
 /** Every week's target, earliest first — the whole season in one pass. */

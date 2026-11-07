@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest'
 import { type OutlineRows, type PhaseRow } from './from-rows.ts'
-import { previewSeasonEdit, type SeasonEditPreview } from './season-edit.ts'
+import {
+	previewSeasonEdit,
+	seasonAnchorChoices,
+	type SeasonEditPreview,
+} from './season-edit.ts'
 
 // Base(8, 3:1) → Build(4, 3:1), one run track at 40 km climbing 5 % a loading
 // week. The plan opens Monday 5 October 2026 (ISO week 41).
@@ -529,5 +533,355 @@ describe('a strength track', () => {
 				to: 18,
 			}),
 		])
+	})
+})
+
+describe('a Season Anchor (#673, ADR 0112)', () => {
+	type Track = OutlineRows['tracks'][number]
+	const withTrack = (change: Partial<Track>, unbegun = UNBEGUN) => {
+		const rows = outline()
+		return {
+			rows: { ...rows, tracks: [{ ...rows.tracks[0]!, ...change }] },
+			unbegun,
+		}
+	}
+	const anchorEdit = (
+		action: 'add' | 'set',
+		fromWeekKey: string,
+		value: number,
+	) =>
+		({
+			kind: 'season-anchor',
+			trackId: 'run',
+			action,
+			fromWeekKey,
+			value,
+		}) as const
+	const levelAt = (rows: OutlineRows, weekKey: string, unbegun = UNBEGUN) =>
+		seasonAnchorChoices(rows, unbegun)[0]!.weeks.find(
+			(week) => week.weekKey === weekKey,
+		)!.level!
+
+	test('a fresh start from a week moves it and every week after it, and says what held', () => {
+		const preview = ok(
+			previewSeasonEdit(
+				outline(),
+				anchorEdit('add', '2026-10-19', 50),
+				UNBEGUN,
+			),
+		)
+		expect(preview.summary).toEqual({
+			kind: 'season-anchor',
+			trackId: 'run',
+			discipline: 'run',
+			currency: 'km',
+			act: 'add',
+			merged: false,
+			weekKey: '2026-10-19',
+			weekNumber: 43,
+			before: null,
+			after: 50,
+			changedWeeks: 10,
+		})
+		expect(preview.weeks[0]!.weekKey).toBe('2026-10-19')
+		expect(preview.weeks[0]!.after?.targets[0]).toMatchObject({
+			value: 50,
+			overridden: false,
+		})
+		expect(preview.relayWeekKeys).toHaveLength(10)
+		expect(preview.held).toEqual(['phases', 'weeks-before'])
+		expect(preview.heldWeeks).toEqual([])
+		expect(preview.write).toEqual({
+			kind: 'season-anchor',
+			trackId: 'run',
+			fromWeekKey: '2026-10-19',
+			value: 50,
+		})
+		// The jump from 42 km to 50 is more than 10 % over the hard week before.
+		expect(preview.warnings).toEqual([
+			expect.objectContaining({ weekKey: '2026-10-19', from: 42, to: 50 }),
+		])
+	})
+
+	test('every changed derived after-value carries how it was worked out, and it adds up', () => {
+		const preview = ok(
+			previewSeasonEdit(
+				outline(),
+				anchorEdit('add', '2026-10-19', 50),
+				UNBEGUN,
+			),
+		)
+		// Week 44 is Base's easy week: cut off week 43, the anchor itself.
+		const easy = preview.weeks.find((week) => week.weekKey === '2026-10-26')!
+		expect(easy.derivations[0]).toMatchObject({
+			anchor: { weekKey: '2026-10-19', weekNumber: 43, value: 50 },
+			reference: { weekKey: '2026-10-19', weekNumber: 43 },
+			role: 'recovery',
+			factor: 0.7,
+			ramps: [],
+		})
+		for (const week of preview.weeks) {
+			const target = week.after!.targets[0]!
+			expect(week.derivations[0]?.value).toBeCloseTo(target.value!, 1)
+		}
+	})
+
+	test('an untouched pre-fill on a loading week changes nothing', () => {
+		const level = levelAt(outline(), '2026-10-19')
+		expect(level).toBeCloseTo(44.1, 9)
+		expect(
+			previewSeasonEdit(
+				outline(),
+				anchorEdit('add', '2026-10-19', level),
+				UNBEGUN,
+			),
+		).toEqual({ ok: false, reason: 'no-change' })
+	})
+
+	test('an untouched pre-fill on an easy week moves only that week, by one ramp step', () => {
+		const level = levelAt(outline(), '2026-10-26')
+		expect(level).toBeCloseTo(40 * 1.05 ** 3, 9)
+		// As the page pre-fills it: to three decimals.
+		const prefill = Math.round(level * 1000) / 1000
+		const preview = ok(
+			previewSeasonEdit(
+				outline(),
+				anchorEdit('add', '2026-10-26', prefill),
+				UNBEGUN,
+			),
+		)
+		expect(preview.weeks.map((week) => week.weekKey)).toEqual(['2026-10-26'])
+		expect(preview.weeks[0]!.before?.targets[0]!.value).toBeCloseTo(30.87, 9)
+		expect(preview.weeks[0]!.after?.targets[0]!.value).toBeCloseTo(32.4135, 3)
+	})
+
+	test('an untouched pre-fill on a taper week moves only the taper weeks of that phase', () => {
+		const tapering = outline([{}, { tapers: true }])
+		const level = Math.round(levelAt(tapering, '2026-12-07') * 1000) / 1000
+		const preview = ok(
+			previewSeasonEdit(
+				tapering,
+				anchorEdit('add', '2026-12-07', level),
+				UNBEGUN,
+			),
+		)
+		// Build tapers from 30 Nov; a start on its second week lifts that week
+		// and the taper weeks after it, by one ramp step.
+		expect(preview.weeks.map((week) => week.weekKey)).toEqual([
+			'2026-12-07',
+			'2026-12-14',
+			'2026-12-21',
+		])
+	})
+
+	test('a fresh start on a week that has a segment edits it, and says so', () => {
+		const { rows } = withTrack({
+			anchors: [
+				{ fromWeekKey: START, value: 40 },
+				{ fromWeekKey: '2026-11-02', value: 45 },
+			],
+		})
+		const preview = ok(
+			previewSeasonEdit(rows, anchorEdit('add', '2026-11-02', 50), UNBEGUN),
+		)
+		expect(preview.summary).toMatchObject({
+			act: 'set',
+			merged: true,
+			before: 45,
+			after: 50,
+		})
+		expect(preview.write).toEqual({
+			kind: 'season-anchor',
+			trackId: 'run',
+			fromWeekKey: '2026-11-02',
+			value: 50,
+		})
+	})
+
+	test('a fresh start before the first unbegun week is refused', () => {
+		expect(
+			previewSeasonEdit(outline(), anchorEdit('add', START, 50), UNBEGUN),
+		).toEqual({ ok: false, reason: 'week-lived' })
+	})
+
+	test('a value change on a segment covering a begun week is refused, offering a fresh start', () => {
+		expect(
+			previewSeasonEdit(outline(), anchorEdit('set', START, 36), UNBEGUN),
+		).toEqual({
+			ok: false,
+			reason: 'segment-lived',
+			offer: {
+				kind: 'season-anchor',
+				trackId: 'run',
+				action: 'add',
+				fromWeekKey: UNBEGUN,
+				value: 36,
+			},
+		})
+	})
+
+	test('no offer when a later segment is in force at the first unbegun week', () => {
+		const { rows } = withTrack({
+			anchors: [
+				{ fromWeekKey: START, value: 40 },
+				{ fromWeekKey: UNBEGUN, value: 42 },
+			],
+		})
+		expect(
+			previewSeasonEdit(rows, anchorEdit('set', START, 36), UNBEGUN),
+		).toEqual({ ok: false, reason: 'segment-lived' })
+		// That later segment's own value is the athlete's to change.
+		expect(
+			ok(previewSeasonEdit(rows, anchorEdit('set', UNBEGUN, 44), UNBEGUN))
+				.summary,
+		).toMatchObject({ act: 'set', merged: false, before: 42, after: 44 })
+	})
+
+	test('a re-anchor can be taken back; the season’s first cannot', () => {
+		const { rows } = withTrack({
+			anchors: [
+				{ fromWeekKey: START, value: 40 },
+				{ fromWeekKey: '2026-11-02', value: 45 },
+			],
+		})
+		const removed = ok(
+			previewSeasonEdit(
+				rows,
+				{
+					kind: 'season-anchor',
+					trackId: 'run',
+					action: 'remove',
+					fromWeekKey: '2026-11-02',
+				},
+				UNBEGUN,
+			),
+		)
+		expect(removed.summary).toMatchObject({ act: 'remove', before: 45 })
+		expect(removed.write).toEqual({
+			kind: 'season-anchor',
+			trackId: 'run',
+			fromWeekKey: '2026-11-02',
+			value: null,
+		})
+		// Back on the season's own climb: week 45 is 40 × 1.05³ again.
+		expect(removed.weeks[0]).toMatchObject({ weekKey: '2026-11-02' })
+		expect(removed.weeks[0]!.after?.targets[0]!.value).toBeCloseTo(46.305, 9)
+
+		expect(
+			previewSeasonEdit(
+				rows,
+				{
+					kind: 'season-anchor',
+					trackId: 'run',
+					action: 'remove',
+					fromWeekKey: START,
+				},
+				UNBEGUN,
+			),
+		).toEqual({ ok: false, reason: 'earliest-anchor' })
+		expect(
+			previewSeasonEdit(
+				rows,
+				{
+					kind: 'season-anchor',
+					trackId: 'run',
+					action: 'remove',
+					fromWeekKey: '2026-11-09',
+				},
+				UNBEGUN,
+			),
+		).toEqual({ ok: false, reason: 'anchor-not-found' })
+	})
+
+	test('a remove that would move a begun week is refused', () => {
+		const { rows } = withTrack({
+			anchors: [
+				{ fromWeekKey: START, value: 40 },
+				{ fromWeekKey: '2026-10-19', value: 45 },
+			],
+		})
+		expect(
+			previewSeasonEdit(
+				rows,
+				{
+					kind: 'season-anchor',
+					trackId: 'run',
+					action: 'remove',
+					fromWeekKey: '2026-10-19',
+				},
+				'2026-10-26',
+			),
+		).toEqual({ ok: false, reason: 'changes-lived-weeks' })
+	})
+
+	test('a hand-set week in the span is held: untouched, not laid again, and listed', () => {
+		const { rows } = withTrack({
+			overrides: [{ weekKey: '2026-11-09', value: 30 }],
+		})
+		const preview = ok(
+			previewSeasonEdit(rows, anchorEdit('add', '2026-10-19', 50), UNBEGUN),
+		)
+		expect(preview.weeks.map((week) => week.weekKey)).not.toContain(
+			'2026-11-09',
+		)
+		expect(preview.relayWeekKeys).not.toContain('2026-11-09')
+		expect(preview.heldWeeks).toEqual([
+			{
+				trackId: 'run',
+				weekKey: '2026-11-09',
+				weekNumber: 46,
+				currency: 'km',
+				value: 30,
+			},
+		])
+		expect(preview.held).toEqual(['phases', 'weeks-before', 'hand-set-weeks'])
+	})
+
+	test('strength, the Simple Activities and a track with no anchor are refused', () => {
+		expect(
+			previewSeasonEdit(
+				withTrack({ discipline: 'other', currency: 'hours' }).rows,
+				anchorEdit('add', '2026-10-19', 5),
+				UNBEGUN,
+			),
+		).toEqual({ ok: false, reason: 'not-endurance-track' })
+		expect(
+			previewSeasonEdit(
+				withTrack({ discipline: 'strength', currency: 'sets' }).rows,
+				anchorEdit('add', '2026-10-19', 5),
+				UNBEGUN,
+			),
+		).toEqual({ ok: false, reason: 'not-endurance-track' })
+		expect(
+			previewSeasonEdit(
+				withTrack({ anchors: [] }).rows,
+				anchorEdit('add', '2026-10-19', 5),
+				UNBEGUN,
+			),
+		).toEqual({ ok: false, reason: 'no-season-anchor' })
+	})
+
+	test('the choices: cardio tracks with an anchor, from the first unbegun week, with the ramp’s level', () => {
+		const [choice] = seasonAnchorChoices(outline(), UNBEGUN)
+		expect(choice).toMatchObject({
+			trackId: 'run',
+			anchors: [
+				{ fromWeekKey: START, value: 40, earliest: true, inPlan: true },
+			],
+		})
+		expect(choice!.weeks[0]).toEqual({
+			weekKey: UNBEGUN,
+			role: 'loading',
+			target: 42,
+			overridden: false,
+			level: 42,
+		})
+		expect(choice!.weeks).toHaveLength(11)
+		expect(
+			seasonAnchorChoices(
+				withTrack({ discipline: 'other', currency: 'hours' }).rows,
+				UNBEGUN,
+			),
+		).toEqual([])
 	})
 })
