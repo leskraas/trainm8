@@ -1,0 +1,202 @@
+
+### 1. POST /mcp without token (52 ms)
+401
+WWW-Authenticate: Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/mcp", scope="training:read"
+
+### 2. GET http://localhost:3000/.well-known/oauth-protected-resource/mcp (10 ms)
+{
+  "resource": "http://localhost:3000/mcp",
+  "authorization_servers": [
+    "http://localhost:3000/api/auth"
+  ],
+  "bearer_methods_supported": [
+    "header"
+  ],
+  "dpop_signing_alg_values_supported": [
+    "EdDSA",
+    "ES256",
+    "ES512",
+    "PS256",
+    "RS256"
+  ],
+  "scopes_supported": [
+    "training:read",
+    "training:propose",
+    "training:log"
+  ]
+}
+resource === MCP_URL: true
+
+### 3. GET http://localhost:3000/.well-known/oauth-authorization-server/api/auth (5 ms)
+{
+  "issuer": "http://localhost:3000/api/auth",
+  "issuer_matches": true,
+  "client_id_metadata_document_supported": true,
+  "token_endpoint_auth_methods_supported": [
+    "none",
+    "client_secret_basic",
+    "client_secret_post",
+    "private_key_jwt"
+  ],
+  "code_challenge_methods_supported": [
+    "S256"
+  ],
+  "registration_endpoint": "http://localhost:3000/api/auth/oauth2/register",
+  "scopes_supported": [
+    "openid",
+    "offline_access",
+    "training:read",
+    "training:propose",
+    "training:log"
+  ],
+  "authorization_response_iss_parameter_supported": true
+}
+
+### 4. client
+{
+  "CLIENT": "claude-web",
+  "cimdOk": true,
+  "clientId": "https://claude.ai/oauth/mcp-oauth-client-metadata",
+  "redirectUri": "https://claude.ai/api/mcp/auth_callback"
+}
+
+### 5. authorize request
+{
+  "scope": "training:read offline_access",
+  "resource": "http://localhost:3000/mcp"
+}
+
+### 5. user-agent trace (371 ms)
+[
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/api/auth/oauth2/authorize?…",
+    "status": 302,
+    "location": "/login?…"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/login?…",
+    "status": 200
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/login?…",
+    "status": 302,
+    "location": "/consent?…"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/consent?…",
+    "status": 200
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/consent?…",
+    "status": 302,
+    "location": "https://claude.ai/api/mcp/auth_callback?…"
+  }
+]
+
+### 6. callback
+{
+  "code": "R1W6ot…",
+  "state": "srZO3T8wXxVmxsHWVeuzdA",
+  "iss": "http://localhost:3000/api/auth",
+  "state_ok": true,
+  "iss_ok": true
+}
+
+### 7. token exchange (42 ms)
+{
+  "status": 200,
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "training:read offline_access",
+  "has_refresh_token": true,
+  "has_id_token": false
+}
+
+### 7. access token JWT
+{
+  "header": {
+    "typ": "at+jwt",
+    "alg": "EdDSA",
+    "kid": "aWzZAMUwBnKw8FU9ONdqr5DTX6mrZ8b5"
+  },
+  "payload": {
+    "sub": "pBAQYlvcsGtWWtLEuHcWjalZBUIxkaNh",
+    "aud": "http://localhost:3000/mcp",
+    "client_id": "https://claude.ai/oauth/mcp-oauth-client-metadata",
+    "azp": "https://claude.ai/oauth/mcp-oauth-client-metadata",
+    "scope": "training:read offline_access",
+    "sid": "MhyYB1Pj4Pn1lZ0h2Ril7ZQVMUkRuf1H",
+    "iss": "http://localhost:3000/api/auth",
+    "iat": 1794075545,
+    "exp": 1794079145,
+    "jti": "KS5293zTZED_pQZIslR_4KpcvG4o12_4",
+    "lifetime_s": 3600
+  }
+}
+
+### 8a. 2025-06-18 initialize
+{
+  "status": 200,
+  "sessionId": null,
+  "body": "event: message\ndata: {\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{\"listChanged\":true}},\"serverInfo\":{\"name\":\"trainm8-spike\",\"version\":\"0.0.0\"}},\"jsonrpc\":\"2.0\",\"id\":1}\n\n"
+}
+
+### 8a. 2025-06-18 tools/call get_week
+{
+  "status": 200,
+  "sessionId": null,
+  "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"week for athlete (era=legacy, client=https://claude.ai/oauth/mcp-oauth-client-metadata, scopes=training:read offline_access)\"}]},\"jsonrpc\":\"2.0\",\"id\":2}\n\n"
+}
+
+### 8a. 2025-11-25 initialize
+{
+  "status": 200,
+  "sessionId": null,
+  "body": "event: message\ndata: {\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{\"listChanged\":true}},\"serverInfo\":{\"name\":\"trainm8-spike\",\"version\":\"0.0.0\"}},\"jsonrpc\":\"2.0\",\"id\":1}\n\n"
+}
+
+### 8a. 2025-11-25 tools/call get_week
+{
+  "status": 200,
+  "sessionId": null,
+  "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"week for athlete (era=legacy, client=https://claude.ai/oauth/mcp-oauth-client-metadata, scopes=training:read offline_access)\"}]},\"jsonrpc\":\"2.0\",\"id\":2}\n\n"
+}
+
+### 8a. 2025-era GET /mcp (SSE stream open)
+{
+  "status": 405,
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Method not allowed.\"},\"id\":null}"
+}
+
+### 8b. 2026-07-28 (v2 client pinned)
+{
+  "negotiated": "2026-07-28",
+  "tools": [
+    "get_week",
+    "propose_week_change"
+  ],
+  "call": [
+    {
+      "type": "text",
+      "text": "week for athlete (era=modern, client=https://claude.ai/oauth/mcp-oauth-client-metadata, scopes=training:read offline_access)"
+    }
+  ]
+}
+
+### 9. refresh #1 (22 ms)
+{
+  "status": 200,
+  "rotated": true,
+  "aud": "http://localhost:3000/mcp"
+}
+
+### 9. replay old refresh token inside the 30 s reuse window
+{
+  "status": 200,
+  "same_response": true
+}

@@ -1,0 +1,186 @@
+
+### A. authorize+token with resource=http://localhost:3000/mcp/
+{
+  "authorize_error": {
+    "error": "invalid_target",
+    "error_description": "requested resource http://localhost:3000/mcp/ is not configured",
+    "state": "s",
+    "iss": "http://localhost:3000/api/auth"
+  }
+}
+
+### A. authorize+token with resource=http://LOCALHOST:3000/mcp
+{
+  "authorize_error": {
+    "error": "invalid_target",
+    "error_description": "requested resource http://LOCALHOST:3000/mcp is not configured",
+    "state": "s",
+    "iss": "http://localhost:3000/api/auth"
+  }
+}
+
+### A. authorize+token with resource=http://localhost:3000/other
+{
+  "authorize_error": {
+    "error": "invalid_target",
+    "error_description": "requested resource http://localhost:3000/other is not configured",
+    "state": "s",
+    "iss": "http://localhost:3000/api/auth"
+  }
+}
+
+### A. authorize+token with resource=(none)
+{
+  "token_status": 200,
+  "aud": "(opaque token, 32 chars)",
+  "mcp": {
+    "status": 401,
+    "www-authenticate": "Bearer resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\", scope=\"training:read\"",
+    "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"no token payload\"},\"id\":null}"
+  }
+}
+
+### B. token scope=training:propose -> POST /mcp (requiredScopes training:read)
+{
+  "scope": "training:propose offline_access",
+  "mcp": {
+    "status": 403,
+    "www-authenticate": "Bearer error=\"insufficient_scope\", scope=\"training:read\", resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\", error_description=\"access token is missing required scope: training:read\"",
+    "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"access token is missing required scope: training:read\"},\"id\":null}"
+  }
+}
+
+### C1. id_token (aud=client_id) presented as bearer
+{
+  "id_token_aud": "hhDETuEEhmmllvwsYmeFklAAIftsqDjB",
+  "mcp": {
+    "status": 401,
+    "www-authenticate": "Bearer resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\", scope=\"training:read\"",
+    "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"invalid access token\"},\"id\":null}"
+  }
+}
+
+### C2. access token with aud edited (bad signature)
+{
+  "status": 401,
+  "www-authenticate": "Bearer resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\", scope=\"training:read\"",
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"invalid access token\"},\"id\":null}"
+}
+
+### C3. garbage bearer
+{
+  "status": 401,
+  "www-authenticate": "Bearer resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\", scope=\"training:read\"",
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"no token payload\"},\"id\":null}"
+}
+
+### D1. redirect_uri not registered
+{
+  "error": "Error: stuck at http://localhost:3000/api/auth/error?error=invalid_redirect&error_description=invalid+redirect+uri: 200 <!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>Error</title>\n    <style>\n      * {\n        box-sizing: border-box;\n      }\n      body {\n        font-family: -apple-syst",
+  "verifier": "xtrLuub0J8asvBf7XF4KOVoAk5Xe20C3lHJ-4Hd7wtg",
+  "jar": {
+    "cookies": {}
+  }
+}
+
+### D2. no PKCE
+{
+  "callback": {
+    "error": "invalid_request",
+    "error_description": "pkce is required for public clients",
+    "state": "s",
+    "iss": "http://localhost:3000/api/auth"
+  },
+  "verifier": "M3RXvzTNiJLY6DoGr_gHVMWp7YRkXUuqFrMp2Y_jmXQ",
+  "jar": {
+    "cookies": {}
+  },
+  "redirect_uri": "https://claude.ai/api/mcp/auth_callback",
+  "resource": "http://localhost:3000/mcp"
+}
+
+### D3. PKCE plain
+{
+  "callback": {
+    "error": "invalid_request",
+    "error_description": "code_challenge_method must be one of: S256",
+    "state": "s",
+    "iss": "http://localhost:3000/api/auth"
+  },
+  "verifier": "4q0tAN7OauNolYJsfr4rI7LDeNCDQQEVDG4RFIV4SF8",
+  "jar": {
+    "cookies": {}
+  },
+  "redirect_uri": "https://claude.ai/api/mcp/auth_callback",
+  "resource": "http://localhost:3000/mcp"
+}
+
+### D4. DCR with javascript: redirect
+{
+  "status": 400,
+  "body": {
+    "error": "invalid_redirect_uri",
+    "error_description": "redirect_uris[0]: URL cannot use javascript:, data:, or vbscript: scheme"
+  }
+}
+
+### D5. CIMD client_id on a host that serves no document
+{
+  "error": "Error: stuck at http://localhost:3000/api/auth/oauth2/authorize?response_type=code&client_id=https%3A%2F%2Fexample.com%2Foauth%2Fnot-a-client&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&code_challenge=jhFukUW_fr1pk4NYFsJg9G-qu4R42Fd6TtMFPnubEZc&code_challenge_method=S256&state=s&scope=training%3Aread+offline_access&resource=http%3A%2F%2Flocalhost%3A3000%2Fmcp: 400 {\"error\":\"in",
+  "verifier": "u-qwc1JpnJad1Re9l0HTm9JknuscZU4FGlAuVOpi6iE",
+  "jar": {
+    "cookies": {}
+  }
+}
+
+### E1. RFC 7009 revoke refresh token
+{
+  "status": 200
+}
+
+### E1. refresh with the revoked token
+{
+  "status": 400,
+  "body": {
+    "error_description": "invalid refresh token",
+    "error": "invalid_grant"
+  }
+}
+
+### E1. access token (JWT) after its refresh token was revoked
+{
+  "status": 200,
+  "www-authenticate": null,
+  "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"week for athlete (era=legacy, client=hhDETuEEhmmllvwsYmeFklAAIftsqDjB, scopes=training:read offline_access)\"}]},\"jsonrpc\":\"2.0\",\"id\":1"
+}
+
+### E2. user deletes consent ("disconnect Claude")
+{
+  "status": 200,
+  "consentsBefore": 3
+}
+
+### E2. refresh after consent deleted (expect invalid_grant; Better Auth?)
+{
+  "status": 200,
+  "body": {
+    "access_token": "eyJ0eXAiOiJhdCtqd3QiLCJhbGciOiJFZERTQSIsImtpZCI6InRySE1wSU1XZW5YUVd2MWZNMWtJcXpKcVR6Tmg3eUFXIn0.eyJzdWIiOiJLbmlkVUV5SXJvdmRRSjAwb2J5amZka2twdVlicTBzNCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9tY3AiLCJjbGllbnRfaWQiOiJUV1liamlwa1lvWlBJaWhueHdvZW9VUE5NRU1RRHBjZCIsImF6cCI6IlRXWWJqaXBrWW9aUElpaG54d29lb1VQTk1FTVFEcGNkIiwic2NvcGUiOiJ0cmFpbmluZzpyZWFkIG9mZmxpbmVfYWNjZXNzIiwic2lkIjoiOGpRRnlqTHFuZjZTbUQxVUxaY1ZhM25iMXkwOWR4UzMiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvYXBpL2F1dGgiLCJpYXQiOjE3OTQwNzU0MzcsImV4cCI6MTc5NDA3OTAzNywianRpIjoiSklZblNfbzNWYW5reXVIZVJ0SllwMzZpRTV0bDE3VlMifQ.Z9rEXI99Vf-pk025B_j5XhuzveE7A67LWf_dBrfkuQCbplPxs_FAfyFqaDxSh4laiqgIhY3cO4MeCOl2mbC1DQ",
+    "expires_in": 3600,
+    "expires_at": 1794079037,
+    "token_type": "Bearer",
+    "refresh_token": "zOLlnGztLUIZrgLSnHdnLuXYFYZLOwwV",
+    "scope": "training:read offline_access"
+  }
+}
+
+### E2. old access token after consent deleted
+{
+  "status": 200,
+  "www-authenticate": null,
+  "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"week for athlete (era=legacy, client=TWYbjipkYoZPIihnxwoeoUPNMEMQDpcd, scopes=training:read offline_access)\"}]},\"jsonrpc\":\"2.0\",\"id\":1"
+}
+
+### F. 40 anonymous DCR registrations in a row (NODE_ENV unset)
+{
+  "201": 40
+}
