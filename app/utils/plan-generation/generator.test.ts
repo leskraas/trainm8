@@ -52,12 +52,14 @@ test('a second implementation is substitutable without touching any caller', () 
 				weeks: [],
 				sessions: [],
 				unfilled: [],
+				days: [],
 				unavailable: [],
 				weekdaySource: 'default',
 				levelFloor: 'beginner',
 				goalEvent: null,
 			}
 		},
+		placeWeeks: () => ({ slots: [] }),
 	}
 	const corpus: RetrievableEntry[] = []
 	expect(generateSeason(REQUEST, corpus, stub).generatorId).toBe('stub')

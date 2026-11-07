@@ -78,6 +78,7 @@ function preview(overrides: Partial<SeasonPreview['season']> = {}) {
 			weeks: [week()],
 			sessions: [session()],
 			unfilled: [],
+			days: [],
 			unavailable: [],
 			weekdaySource: 'default',
 			levelFloor: 'intermediate',

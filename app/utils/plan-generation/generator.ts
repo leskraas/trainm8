@@ -32,9 +32,15 @@
 import {
 	DETERMINISTIC_GENERATOR_ID,
 	generateDeterministicSeason,
+	placeDeterministicWeeks,
 } from './deterministic.ts'
 import { type RetrievableEntry } from './retrieval.ts'
-import { type GeneratedSeason, type SeasonRequest } from './season.ts'
+import {
+	type GeneratedSeason,
+	type PlacedWeeks,
+	type PlaceWeeksRequest,
+	type SeasonRequest,
+} from './season.ts'
 
 /**
  * One way of producing a season. Named rather than anonymous so a payload can
@@ -47,12 +53,34 @@ export type SeasonGenerator = {
 		request: SeasonRequest,
 		corpus: readonly RetrievableEntry[],
 	): GeneratedSeason
+	/**
+	 * Place some weeks of a stored plan (ADR 0113 §2): the same placement rule
+	 * `generate` lays a season by, over the plan as it now stands. What a re-lay
+	 * of a generated plan's weeks calls, so a plan is laid again by the
+	 * implementation that made it.
+	 */
+	placeWeeks(
+		request: PlaceWeeksRequest,
+		corpus: readonly RetrievableEntry[],
+	): PlacedWeeks
 }
 
 /** The implementation behind the seam today: rules, no model, no clock. */
 export const DETERMINISTIC_SEASON_GENERATOR: SeasonGenerator = {
 	id: DETERMINISTIC_GENERATOR_ID,
 	generate: generateDeterministicSeason,
+	placeWeeks: placeDeterministicWeeks,
+}
+
+const GENERATORS: readonly SeasonGenerator[] = [DETERMINISTIC_SEASON_GENERATOR]
+
+/**
+ * The implementation a plan's **Generation Record** names, so a plan is laid
+ * again by the generator that made it (ADR 0113 §2). Null for an id no
+ * implementation in this build answers to.
+ */
+export function generatorFor(generatorId: string): SeasonGenerator | null {
+	return GENERATORS.find((generator) => generator.id === generatorId) ?? null
 }
 
 /**

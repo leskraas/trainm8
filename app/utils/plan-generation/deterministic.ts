@@ -67,12 +67,14 @@ import {
 	presetFor,
 	presetPhaseSpecs,
 	presetSegmentSpecs,
-	type PeriodizationPreset,
 } from '../plan-outline/presets.ts'
-import { emphasisTerms, type QualityZone } from '../plan-outline/quality-mix.ts'
+import {
+	emphasisTerms,
+	type QualitySessionMixEntry,
+	type QualityZone,
+} from '../plan-outline/quality-mix.ts'
 import { proposeStarterPattern } from '../plan-outline/starter-pattern.ts'
 import { weekKeyAt } from '../plan-outline/week-keys.ts'
-import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { type Discipline } from '../workout-schema.ts'
 import { fitToCapacity } from './capacity.ts'
 import { readSessionProvenance } from './provenance.ts'
@@ -87,7 +89,12 @@ import {
 	type GeneratedSeason,
 	type GeneratedSession,
 	type GeneratedUnavailable,
+	type GeneratedDay,
 	type GeneratedWeek,
+	type GenerationTrack,
+	type PlacedSlot,
+	type PlacedWeeks,
+	type PlaceWeeksRequest,
 	type SeasonRequest,
 	type SessionSlot,
 	type UnfilledSlot,
@@ -193,7 +200,7 @@ export function slotsForWeek(
 }
 
 /**
- * The **Quality Session Mix** of one phase, expanded into one zone per session.
+ * A **Quality Session Mix**, expanded into one zone per session.
  *
  * Ascending by zone, which is `emphasisTerms`' order and therefore the order every
  * other surface already states a mix in. It matters here because the position in
@@ -201,14 +208,118 @@ export function slotsForWeek(
  * same mix on different days on two screens.
  */
 export function mixZones(
-	preset: PeriodizationPreset,
-	phaseIndex: number,
+	mix: readonly QualitySessionMixEntry[],
 ): QualityZone[] {
-	const phase = preset.phases[phaseIndex]
-	if (!phase) return []
-	return emphasisTerms(phase.mix).flatMap((term) =>
+	return emphasisTerms(mix).flatMap((term) =>
 		Array.from({ length: term.sessionsPerWeek }, () => term.zone),
 	)
+}
+
+/**
+ * Place the weeks a request asks for: the one placement rule behind both the
+ * whole season at approval and a stored plan's weeks laid again (ADR 0113 §2).
+ *
+ * Catalogue phase from the block's position (`race-week` in the plan's last
+ * week), quality only in loading weeks, the long day last, and the
+ * week-and-day rotation. Pure on the same terms as the season: no clock, no
+ * random source, no database. A week index outside the plan places nothing.
+ */
+export function placeDeterministicWeeks(
+	request: PlaceWeeksRequest,
+	corpus: readonly RetrievableEntry[],
+): PlacedWeeks {
+	const weekCount = totalWeeks(request.phases)
+	const slots: PlacedSlot[] = []
+	const weekIndices = [...new Set(request.weekIndices)]
+		.filter((weekIndex) => weekIndex >= 0 && weekIndex < weekCount)
+		.sort((a, b) => a - b)
+
+	for (const weekIndex of weekIndices) {
+		const weekKey = weekKeyAt(request.startWeekKey, weekIndex)
+		const phaseIndex = phaseIndexForWeek(request.phases, weekIndex) ?? 0
+		const role = weekRole(request.phases, weekIndex)
+		const isFinalWeek = weekIndex === weekCount - 1
+		const cataloguePhase = isFinalWeek
+			? ('race-week' as const)
+			: cataloguePhaseFor(request.phases, phaseIndex)
+
+		for (const track of request.tracks) {
+			const days = [...track.days].sort((a, b) => a.weekday - b.weekday)
+			const placed = slotsForWeek(
+				days,
+				mixZones(track.mixes[phaseIndex] ?? []),
+				{
+					isFinalWeek,
+					isLoadingWeek: role === 'loading',
+				},
+			)
+
+			days.forEach((day, dayIndex) => {
+				const { slot, zone } = placed[dayIndex]!
+				const archetypes = archetypesForSlot(slot, zone)
+				const entry = retrieveSession(corpus, {
+					discipline: track.discipline,
+					archetypes,
+					cataloguePhase,
+					goalEvent: request.goalEvent,
+					level: request.level,
+					// Week plus day: consecutive weeks walk the available rows rather
+					// than repeating one, and two quality days in the same week draw
+					// different rows. Reproducible by construction — both terms are
+					// positions, not state.
+					rotation: weekIndex + dayIndex,
+				})
+				slots.push({
+					weekIndex,
+					weekKey,
+					weekday: day.weekday,
+					discipline: track.discipline,
+					slot,
+					zone,
+					archetypes,
+					cataloguePhase,
+					session:
+						entry == null
+							? null
+							: {
+									weekIndex,
+									weekKey,
+									weekday: day.weekday,
+									discipline: track.discipline,
+									archetype: entry.archetype as GeneratedSession['archetype'],
+									slot,
+									zone,
+									entryId: entry.entryId,
+									workoutId: entry.workoutId,
+									title: entry.title,
+									provenance: readSessionProvenance(entry),
+								},
+				})
+			})
+		}
+	}
+
+	// Season order — week, then weekday, then discipline — so the result reads
+	// the way a calendar does whatever order the loops above filled it in. A
+	// total order rather than a stable sort on a partial one: two runs must
+	// produce the *same* array, not merely the same set.
+	slots.sort(
+		(a, b) =>
+			a.weekIndex - b.weekIndex ||
+			a.weekday - b.weekday ||
+			(a.discipline < b.discipline ? -1 : a.discipline > b.discipline ? 1 : 0),
+	)
+	return { slots }
+}
+
+/** The placed sessions of a placement, in its order. */
+export function placedSessions(placed: PlacedWeeks): GeneratedSession[] {
+	return placed.slots.flatMap((slot) => (slot.session ? [slot.session] : []))
+}
+
+/** The slots a placement found nothing in the corpus for, in its order. */
+export function unfilledSlots(placed: PlacedWeeks): UnfilledSlot[] {
+	return placed.slots.flatMap(({ session, ...slot }) => (session ? [] : [slot]))
 }
 
 /**
@@ -281,100 +392,46 @@ export function generateDeterministicSeason(
 		})),
 	})
 
-	const weeks: GeneratedWeek[] = []
-	const sessions: GeneratedSession[] = []
-	const unfilled: UnfilledSlot[] = []
-
-	for (let weekIndex = 0; weekIndex < weekCount; weekIndex++) {
-		const weekKey = weekKeyAt(request.startWeekKey, weekIndex)
-		const phaseIndex = phaseIndexForWeek(phaseSpecs, weekIndex) ?? 0
-		const role = weekRole(phaseSpecs, weekIndex)
-		const isFinalWeek = weekIndex === weekCount - 1
-
-		weeks.push({
+	const weeks: GeneratedWeek[] = Array.from(
+		{ length: weekCount },
+		(_, weekIndex) => ({
 			weekIndex,
-			weekKey,
-			phaseIndex,
-			role,
-			isFinalWeek,
+			weekKey: weekKeyAt(request.startWeekKey, weekIndex),
+			phaseIndex: phaseIndexForWeek(phaseSpecs, weekIndex) ?? 0,
+			role: weekRole(phaseSpecs, weekIndex),
+			isFinalWeek: weekIndex === weekCount - 1,
 			targets: tracks.map((track) => ({
 				discipline: track.discipline,
 				currency: track.currency,
 				value: targetsByDiscipline.get(track.discipline)?.[weekIndex] ?? null,
 			})),
-		})
+		}),
+	)
 
-		if (starter == null) continue
+	// The days the season is placed on, per Discipline with their role: what the
+	// Generation Record keeps, so a re-lay places on the same days (ADR 0113 §1).
+	const days: GeneratedDay[] = (starter?.days ?? []).map((day) => ({
+		discipline: day.trackId as GenerationTrack['discipline'],
+		weekday: day.weekday,
+		role: day.role,
+	}))
 
-		const cataloguePhase = isFinalWeek
-			? ('race-week' as const)
-			: phases[phaseIndex]!.cataloguePhase
-		const zones = mixZones(preset, phaseIndex)
-
-		for (const track of request.tracks) {
-			const days = starter.days
-				.filter((day) => day.trackId === track.discipline)
-				.sort((a, b) => a.weekday - b.weekday)
-			const slots = slotsForWeek(days, zones, {
-				isFinalWeek,
-				isLoadingWeek: role === 'loading',
-			})
-
-			days.forEach((day, dayIndex) => {
-				const { slot, zone } = slots[dayIndex]!
-				const archetypes = archetypesForSlot(slot, zone)
-				const weekday = day.weekday as PatternWeekday
-				const entry = retrieveSession(corpus, {
-					discipline: track.discipline,
-					archetypes,
-					cataloguePhase,
-					goalEvent: request.goalEvent,
-					level,
-					// Week plus day: consecutive weeks walk the available rows rather
-					// than repeating one, and two quality days in the same week draw
-					// different rows. Reproducible by construction — both terms are
-					// positions, not state.
-					rotation: weekIndex + dayIndex,
-				})
-				if (entry == null) {
-					unfilled.push({
-						weekIndex,
-						weekKey,
-						weekday,
-						discipline: track.discipline,
-						slot,
-						zone,
-						archetypes,
-						cataloguePhase,
-					})
-					return
-				}
-				sessions.push({
-					weekIndex,
-					weekKey,
-					weekday,
-					discipline: track.discipline,
-					archetype: entry.archetype as GeneratedSession['archetype'],
-					slot,
-					zone,
-					entryId: entry.entryId,
-					workoutId: entry.workoutId,
-					title: entry.title,
-					provenance: readSessionProvenance(entry),
-				})
-			})
-		}
-	}
-
-	// Season order — week, then weekday, then discipline — so the payload reads the
-	// way a calendar does whatever order the loops above happened to fill it in.
-	// A total order rather than a stable sort on a partial one: two runs must
-	// produce the *same* array, not merely the same set.
-	sessions.sort(
-		(a, b) =>
-			a.weekIndex - b.weekIndex ||
-			a.weekday - b.weekday ||
-			(a.discipline < b.discipline ? -1 : a.discipline > b.discipline ? 1 : 0),
+	// Every week of the season through the one placement rule (ADR 0113 §2),
+	// each track taking the preset's mix for the phase.
+	const placed = placeDeterministicWeeks(
+		{
+			startWeekKey: request.startWeekKey,
+			phases: phaseSpecs,
+			tracks: request.tracks.map((track) => ({
+				discipline: track.discipline,
+				mixes: preset.phases.map((phase) => phase.mix),
+				days: days.filter((day) => day.discipline === track.discipline),
+			})),
+			goalEvent: request.goalEvent,
+			level,
+			weekIndices: weeks.map((week) => week.weekIndex),
+		},
+		corpus,
 	)
 
 	return {
@@ -386,8 +443,9 @@ export function generateDeterministicSeason(
 		tracks,
 		capacity,
 		weeks,
-		sessions,
-		unfilled,
+		sessions: placedSessions(placed),
+		unfilled: unfilledSlots(placed),
+		days,
 		unavailable: strengthUnavailable(request.strengthDisciplines),
 		weekdaySource: starter?.source ?? 'default',
 		levelFloor: level,

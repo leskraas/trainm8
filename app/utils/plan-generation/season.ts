@@ -30,12 +30,16 @@ import {
 	type SessionArchetype,
 } from '../catalogue.ts'
 import {
+	type PhaseSpec,
 	type Rhythm,
 	type VolumeCurrency,
 	type WeekRole,
 } from '../plan-outline/derive.ts'
 import { type PresetKey } from '../plan-outline/presets.ts'
-import { type QualityZone } from '../plan-outline/quality-mix.ts'
+import {
+	type QualitySessionMixEntry,
+	type QualityZone,
+} from '../plan-outline/quality-mix.ts'
 import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { type CardioDiscipline, type Discipline } from '../workout-schema.ts'
@@ -257,6 +261,11 @@ export type GeneratedSeason = {
 	/** Every placed session, in season order: week, then weekday, then discipline. */
 	sessions: GeneratedSession[]
 	unfilled: UnfilledSlot[]
+	/**
+	 * The days the season was placed on, per Discipline with their role: what
+	 * approval keeps on the plan's **Generation Record** (ADR 0113 §1).
+	 */
+	days: GeneratedDay[]
 	unavailable: GeneratedUnavailable[]
 	/** Where the athlete's availability came from — their own, or the default. */
 	weekdaySource: 'availability' | 'default'
@@ -264,3 +273,40 @@ export type GeneratedSeason = {
 	levelFloor: CatalogueLevel
 	goalEvent: CatalogueGoalEvent | null
 }
+
+/** One weekday a Discipline's sessions are placed on, and its role there. */
+export type GeneratedDay = {
+	discipline: CardioDiscipline
+	weekday: PatternWeekday
+	role: 'long' | 'ordinary'
+}
+
+/**
+ * What placing weeks needs (ADR 0113 §2): the plan's phases, each track's
+ * **Quality Session Mix** per phase and its days, the goal event, the level
+ * floor, and which weeks. Built from a preset at approval, and from the stored
+ * plan and its **Generation Record** on a re-lay (`generation-request.ts`).
+ */
+export type PlaceWeeksRequest = {
+	startWeekKey: string
+	phases: PhaseSpec[]
+	tracks: ReadonlyArray<{
+		discipline: CardioDiscipline
+		/** The track's mix in each phase, by phase index. */
+		mixes: ReadonlyArray<readonly QualitySessionMixEntry[]>
+		days: ReadonlyArray<{ weekday: PatternWeekday; role: 'long' | 'ordinary' }>
+	}>
+	goalEvent: CatalogueGoalEvent | null
+	level: CatalogueLevel
+	/** 0-based from the plan's first week; one outside the plan places nothing. */
+	weekIndices: readonly number[]
+}
+
+/**
+ * One slot of a placed week: what it asks of the corpus, and the session placed
+ * in it, or null when the corpus had nothing for it.
+ */
+export type PlacedSlot = UnfilledSlot & { session: GeneratedSession | null }
+
+/** The slots of the weeks asked for, in season order. */
+export type PlacedWeeks = { slots: PlacedSlot[] }
