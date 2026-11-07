@@ -319,6 +319,11 @@ export async function copyWorkout(
 		 * forks of anything an athlete can navigate back to.
 		 */
 		copiedFromId?: string
+		/**
+		 * The plan that holds the copy, when it is a **Held Workout** (ADR
+		 * 0112). Written only by `plan-outline/held-workouts.server.ts`.
+		 */
+		heldByOutlineId?: string
 	} = {},
 ): Promise<{ id: string }> {
 	return tx.workout.create({
@@ -344,6 +349,7 @@ export async function copyWorkout(
 			// #440's propagation half for the one value that could do harm.
 			ownerId,
 			copiedFromId: overrides.copiedFromId,
+			heldByOutlineId: overrides.heldByOutlineId,
 			blocks: { create: buildBlocksCopy(overrides.blocks ?? source.blocks) },
 		},
 		select: { id: true },

@@ -244,12 +244,35 @@ test('the start writes lifting slots, one per lift, on no weekday', async () => 
 	})
 	const days = await prisma.weekPatternDay.findMany({
 		where: { track: { discipline: 'strength', outline: { athleteId } } },
-		select: { kind: true, weekday: true, workoutId: true },
+		select: {
+			kind: true,
+			weekday: true,
+			workout: {
+				select: {
+					copiedFromId: true,
+					ownerId: true,
+					heldByOutlineId: true,
+				},
+			},
+			workoutId: true,
+			pattern: { select: { outlineId: true } },
+		},
 	})
-	expect(days).toEqual([
-		{ kind: 'lifting', weekday: null, workoutId: 'stock_strength-S1' },
-		{ kind: 'lifting', weekday: null, workoutId: 'stock_strength-S1' },
-	])
+	// Both slots share one copy of the Stock Workout, which the plan holds
+	// (ADR 0112): no plan points at a corpus row directly.
+	expect(days).toHaveLength(2)
+	expect(new Set(days.map((day) => day.workoutId)).size).toBe(1)
+	for (const day of days) {
+		expect(day).toMatchObject({
+			kind: 'lifting',
+			weekday: null,
+			workout: {
+				copiedFromId: 'stock_strength-S1',
+				ownerId: athleteId,
+				heldByOutlineId: day.pattern.outlineId,
+			},
+		})
+	}
 })
 
 test('every laid week lifts away from that week’s hard days', async () => {

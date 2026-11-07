@@ -2,7 +2,7 @@
 // with the Activity Kind and Effort Word, and one timed step with no Intensity
 // Target. The shape is `simple-activity.ts`'s; this only puts it in the
 // database. The start (#572) lays Simple Activities through a Week Pattern day
-// that references a Workout written here; stamping copies it per session.
+// that holds a Workout written here (ADR 0112); stamping copies it per session.
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { SIMPLE_ACTIVITY_LABELS } from './labels.ts'
@@ -15,12 +15,16 @@ import {
 /**
  * Write a Simple Activity's Workout, owned by `ownerId`. Its title is the
  * Activity Kind's name (_Klatring_) unless one is given.
+ *
+ * `heldByOutlineId` writes it as a **Held Workout** of that plan (ADR 0112):
+ * the first run's fixed days take one, since no session owns it. A Simple
+ * Activity authored as a session passes none.
  */
 export async function createSimpleActivityWorkout(
 	tx: Prisma.TransactionClient,
 	ownerId: string,
 	activity: SimpleActivity,
-	{ title }: { title?: string } = {},
+	{ title, heldByOutlineId }: { title?: string; heldByOutlineId?: string } = {},
 ): Promise<{ id: string }> {
 	const checked = SimpleActivitySchema.parse(activity)
 	const shape = simpleActivityWorkoutData(checked)
@@ -32,6 +36,7 @@ export async function createSimpleActivityWorkout(
 			activityKind: shape.activityKind,
 			effortWord: shape.effortWord,
 			ownerId,
+			heldByOutlineId,
 			blocks: {
 				create: [
 					{

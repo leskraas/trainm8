@@ -135,7 +135,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 					? L.errors.notYours
 					: result.reason === 'not-athlete-authored'
 						? L.errors.stock
-						: L.errors.gone
+						: result.reason === 'held-by-plan'
+							? L.errors.heldByPlan
+							: L.errors.gone
 		return data(
 			{ result: submission.reply({ formErrors: [message] }) },
 			{ status: 400 },

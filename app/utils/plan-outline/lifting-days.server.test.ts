@@ -111,6 +111,8 @@ async function setup({
 		entries: [{ zone: 4, sessionsPerWeek: 1 }],
 	})
 	if (!mixed.ok) throw new Error(mixed.reason)
+	// The plan's own copy of the session it lifts (ADR 0112): a day only ever
+	// holds a Held Workout.
 	const workout = await prisma.workout.create({
 		select: { id: true },
 		data: {
@@ -118,6 +120,7 @@ async function setup({
 			title: 'Knebøy',
 			discipline: 'strength',
 			intent: 'strength',
+			heldByOutlineId: created.outlineId,
 		},
 	})
 	if (fixedLiftingDays) {
@@ -312,8 +315,9 @@ test('chosen lifting days hold in every Week Pattern that lifts, and the undo pu
 		where: { outlineId, name: 'Lett uke' },
 		select: { id: true },
 	})
-	// The light week lifts the full-body Stock Workout, which no athlete owns.
-	const workout = await prisma.workout.create({
+	// The light week lifts the plan's copy of the full-body Stock Workout,
+	// which no athlete owns (ADR 0112).
+	const stock = await prisma.workout.create({
 		select: { id: true },
 		data: {
 			ownerId: null,
@@ -321,6 +325,17 @@ test('chosen lifting days hold in every Week Pattern that lifts, and the undo pu
 			title: 'Helkropp A',
 			discipline: 'strength',
 			intent: 'strength',
+		},
+	})
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: userId,
+			title: 'Helkropp A',
+			discipline: 'strength',
+			intent: 'strength',
+			copiedFromId: stock.id,
+			heldByOutlineId: outlineId,
 		},
 	})
 	await prisma.weekPatternDay.create({
@@ -368,10 +383,11 @@ test('undoing puts back exactly the rows the write replaced, whatever sessions t
 	const { userId, liftTrackId } = await setup({ fixedLiftingDays: [] })
 	const pattern = await prisma.weekPattern.findFirstOrThrow({
 		where: { outline: { tracks: { some: { id: liftTrackId } } } },
-		select: { id: true },
+		select: { id: true, outlineId: true },
 	})
 	// Authored by hand before #597: squats on Tuesday, a pull session on
 	// Thursday, and a bare strength share on Saturday — no Pinned days stored.
+	// Each is the plan's own copy (ADR 0112).
 	const lift = (title: string) =>
 		prisma.workout.create({
 			select: { id: true },
@@ -380,6 +396,7 @@ test('undoing puts back exactly the rows the write replaced, whatever sessions t
 				title,
 				discipline: 'strength',
 				intent: 'strength',
+				heldByOutlineId: pattern.outlineId,
 			},
 		})
 	const squat = await lift('Knebøy')
@@ -450,6 +467,26 @@ test('undoing puts back exactly the rows the write replaced, whatever sessions t
 	)
 	expect(undone.ok).toBe(true)
 	expect(await rows()).toEqual(before)
+
+	// A choice that drops the pull session leaves its Held Workout waiting
+	// only while that write's undo names it; the next write sweeps it
+	// (ADR 0112 §4).
+	const again = (await readLiftingDays(userId, NOW))!
+	const dropped = await setLiftingDays(
+		userId,
+		{ choice: [MON], version: again.version },
+		NOW,
+	)
+	if (!dropped.ok) throw new Error(dropped.reason)
+	expect(await prisma.workout.count({ where: { id: pull.id } })).toBe(1)
+	const next = await setLiftingDays(
+		userId,
+		{ choice: [TUE], version: dropped.version },
+		NOW,
+	)
+	if (!next.ok) throw new Error(next.reason)
+	expect(await prisma.workout.count({ where: { id: pull.id } })).toBe(0)
+	expect(await prisma.workout.count({ where: { id: squat.id } })).toBe(1)
 })
 
 test("an undo cannot put an orphaned athlete's Workout into the week (#639 H26)", async () => {

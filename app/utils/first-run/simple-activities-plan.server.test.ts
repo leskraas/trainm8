@@ -333,3 +333,29 @@ test('an athlete who picked only Simple Activities gets one simple week, made as
 	})
 	expect(tracks).toEqual([{ discipline: 'other' }])
 })
+
+test('a Simple Activity’s fixed day holds the plan’s own Workout, which goes with the plan (ADR 0112)', async () => {
+	const athleteId = await createAthlete()
+	const answers = {
+		level: 'recreational',
+		activities: ['hike', 'yoga-mobility'],
+		hours: 3,
+		days: [1, 3, 5],
+		family: null,
+	} satisfies FirstRunAnswers
+	const made = await createFirstRunPlan(athleteId, answers, NOW)
+	if (!made.ok) throw new Error(made.reason)
+	const days = await prisma.weekPatternDay.findMany({
+		where: { pattern: { outlineId: made.outlineId }, kind: 'fixed' },
+		select: { workout: { select: { id: true, heldByOutlineId: true } } },
+	})
+	expect(days.length).toBeGreaterThan(0)
+	// Written held, with nothing to copy: no session owns it.
+	for (const day of days) {
+		expect(day.workout?.heldByOutlineId).toBe(made.outlineId)
+	}
+	const held = days.flatMap((day) => (day.workout ? [day.workout.id] : []))
+
+	await prisma.planOutline.delete({ where: { id: made.outlineId } })
+	expect(await prisma.workout.count({ where: { id: { in: held } } })).toBe(0)
+})
