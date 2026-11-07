@@ -25,6 +25,7 @@ import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
 import { ScoreStanza } from '#app/components/score-stanza.tsx'
 import { ShapeStrip } from '#app/components/shape-strip.tsx'
+import { SourceCredits } from '#app/components/source-credits.tsx'
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -94,6 +95,7 @@ import {
 	sessionMetricTarget,
 	targetText,
 	unresolvedThresholdReasons,
+	racePaceBindingSet,
 } from '#app/utils/intensity-target.ts'
 import {
 	APP_TAB_LABELS,
@@ -124,7 +126,10 @@ import { buildReviewComparison } from '#app/utils/session-review.ts'
 import { resolveStructureAdherence } from '#app/utils/session-structure-adherence.ts'
 import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
 import { readSimpleActivity } from '#app/utils/simple-activity.ts'
-import { recordingSource } from '#app/utils/source-attribution.ts'
+import {
+	derivedAttributionLines,
+	recordingSource,
+} from '#app/utils/source-attribution.ts'
 import { type ResolveContext } from '#app/utils/strength/anchors.ts'
 import { getWorkoutLoadContexts } from '#app/utils/strength-log.server.ts'
 import { type StructureAdherenceVerdict } from '#app/utils/structure-adherence.ts'
@@ -383,6 +388,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		session,
 		canMarkMissed: missable,
 		thresholds,
+		// A `racePace` target resolved from a Garmin or Polar race is that
+		// platform's data (ADR 0112 §4): the prescription carries its credit.
+		racePaceCredits: session.workout
+			? derivedAttributionLines(racePaceBindingSet(session.workout, thresholds))
+			: [],
 		loadContexts,
 		exercises,
 		recentExerciseIds,
@@ -825,6 +835,7 @@ export default function SessionDetailRoute({
 	const {
 		session,
 		thresholds,
+		racePaceCredits,
 		loadContexts,
 		exercises,
 		recentExerciseIds,
@@ -977,6 +988,12 @@ export default function SessionDetailRoute({
 						) : session.recording &&
 						  isDetectionDiscipline(session.recording.discipline) ? (
 							<NoStructureDetected />
+						) : null}
+
+						{session.workout && racePaceCredits?.length ? (
+							<CardContent>
+								<SourceCredits credits={racePaceCredits} />
+							</CardContent>
 						) : null}
 
 						{/* Provenance follows the numbers (Arket M): the

@@ -273,3 +273,77 @@ test('action unlink-result clears resultSessionId', async () => {
 	const updated = await prisma.event.findFirst({ where: { id: event.id } })
 	expect(updated!.resultSessionId).toBeNull()
 })
+
+async function postDistance(
+	session: { id: string; userId: string },
+	eventId: string,
+	entries: Array<[string, string]>,
+) {
+	const request = makeActionRequest(
+		[['intent', 'set-distance'], ...entries],
+		eventId,
+		await getSessionCookieHeader(session),
+	)
+	return action({
+		request,
+		params: { eventId },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+}
+
+test('action set-distance stores an anchor, snaps a typed km to one, and refuses an unreadable km', async () => {
+	const session = await setupUser()
+	const event = await createEvent(session.userId, {
+		name: 'Sentrumsløpet',
+		kind: 'race',
+		priority: 'A',
+		startDate: new Date('2026-04-25'),
+		disciplines: ['run'],
+		status: 'planned',
+	})
+	const distanceOf = async () =>
+		(await prisma.event.findUniqueOrThrow({ where: { id: event.id } }))
+			.distanceM
+
+	const saved = await postDistance(session, event.id, [['distance', 'hm']])
+	expect((saved as Response).status).toBe(302)
+	expect(await distanceOf()).toBe(21097)
+
+	// "10" typed in Annen is the 10k anchor, so racePace still resolves.
+	await postDistance(session, event.id, [
+		['distance', 'other'],
+		['distanceKm', '10'],
+	])
+	expect(await distanceOf()).toBe(10000)
+
+	await postDistance(session, event.id, [
+		['distance', 'other'],
+		['distanceKm', '7,5'],
+	])
+	expect(await distanceOf()).toBe(7500)
+
+	const refused = await postDistance(session, event.id, [
+		['distance', 'other'],
+		['distanceKm', 'ti'],
+	])
+	expect(refused).toMatchObject({ init: { status: 400 } })
+	expect(await distanceOf()).toBe(7500)
+})
+
+test('action set-distance is refused for a fitness goal', async () => {
+	const session = await setupUser()
+	const event = await createEvent(session.userId, {
+		name: 'Form til sommeren',
+		kind: 'fitness-goal',
+		priority: 'B',
+		startDate: new Date('2026-06-15'),
+		disciplines: ['run'],
+		status: 'planned',
+	})
+	const response = await postDistance(session, event.id, [['distance', '10k']])
+	expect((response as Response).status).toBe(404)
+	expect(
+		(await prisma.event.findUniqueOrThrow({ where: { id: event.id } }))
+			.distanceM,
+	).toBeNull()
+})

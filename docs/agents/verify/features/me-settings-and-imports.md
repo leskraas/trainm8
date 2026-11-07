@@ -13,6 +13,10 @@ to Strava and Intervals.icu, and file imports. Specs to copy from:
   (_Passord_, then _Bytt passord_), profile photo (_Bytt profilbilde_), 2FA and
   passkeys.
 - Training settings and level: `/settings/training`, `/settings/level`.
+- _Løpsresultater_ at `/settings/training/resultater`: typed results (with
+  _Slett_) and Events' results (_Målt av klokka_, the platform's credit, the
+  Event's name as a link, no _Slett_); _I bruk_ where a typed and an Event's
+  result share a distance and a day (#670).
 - Integrations at `/settings/integrations`: connect Strava or Intervals.icu
   (mocked under `MOCKS=true`) and sync.
 - File import at `/imports/upload` (FIT, TCX; fixtures in `tests/fixtures/fit`,

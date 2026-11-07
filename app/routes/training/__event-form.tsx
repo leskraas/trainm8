@@ -27,6 +27,10 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { Checkbox } from '#app/components/ui/checkbox.tsx'
 import {
+	Collapsible,
+	CollapsibleContent,
+} from '#app/components/ui/collapsible.tsx'
+import {
 	Field,
 	FieldDescription,
 	FieldError,
@@ -46,6 +50,12 @@ import {
 import { Textarea } from '#app/components/ui/textarea.tsx'
 import { DAY_KEY_PATTERN } from '#app/utils/calendar-key-schema.ts'
 import {
+	EVENT_DISTANCE_CHOICES,
+	eventDistanceFromChoice,
+	eventTakesDistance,
+	type EventDistanceChoice,
+} from '#app/utils/event-result.ts'
+import {
 	EVENT_KINDS,
 	EVENT_PRIORITIES,
 	EventAuthoringSchema,
@@ -61,6 +71,7 @@ import {
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
+import { EventDistancePicker } from './__event-distance.tsx'
 import {
 	parseFinishTime,
 	parseTargetKm,
@@ -169,15 +180,37 @@ const EventTargetEntrySchema = z
 		}
 	})
 
+/** The Event Distance (#670): an anchor, _Annen_ with a km, or none. Checked
+ * only where the row shows; a hidden row saves no distance. */
+const EventDistanceEntrySchema = z
+	.object({
+		kind: z.string().optional(),
+		disciplines: z.array(z.string()).optional(),
+		distance: z
+			.enum(EVENT_DISTANCE_CHOICES as unknown as [string, ...string[]])
+			.optional(),
+		distanceKm: z.string().optional(),
+	})
+	.superRefine((value, ctx) => {
+		if (!eventTakesDistance(value.kind ?? '', value.disciplines ?? [])) return
+		if (!eventDistanceFromChoice(value.distance, value.distanceKm).ok) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['distanceKm'],
+				message: L.distanceKmInvalid,
+			})
+		}
+	})
+
 /**
  * Three parts, intersected rather than one object with one refinement: zod
  * runs an object's refinement only once every field has passed, so a bad
  * target time would stay unsaid until the name was filled in. Intersected,
  * every error is said on the same submit, each at its field.
  */
-export const EventEntrySchema = EventFieldsSchema.and(EventDaysOrderSchema).and(
-	EventTargetEntrySchema,
-)
+export const EventEntrySchema = EventFieldsSchema.and(EventDaysOrderSchema)
+	.and(EventTargetEntrySchema)
+	.and(EventDistanceEntrySchema)
 
 type EventEntry = z.infer<typeof EventEntrySchema>
 
@@ -225,6 +258,13 @@ export function readEventForm(formData: FormData) {
 		location: entry.location || null,
 		notes: entry.notes || null,
 		status: 'planned',
+		// A hidden row (not a run-only race or time trial) saves no distance.
+		distanceM: eventTakesDistance(entry.kind, entry.disciplines)
+			? (() => {
+					const read = eventDistanceFromChoice(entry.distance, entry.distanceKm)
+					return read.ok ? read.distanceM : null
+				})()
+			: null,
 	})
 	if (!authoring.success) {
 		// Every rule the domain schema holds is checked above in words; one that
@@ -253,6 +293,9 @@ export type EventFormDefaults = {
 	targetDistance: string
 	targetPlacement: string
 	targetDescription: string
+	/** The Event Distance as the pills show it, and _Annen_'s km. */
+	distance: EventDistanceChoice | ''
+	distanceKm: string
 }
 
 function errorsOf(errors: string[] | undefined) {
@@ -332,7 +375,13 @@ export function EventForm({
 		shouldRevalidate: 'onInput',
 	})
 	const [targetKind, setTargetKind] = useState(defaults.targetKind)
+	// Kind and sport decide whether the Event Distance row shows (a run-only
+	// race or time trial); a fitness goal or a triathlon offers none.
+	const [kind, setKind] = useState(defaults.kind)
+	const [disciplines, setDisciplines] = useState<string[]>(defaults.disciplines)
+	const takesDistance = eventTakesDistance(kind, disciplines)
 	const kindLegendId = useId()
+	const distanceLegendId = useId()
 	const priorityLegendId = useId()
 	const disciplinesLegendId = useId()
 
@@ -405,6 +454,7 @@ export function EventForm({
 						<RadioGroup
 							name={fields.kind.name}
 							defaultValue={defaults.kind}
+							onValueChange={(value) => setKind(String(value ?? ''))}
 							aria-labelledby={kindLegendId}
 							{...invalidProps('kind', fields.kind.errors)}
 							className="grid-cols-1 gap-2 min-[400px]:grid-cols-3"
@@ -523,7 +573,12 @@ export function EventForm({
 										// form never sees an input or blur on the field: check
 										// it again once the hidden input has the new state, so
 										// "Velg minst én idrett" goes as soon as one is ticked.
-										onCheckedChange={() => {
+										onCheckedChange={(checked) => {
+											setDisciplines((held) =>
+												checked
+													? [...new Set([...held, discipline])]
+													: held.filter((d) => d !== discipline),
+											)
 											if (!fields.disciplines.errors?.length) return
 											requestAnimationFrame(() =>
 												form.validate({ name: fields.disciplines.name }),
@@ -549,6 +604,41 @@ export function EventForm({
 							errors={errorsOf(fields.disciplines.errors)}
 						/>
 					</FieldSet>
+
+					{/* The Event Distance (#670): only for a run-only race or time
+					    trial. It leaves the form with the row, so saving while it
+					    is hidden clears the distance. The gap is inside the panel,
+					    so the closed row takes no space. */}
+					<Collapsible open={takesDistance} className="-mt-6">
+						<CollapsibleContent>
+							<div className="pt-6">
+								<FieldSet
+									aria-labelledby={distanceLegendId}
+									className="gap-3"
+									data-event-distance-field
+								>
+									<FieldLegend
+										id={distanceLegendId}
+										variant="label"
+										className="mb-0"
+									>
+										{L.distance}
+										<OptionalMark />
+									</FieldLegend>
+									<EventDistancePicker
+										id={`${form.id}-distance`}
+										labelledBy={distanceLegendId}
+										defaultValue={{
+											choice: defaults.distance,
+											km: defaults.distanceKm,
+										}}
+										kmError={fields.distanceKm.errors?.[0] ?? null}
+									/>
+									<FieldDescription>{L.distanceFormHint}</FieldDescription>
+								</FieldSet>
+							</div>
+						</CollapsibleContent>
+					</Collapsible>
 
 					<Field
 						data-invalid={fields.location.errors?.length ? true : undefined}

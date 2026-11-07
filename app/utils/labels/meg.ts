@@ -83,6 +83,11 @@ export const MEG_RESULTS_LABELS = {
 	saved: 'Resultatet er lagret.',
 	replaced: 'Resultatet er lagret i stedet for det du hadde samme dag.',
 	notDeleted: 'Fant ikke resultatet. Last siden på nytt.',
+	/** An Event's result (#670): measured, and removed on the Event. */
+	measured: 'Målt av klokka',
+	inUse: 'I bruk',
+	notInUseTypedSameDay: 'Ikke i bruk: tida du skrev inn samme dag brukes.',
+	toEvent: (name: string) => `Til ${name}`,
 } as const
 
 /**

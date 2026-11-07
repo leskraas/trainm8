@@ -28,6 +28,11 @@ function result(id: string, distance: string, time: string) {
 		date: '3. mai 2026',
 		source: 'Løp',
 		typed: true,
+		event: null as { id: string; name: string } | null,
+		credit: null as string | null,
+		creditOwed: false,
+		inUse: false,
+		shadowed: false,
 	}
 }
 
@@ -119,4 +124,37 @@ test('a delete that fails brings the row back with focus on its button', async (
 	expect(await screen.findByRole('alert')).toHaveTextContent(L.notDeleted)
 	const row = screen.getByTestId('performance-result')
 	await waitFor(() => expect(within(row).getByRole('button')).toHaveFocus())
+})
+
+test("an Event's result says the watch measured it, credits Garmin, links to the Event and offers no delete", async () => {
+	renderRoute({
+		results: () => [
+			{ ...result('typed', '10 km', '41:05'), inUse: true },
+			{
+				...result('measured', '10 km', '41:12'),
+				typed: false,
+				event: { id: 'event-1', name: 'Sentrumsløpet' },
+				credit: 'Garmin Forerunner 265',
+				creditOwed: true,
+				shadowed: true,
+			},
+		],
+	})
+	const [typed, measured] = await screen.findAllByTestId('performance-result')
+	expect(within(typed!).getByText(L.inUse)).toBeInTheDocument()
+	expect(
+		within(typed!).getByRole('button', { name: L.deleteLabel('10 km 41:05') }),
+	).toBeInTheDocument()
+
+	expect(
+		within(measured!).getByText(`${L.measured} · Garmin Forerunner 265`),
+	).toHaveAttribute('data-source-attribution', 'owed')
+	expect(
+		within(measured!).getByText(L.notInUseTypedSameDay),
+	).toBeInTheDocument()
+	expect(
+		within(measured!).getByRole('link', { name: 'Sentrumsløpet' }),
+	).toHaveAttribute('href', '/training/events/event-1')
+	expect(within(measured!).queryByRole('button')).toBeNull()
+	expect(within(measured!).queryByText(L.typedNote)).toBeNull()
 })

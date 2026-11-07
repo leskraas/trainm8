@@ -56,6 +56,8 @@ export default function NewEventRoute({
 					targetDistance: '',
 					targetPlacement: '',
 					targetDescription: '',
+					distance: '',
+					distanceKm: '',
 				}}
 			/>
 		</main>
