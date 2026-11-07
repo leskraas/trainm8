@@ -1,0 +1,86 @@
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Environment variables loaded from .env
+All migrations have been successfully applied.
+[
+ {
+  "workoutId": "cmw6do1zq000g7dmw69i189yl.cmw6do1z500027dmw11dqc2b8",
+  "pattern": {
+   "outlineId": "cmw6do1z500027dmw11dqc2b8"
+  },
+  "workout": {
+   "heldByOutlineId": "cmw6do1z500027dmw11dqc2b8",
+   "copiedFromId": "cmw6do1zq000g7dmw69i189yl",
+   "blocks": [
+    {
+     "steps": [
+      {
+       "durationSec": 600
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "workoutId": "cmw6do202000p7dmw170u1lz2.cmw6do1z500027dmw11dqc2b8",
+  "pattern": {
+   "outlineId": "cmw6do1z500027dmw11dqc2b8"
+  },
+  "workout": {
+   "heldByOutlineId": "cmw6do1z500027dmw11dqc2b8",
+   "copiedFromId": "cmw6do202000p7dmw170u1lz2",
+   "blocks": [
+    {
+     "steps": [
+      {
+       "durationSec": 600
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "workoutId": "cmw6do1zy000l7dmwkxgb02l1.cmw6do1z500027dmw11dqc2b8",
+  "pattern": {
+   "outlineId": "cmw6do1z500027dmw11dqc2b8"
+  },
+  "workout": {
+   "heldByOutlineId": "cmw6do1z500027dmw11dqc2b8",
+   "copiedFromId": "cmw6do1zy000l7dmwkxgb02l1",
+   "blocks": [
+    {
+     "steps": [
+      {
+       "durationSec": 600
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "workoutId": "cmw6do202000p7dmw170u1lz2.cmw6do1z800047dmwinrtldug",
+  "pattern": {
+   "outlineId": "cmw6do1z800047dmwinrtldug"
+  },
+  "workout": {
+   "heldByOutlineId": "cmw6do1z800047dmwinrtldug",
+   "copiedFromId": "cmw6do202000p7dmw170u1lz2",
+   "blocks": [
+    {
+     "steps": [
+      {
+       "durationSec": 600
+      }
+     ]
+    }
+   ]
+  }
+ }
+]
+fk violations: 0
+session Workout deleted; days still 4
+user deleted; days 0 workouts left 0 held left 0
