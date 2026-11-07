@@ -332,7 +332,11 @@ still hold.
 
 ### Proposed (owner to decide): make the load cost not grow with the past
 
-Status: **Proposed**, not built. The load numbers are the one thing at 364 rows
+Status: **Not built: decided against by
+[ADR 0112](0112-opening-the-full-view-costs-what-it-mounts-and-the-weeks-hydrate-one-by-one.md)**
+(#503). The profile put the longest task in the season presenter, not in the
+past's rows, and both seasons mount the same 25 past weeks. Kept below as
+proposed. The load numbers are the one thing at 364 rows
 that a virtualiser would have helped, and it is not the fix this proposes:
 
 - **Server-render and hydrate only the weeks near today** (today's week, the
