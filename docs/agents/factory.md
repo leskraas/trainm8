@@ -16,8 +16,8 @@ autonomy: full
 merge: agent
 merge-method: merge
 budget: 6000000
-parallel: 3
-build-parallel: 2
+parallel: 6
+build-parallel: 4
 serial: qa, design-scan
 human-paths: .github/, .claude/, CLAUDE.md, fly.toml, other/
 human-edits: eslint.config.js, tsconfig.json, playwright.config.ts
@@ -37,9 +37,12 @@ schedule: none
 
 - **Autonomy `full`, merge `agent`**: a solo project; the factory decides,
   merges, and logs its decisions in the `Factory log` issue.
-- **Capacity**: the Team premium row. Runs are started by hand (`/factory`),
-  typically on days set aside to spend the week's remaining quota, so the full
-  row applies rather than the halved one for coding alongside.
+- **Capacity**: above the Team premium row (3/2), raised to `parallel: 6`,
+  `build-parallel: 4` on 2026-11-07 at the owner's request to spend the week's
+  remaining quota before it resets. Runs are started by hand or by
+  `/factory-dispatch`, not by a schedule. Bredvid/tavla spent a five-hour limit
+  in 2.5 hours at fifteen parallel sessions; lower it again if runs stop on a
+  usage limit.
 - **`serial: qa, design-scan`**: QA's instance runs beside a dev server on its
   own port and database ([`verify/`](verify/README.md#isolate)), but every run
   shares the same defaults (`PORT=3100`, `/tmp/trainm8-verify`), so only one QA
