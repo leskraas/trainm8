@@ -49,8 +49,12 @@ holds the place's name, its kind, municipality and county (as Kartverket gives
 them, for the _Hjemsted_ card), and a latitude and longitude rounded to 2
 decimals. Choosing a place upserts the row; _Fjern_ deletes it. The server
 rounds on every write, whatever precision the form sends, and refuses a point
-outside the area Kartverket's register covers. The search text is never stored
-and never logged.
+outside a box around the area Kartverket's register covers (mainland Norway,
+Svalbard and Jan Mayen). The box is a sanity check, not proof the place came
+from the search: it also holds most of Sweden and Finland, and the name, kind,
+municipality and county are the form's. A forged choice can only mislabel the
+athlete's own weather, so the server does not ask Kartverket again on save. The
+search text is never stored and never logged.
 
 The row's existence is the invariant "a place is set": every field is present or
 none is, which six nullable columns on `AthleteProfile` could not enforce.
