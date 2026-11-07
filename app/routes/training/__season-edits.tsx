@@ -993,7 +993,7 @@ function weekPickLabel(
 	weekKey: string,
 	figure: string,
 	withYear: boolean,
-	prefix = 'Uke',
+	prefix: string = SEASON_ANCHOR_EDIT_LABELS.week,
 ): string {
 	const day = formatNbDayMonth(dayOf(weekKey), 'UTC')
 	const year = withYear ? ` ${weekKey.slice(0, 4)}` : ''
@@ -1498,7 +1498,8 @@ function SeasonAnchorPreviewPanel({
 								>
 									<span className="min-w-0 flex-1">
 										<span className="text-callout block">
-											Uke {week.weekNumber} · {week.figure}
+											{SEASON_ANCHOR_EDIT_LABELS.week} {week.weekNumber} ·{' '}
+											{week.figure}
 										</span>
 										<span className="text-muted-foreground text-caption block">
 											{SEASON_ANCHOR_EDIT_LABELS.handSetDetail}
@@ -1599,7 +1600,9 @@ function SeasonAnchorPreviewRow({
 	)
 	const week = (
 		<span className="min-w-0 flex-1">
-			<span className="text-callout block">Uke {row.weekNumber}</span>
+			<span className="text-callout block">
+				{SEASON_ANCHOR_EDIT_LABELS.week} {row.weekNumber}
+			</span>
 			<span className="text-muted-foreground text-caption block [overflow-wrap:anywhere]">
 				{row.where}
 			</span>

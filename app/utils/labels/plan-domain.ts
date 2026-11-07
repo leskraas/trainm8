@@ -443,6 +443,8 @@ export const SEASON_ANCHOR_EDIT_LABELS = {
 	setDetail: 'Hver uke det gjelder for, får nytt mål.',
 	remove: 'Fjern et nytt startnivå',
 	removeDetail: 'Ukene regnes fra startnivået før igjen.',
+	/** The word before a week's number in a picker or a preview row: `Uke 47`. */
+	week: 'Uke',
 	fromWeek: 'Fra uke',
 	segment: 'Startnivå',
 	/** `Starter på (km)` */
