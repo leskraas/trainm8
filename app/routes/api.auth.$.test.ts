@@ -1,6 +1,10 @@
+import { http, HttpResponse } from 'msw'
 import { type AppLoadContext } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
+import { insertGitHubUser } from '#tests/mocks/github.ts'
+import { server } from '#tests/mocks/index.ts'
+import { consoleError } from '#tests/setup/setup-test-env.ts'
 import { action, loader } from './api.auth.$.ts'
 
 /**
@@ -162,6 +166,54 @@ test('sign-up is closed even from the app itself', async () => {
 	expect(response.ok).toBe(false)
 	expect(
 		await prisma.user.count({ where: { email: 'own@example.test' } }),
+	).toBe(0)
+})
+
+test('GitHub cannot create an account, even when the client asks to sign up', async () => {
+	const githubUser = await insertGitHubUser()
+	// The shared mock answers the token exchange with a form content type that
+	// Epic's strategy tolerates and Better Auth does not; answer it as GitHub
+	// does for `Accept: application/json`.
+	server.use(
+		http.post('https://github.com/login/oauth/access_token', () =>
+			HttpResponse.json({
+				access_token: githubUser.accessToken,
+				token_type: 'bearer',
+				scope: 'user:email',
+			}),
+		),
+	)
+	const start = await action({
+		request: authRequest('/sign-in/social', {
+			method: 'POST',
+			headers: { Origin: APP_ORIGIN },
+			body: { provider: 'github', requestSignUp: true, callbackURL: '/' },
+		}),
+		...ARGS_BASE,
+	})
+	expect(start.status).toBe(200)
+	const { url } = (await start.json()) as { url: string }
+	const state = new URL(url).searchParams.get('state') ?? ''
+	const cookie = start.headers
+		.getSetCookie()
+		.map((header) => header.split(';')[0])
+		.join('; ')
+
+	// Better Auth logs the refusal it answers with.
+	consoleError.mockImplementation(() => {})
+	const callback = await loader({
+		request: authRequest(
+			`/callback/github?code=${githubUser.code}&state=${state}`,
+			{ headers: { Cookie: cookie } },
+		),
+		...ARGS_BASE,
+	})
+
+	expect(callback.headers.get('location')).toMatch(/error=signup_disabled/)
+	expect(
+		await prisma.user.count({
+			where: { email: githubUser.primaryEmail.toLowerCase() },
+		}),
 	).toBe(0)
 })
 

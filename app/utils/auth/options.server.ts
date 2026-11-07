@@ -86,7 +86,10 @@ export const authOptions = {
 						clientId: githubClientId,
 						clientSecret: githubClientSecret,
 						redirectURI: process.env.GITHUB_REDIRECT_URI,
+						// `disableImplicitSignUp` alone yields to a client that sends
+						// `requestSignUp: true`; `disableSignUp` closes the path for good.
 						disableImplicitSignUp: true,
+						disableSignUp: true,
 					},
 				}
 			: {},
