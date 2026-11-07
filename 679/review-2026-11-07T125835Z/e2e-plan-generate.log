@@ -1,0 +1,2060 @@
+[WebServer] 
+[WebServer] > dev
+[WebServer] > cross-env NODE_ENV=development MOCKS=true node index.ts
+[WebServer] 
+
+[WebServer] 🔶 Mock server installed
+
+[WebServer] Starting development server
+
+[WebServer] 🚀  We have liftoff!
+
+[WebServer] Local:            http://localhost:3179
+[WebServer] 
+[WebServer] Press Ctrl+C to stop
+
+(node:4750) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 2 workers
+
+(node:4824) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+(node:4831) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/4] [chromium] › tests/e2e/plan-generate.test.ts:19:1 › athlete builds a season from the catalogue, answers its question, and adds it
+[2/4] [chromium] › tests/e2e/plan-generate.test.ts:147:1 › a season over the athlete’s weekly hours is scaled to fit, and says so
+[WebServer] (node:4782) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+[WebServer] responseMode: 'json' drops mid-call notifications. subscriptions/listen streams are always served over SSE regardless; other notifications emitted before a result are dropped.
+
+[WebServer] LOADER routes/training/plan.new.$eventId triggered - 692.75ms
+
+[WebServer] LOADER root triggered - 704.68ms
+
+[WebServer] INFO ⏰  Server timing for route root - root_loader [704.2ms]
+[WebServer] INFO ⏰  Server timing for route root - getUserId [388.3ms] ["getUserId in root"]
+[WebServer] INFO ⏰  Server timing for route root - find_user [289.8ms] ["find user in root"]
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [14.2ms] ["dev athlete switcher aggregates"]
+
+[WebServer] LOADER root triggered - 704.57ms
+
+[WebServer] INFO ⏰  Server timing for route root - root_loader [704.5ms]
+[WebServer] INFO ⏰  Server timing for route root - getUserId [385.5ms] ["getUserId in root"]
+[WebServer] INFO ⏰  Server timing for route root - find_user [290.4ms] ["find user in root"]
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [18.5ms] ["dev athlete switcher aggregates"]
+
+[WebServer] LOADER routes/training/plan.generate.$eventId triggered - 1029.34ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg 200 - - 0.812 ms
+
+[WebServer] GET /app/entry.client.tsx 200 - - 0.698 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg 304 - - 0.504 ms
+
+[WebServer] GET /app/entry.client.tsx 200 - - 0.388 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg 200 - - 0.452 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg 304 - - 0.403 ms
+
+[WebServer] GET /app/styles/tailwind.css 200 - - 1366.387 ms
+
+[WebServer] GET /app/styles/tailwind.css 200 - - 972.357 ms
+
+[WebServer] GET /node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2 200 26832 - 0.557 ms
+
+[WebServer] GET /node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2 200 26832 - 0.262 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/browser-manifest 200 - - 3580.674 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/browser-manifest 200 - - 4432.587 ms
+
+[WebServer] GET /app/root.tsx 200 - - 4082.697 ms
+[WebServer] GET /app/root.tsx 200 - - 5074.612 ms
+
+[WebServer] GET /app/routes/training/plan.new.$eventId.tsx 200 - - 5271.120 ms
+
+[WebServer] GET /app/routes/training/plan.generate.$eventId.tsx 200 - - 4214.121 ms
+
+[WebServer] GET /training/plan/new/cmw6eq19n00047dq0p5pd3kkz 200 - - 23287.952 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/inject-hmr-runtime 200 - - 1.436 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router.js?v=434387c3 200 - - 0.792 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/hmr-runtime 200 - - 0.525 ms
+
+[WebServer] GET /node_modules/.vite/deps/react_jsx-dev-runtime.js?v=434387c3 200 - - 0.202 ms
+
+[WebServer] GET /node_modules/.vite/deps/openimg_react.js?v=434387c3 200 - - 0.235 ms
+
+[WebServer] GET /@vite/client 200 - - 30.204 ms
+
+[WebServer] GET /app/assets/favicons/apple-touch-icon.png?import 200 - - 0.287 ms
+
+[WebServer] GET /app/assets/favicons/favicon.svg?import 200 - - 0.255 ms
+
+[WebServer] GET /node_modules/.vite/deps/remix-utils_honeypot_react.js?v=434387c3 200 - - 0.283 ms
+
+[WebServer] GET /app/components/dev-athlete-switcher.tsx 200 - - 0.376 ms
+
+[WebServer] GET /app/components/error-boundary.tsx 200 - - 0.319 ms
+
+[WebServer] GET /app/components/progress-bar.tsx 200 - - 0.262 ms
+
+[WebServer] GET /app/components/toaster.tsx 200 - - 0.225 ms
+
+[WebServer] GET /app/components/ui/button.tsx 200 - - 0.466 ms
+
+[WebServer] GET /app/components/ui/icon.tsx 200 - - 3.982 ms
+[WebServer] GET /app/components/ui/sonner.tsx 200 - - 0.254 ms
+
+[WebServer] GET /app/components/wordmark-row.tsx 200 - - 0.174 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router-devtools_client.js?v=434387c3 200 - - 1.075 ms
+
+[WebServer] GET /app/styles/tailwind.css?url 200 - - 0.347 ms
+
+[WebServer] GET /app/utils/nonce-provider.ts 200 - - 0.152 ms
+
+[WebServer] GET /app/routes/resources/theme-switch.tsx 200 - - 0.284 ms
+
+[WebServer] GET /app/utils/client-hints.tsx 200 - - 0.206 ms
+
+[WebServer] GET /app/utils/misc.tsx 200 - - 0.509 ms
+
+[WebServer] GET /node_modules/.vite/deps/@conform-to_react.js?v=434387c3 200 - - 0.187 ms
+
+[WebServer] GET /app/utils/user.ts 200 - - 0.176 ms
+
+[WebServer] GET /node_modules/.vite/deps/react.js?v=434387c3 200 - - 0.307 ms
+[WebServer] GET /node_modules/.vite/deps/@conform-to_zod_v3.js?v=434387c3 200 - - 0.191 ms
+[WebServer] GET /node_modules/.vite/deps/zod_v3.js?v=434387c3 200 - - 0.372 ms
+
+[WebServer] GET /app/components/page-header.tsx 200 - - 0.305 ms
+
+[WebServer] GET /app/components/ui/badge.tsx 200 - - 0.711 ms
+
+[WebServer] GET /app/components/forms.tsx 200 - - 0.487 ms
+
+[WebServer] GET /app/components/ui/collapsible.tsx 200 - - 0.212 ms
+[WebServer] GET /app/utils/labels.ts 200 - - 0.227 ms
+[WebServer] GET /app/components/ui/radio-group.tsx 200 - - 0.231 ms
+[WebServer] GET /app/utils/athlete-calendar.ts 200 - - 0.277 ms
+
+[WebServer] GET /app/utils/plan-outline/authoring-schema.ts 200 - - 0.532 ms
+
+[WebServer] GET /app/utils/format.ts 200 - - 0.538 ms
+
+[WebServer] GET /app/utils/plan-outline/event-fit.ts 200 - - 0.180 ms
+
+[WebServer] GET /app/utils/plan-outline/fit-proposal.ts 200 - - 0.349 ms
+
+[WebServer] GET /app/utils/plan-outline/proposal.ts 200 - - 0.269 ms
+
+[WebServer] GET /app/utils/plan-outline/derive.ts 200 - - 0.430 ms
+
+[WebServer] GET /app/utils/plan-outline/presets.ts 200 - - 0.400 ms
+
+[WebServer] GET /app/utils/workout-schema.ts 200 - - 0.362 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-M3F6W4AK.js?v=434387c3 200 - - 0.550 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TU7F4RWQ.js?v=434387c3 200 - - 0.173 ms
+
+[WebServer] GET /app/routes/training/__plan-chrome.tsx 200 - - 0.382 ms
+
+[WebServer] GET /training/plan/generate/cmw6eq1au00077dq7yy0fitd4?anchor-run=80 200 - - 23493.250 ms
+
+[WebServer] GET /app/routes/training/__track-editor.tsx 200 - - 0.386 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/inject-hmr-runtime 200 - - 0.215 ms
+
+[WebServer] GET /app/routes/training/__plan-new-parts.tsx 200 - - 0.310 ms
+
+[WebServer] GET /app/routes/training/__preset-gallery.tsx 200 - - 0.331 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router.js?v=434387c3 200 - - 0.492 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-NKQYQQPA.js?v=434387c3 200 - - 0.199 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PLDDJCW6.js?v=434387c3 200 - - 0.355 ms
+
+[WebServer] GET /node_modules/vite/dist/client/env.mjs 200 - - 0.212 ms
+
+[WebServer] GET /node_modules/.vite/deps/react_jsx-dev-runtime.js?v=434387c3 200 - - 0.143 ms
+
+[WebServer] GET /node_modules/.vite/deps/openimg_react.js?v=434387c3 200 - - 0.174 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RHRUO2N4.js?v=434387c3 200 - - 0.196 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/hmr-runtime 200 - - 0.297 ms
+
+[WebServer] GET /@vite/client 200 - - 5.653 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VMYQLOAB.js?v=434387c3 200 - - 0.770 ms
+
+[WebServer] GET /node_modules/.vite/deps/spin-delay.js?v=434387c3 200 - - 0.348 ms
+
+[WebServer] GET /app/assets/favicons/apple-touch-icon.png?import 200 - - 0.196 ms
+
+[WebServer] GET /app/assets/favicons/favicon.svg?import 200 - - 0.198 ms
+[WebServer] GET /node_modules/.vite/deps/next-themes.js?v=434387c3 200 - - 0.254 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_button.js?v=434387c3 200 - - 0.205 ms
+[WebServer] GET /app/components/tab-bar.tsx 200 - - 0.353 ms
+
+[WebServer] GET /node_modules/.vite/deps/sonner.js?v=434387c3 200 - - 0.381 ms
+
+[WebServer] GET /node_modules/.vite/deps/remix-utils_honeypot_react.js?v=434387c3 200 - - 0.157 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg?import 200 - - 0.269 ms
+
+[WebServer] GET /node_modules/.vite/deps/remix-utils_server-only.js?v=434387c3 200 - - 0.364 ms
+
+[WebServer] GET /node_modules/.vite/deps/class-variance-authority.js?v=434387c3 200 - - 0.208 ms
+[WebServer] GET /app/components/dev-athlete-switcher.tsx 200 - - 0.261 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints_time-zone.js?v=434387c3 200 - - 0.137 ms
+
+[WebServer] GET /app/utils/request-info.ts 200 - - 0.221 ms
+[WebServer] GET /app/components/error-boundary.tsx 200 - - 0.458 ms
+[WebServer] GET /app/components/toaster.tsx 200 - - 0.154 ms
+[WebServer] GET /app/components/progress-bar.tsx 200 - - 0.163 ms
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints.js?v=434387c3 200 - - 0.131 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints_color-scheme.js?v=434387c3 200 - - 0.155 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router-devtools_client.js?v=434387c3 200 - - 1.167 ms
+[WebServer] GET /app/components/ui/button.tsx 200 - - 0.183 ms
+
+[WebServer] GET /app/components/ui/icon.tsx 200 - - 0.192 ms
+[WebServer] GET /node_modules/.vite/deps/clsx.js?v=434387c3 200 - - 1.556 ms
+[WebServer] GET /app/components/ui/sonner.tsx 200 - - 0.195 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-KS2HRS5U.js?v=434387c3 200 - - 0.180 ms
+[WebServer] GET /app/components/wordmark-row.tsx 200 - - 0.230 ms
+
+[WebServer] GET /app/routes/resources/theme-switch.tsx 200 - - 0.223 ms
+[WebServer] GET /node_modules/.vite/deps/tailwind-merge.js?v=434387c3 200 - - 0.233 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PPCCYCP4.js?v=434387c3 200 - - 0.166 ms
+
+[WebServer] GET /app/styles/tailwind.css?url 200 - - 0.269 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-U7P2NEEE.js?v=434387c3 200 - - 10.655 ms
+
+[WebServer] GET /app/utils/nonce-provider.ts 200 - - 0.275 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MFMJSVS6.js?v=434387c3 200 - - 0.258 ms
+
+[WebServer] GET /app/utils/client-hints.tsx 200 - - 0.166 ms
+[WebServer] GET /app/utils/misc.tsx 200 - - 0.444 ms
+[WebServer] GET /app/utils/user.ts 200 - - 0.258 ms
+
+[WebServer] GET /node_modules/.vite/deps/react.js?v=434387c3 200 - - 0.319 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-7JNUVBJG.js?v=434387c3 200 - - 0.237 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-656D5HCP.js?v=434387c3 200 - - 0.152 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IE5SSCCX.js?v=434387c3 200 - - 0.133 ms
+
+[WebServer] GET /app/components/forms.tsx 200 - - 0.657 ms
+
+[WebServer] GET /node_modules/.vite/deps/@sentry_react-router.js?v=434387c3 200 - - 1.862 ms
+
+[WebServer] GET /app/components/page-header.tsx 200 - - 0.244 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-CLZIJYS4.js?v=434387c3 200 - - 0.164 ms
+
+[WebServer] GET /app/components/ui/card.tsx 200 - - 0.259 ms
+
+[WebServer] GET /app/components/ui/collapsible.tsx 200 - - 0.155 ms
+
+[WebServer] GET /app/components/ui/radio-group.tsx 200 - - 0.206 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-BUSYJED7.js?v=434387c3 200 - - 0.191 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-5ORBU763.js?v=434387c3 200 - - 0.150 ms
+
+[WebServer] GET /app/utils/format.ts 200 - - 0.511 ms
+
+[WebServer] GET /node_modules/.vite/deps/input-otp.js?v=434387c3 200 - - 0.129 ms
+
+[WebServer] GET /app/components/return-key.ts 200 - - 0.282 ms
+
+[WebServer] GET /app/utils/labels.ts 200 - - 0.161 ms
+
+[WebServer] GET /app/utils/plan-generation/season.ts 200 - - 0.239 ms
+
+[WebServer] GET /app/utils/plan-outline/event-fit.ts 200 - - 0.214 ms
+
+[WebServer] GET /app/components/ui/badge.tsx 200 - - 0.425 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-JBAFUDIV.js?v=434387c3 200 - - 0.357 ms
+
+[WebServer] GET /app/utils/athlete-calendar.ts 200 - - 0.203 ms
+
+[WebServer] GET /app/components/ui/checkbox.tsx 200 - - 0.261 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-EDXUVBXB.js?v=434387c3 200 - - 0.252 ms
+[WebServer] GET /app/components/ui/field.tsx 200 - - 0.308 ms
+[WebServer] GET /app/components/ui/input.tsx 200 - - 0.491 ms
+[WebServer] GET /app/components/ui/input-otp.tsx 200 - - 0.175 ms
+
+[WebServer] GET /app/routes/training/__catalogue-card.ts 200 - - 0.309 ms
+[WebServer] GET /app/utils/plan-outline/presets.ts 200 - - 0.626 ms
+
+[WebServer] GET /app/routes/training/__plan-new-parts.tsx 200 - - 0.229 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_use-render.js?v=434387c3 200 - - 0.137 ms
+
+[WebServer] GET /app/routes/training/__plan-chrome.tsx 200 - - 4.492 ms
+[WebServer] GET /app/components/ui/select.tsx 200 - - 0.234 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-NKQYQQPA.js?v=434387c3 200 - - 0.193 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-M3F6W4AK.js?v=434387c3 200 - - 0.282 ms
+[WebServer] GET /app/routes/training/__preset-gallery.tsx 200 - - 0.352 ms
+[WebServer] GET /app/components/ui/textarea.tsx 200 - - 0.237 ms
+[WebServer] GET /app/components/ui/toggle-group.tsx 200 - - 0.184 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_merge-props.js?v=434387c3 200 - - 0.263 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_collapsible.js?v=434387c3 200 - - 0.215 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PLDDJCW6.js?v=434387c3 200 - - 0.349 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TU7F4RWQ.js?v=434387c3 200 - - 0.166 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_radio.js?v=434387c3 200 - - 0.177 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_radio-group.js?v=434387c3 200 - - 0.164 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RHRUO2N4.js?v=434387c3 200 - - 0.217 ms
+
+[WebServer] GET /node_modules/vite/dist/client/env.mjs 200 - - 0.338 ms
+
+[WebServer] GET /app/utils/labels/vocabulary.ts 200 - - 0.343 ms
+
+[WebServer] GET /app/utils/labels/session-composer.ts 200 - - 0.295 ms
+
+[WebServer] GET /app/utils/labels/week-change.ts 200 - - 0.564 ms
+
+[WebServer] GET /app/utils/labels/i-dag.ts 200 - - 0.411 ms
+
+[WebServer] GET /node_modules/.vite/deps/spin-delay.js?v=434387c3 200 - - 0.147 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_button.js?v=434387c3 200 - - 0.148 ms
+
+[WebServer] GET /app/utils/labels/first-run.ts 200 - - 0.538 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VMYQLOAB.js?v=434387c3 200 - - 0.792 ms
+
+[WebServer] GET /node_modules/.vite/deps/class-variance-authority.js?v=434387c3 200 - - 0.151 ms
+
+[WebServer] GET /app/utils/labels/plan-domain.ts 200 - - 1.830 ms
+
+[WebServer] GET /node_modules/.vite/deps/sonner.js?v=434387c3 200 - - 0.192 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg?import 200 - - 0.220 ms
+
+[WebServer] GET /node_modules/.vite/deps/remix-utils_server-only.js?v=434387c3 200 - - 0.225 ms
+
+[WebServer] GET /node_modules/.vite/deps/next-themes.js?v=434387c3 200 - - 0.129 ms
+[WebServer] GET /node_modules/.vite/deps/@conform-to_zod_v3.js?v=434387c3 200 - - 0.139 ms
+[WebServer] GET /node_modules/.vite/deps/@conform-to_react.js?v=434387c3 200 - - 0.160 ms
+
+[WebServer] GET /node_modules/.vite/deps/zod_v3.js?v=434387c3 200 - - 0.370 ms
+
+[WebServer] GET /app/utils/request-info.ts 200 - - 0.160 ms
+
+[WebServer] GET /app/utils/labels/plan-new.ts 200 - - 0.235 ms
+
+[WebServer] GET /app/utils/labels/plan-generate.ts 200 - - 0.246 ms
+
+[WebServer] GET /app/utils/labels/events.ts 200 - - 0.165 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-U7P2NEEE.js?v=434387c3 200 - - 1.438 ms
+[WebServer] GET /app/utils/labels/token-sentence.ts 200 - - 0.180 ms
+[WebServer] GET /app/utils/labels/workout-detail.ts 200 - - 0.325 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PPCCYCP4.js?v=434387c3 200 - - 0.159 ms
+
+[WebServer] GET /app/utils/labels/sesong.ts 200 - - 1.085 ms
+
+[WebServer] GET /app/components/tab-bar.tsx 200 - - 1.169 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-656D5HCP.js?v=434387c3 200 - - 0.152 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-7JNUVBJG.js?v=434387c3 200 - - 0.182 ms
+
+[WebServer] GET /app/utils/labels/token-editor.ts 200 - - 0.311 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MFMJSVS6.js?v=434387c3 200 - - 0.223 ms
+
+[WebServer] GET /app/utils/labels/integrations.ts 200 - - 0.268 ms
+
+[WebServer] GET /app/utils/labels/actions.ts 200 - - 0.182 ms
+
+[WebServer] GET /app/utils/labels/bibliotek.ts 200 - - 0.540 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IE5SSCCX.js?v=434387c3 200 - - 0.153 ms
+
+[WebServer] GET /app/utils/labels/privacy.ts 200 - - 0.222 ms
+
+[WebServer] GET /node_modules/.vite/deps/@sentry_react-router.js?v=434387c3 200 - - 2.173 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_invariant.js?v=434387c3 200 - - 0.163 ms
+
+[WebServer] GET /app/utils/planned-discipline.ts 200 - - 0.194 ms
+
+[WebServer] GET /app/utils/plan-outline/quality-mix.ts 200 - - 0.183 ms
+
+[WebServer] GET /app/utils/plan-outline/week-pattern.ts 200 - - 0.339 ms
+
+[WebServer] GET /app/utils/plan-outline/week-keys.ts 200 - - 0.154 ms
+
+[WebServer] GET /app/utils/labels/meg.ts 200 - - 0.671 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-BUSYJED7.js?v=434387c3 200 - - 0.121 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints_time-zone.js?v=434387c3 200 - - 0.182 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints.js?v=434387c3 200 - - 0.126 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints_color-scheme.js?v=434387c3 200 - - 0.144 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-CLZIJYS4.js?v=434387c3 200 - - 0.210 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-JBAFUDIV.js?v=434387c3 200 - - 0.391 ms
+
+[WebServer] GET /node_modules/.vite/deps/clsx.js?v=434387c3 200 - - 0.221 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-5ORBU763.js?v=434387c3 200 - - 0.116 ms
+
+[WebServer] GET /app/components/ui/alert-dialog.tsx 200 - - 0.231 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RMYYCH2C.js?v=434387c3 200 - - 0.189 ms
+[WebServer] GET /app/components/ui/label.tsx 200 - - 0.174 ms
+[WebServer] GET /app/components/ui/card.tsx 200 - - 0.233 ms
+[WebServer] GET /app/components/ui/toggle.tsx 200 - - 0.230 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-RVLSTKBW.js?v=434387c3 200 - - 0.157 ms
+
+[WebServer] GET /node_modules/.vite/deps/input-otp.js?v=434387c3 200 - - 0.127 ms
+
+[WebServer] GET /app/components/return-key.ts 200 - - 0.183 ms
+
+[WebServer] GET /app/components/ui/checkbox.tsx 200 - - 0.148 ms
+
+[WebServer] GET /node_modules/.vite/deps/tailwind-merge.js?v=434387c3 200 - - 0.228 ms
+
+[WebServer] GET /app/components/ui/input-otp.tsx 200 - - 0.178 ms
+
+[WebServer] GET /app/components/ui/field.tsx 200 - - 0.206 ms
+
+[WebServer] GET /app/components/chart/chart.tsx 200 - - 0.301 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GL2OCQXL.js?v=434387c3 200 - - 0.197 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-WMUX6YKA.js?v=434387c3 200 - - 0.131 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-ENNFH4ZE.js?v=434387c3 200 - - 0.138 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-EEK2JT2C.js?v=434387c3 200 - - 0.122 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RBDAQQJI.js?v=434387c3 200 - - 0.143 ms
+
+[WebServer] GET /app/components/ui/textarea.tsx 200 - - 0.173 ms
+
+[WebServer] GET /app/components/ui/select.tsx 200 - - 0.237 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_radio.js?v=434387c3 200 - - 0.164 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_radio-group.js?v=434387c3 200 - - 0.149 ms
+
+[WebServer] GET /app/components/ui/input.tsx 200 - - 0.159 ms
+[WebServer] GET /app/components/ui/toggle-group.tsx 200 - - 0.175 ms
+
+[WebServer] GET /app/utils/app-tabs.ts 200 - - 0.197 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_checkbox.js?v=434387c3 200 - - 0.160 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-F6S5IC6S.js?v=434387c3 200 - - 0.133 ms
+
+[WebServer] GET /app/utils/plan-outline/derive.ts 200 - - 0.435 ms
+
+[WebServer] GET /app/components/ui/separator.tsx 200 - - 0.145 ms
+
+[WebServer] GET /app/utils/labels/vocabulary.ts 200 - - 0.348 ms
+
+[WebServer] GET /app/utils/labels/week-change.ts 200 - - 1.397 ms
+
+[WebServer] GET /app/utils/labels/session-composer.ts 200 - - 0.525 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-R2C24HHH.js?v=434387c3 200 - - 0.169 ms
+
+[WebServer] GET /app/utils/labels/first-run.ts 200 - - 0.635 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_input.js?v=434387c3 200 - - 0.154 ms
+
+[WebServer] GET /app/utils/labels/i-dag.ts 200 - - 0.400 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_select.js?v=434387c3 200 - - 0.269 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-33CIOPSD.js?v=434387c3 200 - - 0.231 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TKBTL2J2.js?v=434387c3 200 - - 1.329 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4TVM4IDP.js?v=434387c3 200 - - 0.135 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IC66CJ7R.js?v=434387c3 200 - - 0.148 ms
+
+[WebServer] GET /app/utils/labels/plan-generate.ts 200 - - 0.298 ms
+[WebServer] GET /app/utils/labels/events.ts 200 - - 0.192 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4U7M3CAD.js?v=434387c3 200 - - 0.192 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-FSVBBD5X.js?v=434387c3 200 - - 0.143 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-L5NMXK6R.js?v=434387c3 200 - - 0.132 ms
+
+[WebServer] GET /app/utils/labels/plan-new.ts 200 - - 0.231 ms
+
+[WebServer] GET /app/utils/labels/workout-detail.ts 200 - - 0.323 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-SEKENLGX.js?v=434387c3 200 - - 0.128 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_toggle.js?v=434387c3 200 - - 0.200 ms
+
+[WebServer] GET /app/utils/labels/plan-domain.ts 200 - - 0.443 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_toggle-group.js?v=434387c3 200 - - 0.232 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-XM5HBIJH.js?v=434387c3 200 - - 0.211 ms
+
+[WebServer] GET /app/utils/labels/token-sentence.ts 200 - - 0.276 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-LNFL65VS.js?v=434387c3 200 - - 0.153 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ZWLPFD3S.js?v=434387c3 200 - - 0.132 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GFHFTLPZ.js?v=434387c3 200 - - 0.148 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VQ4RF4WS.js?v=434387c3 200 - - 0.129 ms
+
+[WebServer] GET /app/utils/labels/sesong.ts 200 - - 1.153 ms
+
+[WebServer] GET /app/utils/labels/token-editor.ts 200 - - 0.240 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-N6M5RMM7.js?v=434387c3 200 - - 0.202 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-HDRLOUPA.js?v=434387c3 200 - - 0.229 ms
+
+[WebServer] GET /app/utils/labels/integrations.ts 200 - - 0.284 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-7IFUA7J5.js?v=434387c3 200 - - 0.229 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-2U277EYI.js?v=434387c3 200 - - 0.120 ms
+[WebServer] GET /app/utils/labels/bibliotek.ts 200 - - 0.433 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DCBEV6KF.js?v=434387c3 200 - - 0.556 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-2IH4MLII.js?v=434387c3 200 - - 0.161 ms
+
+[WebServer] GET /app/utils/labels/actions.ts 200 - - 0.176 ms
+
+[WebServer] GET /app/utils/labels/meg.ts 200 - - 1.074 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-5BDZELXV.js?v=434387c3 200 - - 0.165 ms
+[WebServer] GET /app/utils/labels/privacy.ts 200 - - 0.209 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_collapsible.js?v=434387c3 200 - - 0.153 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MRPVSNJM.js?v=434387c3 200 - - 0.165 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_use-render.js?v=434387c3 200 - - 0.502 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RXKLT3YF.js?v=434387c3 200 - - 0.170 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MYVRAMWM.js?v=434387c3 200 - - 0.161 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-3O75Z2F2.js?v=434387c3 200 - - 0.803 ms
+
+[WebServer] GET /app/utils/plan-outline/week-keys.ts 200 - - 0.156 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_merge-props.js?v=434387c3 200 - - 0.300 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IA4NSTBK.js?v=434387c3 200 - - 0.226 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-3YTUHSRK.js?v=434387c3 200 - - 0.183 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GGAVCAQJ.js?v=434387c3 200 - - 0.242 ms
+[WebServer] GET /app/utils/catalogue-corpus.ts 200 - - 0.242 ms
+
+[WebServer] GET /app/utils/catalogue.ts 200 - - 0.187 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-DVVASW4B.js?v=434387c3 200 - - 0.132 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_invariant.js?v=434387c3 200 - - 0.727 ms
+
+[WebServer] GET /app/routes/training/__workout-detail-summary.ts 200 - - 0.216 ms
+
+[WebServer] GET /app/utils/labels/_helpers.ts 200 - - 0.149 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RMYYCH2C.js?v=434387c3 200 - - 0.408 ms
+
+[WebServer] GET /app/utils/five-minutes.ts 200 - - 0.218 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_alert-dialog.js?v=434387c3 200 - - 0.316 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MUMQE446.js?v=434387c3 200 - - 0.116 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GL2OCQXL.js?v=434387c3 200 - - 0.161 ms
+
+[WebServer] GET /app/utils/prescribed-duration.ts 200 - - 0.189 ms
+
+[WebServer] GET /app/components/ui/toggle.tsx 200 - - 0.215 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-RVLSTKBW.js?v=434387c3 200 - - 0.243 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_separator.js?v=434387c3 200 - - 0.256 ms
+[WebServer] GET /app/utils/workout-notation.ts 200 - - 1.002 ms
+
+[WebServer] GET /app/components/chart/chart.tsx 200 - - 0.394 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-SW5VQLBJ.js?v=434387c3 200 - - 5.260 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-OPZWSOJ7.js?v=434387c3 200 - - 0.133 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-WMUX6YKA.js?v=434387c3 200 - - 0.139 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4RVT6CT6.js?v=434387c3 200 - - 0.166 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ALGDNCY3.js?v=434387c3 200 - - 0.112 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VE5QWEYY.js?v=434387c3 200 - - 0.231 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-UXNX7BTM.js?v=434387c3 200 - - 0.148 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PNTTCCNW.js?v=434387c3 200 - - 0.582 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ENNFH4ZE.js?v=434387c3 200 - - 0.118 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-N3XGAQ4J.js?v=434387c3 200 - - 0.176 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-RBDAQQJI.js?v=434387c3 200 - - 0.107 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-EEK2JT2C.js?v=434387c3 200 - - 0.147 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-KS2HRS5U.js?v=434387c3 200 - - 0.178 ms
+
+[WebServer] GET /app/utils/app-tabs.ts 200 - - 0.214 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-7CZOYBIS.js?v=434387c3 200 - - 0.222 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TQYQ5HE2.js?v=434387c3 200 - - 0.120 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-EDXUVBXB.js?v=434387c3 200 - - 0.219 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GZHJZH4T.js?v=434387c3 200 - - 0.156 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GCEORYIC.js?v=434387c3 200 - - 0.162 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DGF4NNFX.js?v=434387c3 200 - - 0.300 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DVMKA2I4.js?v=434387c3 200 - - 0.165 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_checkbox.js?v=434387c3 200 - - 0.372 ms
+
+[WebServer] GET /app/components/ui/label.tsx 200 - - 0.210 ms
+
+[WebServer] GET /app/components/ui/separator.tsx 200 - - 0.147 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TG43SGU4.js?v=434387c3 200 - - 0.125 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MYVRAMWM.js?v=434387c3 200 - - 0.138 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4NJG5SZV.js?v=434387c3 200 - - 0.141 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MRPVSNJM.js?v=434387c3 200 - - 0.116 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ZWLPFD3S.js?v=434387c3 200 - - 0.299 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_select.js?v=434387c3 200 - - 0.297 ms
+
+[WebServer] GET /app/utils/intensity-target.ts 200 - - 0.369 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RXKLT3YF.js?v=434387c3 200 - - 0.166 ms
+
+[WebServer] GET /app/utils/shape-strip.ts 200 - - 0.239 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-3O75Z2F2.js?v=434387c3 200 - - 0.135 ms
+
+[WebServer] GET /sw.js 200 531 - 0.459 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GFHFTLPZ.js?v=434387c3 200 - - 0.284 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VQ4RF4WS.js?v=434387c3 200 - - 0.114 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-7IFUA7J5.js?v=434387c3 200 - - 0.182 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-3YTUHSRK.js?v=434387c3 200 - - 0.141 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DVVASW4B.js?v=434387c3 200 - - 0.163 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IA4NSTBK.js?v=434387c3 200 - - 0.161 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-F6S5IC6S.js?v=434387c3 200 - - 0.144 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-5BDZELXV.js?v=434387c3 200 - - 0.148 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GGAVCAQJ.js?v=434387c3 200 - - 0.223 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TKBTL2J2.js?v=434387c3 200 - - 0.149 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4TVM4IDP.js?v=434387c3 200 - - 0.247 ms
+
+[WebServer] GET /app/utils/zones/index.ts 200 - - 0.169 ms
+
+[WebServer] GET /app/utils/zones/pace-unit.ts 200 - - 0.154 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IC66CJ7R.js?v=434387c3 200 - - 0.117 ms
+
+[WebServer] GET /app/utils/zones/resolve.ts 200 - - 0.243 ms
+
+[WebServer] GET /app/utils/zone-equivalent.ts 200 - - 0.326 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4U7M3CAD.js?v=434387c3 200 - - 0.132 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-SEKENLGX.js?v=434387c3 200 - - 0.210 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_toggle.js?v=434387c3 200 - - 0.133 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-XM5HBIJH.js?v=434387c3 200 - - 0.144 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_toggle-group.js?v=434387c3 200 - - 0.130 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_input.js?v=434387c3 200 - - 0.182 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-LNFL65VS.js?v=434387c3 200 - - 0.117 ms
+
+[WebServer] GET /app/utils/zones/defaults.ts 200 - - 0.198 ms
+[WebServer] GET /app/utils/zones/recipes.ts 200 - - 0.331 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-33CIOPSD.js?v=434387c3 200 - - 0.200 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-2U277EYI.js?v=434387c3 200 - - 0.128 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-N6M5RMM7.js?v=434387c3 200 - - 0.177 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-HDRLOUPA.js?v=434387c3 200 - - 0.131 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-DCBEV6KF.js?v=434387c3 200 - - 0.170 ms
+[WebServer] GET /app/utils/zones/band-for-zone.ts 200 - - 0.254 ms
+[WebServer] GET /app/utils/structure-detection/classify.ts 200 - - 0.240 ms
+[WebServer] GET /app/utils/session-profile.ts 200 - - 0.265 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-2IH4MLII.js?v=434387c3 200 - - 0.149 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-R2C24HHH.js?v=434387c3 200 - - 0.136 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-FSVBBD5X.js?v=434387c3 200 - - 0.649 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-L5NMXK6R.js?v=434387c3 200 - - 0.192 ms
+
+[WebServer] GET /app/utils/labels/_helpers.ts 200 - - 0.271 ms
+
+[WebServer] GET /app/utils/dashboard.ts 200 - - 0.224 ms
+[WebServer] GET /app/utils/zones/words.ts 200 - - 0.136 ms
+[WebServer] GET /app/utils/workout-reps.ts 200 - - 0.229 ms
+
+[WebServer] GET /app/utils/prescribed-duration.ts 200 - - 0.418 ms
+
+[WebServer] GET /app/utils/plan-outline/week-pattern.ts 200 - - 0.322 ms
+
+[WebServer] GET /app/utils/intensity-target.ts 200 - - 0.370 ms
+
+[WebServer] GET /app/utils/session-profile.ts 200 - - 0.237 ms
+
+[WebServer] GET /app/utils/strength/anchors.ts 200 - - 1.408 ms
+
+[WebServer] GET /app/utils/strength-log.ts 200 - - 0.478 ms
+
+[WebServer] GET /app/utils/workout-schema.ts 200 - - 0.387 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-SW5VQLBJ.js?v=434387c3 200 - - 0.197 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4RVT6CT6.js?v=434387c3 200 - - 0.125 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_separator.js?v=434387c3 200 - - 0.244 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-OPZWSOJ7.js?v=434387c3 200 - - 0.188 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VE5QWEYY.js?v=434387c3 200 - - 0.127 ms
+
+[WebServer] GET /app/utils/zone-equivalent.ts 200 - - 0.360 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ALGDNCY3.js?v=434387c3 200 - - 0.144 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-N3XGAQ4J.js?v=434387c3 200 - - 0.171 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MUMQE446.js?v=434387c3 200 - - 0.142 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-UXNX7BTM.js?v=434387c3 200 - - 1.798 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PNTTCCNW.js?v=434387c3 200 - - 0.363 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TQYQ5HE2.js?v=434387c3 200 - - 0.165 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-7CZOYBIS.js?v=434387c3 200 - - 0.129 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GZHJZH4T.js?v=434387c3 200 - - 0.130 ms
+
+[WebServer] GET /app/utils/shape-strip.ts 200 - - 0.208 ms
+
+[WebServer] GET /app/utils/zones/index.ts 200 - - 0.160 ms
+
+[WebServer] GET /app/utils/five-minutes.ts 200 - - 0.184 ms
+
+[WebServer] GET /app/utils/zones/resolve.ts 200 - - 0.239 ms
+
+[WebServer] GET /app/utils/workout-reps.ts 200 - - 0.245 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DGF4NNFX.js?v=434387c3 200 - - 0.299 ms
+
+[WebServer] GET /app/utils/zones/words.ts 200 - - 0.219 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4NJG5SZV.js?v=434387c3 200 - - 0.138 ms
+
+[WebServer] GET /app/utils/strength/program.constants.ts 200 - - 0.351 ms
+[WebServer] GET /app/utils/structure-detection/classify.ts 200 - - 0.340 ms
+
+[WebServer] GET /app/utils/zones/pace-unit.ts 200 - - 0.207 ms
+
+[WebServer] GET /app/utils/zones/defaults.ts 200 - - 0.174 ms
+
+[WebServer] GET /app/utils/zones/band-for-zone.ts 200 - - 0.150 ms
+
+[WebServer] GET /sw.js 200 531 - 0.978 ms
+[WebServer] GET /app/utils/zones/recipes.ts 200 - - 0.292 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router_dom.js?v=434387c3 200 - - 0.184 ms
+
+[WebServer] GET /app/utils/view-morph.ts 200 - - 0.288 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-dom_client.js?v=434387c3 200 - - 2.832 ms
+
+[WebServer] GET /app/utils/motion.ts 200 - - 0.251 ms
+
+[WebServer] GET /app/utils/view-morph.ts 200 - - 0.234 ms
+[WebServer] GET /node_modules/.vite/deps/react-router_dom.js?v=434387c3 200 - - 0.210 ms
+
+[WebServer] GET /app/utils/motion.ts 200 - - 0.171 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-dom_client.js?v=434387c3 200 - - 1.818 ms
+
+[3/4] [chromium] › tests/e2e/plan-generate.test.ts:249:1 › the season line and the «N uker til» row name the weeks whose placed sessions outrun the capacity, with the section closed
+[WebServer] GET /node_modules/.vite/deps/PYVV4DLY-7JHDUT4N.js?v=434387c3 200 - - 112.935 ms
+[WebServer] GET /app/routes/training/plan.generate.$eventId.tsx?import 200 - - 0.838 ms
+
+[WebServer] LOADER root triggered - 48.43ms
+[WebServer] INFO ⏰  Server timing for route root - root_loader [48.2ms]
+[WebServer] INFO ⏰  Server timing for route root - getUserId [42ms] ["getUserId in root"]
+[WebServer] INFO ⏰  Server timing for route root - find_user [1.2ms] ["find user in root"]
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [0ms] ["dev athlete switcher aggregates"]
+[WebServer] LOADER root triggered - 10.52ms
+[WebServer] INFO ⏰  Server timing for route root - root_loader [10.4ms]
+[WebServer] INFO ⏰  Server timing for route root - getUserId [3.2ms] ["getUserId in root"]
+[WebServer] INFO ⏰  Server timing for route root - find_user [1.8ms] ["find user in root"]
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [0ms] ["dev athlete switcher aggregates"]
+
+[WebServer] GET /app/utils/plan-generation/season.ts 200 - - 0.296 ms
+
+[WebServer] GET /app/routes/training/__catalogue-card.ts 200 - - 0.263 ms
+
+[WebServer] LOADER routes/training/plan.generate.$eventId triggered - 82.28ms
+
+[WebServer] GET /training/plan/generate/cmw6eq19n00047dq0p5pd3kkz.data 200 - - 100.947 ms
+
+[WebServer] LOADER routes/training/plan.generate.$eventId triggered - 67.54ms
+
+[WebServer] GET /app/utils/catalogue.ts 200 - - 0.217 ms
+[WebServer] GET /app/utils/catalogue-corpus.ts 200 - - 0.384 ms
+[WebServer] GET /app/routes/training/__workout-detail-summary.ts 200 - - 0.228 ms
+
+[WebServer] GET /app/utils/workout-notation.ts 200 - - 0.720 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/browser-manifest 200 - - 3.877 ms
+
+[WebServer] GET /app/entry.client.tsx 200 - - 0.180 ms
+[WebServer] GET /app/root.tsx 200 - - 0.360 ms
+
+[WebServer] GET /app/routes/training/plan.generate.$eventId.tsx 200 - - 0.815 ms
+
+[WebServer] GET /app/styles/tailwind.css 200 - - 0.432 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg 200 - - 0.399 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg 304 - - 0.370 ms
+
+[WebServer] GET /training/plan/generate/cmw6eqpvg000h7dq72mp3zp8b 200 - - 345.741 ms
+
+[WebServer] GET /node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2 200 26832 - 0.436 ms
+
+[WebServer] GET /sw.js 200 531 - 0.408 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/inject-hmr-runtime 200 - - 0.419 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router.js?v=434387c3 200 - - 1.156 ms
+
+[WebServer] GET /node_modules/.vite/deps/react_jsx-dev-runtime.js?v=434387c3 200 - - 0.231 ms
+
+[WebServer] GET /node_modules/.vite/deps/openimg_react.js?v=434387c3 200 - - 0.209 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/hmr-runtime 200 - - 0.410 ms
+
+[WebServer] GET /@vite/client 200 - - 3.393 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router-devtools_client.js?v=434387c3 200 - - 1.262 ms
+
+[WebServer] GET /app/assets/favicons/apple-touch-icon.png?import 200 - - 0.208 ms
+
+[WebServer] GET /app/assets/favicons/favicon.svg?import 200 - - 0.257 ms
+
+[WebServer] GET /node_modules/.vite/deps/remix-utils_honeypot_react.js?v=434387c3 200 - - 0.169 ms
+[WebServer] GET /app/components/dev-athlete-switcher.tsx 200 - - 0.289 ms
+[WebServer] GET /app/components/progress-bar.tsx 200 - - 0.172 ms
+
+[WebServer] GET /app/components/toaster.tsx 200 - - 0.209 ms
+
+[WebServer] GET /app/components/ui/button.tsx 200 - - 0.265 ms
+
+[WebServer] GET /app/components/ui/icon.tsx 200 - - 0.153 ms
+
+[WebServer] GET /app/components/error-boundary.tsx 200 - - 0.187 ms
+
+[WebServer] GET /app/components/ui/sonner.tsx 200 - - 0.217 ms
+
+[WebServer] GET /app/components/wordmark-row.tsx 200 - - 0.170 ms
+
+[WebServer] GET /app/styles/tailwind.css?url 200 - - 0.259 ms
+
+[WebServer] GET /app/utils/nonce-provider.ts 200 - - 0.160 ms
+
+[WebServer] GET /app/utils/client-hints.tsx 200 - - 0.164 ms
+
+[WebServer] GET /app/routes/resources/theme-switch.tsx 200 - - 0.220 ms
+
+[WebServer] GET /app/utils/misc.tsx 200 - - 0.239 ms
+
+[WebServer] GET /app/utils/user.ts 200 - - 0.188 ms
+
+[WebServer] GET /node_modules/.vite/deps/react.js?v=434387c3 200 - - 0.215 ms
+
+[WebServer] GET /app/components/page-header.tsx 200 - - 0.272 ms
+
+[WebServer] GET /app/components/ui/card.tsx 200 - - 0.299 ms
+
+[WebServer] GET /app/components/ui/badge.tsx 200 - - 0.225 ms
+
+[WebServer] GET /app/components/forms.tsx 200 - - 0.548 ms
+
+[WebServer] GET /app/components/ui/collapsible.tsx 200 - - 0.220 ms
+[WebServer] GET /app/components/ui/radio-group.tsx 200 - - 0.351 ms
+
+[WebServer] GET /app/utils/labels.ts 200 - - 0.272 ms
+[WebServer] GET /app/utils/plan-generation/season.ts 200 - - 0.261 ms
+[WebServer] GET /app/utils/athlete-calendar.ts 200 - - 0.489 ms
+[WebServer] GET /app/utils/format.ts 200 - - 0.683 ms
+[WebServer] GET /app/utils/plan-outline/event-fit.ts 200 - - 0.237 ms
+
+[WebServer] GET /app/utils/plan-outline/presets.ts 200 - - 0.509 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-M3F6W4AK.js?v=434387c3 200 - - 0.259 ms
+[WebServer] GET /app/routes/training/__catalogue-card.ts 200 - - 0.286 ms
+
+[WebServer] GET /app/routes/training/__plan-chrome.tsx 200 - - 0.421 ms
+
+[WebServer] GET /app/routes/training/__plan-new-parts.tsx 200 - - 0.279 ms
+
+[WebServer] GET /app/routes/training/__preset-gallery.tsx 200 - - 0.443 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VMYQLOAB.js?v=434387c3 200 - - 1.193 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TU7F4RWQ.js?v=434387c3 200 - - 0.161 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-PLDDJCW6.js?v=434387c3 200 - - 0.293 ms
+[WebServer] GET /node_modules/vite/dist/client/env.mjs 200 - - 0.241 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-NKQYQQPA.js?v=434387c3 200 - - 0.181 ms
+
+[WebServer] GET /node_modules/.vite/deps/spin-delay.js?v=434387c3 200 - - 0.139 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RHRUO2N4.js?v=434387c3 200 - - 0.143 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg?import 200 - - 0.343 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_button.js?v=434387c3 200 - - 2.107 ms
+[WebServer] GET /node_modules/.vite/deps/class-variance-authority.js?v=434387c3 200 - - 0.129 ms
+[WebServer] GET /node_modules/.vite/deps/sonner.js?v=434387c3 200 - - 0.196 ms
+[WebServer] GET /app/components/tab-bar.tsx 200 - - 0.305 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MFMJSVS6.js?v=434387c3 200 - - 0.268 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-U7P2NEEE.js?v=434387c3 200 - - 1.762 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PPCCYCP4.js?v=434387c3 200 - - 0.807 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-7JNUVBJG.js?v=434387c3 200 - - 0.174 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-656D5HCP.js?v=434387c3 200 - - 0.133 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IE5SSCCX.js?v=434387c3 200 - - 0.115 ms
+
+[WebServer] GET /node_modules/.vite/deps/@sentry_react-router.js?v=434387c3 200 - - 1.660 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-CLZIJYS4.js?v=434387c3 200 - - 0.203 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-BUSYJED7.js?v=434387c3 200 - - 0.129 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-5ORBU763.js?v=434387c3 200 - - 0.186 ms
+
+[WebServer] GET /node_modules/.vite/deps/next-themes.js?v=434387c3 200 - - 0.171 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-JBAFUDIV.js?v=434387c3 200 - - 0.408 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints.js?v=434387c3 200 - - 0.145 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints_color-scheme.js?v=434387c3 200 - - 0.156 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints_time-zone.js?v=434387c3 200 - - 0.147 ms
+
+[WebServer] GET /node_modules/.vite/deps/remix-utils_server-only.js?v=434387c3 200 - - 0.149 ms
+
+[WebServer] GET /app/utils/request-info.ts 200 - - 0.212 ms
+
+[WebServer] GET /node_modules/.vite/deps/clsx.js?v=434387c3 200 - - 0.288 ms
+
+[WebServer] GET /node_modules/.vite/deps/@conform-to_react.js?v=434387c3 200 - - 0.189 ms
+
+[WebServer] GET /node_modules/.vite/deps/@conform-to_zod_v3.js?v=434387c3 200 - - 0.158 ms
+
+[WebServer] GET /node_modules/.vite/deps/tailwind-merge.js?v=434387c3 200 - - 0.267 ms
+[WebServer] GET /node_modules/.vite/deps/zod_v3.js?v=434387c3 200 - - 0.405 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_use-render.js?v=434387c3 200 - - 0.126 ms
+
+[WebServer] GET /app/utils/dashboard.ts 200 - - 0.246 ms
+
+[WebServer] GET /app/utils/strength/anchors.ts 200 - - 0.268 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_merge-props.js?v=434387c3 200 - - 0.245 ms
+
+[WebServer] GET /node_modules/.vite/deps/input-otp.js?v=434387c3 200 - - 0.209 ms
+
+[WebServer] GET /app/components/return-key.ts 200 - - 0.153 ms
+
+[WebServer] GET /app/components/ui/field.tsx 200 - - 0.253 ms
+
+[WebServer] GET /app/components/ui/checkbox.tsx 200 - - 0.129 ms
+
+[WebServer] GET /app/components/ui/input-otp.tsx 200 - - 0.171 ms
+
+[WebServer] GET /app/utils/strength-log.ts 200 - - 0.481 ms
+
+[WebServer] GET /app/components/ui/input.tsx 200 - - 0.362 ms
+
+[WebServer] GET /app/components/ui/textarea.tsx 200 - - 0.148 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_radio.js?v=434387c3 200 - - 0.127 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_radio-group.js?v=434387c3 200 - - 0.150 ms
+
+[WebServer] GET /app/components/ui/select.tsx 200 - - 0.273 ms
+[WebServer] GET /app/components/ui/toggle-group.tsx 200 - - 0.180 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_collapsible.js?v=434387c3 200 - - 0.153 ms
+
+[WebServer] GET /app/utils/labels/vocabulary.ts 200 - - 0.382 ms
+
+[WebServer] GET /app/utils/labels/i-dag.ts 200 - - 0.940 ms
+[WebServer] GET /app/utils/labels/week-change.ts 200 - - 0.550 ms
+
+[WebServer] GET /app/utils/labels/first-run.ts 200 - - 0.502 ms
+
+[WebServer] GET /app/utils/labels/session-composer.ts 200 - - 0.287 ms
+
+[WebServer] GET /app/utils/labels/plan-domain.ts 200 - - 0.533 ms
+[WebServer] GET /app/utils/strength/program.constants.ts 200 - - 0.338 ms
+
+[WebServer] GET /app/utils/labels/plan-new.ts 200 - - 0.286 ms
+
+[WebServer] GET /app/utils/labels/plan-generate.ts 200 - - 0.222 ms
+
+[WebServer] GET /app/utils/labels/events.ts 200 - - 0.190 ms
+
+[WebServer] GET /app/utils/labels/token-sentence.ts 200 - - 0.175 ms
+
+[WebServer] GET /app/utils/labels/sesong.ts 200 - - 0.922 ms
+
+[WebServer] GET /app/utils/labels/workout-detail.ts 200 - - 0.327 ms
+
+[WebServer] GET /app/utils/labels/token-editor.ts 200 - - 0.286 ms
+
+[WebServer] GET /app/utils/labels/integrations.ts 200 - - 0.251 ms
+[WebServer] GET /app/utils/labels/bibliotek.ts 200 - - 0.503 ms
+
+[WebServer] GET /app/utils/labels/actions.ts 200 - - 0.187 ms
+
+[WebServer] GET /app/utils/labels/meg.ts 200 - - 0.561 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_invariant.js?v=434387c3 200 - - 0.193 ms
+
+[WebServer] GET /app/utils/labels/privacy.ts 200 - - 0.356 ms
+
+[WebServer] GET /app/utils/plan-outline/week-keys.ts 200 - - 0.248 ms
+
+[WebServer] GET /app/utils/catalogue-corpus.ts 200 - - 0.348 ms
+
+[WebServer] GET /app/utils/catalogue.ts 200 - - 0.282 ms
+
+[WebServer] GET /app/utils/plan-outline/derive.ts 200 - - 0.489 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RMYYCH2C.js?v=434387c3 200 - - 0.271 ms
+
+[WebServer] GET /app/routes/training/__workout-detail-summary.ts 200 - - 0.230 ms
+
+[WebServer] GET /app/components/ui/toggle.tsx 200 - - 0.253 ms
+
+[WebServer] GET /app/utils/workout-notation.ts 200 - - 0.726 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RVLSTKBW.js?v=434387c3 200 - - 0.166 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GL2OCQXL.js?v=434387c3 200 - - 0.261 ms
+
+[WebServer] GET /app/components/chart/chart.tsx 200 - - 0.437 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-WMUX6YKA.js?v=434387c3 200 - - 0.204 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-ENNFH4ZE.js?v=434387c3 200 - - 0.196 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-RBDAQQJI.js?v=434387c3 200 - - 0.227 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-EEK2JT2C.js?v=434387c3 200 - - 0.343 ms
+[WebServer] GET /app/utils/app-tabs.ts 200 - - 0.288 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-KS2HRS5U.js?v=434387c3 200 - - 0.226 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4U7M3CAD.js?v=434387c3 200 - - 0.107 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-XM5HBIJH.js?v=434387c3 200 - - 0.149 ms
+[WebServer] GET /app/components/ui/label.tsx 200 - - 0.204 ms
+[WebServer] GET /app/components/ui/separator.tsx 200 - - 0.141 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_checkbox.js?v=434387c3 200 - - 0.181 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_input.js?v=434387c3 200 - - 0.138 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-EDXUVBXB.js?v=434387c3 200 - - 0.268 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ZWLPFD3S.js?v=434387c3 200 - - 0.118 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GFHFTLPZ.js?v=434387c3 200 - - 0.122 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-VQ4RF4WS.js?v=434387c3 200 - - 0.110 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-LNFL65VS.js?v=434387c3 200 - - 0.110 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-N6M5RMM7.js?v=434387c3 200 - - 0.151 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-HDRLOUPA.js?v=434387c3 200 - - 0.358 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-7IFUA7J5.js?v=434387c3 200 - - 0.168 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-2U277EYI.js?v=434387c3 200 - - 0.137 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-33CIOPSD.js?v=434387c3 200 - - 0.192 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TKBTL2J2.js?v=434387c3 200 - - 0.104 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DCBEV6KF.js?v=434387c3 200 - - 0.141 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-2IH4MLII.js?v=434387c3 200 - - 0.147 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-5BDZELXV.js?v=434387c3 200 - - 0.160 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-FSVBBD5X.js?v=434387c3 200 - - 0.146 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-L5NMXK6R.js?v=434387c3 200 - - 0.121 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4TVM4IDP.js?v=434387c3 200 - - 0.145 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MRPVSNJM.js?v=434387c3 200 - - 0.090 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-SEKENLGX.js?v=434387c3 200 - - 0.203 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MYVRAMWM.js?v=434387c3 200 - - 0.133 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-IA4NSTBK.js?v=434387c3 200 - - 0.119 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-RXKLT3YF.js?v=434387c3 200 - - 0.111 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-3O75Z2F2.js?v=434387c3 200 - - 0.114 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-F6S5IC6S.js?v=434387c3 200 - - 0.144 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DVVASW4B.js?v=434387c3 200 - - 0.138 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-3YTUHSRK.js?v=434387c3 200 - - 0.119 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-R2C24HHH.js?v=434387c3 200 - - 0.120 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IC66CJ7R.js?v=434387c3 200 - - 0.115 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_toggle.js?v=434387c3 200 - - 0.138 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_toggle-group.js?v=434387c3 200 - - 0.118 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GGAVCAQJ.js?v=434387c3 200 - - 0.163 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_select.js?v=434387c3 200 - - 0.357 ms
+
+[WebServer] GET /app/utils/labels/_helpers.ts 200 - - 0.182 ms
+
+[WebServer] GET /app/utils/dashboard.ts 200 - - 0.202 ms
+
+[WebServer] GET /app/utils/plan-outline/week-pattern.ts 200 - - 0.388 ms
+
+[WebServer] GET /app/utils/prescribed-duration.ts 200 - - 0.204 ms
+
+[WebServer] GET /app/utils/intensity-target.ts 200 - - 0.343 ms
+
+[WebServer] GET /app/utils/session-profile.ts 200 - - 0.245 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_separator.js?v=434387c3 200 - - 0.221 ms
+
+[WebServer] GET /app/utils/zone-equivalent.ts 200 - - 0.270 ms
+[WebServer] GET /app/utils/strength-log.ts 200 - - 0.457 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-OPZWSOJ7.js?v=434387c3 200 - - 0.131 ms
+
+[WebServer] GET /app/utils/strength/anchors.ts 200 - - 0.343 ms
+
+[WebServer] GET /app/utils/workout-schema.ts 200 - - 0.343 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MUMQE446.js?v=434387c3 200 - - 0.219 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TQYQ5HE2.js?v=434387c3 200 - - 0.214 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ALGDNCY3.js?v=434387c3 200 - - 0.218 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-SW5VQLBJ.js?v=434387c3 200 - - 0.165 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-4RVT6CT6.js?v=434387c3 200 - - 0.189 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VE5QWEYY.js?v=434387c3 200 - - 0.221 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-UXNX7BTM.js?v=434387c3 200 - - 0.195 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-N3XGAQ4J.js?v=434387c3 200 - - 0.254 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GZHJZH4T.js?v=434387c3 200 - - 0.206 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-7CZOYBIS.js?v=434387c3 200 - - 0.204 ms
+[WebServer] GET /app/utils/five-minutes.ts 200 - - 0.270 ms
+
+[WebServer] GET /app/utils/shape-strip.ts 200 - - 0.274 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DGF4NNFX.js?v=434387c3 200 - - 0.406 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PNTTCCNW.js?v=434387c3 200 - - 0.227 ms
+
+[WebServer] GET /app/utils/zones/index.ts 200 - - 0.157 ms
+[WebServer] GET /app/utils/workout-reps.ts 200 - - 0.222 ms
+
+[WebServer] GET /app/utils/zones/resolve.ts 200 - - 0.282 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4NJG5SZV.js?v=434387c3 200 - - 0.874 ms
+
+[WebServer] GET /app/utils/zones/words.ts 200 - - 0.162 ms
+
+[WebServer] GET /app/utils/structure-detection/classify.ts 200 - - 0.222 ms
+
+[WebServer] GET /app/utils/zones/pace-unit.ts 200 - - 0.152 ms
+
+[WebServer] GET /app/utils/zones/recipes.ts 200 - - 0.265 ms
+
+[WebServer] GET /app/utils/zones/defaults.ts 200 - - 0.155 ms
+
+[WebServer] GET /app/utils/strength/program.constants.ts 200 - - 0.313 ms
+
+[WebServer] GET /app/utils/zones/band-for-zone.ts 200 - - 0.184 ms
+
+[WebServer] GET /app/utils/view-morph.ts 200 - - 0.260 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router_dom.js?v=434387c3 200 - - 0.399 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-dom_client.js?v=434387c3 200 - - 2.498 ms
+
+[WebServer] GET /app/utils/motion.ts 200 - - 0.212 ms
+
+[4/4] [chromium] › tests/e2e/plan-generate.test.ts:297:1 › the worst-case season wraps without overflow at 320 px and 390 px with 200 % text
+[WebServer] LOADER root triggered - 5.17ms
+
+[WebServer] INFO ⏰  Server timing for route root - root_loader [5.1ms]
+[WebServer] INFO ⏰  Server timing for route root - getUserId [2.4ms] ["getUserId in root"]
+[WebServer] INFO ⏰  Server timing for route root - find_user [1.5ms] ["find user in root"]
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [0ms] ["dev athlete switcher aggregates"]
+
+[WebServer] LOADER routes/training/plan.generate.$eventId triggered - 36.56ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg 200 - - 0.442 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/browser-manifest 200 - - 4.187 ms
+[WebServer] GET /app/entry.client.tsx 200 - - 0.212 ms
+
+[WebServer] GET /app/root.tsx 200 - - 0.310 ms
+
+[WebServer] GET /app/styles/tailwind.css 200 - - 0.533 ms
+
+[WebServer] GET /app/routes/training/plan.generate.$eventId.tsx 200 - - 0.669 ms
+
+[WebServer] GET /training/plan/generate/cmw6eqqy5000r7dq75hfutav7?anchor-swim=6.2&anchor-bike=180&anchor-run=40 200 - - 308.069 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg 304 - - 0.409 ms
+
+[WebServer] GET /node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2 200 26832 - 0.658 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/inject-hmr-runtime 200 - - 0.491 ms
+
+[WebServer] ACTION routes/training/plan.generate.$eventId triggered - 56.86ms
+
+[WebServer] GET /sw.js 200 531 - 0.280 ms
+
+[WebServer] GET /@vite/client 200 - - 3.155 ms
+[WebServer] GET /node_modules/.vite/deps/react-router.js?v=434387c3 200 - - 0.644 ms
+[WebServer] GET /@id/__x00__virtual:react-router/hmr-runtime 200 - - 0.475 ms
+
+[WebServer] GET /node_modules/.vite/deps/react_jsx-dev-runtime.js?v=434387c3 200 - - 0.172 ms
+
+[WebServer] POST /training/plan/generate/cmw6eq19n00047dq0p5pd3kkz.data 400 - - 71.010 ms
+
+[WebServer] GET /node_modules/.vite/deps/openimg_react.js?v=434387c3 200 - - 0.170 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router-devtools_client.js?v=434387c3 200 - - 1.187 ms
+
+[WebServer] GET /node_modules/.vite/deps/remix-utils_honeypot_react.js?v=434387c3 200 - - 0.213 ms
+
+[WebServer] GET /app/assets/favicons/apple-touch-icon.png?import 200 - - 0.224 ms
+
+[WebServer] GET /app/assets/favicons/favicon.svg?import 200 - - 0.187 ms
+
+[WebServer] GET /app/components/dev-athlete-switcher.tsx 200 - - 0.205 ms
+
+[WebServer] GET /app/components/error-boundary.tsx 200 - - 0.169 ms
+
+[WebServer] GET /app/components/progress-bar.tsx 200 - - 0.155 ms
+
+[WebServer] GET /app/components/toaster.tsx 200 - - 0.176 ms
+
+[WebServer] GET /app/components/ui/button.tsx 200 - - 0.263 ms
+
+[WebServer] GET /app/components/ui/icon.tsx 200 - - 0.150 ms
+
+[WebServer] GET /app/components/ui/sonner.tsx 200 - - 0.148 ms
+
+[WebServer] GET /app/components/wordmark-row.tsx 200 - - 0.164 ms
+
+[WebServer] GET /app/routes/resources/theme-switch.tsx 200 - - 0.187 ms
+
+[WebServer] GET /app/styles/tailwind.css?url 200 - - 0.281 ms
+
+[WebServer] GET /app/utils/nonce-provider.ts 200 - - 0.167 ms
+
+[WebServer] GET /app/utils/client-hints.tsx 200 - - 0.163 ms
+
+[WebServer] GET /app/utils/misc.tsx 200 - - 0.234 ms
+
+[WebServer] GET /app/utils/user.ts 200 - - 0.172 ms
+
+[WebServer] GET /node_modules/.vite/deps/react.js?v=434387c3 200 - - 0.252 ms
+
+[WebServer] GET /app/components/page-header.tsx 200 - - 0.198 ms
+
+[WebServer] GET /app/components/forms.tsx 200 - - 0.793 ms
+
+[WebServer] GET /app/components/ui/badge.tsx 200 - - 0.176 ms
+[WebServer] GET /app/components/ui/card.tsx 200 - - 0.192 ms
+
+[WebServer] GET /app/components/ui/collapsible.tsx 200 - - 0.180 ms
+
+[WebServer] GET /app/components/ui/radio-group.tsx 200 - - 0.149 ms
+
+[WebServer] GET /app/utils/athlete-calendar.ts 200 - - 0.292 ms
+
+[WebServer] GET /app/utils/labels.ts 200 - - 0.185 ms
+[WebServer] GET /app/utils/plan-outline/event-fit.ts 200 - - 0.229 ms
+
+[WebServer] GET /app/utils/format.ts 200 - - 0.555 ms
+
+[WebServer] GET /app/utils/plan-generation/season.ts 200 - - 0.505 ms
+
+[WebServer] GET /app/utils/plan-outline/presets.ts 200 - - 0.312 ms
+
+[WebServer] GET /app/routes/training/__catalogue-card.ts 200 - - 0.302 ms
+
+[WebServer] GET /app/routes/training/__plan-new-parts.tsx 200 - - 0.256 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-M3F6W4AK.js?v=434387c3 200 - - 0.213 ms
+
+[WebServer] GET /app/routes/training/__plan-chrome.tsx 200 - - 0.418 ms
+
+[WebServer] GET /app/routes/training/__preset-gallery.tsx 200 - - 0.350 ms
+
+[WebServer] GET /node_modules/vite/dist/client/env.mjs 200 - - 0.261 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VMYQLOAB.js?v=434387c3 200 - - 0.820 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TU7F4RWQ.js?v=434387c3 200 - - 0.213 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-NKQYQQPA.js?v=434387c3 200 - - 0.183 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-PLDDJCW6.js?v=434387c3 200 - - 0.364 ms
+
+[WebServer] GET /node_modules/.vite/deps/spin-delay.js?v=434387c3 200 - - 0.193 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RHRUO2N4.js?v=434387c3 200 - - 0.179 ms
+
+[WebServer] GET /node_modules/.vite/deps/sonner.js?v=434387c3 200 - - 0.257 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_button.js?v=434387c3 200 - - 0.239 ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg?import 200 - - 0.280 ms
+
+[WebServer] GET /node_modules/.vite/deps/class-variance-authority.js?v=434387c3 200 - - 0.192 ms
+
+[WebServer] GET /node_modules/.vite/deps/next-themes.js?v=434387c3 200 - - 0.262 ms
+
+[WebServer] GET /app/components/tab-bar.tsx 200 - - 0.205 ms
+
+[WebServer] GET /node_modules/.vite/deps/@conform-to_react.js?v=434387c3 200 - - 0.152 ms
+
+[WebServer] GET /node_modules/.vite/deps/remix-utils_server-only.js?v=434387c3 200 - - 0.137 ms
+[WebServer] GET /node_modules/.vite/deps/@conform-to_zod_v3.js?v=434387c3 200 - - 0.256 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-U7P2NEEE.js?v=434387c3 200 - - 0.112 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PPCCYCP4.js?v=434387c3 200 - - 0.144 ms
+
+[WebServer] GET /node_modules/.vite/deps/zod_v3.js?v=434387c3 200 - - 0.450 ms
+
+[WebServer] GET /node_modules/.vite/deps/@sentry_react-router.js?v=434387c3 200 - - 1.606 ms
+
+[WebServer] GET /app/utils/request-info.ts 200 - - 0.146 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-7JNUVBJG.js?v=434387c3 200 - - 0.228 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MFMJSVS6.js?v=434387c3 200 - - 0.182 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-656D5HCP.js?v=434387c3 200 - - 0.144 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IE5SSCCX.js?v=434387c3 200 - - 0.148 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-CLZIJYS4.js?v=434387c3 200 - - 0.212 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-JBAFUDIV.js?v=434387c3 200 - - 0.346 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-BUSYJED7.js?v=434387c3 200 - - 0.152 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-5ORBU763.js?v=434387c3 200 - - 0.206 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints.js?v=434387c3 200 - - 0.155 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints_color-scheme.js?v=434387c3 200 - - 0.146 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_client-hints_time-zone.js?v=434387c3 200 - - 0.143 ms
+
+[WebServer] GET /node_modules/.vite/deps/clsx.js?v=434387c3 200 - - 0.328 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_collapsible.js?v=434387c3 200 - - 0.164 ms
+
+[WebServer] GET /node_modules/.vite/deps/tailwind-merge.js?v=434387c3 200 - - 0.223 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_merge-props.js?v=434387c3 200 - - 0.232 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_use-render.js?v=434387c3 200 - - 0.195 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_radio.js?v=434387c3 200 - - 0.201 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_radio-group.js?v=434387c3 200 - - 0.152 ms
+
+[WebServer] GET /node_modules/.vite/deps/input-otp.js?v=434387c3 200 - - 0.151 ms
+
+[WebServer] GET /app/components/return-key.ts 200 - - 6.377 ms
+
+[WebServer] GET /app/components/ui/checkbox.tsx 200 - - 0.172 ms
+
+[WebServer] GET /app/components/ui/input-otp.tsx 200 - - 0.212 ms
+
+[WebServer] GET /app/components/ui/field.tsx 200 - - 0.202 ms
+
+[WebServer] GET /app/components/ui/input.tsx 200 - - 0.171 ms
+
+[WebServer] GET /app/components/ui/select.tsx 200 - - 0.240 ms
+
+[WebServer] GET /app/components/ui/textarea.tsx 200 - - 0.183 ms
+
+[WebServer] GET /app/components/ui/toggle-group.tsx 200 - - 0.234 ms
+
+[WebServer] GET /app/utils/labels/i-dag.ts 200 - - 0.397 ms
+
+[WebServer] GET /app/utils/labels/vocabulary.ts 200 - - 0.423 ms
+
+[WebServer] GET /app/utils/labels/week-change.ts 200 - - 0.528 ms
+
+[WebServer] GET /app/utils/labels/session-composer.ts 200 - - 0.329 ms
+
+[WebServer] GET /app/utils/labels/first-run.ts 200 - - 1.112 ms
+
+[WebServer] GET /app/utils/labels/plan-new.ts 200 - - 0.223 ms
+
+[WebServer] GET /app/utils/labels/plan-domain.ts 200 - - 0.449 ms
+
+[WebServer] GET /app/utils/labels/events.ts 200 - - 0.215 ms
+
+[WebServer] GET /app/utils/labels/plan-generate.ts 200 - - 4.900 ms
+
+[WebServer] GET /app/utils/labels/token-sentence.ts 200 - - 0.204 ms
+
+[WebServer] GET /app/utils/labels/token-editor.ts 200 - - 0.253 ms
+
+[WebServer] GET /app/utils/labels/sesong.ts 200 - - 0.763 ms
+
+[WebServer] GET /app/utils/labels/workout-detail.ts 200 - - 0.334 ms
+
+[WebServer] GET /app/utils/labels/bibliotek.ts 200 - - 0.468 ms
+
+[WebServer] GET /app/utils/labels/privacy.ts 200 - - 0.194 ms
+[WebServer] GET /app/utils/labels/meg.ts 200 - - 0.543 ms
+[WebServer] GET /app/utils/labels/integrations.ts 200 - - 0.297 ms
+
+[WebServer] GET /app/utils/labels/actions.ts 200 - - 0.168 ms
+
+[WebServer] GET /app/utils/plan-outline/derive.ts 200 - - 0.388 ms
+
+[WebServer] GET /app/utils/plan-outline/week-keys.ts 200 - - 0.165 ms
+
+[WebServer] GET /app/utils/catalogue-corpus.ts 200 - - 0.242 ms
+
+[WebServer] GET /node_modules/.vite/deps/@epic-web_invariant.js?v=434387c3 200 - - 0.151 ms
+
+[WebServer] GET /app/utils/catalogue.ts 200 - - 0.215 ms
+
+[WebServer] GET /app/routes/training/__workout-detail-summary.ts 200 - - 0.286 ms
+
+[WebServer] GET /app/components/ui/toggle.tsx 200 - - 0.161 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RVLSTKBW.js?v=434387c3 200 - - 0.147 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RMYYCH2C.js?v=434387c3 200 - - 0.153 ms
+
+[WebServer] GET /app/utils/workout-notation.ts 200 - - 0.733 ms
+
+[WebServer] GET /app/components/chart/chart.tsx 200 - - 0.371 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GL2OCQXL.js?v=434387c3 200 - - 0.131 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RBDAQQJI.js?v=434387c3 200 - - 1.080 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-WMUX6YKA.js?v=434387c3 200 - - 0.175 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ENNFH4ZE.js?v=434387c3 200 - - 0.123 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-R2C24HHH.js?v=434387c3 200 - - 0.107 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-EEK2JT2C.js?v=434387c3 200 - - 0.156 ms
+
+[WebServer] GET /app/utils/app-tabs.ts 200 - - 0.154 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-KS2HRS5U.js?v=434387c3 200 - - 0.182 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-33CIOPSD.js?v=434387c3 200 - - 0.208 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-F6S5IC6S.js?v=434387c3 200 - - 0.192 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TKBTL2J2.js?v=434387c3 200 - - 0.147 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-EDXUVBXB.js?v=434387c3 200 - - 0.249 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4TVM4IDP.js?v=434387c3 200 - - 0.167 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IC66CJ7R.js?v=434387c3 200 - - 0.139 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-FSVBBD5X.js?v=434387c3 200 - - 0.125 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-XM5HBIJH.js?v=434387c3 200 - - 0.136 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4U7M3CAD.js?v=434387c3 200 - - 0.174 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-L5NMXK6R.js?v=434387c3 200 - - 0.216 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-SEKENLGX.js?v=434387c3 200 - - 0.138 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ZWLPFD3S.js?v=434387c3 200 - - 0.138 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GFHFTLPZ.js?v=434387c3 200 - - 0.187 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VQ4RF4WS.js?v=434387c3 200 - - 0.152 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-LNFL65VS.js?v=434387c3 200 - - 0.135 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-N6M5RMM7.js?v=434387c3 200 - - 0.130 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-7IFUA7J5.js?v=434387c3 200 - - 0.170 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-HDRLOUPA.js?v=434387c3 200 - - 0.110 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DCBEV6KF.js?v=434387c3 200 - - 0.119 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-2IH4MLII.js?v=434387c3 200 - - 0.113 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-2U277EYI.js?v=434387c3 200 - - 0.171 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-5BDZELXV.js?v=434387c3 200 - - 0.159 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MRPVSNJM.js?v=434387c3 200 - - 0.102 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-MYVRAMWM.js?v=434387c3 200 - - 0.216 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-RXKLT3YF.js?v=434387c3 200 - - 0.136 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-3O75Z2F2.js?v=434387c3 200 - - 0.132 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-3YTUHSRK.js?v=434387c3 200 - - 0.112 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-IA4NSTBK.js?v=434387c3 200 - - 0.295 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_checkbox.js?v=434387c3 200 - - 0.539 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_input.js?v=434387c3 200 - - 0.196 ms
+
+[WebServer] GET /app/components/ui/label.tsx 200 - - 0.149 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-GGAVCAQJ.js?v=434387c3 200 - - 0.169 ms
+[WebServer] GET /node_modules/.vite/deps/chunk-DVVASW4B.js?v=434387c3 200 - - 0.128 ms
+
+[WebServer] GET /app/components/ui/separator.tsx 200 - - 0.193 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_toggle.js?v=434387c3 200 - - 0.140 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_select.js?v=434387c3 200 - - 0.294 ms
+[WebServer] GET /app/utils/labels/_helpers.ts 200 - - 0.150 ms
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_toggle-group.js?v=434387c3 200 - - 0.155 ms
+
+[WebServer] GET /app/utils/dashboard.ts 200 - - 0.221 ms
+[WebServer] GET /app/utils/plan-outline/week-pattern.ts 200 - - 0.266 ms
+
+[WebServer] GET /app/utils/prescribed-duration.ts 200 - - 0.247 ms
+
+[WebServer] GET /app/utils/intensity-target.ts 200 - - 0.348 ms
+
+[WebServer] GET /app/utils/strength/anchors.ts 200 - - 0.325 ms
+
+[WebServer] GET /app/utils/session-profile.ts 200 - - 0.262 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-MUMQE446.js?v=434387c3 200 - - 0.138 ms
+[WebServer] GET /app/utils/strength-log.ts 200 - - 0.482 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-OPZWSOJ7.js?v=434387c3 200 - - 0.134 ms
+
+[WebServer] GET /app/utils/workout-schema.ts 200 - - 0.351 ms
+
+[WebServer] GET /app/utils/zone-equivalent.ts 200 - - 0.282 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-TQYQ5HE2.js?v=434387c3 200 - - 0.213 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-SW5VQLBJ.js?v=434387c3 200 - - 0.182 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4RVT6CT6.js?v=434387c3 200 - - 0.156 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-ALGDNCY3.js?v=434387c3 200 - - 0.133 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-UXNX7BTM.js?v=434387c3 200 - - 0.109 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_separator.js?v=434387c3 200 - - 0.242 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-VE5QWEYY.js?v=434387c3 200 - - 0.119 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-N3XGAQ4J.js?v=434387c3 200 - - 0.117 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-PNTTCCNW.js?v=434387c3 200 - - 0.145 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-7CZOYBIS.js?v=434387c3 200 - - 0.149 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-GZHJZH4T.js?v=434387c3 200 - - 0.143 ms
+
+[WebServer] GET /app/utils/five-minutes.ts 200 - - 0.153 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-DGF4NNFX.js?v=434387c3 200 - - 0.374 ms
+[WebServer] GET /app/utils/strength/program.constants.ts 200 - - 0.346 ms
+[WebServer] GET /app/utils/zones/words.ts 200 - - 0.150 ms
+
+[WebServer] GET /app/utils/workout-reps.ts 200 - - 0.218 ms
+
+[WebServer] GET /app/utils/shape-strip.ts 200 - - 0.266 ms
+
+[WebServer] GET /app/utils/zones/index.ts 200 - - 0.163 ms
+
+[WebServer] GET /app/utils/structure-detection/classify.ts 200 - - 0.233 ms
+[WebServer] GET /app/utils/zones/resolve.ts 200 - - 0.326 ms
+[WebServer] GET /app/utils/zones/defaults.ts 200 - - 0.181 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-4NJG5SZV.js?v=434387c3 200 - - 0.122 ms
+
+[WebServer] GET /app/utils/zones/recipes.ts 200 - - 0.320 ms
+
+[WebServer] GET /app/utils/zones/pace-unit.ts 200 - - 0.166 ms
+
+[WebServer] GET /app/utils/zones/band-for-zone.ts 200 - - 0.163 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-router_dom.js?v=434387c3 200 - - 0.259 ms
+
+[WebServer] GET /app/utils/view-morph.ts 200 - - 0.212 ms
+
+[WebServer] GET /app/utils/motion.ts 200 - - 0.280 ms
+
+[WebServer] GET /node_modules/.vite/deps/react-dom_client.js?v=434387c3 200 - - 2.035 ms
+
+[WebServer] LOADER root triggered - 8.05ms
+
+[WebServer] INFO ⏰  Server timing for route root - root_loader [7.9ms]
+
+[WebServer] INFO ⏰  Server timing for route root - getUserId [3.2ms] ["getUserId in root"]
+
+[WebServer] INFO ⏰  Server timing for route root - find_user [2ms] ["find user in root"]
+
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [0ms] ["dev athlete switcher aggregates"]
+
+[WebServer] LOADER routes/training/plan.generate.$eventId triggered - 31.91ms
+
+[WebServer] GET /training/plan/generate/cmw6eq19n00047dq0p5pd3kkz.data?you=first-season&shape=classic-linear&anchor-run=40 200 - - 56.782 ms
+
+[WebServer] GET /node_modules/.vite/deps/PYVV4DLY-7JHDUT4N.js?v=434387c3 200 - - 3.451 ms
+
+[WebServer] LOADER root triggered - 6.42ms
+
+[WebServer] INFO ⏰  Server timing for route root - root_loader [6.3ms]
+[WebServer] INFO ⏰  Server timing for route root - getUserId [3ms] ["getUserId in root"]
+[WebServer] INFO ⏰  Server timing for route root - find_user [1.6ms] ["find user in root"]
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [0ms] ["dev athlete switcher aggregates"]
+
+[WebServer] LOADER routes/training/plan.generate.$eventId triggered - 33.97ms
+
+[WebServer] GET /training/plan/generate/cmw6eq19n00047dq0p5pd3kkz.data?you=first-season&shape=classic-linear-short&anchor-run=40 200 - - 45.811 ms
+
+[WebServer] LOADER root triggered - 4.77ms
+
+[WebServer] INFO ⏰  Server timing for route root - root_loader [4.7ms]
+[WebServer] INFO ⏰  Server timing for route root - getUserId [2.4ms] ["getUserId in root"]
+[WebServer] INFO ⏰  Server timing for route root - find_user [1.4ms] ["find user in root"]
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [0ms] ["dev athlete switcher aggregates"]
+
+[WebServer] LOADER routes/training/plan.generate.$eventId triggered - 35.4ms
+
+[WebServer] GET /app/components/ui/icons/sprite.svg 304 - - 0.411 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/browser-manifest 304 - - 0.222 ms
+
+[WebServer] GET /app/entry.client.tsx 304 - - 0.095 ms
+
+[WebServer] GET /app/root.tsx 304 - - 0.103 ms
+
+[WebServer] GET /app/routes/training/plan.generate.$eventId.tsx 304 - - 0.092 ms
+
+[WebServer] GET /app/styles/tailwind.css 304 - - 0.228 ms
+
+[WebServer] GET /node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2 304 - - 0.388 ms
+
+[WebServer] GET /training/plan/generate/cmw6eqqy5000r7dq75hfutav7?anchor-swim=6.2&anchor-bike=180&anchor-run=40 200 - - 248.070 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/inject-hmr-runtime 304 - - 0.247 ms
+
+[WebServer] GET /@vite/client 304 - - 0.218 ms
+
+[WebServer] GET /@id/__x00__virtual:react-router/hmr-runtime 304 - - 0.188 ms
+
+[WebServer] GET /app/assets/favicons/apple-touch-icon.png?import 304 - - 0.195 ms
+
+[WebServer] GET /app/assets/favicons/favicon.svg?import 304 - - 1.918 ms
+
+[WebServer] GET /app/components/dev-athlete-switcher.tsx 304 - - 0.162 ms
+
+[WebServer] GET /app/components/error-boundary.tsx 304 - - 0.109 ms
+
+[WebServer] GET /app/components/progress-bar.tsx 304 - - 0.092 ms
+
+[WebServer] GET /app/components/toaster.tsx 304 - - 0.103 ms
+
+[WebServer] GET /app/components/ui/icon.tsx 304 - - 0.130 ms
+
+[WebServer] GET /app/components/ui/sonner.tsx 304 - - 0.102 ms
+
+[WebServer] GET /app/components/ui/button.tsx 304 - - 0.101 ms
+
+[WebServer] GET /app/components/wordmark-row.tsx 304 - - 0.102 ms
+[WebServer] GET /app/routes/resources/theme-switch.tsx 304 - - 0.097 ms
+
+[WebServer] GET /app/styles/tailwind.css?url 304 - - 0.378 ms
+
+[WebServer] GET /app/utils/client-hints.tsx 304 - - 0.102 ms
+
+[WebServer] GET /app/utils/misc.tsx 304 - - 0.112 ms
+
+[WebServer] GET /app/utils/nonce-provider.ts 304 - - 0.112 ms
+
+[WebServer] GET /app/utils/user.ts 304 - - 0.099 ms
+
+[WebServer] GET /app/components/forms.tsx 304 - - 0.101 ms
+
+[WebServer] GET /app/components/page-header.tsx 304 - - 0.167 ms
+
+[WebServer] GET /app/components/ui/badge.tsx 304 - - 0.150 ms
+
+[WebServer] GET /app/components/ui/card.tsx 304 - - 0.104 ms
+
+[WebServer] GET /app/components/ui/collapsible.tsx 304 - - 0.098 ms
+
+[WebServer] GET /app/components/ui/radio-group.tsx 304 - - 0.086 ms
+
+[WebServer] GET /app/utils/athlete-calendar.ts 304 - - 0.100 ms
+[WebServer] GET /app/utils/plan-outline/presets.ts 304 - - 0.157 ms
+[WebServer] GET /app/utils/format.ts 304 - - 0.136 ms
+[WebServer] GET /app/utils/labels.ts 304 - - 0.145 ms
+[WebServer] GET /app/utils/plan-generation/season.ts 304 - - 0.137 ms
+[WebServer] GET /app/utils/plan-outline/event-fit.ts 304 - - 0.146 ms
+
+[WebServer] GET /app/routes/training/__catalogue-card.ts 304 - - 0.174 ms
+
+[WebServer] GET /app/routes/training/__plan-chrome.tsx 304 - - 0.205 ms
+
+[WebServer] GET /app/routes/training/__plan-new-parts.tsx 304 - - 0.122 ms
+[WebServer] GET /app/routes/training/__preset-gallery.tsx 304 - - 0.179 ms
+[WebServer] GET /node_modules/vite/dist/client/env.mjs 304 - - 0.172 ms
+[WebServer] GET /app/components/ui/icons/sprite.svg?import 304 - - 0.251 ms
+
+[WebServer] GET /app/components/tab-bar.tsx 304 - - 0.188 ms
+
+[WebServer] GET /app/utils/request-info.ts 304 - - 0.204 ms
+
+[WebServer] GET /app/components/return-key.ts 304 - - 0.189 ms
+
+[WebServer] GET /app/components/ui/checkbox.tsx 304 - - 0.134 ms
+
+[WebServer] GET /app/components/ui/input.tsx 304 - - 0.148 ms
+
+[WebServer] GET /app/components/ui/select.tsx 304 - - 0.245 ms
+
+[WebServer] GET /app/components/ui/field.tsx 304 - - 0.164 ms
+
+[WebServer] GET /app/components/ui/input-otp.tsx 304 - - 0.142 ms
+[WebServer] GET /app/utils/plan-outline/derive.ts 304 - - 0.126 ms
+[WebServer] GET /app/utils/labels/vocabulary.ts 304 - - 0.132 ms
+[WebServer] GET /app/utils/labels/i-dag.ts 304 - - 0.120 ms
+[WebServer] GET /app/components/ui/textarea.tsx 304 - - 0.128 ms
+[WebServer] GET /app/components/ui/toggle-group.tsx 304 - - 0.112 ms
+[WebServer] GET /app/utils/labels/session-composer.ts 304 - - 0.137 ms
+
+[WebServer] GET /app/utils/labels/first-run.ts 304 - - 4.451 ms
+
+[WebServer] GET /app/utils/labels/plan-domain.ts 304 - - 2.724 ms
+
+[WebServer] GET /app/utils/labels/sesong.ts 304 - - 0.112 ms
+
+[WebServer] GET /app/utils/labels/plan-new.ts 304 - - 0.103 ms
+
+[WebServer] GET /app/utils/labels/week-change.ts 304 - - 0.098 ms
+
+[WebServer] GET /app/utils/labels/plan-generate.ts 304 - - 0.092 ms
+
+[WebServer] GET /app/utils/labels/events.ts 304 - - 0.092 ms
+
+[WebServer] GET /app/utils/labels/workout-detail.ts 304 - - 0.104 ms
+
+[WebServer] GET /app/utils/labels/token-sentence.ts 304 - - 0.088 ms
+
+[WebServer] GET /app/utils/labels/token-editor.ts 304 - - 0.508 ms
+
+[WebServer] GET /app/utils/labels/bibliotek.ts 304 - - 0.104 ms
+
+[WebServer] GET /app/utils/labels/meg.ts 304 - - 0.099 ms
+
+[WebServer] REDIRECT routes/training/plan.generate.$eventId threw a response!
+[WebServer] REDIRECT routes/training/plan.generate.$eventId redirected to /training/plan?event=cmw6eq19n00047dq0p5pd3kkz
+
+[WebServer] GET /app/utils/labels/integrations.ts 304 - - 0.101 ms
+
+[WebServer] GET /app/utils/labels/actions.ts 304 - - 0.120 ms
+
+[WebServer] GET /app/utils/labels/privacy.ts 304 - - 0.078 ms
+
+[WebServer] GET /app/utils/plan-outline/week-keys.ts 304 - - 0.083 ms
+
+[WebServer] GET /app/utils/catalogue-corpus.ts 304 - - 0.109 ms
+
+[WebServer] GET /app/utils/catalogue.ts 304 - - 0.081 ms
+[WebServer] GET /app/utils/workout-notation.ts 304 - - 0.096 ms
+
+[WebServer] POST /training/plan/generate/cmw6eq19n00047dq0p5pd3kkz.data?you=first-season&shape=classic-linear-short&anchor-run=40 202 - - 706.296 ms
+
+[WebServer] GET /app/routes/training/__workout-detail-summary.ts 304 - - 0.177 ms
+
+[WebServer] GET /app/components/ui/toggle.tsx 304 - - 2.783 ms
+
+[WebServer] GET /app/components/chart/chart.tsx 304 - - 0.114 ms
+
+[WebServer] GET /app/utils/app-tabs.ts 304 - - 0.096 ms
+
+[WebServer] GET /app/utils/labels/_helpers.ts 304 - - 0.078 ms
+
+[WebServer] GET /app/components/ui/label.tsx 304 - - 0.132 ms
+
+[WebServer] GET /app/components/ui/separator.tsx 304 - - 0.080 ms
+
+[WebServer] GET /app/utils/zone-equivalent.ts 304 - - 0.290 ms
+
+[WebServer] GET /app/utils/intensity-target.ts 304 - - 0.200 ms
+
+[WebServer] GET /app/utils/session-profile.ts 304 - - 0.410 ms
+
+[WebServer] GET /app/utils/strength/anchors.ts 304 - - 0.157 ms
+
+[WebServer] GET /app/utils/strength-log.ts 304 - - 0.214 ms
+
+[WebServer] GET /app/utils/workout-schema.ts 304 - - 0.156 ms
+
+[WebServer] GET /app/utils/dashboard.ts 304 - - 0.129 ms
+
+[WebServer] GET /app/utils/plan-outline/week-pattern.ts 304 - - 0.168 ms
+
+[WebServer] GET /app/utils/prescribed-duration.ts 304 - - 0.135 ms
+
+[WebServer] GET /app/utils/structure-detection/classify.ts 304 - - 0.146 ms
+
+[WebServer] GET /app/utils/zones/index.ts 304 - - 0.142 ms
+
+[WebServer] GET /app/utils/zones/pace-unit.ts 304 - - 0.114 ms
+
+[WebServer] GET /app/utils/shape-strip.ts 304 - - 0.111 ms
+
+[WebServer] GET /app/utils/zones/resolve.ts 304 - - 0.151 ms
+
+[WebServer] GET /app/utils/workout-reps.ts 304 - - 0.118 ms
+
+[WebServer] GET /app/utils/zones/words.ts 304 - - 0.104 ms
+
+[WebServer] GET /app/utils/strength/program.constants.ts 304 - - 0.091 ms
+
+[WebServer] GET /app/utils/five-minutes.ts 304 - - 0.147 ms
+
+[WebServer] GET /app/utils/zones/defaults.ts 304 - - 0.175 ms
+
+[WebServer] GET /app/utils/zones/recipes.ts 304 - - 0.100 ms
+
+[WebServer] GET /app/utils/zones/band-for-zone.ts 304 - - 0.080 ms
+
+[WebServer] LOADER root triggered - 381.76ms
+
+[WebServer] INFO ⏰  Server timing for route root - root_loader [381.6ms]
+[WebServer] INFO ⏰  Server timing for route root - getUserId [64.7ms] ["getUserId in root"]
+[WebServer] INFO ⏰  Server timing for route root - find_user [212.7ms] ["find user in root"]
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [0ms] ["dev athlete switcher aggregates"]
+
+[WebServer] GET /app/utils/view-morph.ts 304 - - 0.220 ms
+
+[WebServer] GET /app/utils/motion.ts 304 - - 0.171 ms
+
+[WebServer] GET /app/routes/training/plan.tsx?import 200 - - 449.091 ms
+
+[WebServer] GET /app/routes/training/__library-section.tsx 200 - - 0.213 ms
+
+[WebServer] GET /app/utils/plan-outline/commensurability.ts 200 - - 0.378 ms
+
+[WebServer] GET /app/routes/training/__blocks-reading.tsx 200 - - 0.419 ms
+[WebServer] GET /app/routes/training/__plan-advanced.tsx 200 - - 0.267 ms
+
+[WebServer] GET /app/routes/training/__philosophy-switch.tsx 200 - - 0.415 ms
+
+[WebServer] GET /app/routes/training/__plan-lead-card.tsx 200 - - 0.399 ms
+
+[WebServer] GET /app/routes/training/__plan-season.ts 200 - - 0.181 ms
+
+[WebServer] GET /app/routes/training/__season-events.tsx 200 - - 0.287 ms
+
+[WebServer] GET /app/routes/training/__season-edits.tsx 200 - - 0.800 ms
+
+[WebServer] GET /app/routes/training/__season-picture.tsx 200 - - 0.496 ms
+
+[WebServer] GET /app/routes/training/__season-notices.tsx 200 - - 0.600 ms
+
+[WebServer] GET /app/routes/training/__track-days.tsx 200 - - 0.385 ms
+
+[WebServer] GET /app/routes/training/__treningsform.tsx 200 - - 0.380 ms
+
+[WebServer] GET /app/routes/training/__weeks-reading.tsx 200 - - 0.429 ms
+
+[WebServer] GET /app/utils/plan-outline/season-span.ts 200 - - 0.305 ms
+[WebServer] GET /app/routes/training/__fit-to-event.tsx 200 - - 0.200 ms
+
+[WebServer] GET /app/routes/training/__phase-editor.tsx 200 - - 0.495 ms
+
+[WebServer] GET /app/routes/training/__season-anchor-editor.tsx 200 - - 0.540 ms
+
+[WebServer] GET /app/routes/training/__segment-editor.tsx 200 - - 0.529 ms
+
+[WebServer] GET /app/utils/plan-outline/philosophy-schema.ts 200 - - 0.238 ms
+
+[WebServer] GET /app/routes/training/__strength-segment-editor.tsx 200 - - 0.586 ms
+
+[WebServer] GET /app/utils/plan-outline/season-edit-words.ts 200 - - 0.297 ms
+
+[WebServer] GET /app/routes/training/__season-chart.tsx 200 - - 1.072 ms
+
+[WebServer] GET /app/routes/training/__attach-event.tsx 200 - - 0.410 ms
+
+[WebServer] LOADER routes/training/plan triggered - 1457.53ms
+
+[WebServer] GET /training/plan.data?event=cmw6eq19n00047dq0p5pd3kkz 200 - - 1595.102 ms
+
+[WebServer] GET /app/routes/training/__plan-lead.ts 200 - - 0.318 ms
+
+[WebServer] GET /app/utils/event-schema.ts 200 - - 0.357 ms
+
+[WebServer] GET /app/utils/plan-outline/season-edit-schema.ts 200 - - 0.273 ms
+[WebServer] GET /app/components/ui/alert.tsx 200 - - 0.176 ms
+[WebServer] GET /app/utils/plan-outline/ramp-guard.ts 200 - - 0.240 ms
+[WebServer] GET /app/utils/plan-outline/season-edit.ts 200 - - 0.362 ms
+
+[WebServer] GET /app/components/day-choice.ts 200 - - 0.152 ms
+[WebServer] GET /app/components/day-choice-controls.tsx 200 - - 0.325 ms
+[WebServer] GET /app/components/weekday-chips.tsx 200 - - 0.184 ms
+[WebServer] GET /app/routes/_home/timeline/season-pane.tsx 200 - - 0.580 ms
+[WebServer] GET /app/components/ui/status-button.tsx 200 - - 0.213 ms
+
+[WebServer] GET /app/routes/start/__start-option-card.tsx 200 - - 0.298 ms
+
+[WebServer] GET /app/routes/training/__copy-week.tsx 200 - - 0.289 ms
+
+[WebServer] GET /app/utils/plan-outline/strength-goal.ts 200 - - 0.202 ms
+
+[WebServer] GET /app/utils/plan-outline/attach-event-schema.ts 200 - - 0.134 ms
+
+[WebServer] GET /app/routes/training/__week-pattern-editor.tsx 200 - - 0.962 ms
+
+[WebServer] GET /app/utils/plan-outline/season-chart.ts 200 - - 0.298 ms
+[WebServer] GET /app/utils/plan-outline/outline-preview.ts 200 - - 1.132 ms
+
+[WebServer] GET /app/utils/plan-outline/from-rows.ts 200 - - 0.428 ms
+
+[WebServer] GET /app/components/ui/tooltip.tsx 200 - - 0.258 ms
+
+[WebServer] GET /app/utils/calendar-key-schema.ts 200 - - 0.150 ms
+
+[WebServer] GET /app/routes/start/__week-sketch.tsx 200 - - 0.410 ms
+
+[WebServer] GET /app/routes/_home/timeline/season-table.ts 200 - - 0.229 ms
+
+[WebServer] GET /app/utils/load/ewma.ts 200 - - 0.170 ms
+
+[WebServer] GET /app/utils/plan-outline/planned-load.ts 200 - - 0.284 ms
+
+[WebServer] GET /app/utils/simple-activity.ts 200 - - 0.178 ms
+
+[WebServer] GET /app/utils/plan-outline/volume-conversion.ts 200 - - 0.534 ms
+
+[WebServer] GET /app/utils/effort-words.ts 200 - - 0.239 ms
+
+[WebServer] GET /node_modules/.vite/deps/@base-ui_react_tooltip.js?v=434387c3 200 - - 0.224 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-6WGPT3LE.js?v=434387c3 200 - - 0.201 ms
+
+[WebServer] GET /node_modules/.vite/deps/chunk-L2IRQFRZ.js?v=434387c3 200 - - 0.267 ms
+
+[WebServer] LOADER routes/training/programs triggered - 16.5ms
+
+[WebServer] LOADER root triggered - 17.98ms
+
+[WebServer] INFO ⏰  Server timing for route root - root_loader [17.9ms]
+[WebServer] INFO ⏰  Server timing for route root - getUserId [8.9ms] ["getUserId in root"]
+[WebServer] INFO ⏰  Server timing for route root - find_user [5.8ms] ["find user in root"]
+[WebServer] INFO ⏰  Server timing for route root - dev_athletes [0ms] ["dev athlete switcher aggregates"]
+
+[WebServer] GET /app/routes/training/programs.tsx?import - - - - ms
+
+[WebServer] GET /app/routes/training/programs.tsx - - - - ms
+
+[WebServer] GET /training/programs.data 200 - - 75.719 ms
+
+  4 passed (43.8s)
