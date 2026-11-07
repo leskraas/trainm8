@@ -98,6 +98,12 @@ function candidateWhere(scope: ErasureScope): Prisma.WorkoutWhereInput {
  * with it, so they do not count; an orphan's author's training already went
  * with their account, so any session, slot or Program day still on it is
  * somebody else's.
+ *
+ * The `patternDays` clauses cannot match on a migrated database: since ADR
+ * 0113 a day uses only its own plan's Held Workout (§3), and its migration
+ * re-pointed every existing day at one (§8), so no slot points at another
+ * athlete's row or at an orphan. They stay as the guard the rule states, for a
+ * row a future path or an unmigrated database could still hold.
  */
 function heldElsewhereWhere(scope: ErasureScope): Prisma.WorkoutWhereInput {
 	if (scope.kind === 'orphans') {
