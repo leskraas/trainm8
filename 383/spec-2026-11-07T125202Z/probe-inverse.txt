@@ -1,0 +1,9 @@
+anchor paces: {'1500m': '3:43', '3k': '3:53', '5k': '4:00', '10k': '4:10', 'hm': '4:22', 'marathon': '4:33'}
+4:00 -> 100 % 5k (round trip 4:00/km)
+4:15 -> 98 % 10k (round trip 4:15/km)
+4:10 -> 100 % 10k (round trip 4:10/km)
+4:20 -> 101 % hm (round trip 4:19/km)
+3:30 -> faster than 1500 m pace: no race position
+5:30 -> slower than 85 % marathon pace: zone
+5:00 -> 91 % marathon (round trip 5:00/km)
+3:45 -> 99 % 1500m (round trip 3:46/km)
