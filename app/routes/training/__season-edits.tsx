@@ -1469,7 +1469,11 @@ function SeasonAnchorPreviewPanel({
 							className="mt-1 tabular-nums"
 						>
 							{anchor.rows.map((row) => (
-								<SeasonAnchorPreviewRow key={row.weekKey} row={row} />
+								<SeasonAnchorPreviewRow
+									key={row.weekKey}
+									row={row}
+									unit={anchor.unit}
+								/>
 							))}
 						</ul>
 					</div>
@@ -1569,8 +1573,11 @@ function SeasonAnchorPreviewPanel({
 /** One changed week: before → after, its marker, and how it was worked out. */
 function SeasonAnchorPreviewRow({
 	row,
+	unit,
 }: {
 	row: SeasonAnchorPreviewView['rows'][number]
+	/** The track's Volume Currency, said once after the new figure. */
+	unit: string
 }) {
 	const figures = (
 		<span className="shrink-0 text-right">
@@ -1580,7 +1587,8 @@ function SeasonAnchorPreviewRow({
 				<span className="sr-only"> {SEASON_ANCHOR_EDIT_LABELS.becomes} </span>
 				<span className="font-semibold" data-after>
 					{row.after}
-				</span>
+				</span>{' '}
+				<span className="text-muted-foreground">{unit}</span>
 			</span>
 			<span className="text-muted-foreground text-caption block">
 				{row.authored

@@ -199,7 +199,10 @@ function anchorChoice(
 	}
 }
 
-function renderAnchorEdit(choice: NonNullable<Choice>[number]) {
+function renderAnchorEdit(
+	choice: NonNullable<Choice>[number],
+	reply: Parameters<typeof SeasonEditsCard>[0]['reply'] = null,
+) {
 	const App = createRoutesStub([
 		{
 			path: '/training/plan',
@@ -211,7 +214,7 @@ function renderAnchorEdit(choice: NonNullable<Choice>[number]) {
 					tracks={[]}
 					anchorChoices={[choice]}
 					firstUnbegunWeekKey="2030-01-07"
-					reply={null}
+					reply={reply}
 				/>
 			),
 			HydrateFallback: () => <div>Loading...</div>,
@@ -259,4 +262,44 @@ test('a segment starting on the first unbegun week opens on its value; only late
 	expect(
 		screen.getByText(/Sesongstarten \(Fra uke 1 · 31\. des 2029 · 30 km\)/),
 	).toBeInTheDocument()
+})
+
+test('a preview row names the track’s Volume Currency beside its figures', async () => {
+	const edit = {
+		kind: 'season-anchor' as const,
+		trackId: RUN,
+		action: 'add' as const,
+		fromWeekKey: '2030-01-14',
+		value: 42,
+	}
+	renderAnchorEdit(anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]), {
+		edit: 'season-anchor',
+		preview: {
+			kind: 'season-anchor',
+			weeks: [],
+			digest: 'digest-1',
+			message: 'Løping fra uke 3: nytt startnivå 42 km.',
+			warnings: [],
+			edit,
+			anchor: {
+				unit: 'km',
+				changedWeeks: '1 uke får nytt mål',
+				rows: [
+					{
+						weekKey: '2030-01-14',
+						weekNumber: 3,
+						where: 'hard uke · Base',
+						before: '39,3',
+						after: '42',
+						authored: false,
+						how: null,
+					},
+				],
+				held: [],
+			},
+		},
+	})
+
+	const row = await screen.findByText('Uke 3')
+	expect(row.closest('li')?.textContent).toMatch(/39,3.*→.*42\s*km/)
 })
