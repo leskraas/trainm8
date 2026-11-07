@@ -856,7 +856,8 @@ describe('a prescription read on its own', () => {
 		steps: Array<{ durationSec?: number | null; distanceM?: number | null }>,
 		discipline = 'run',
 	): PrescriptionWorkout {
-		return {
+		// The stored rows as a select hands them over, extra columns and all.
+		const workout = {
 			discipline,
 			intent: 'endurance',
 			activityKind: null,
@@ -881,6 +882,7 @@ describe('a prescription read on its own', () => {
 				},
 			],
 		}
+		return workout
 	}
 	const THRESHOLDS = {
 		run: {
