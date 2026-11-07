@@ -1,0 +1,6 @@
+20:00 5k ->
+  10k: b1.06 41:42 (4:10/km)  b1.15 44:23 (4:26/km)  ratio 2.00
+  HM: b1.06 1:32:00 (4:22/km)  b1.15 1:44:44 (4:58/km)  ratio 4.22
+  M: b1.06 3:11:49 (4:33/km)  b1.15 3:52:25 (5:30/km)  ratio 8.44
+threshold 4:16/km read as 60-min result (14.06 km): 5k 20:03 (4:01/km)
+threshold 4:16/km read as 35-min result (8.20 km): 5k 20:43 (4:09/km)
