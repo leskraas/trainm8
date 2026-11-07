@@ -10,6 +10,7 @@ tracker: github
 autonomy: doors
 merge: agent
 budget: 6000000
+usage-reserve: 10%
 parallel: 3
 build-parallel: 2
 serial: qa, design-scan
@@ -40,6 +41,7 @@ session-model: claude-sonnet-5-5
 | `merge` | `human`, `agent` | `human` under `supervised`, else `agent` | Who merges once QA passes. `agent` merges only on the head QA verified, with every check green. |
 | `merge-method` | `merge`, `squash`, `rebase` | `merge` | How the factory merges. Use one the repo allows: GitHub refuses the others. |
 | `budget` | tokens | 6000000 | Tokens per issue, its PR included, before it stops for a human. |
+| `usage-reserve` | a share, `0.1` or `10%` | `10%` | The share of the subscription's limits the factory leaves to its owner: it holds new work as [usage.md](usage.md) says. |
 | `parallel` | number | 3 | Sessions `/factory-dispatch` keeps working at once, and tasks one `/factory` batch runs at once. |
 | `build-parallel` | number | 2 | Of those, tasks that write code (`implement`, `update-branch`). |
 | `serial` | task names | – | Tasks that run one at a time, because they share one running app or one set of ports (QA, the design scan). |

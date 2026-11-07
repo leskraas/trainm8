@@ -43,6 +43,13 @@ in circles. Recommend 6000000 whatever the subscription, since a full slice
 took 1.5–2.5M tokens; more for a design-heavy product, less for one without
 UI.
 
+## Usage reserve
+
+`usage-reserve` is the share of the subscription's limits the factory leaves
+to its owner (`/factory`'s `references/usage.md`). Recommend `30%` when the owner
+codes on the same subscription every day, and the default `10%` when the
+factory has it to itself.
+
 ## After a week
 
 These are starting points. Read the log issue (`Factory log`; under
