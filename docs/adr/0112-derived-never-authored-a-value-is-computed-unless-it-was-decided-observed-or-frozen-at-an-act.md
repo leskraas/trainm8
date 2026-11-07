@@ -97,15 +97,16 @@ because per-render computation was "wasteful and inconsistent across views". As
 built, it is recomputed on a prescription edit, a threshold change, a typed
 **Performance Result**, and by the writers that lay or change a plan. These
 lists describe the code today and are examples, not the closed set a new
-materialization is checked against.
+materialization is checked against. Both are stored and neither is authored,
+which is why the name is "derived, never authored" and not "derived, never
+stored".
 
 Which rows a trigger recomputes is still open for `plannedTssValue`: a threshold
 change recomputes it on every session, done ones included, while a **Performance
 Result** recomputes only sessions still scheduled, so a completed session keeps
 the stress it was planned with. Whether a completed session's **Planned TSS**
 freezes at completion, as its **Target Resolution** does (§1.3), is not decided
-here. Both are stored and neither is authored, which is why the name is
-"derived, never authored" and not "derived, never stored".
+here.
 
 ### 4. A moved number the athlete has read is explained, never silent
 

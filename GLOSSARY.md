@@ -1108,8 +1108,8 @@ stored for consistency or a measured cost is materialized and stays derived: it
 keeps its relation to its inputs, states its recompute triggers, and explains a
 movement in a number the athlete has already read (a **Load Recompute Notice**
 for a **Load Snapshot**). Cost never decides derive versus store. A derived
-value the athlete owns becomes authored state only when the athlete acts on it,
-and is authored from then on (a confirmed **Weekly Capacity**); a convention the
+value the athlete owns is stored only when the athlete acts on it, and is
+authored from then on (a confirmed **Weekly Capacity**); a convention the
 athlete did not choose is never stored as though authored. Cited as (Derived,
 never authored, ADR 0112). "Derived, never stored" stays correct as the narrower
 statement for a derived value that is not materialized, such as a **Training
