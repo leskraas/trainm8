@@ -12,6 +12,13 @@ to Strava and Intervals.icu, and file imports. Specs to copy from:
 - Account at `/settings/profile`: name and username (_Lagre kontoen_), password
   (_Passord_, then _Bytt passord_), profile photo (_Bytt profilbilde_), 2FA and
   passkeys.
+- Your data on `/settings/profile` (_Dataene dine_): _Last ned dataene dine_
+  downloads the athlete's record as one JSON file
+  (`/resources/download-user-data`). Its `tables` list the Sign-in Methods
+  (`AuthAccount` by `providerId`, `AuthPasskey` names and dates,
+  `User.twoFactorEnabled`) and never a password hash, TOTP secret, backup code,
+  session token or one-time code. Better Auth runs dark (ADR 0114), so these
+  tables stay empty until the login cutover.
 - Training settings and level: `/settings/training`, `/settings/level`.
 - _Hjemsted_ at `/settings/hjemsted` (#433, ADR 0115): the Home Place. Search by
   name (Kartverket, mocked with `MOCK_WEATHER=true`), pick a match (saves at

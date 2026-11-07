@@ -1,9 +1,9 @@
 import crypto from 'node:crypto'
 import { type Connection, type Password, type User } from '@prisma/client'
-import bcrypt from 'bcryptjs'
 import { redirect } from 'react-router'
 import { Authenticator } from 'remix-auth'
 import { safeRedirect } from 'remix-utils/safe-redirect'
+import { hashPassword, verifyPassword } from './auth/password-hash.server.ts'
 import { providers } from './connections.server.ts'
 import { prisma } from './db.server.ts'
 import { combineHeaders, downloadFile } from './misc.tsx'
@@ -240,8 +240,7 @@ export async function logout(
 }
 
 export async function getPasswordHash(password: string) {
-	const hash = await bcrypt.hash(password, 10)
-	return hash
+	return hashPassword(password)
 }
 
 export async function verifyUserPassword(
@@ -257,7 +256,10 @@ export async function verifyUserPassword(
 		return null
 	}
 
-	const isValid = await bcrypt.compare(password, userWithPassword.password.hash)
+	const isValid = await verifyPassword({
+		hash: userWithPassword.password.hash,
+		password,
+	})
 
 	if (!isValid) {
 		return null

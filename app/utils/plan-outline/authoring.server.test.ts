@@ -2845,6 +2845,15 @@ test('removing a pattern in the middle leaves the positions contiguous', async (
 	).toBe(0)
 })
 
+/** The plan's Held Workout copied from `sourceId` (ADR 0113). */
+async function heldCopyOf(sourceId: string) {
+	const copy = await prisma.workout.findFirstOrThrow({
+		where: { copiedFromId: sourceId, heldByOutlineId: { not: null } },
+		select: { id: true },
+	})
+	return copy.id
+}
+
 test('a fixed day stores the Workout it stamps and carries no weight', async () => {
 	const { athleteId, patternId, trackId } = await patternedPlan()
 	const workoutId = await createWorkout(athleteId)
@@ -2868,7 +2877,8 @@ test('a fixed day stores the Workout it stamps and carries no weight', async () 
 			orderInDay: 0,
 			kind: 'fixed',
 			weight: null,
-			workoutId,
+			// The plan's own copy of it, never the picked row (ADR 0113).
+			workoutId: await heldCopyOf(workoutId),
 			trackId,
 		},
 	])
@@ -2904,7 +2914,12 @@ test('a share day stores its relative weight, and may carry a shape to scale', a
 		),
 	).toEqual([
 		{ weekday: 1, kind: 'share', weight: 1, workoutId: null },
-		{ weekday: 5, kind: 'share', weight: 2.5, workoutId },
+		{
+			weekday: 5,
+			kind: 'share',
+			weight: 2.5,
+			workoutId: await heldCopyOf(workoutId),
+		},
 	])
 })
 
