@@ -51,7 +51,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 			where: { ownerId: userId },
 			select: { id: true, copiedFromId: true },
 		})
-		const heldElsewhere = await tx.workout.findMany({
+		const keptForOthers = await tx.workout.findMany({
 			where: {
 				ownerId: userId,
 				OR: [
@@ -66,7 +66,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 			},
 			select: { id: true },
 		})
-		const kept = new Set(heldElsewhere.map((row) => row.id))
+		const kept = new Set(keptForOthers.map((row) => row.id))
 		const parentOf = new Map(
 			owned
 				.filter((row) => !kept.has(row.id))
@@ -79,7 +79,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 		// because a day's Workout is `NO ACTION` (ADR 0112 §7): erasing a Workout
 		// a day still uses would fail and roll it all back. Since ADR 0112 a day
 		// only uses its own plan's Held Workout, so the `patternDays` clause in
-		// `heldElsewhere` above is unreachable; it stays for a database that
+		// `keptForOthers` above is unreachable; it stays for a database that
 		// predates that migration.
 		await tx.weekPatternDay.deleteMany({
 			where: { pattern: { outline: { athleteId: userId } } },
