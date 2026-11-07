@@ -8,12 +8,13 @@
  */
 
 import { addDays } from '#app/utils/athlete-calendar.ts'
-import { prisma } from '#app/utils/db.server.ts'
+import { layGeneratedWeek } from '#app/utils/plan-generation/relay.server.ts'
 import { stampWeekPattern } from '#app/utils/plan-outline/stamp.server.ts'
 import {
 	countPlanLaidSessions,
 	readWeekOccupancy,
 } from '#app/utils/plan-outline/week-sessions.server.ts'
+import { readPlanWeekSource } from '#app/utils/plan-outline/week-source.server.ts'
 import { findActiveOutline } from '#app/utils/training.server.ts'
 import { readFirstUnbegunWeekKey } from './week-begun.server.ts'
 import {
@@ -58,12 +59,8 @@ export async function layPlanWeek(
 	})
 	const active = await findActiveOutline(userId, now)
 	if (!active) return nothing()
-	const pattern = await prisma.weekPattern.findFirst({
-		where: { outlineId: active.outline.id, days: { some: {} } },
-		orderBy: { orderIndex: 'asc' },
-		select: { id: true },
-	})
-	if (!pattern) return nothing('no-pattern')
+	const source = await readPlanWeekSource(active.outline.id)
+	if (source.kind === 'none') return nothing('no-pattern')
 
 	// Already laid — by the athlete's own stamp of many weeks, or a copy: the
 	// plan's sessions there are the plan's week, and laying it again would
@@ -76,6 +73,25 @@ export async function layPlanWeek(
 	])
 	if (occupancy.replacing > 0 || laid > 0) return nothing()
 
+	// A generated plan's unlaid week is laid by its generator, on the days
+	// stored at approval (ADR 0113 §3).
+	if (source.kind === 'generated') {
+		if (weekKey < active.outline.startWeekKey) return nothing()
+		const generated = await layGeneratedWeek(
+			userId,
+			active.outline.id,
+			weekKey,
+			timezone,
+		)
+		if (!generated) return nothing('no-pattern')
+		if (generated.outside) return nothing('past-plan-end')
+		return {
+			weekKey,
+			sessions: generated.sessions,
+			unlaid: generated.sessions > 0 ? null : 'nothing-to-lay',
+		}
+	}
+
 	// `replace` because the athlete's own sessions in the week would otherwise
 	// stop the stamp at its confirmation gate. The stamp's clearing only ever
 	// removes the machine's untrained sessions, and there are none here.
@@ -86,7 +102,7 @@ export async function layPlanWeek(
 	// then lays those weeks (`fillPlanWeeksToHorizon`).
 	const stamped = await stampWeekPattern(
 		userId,
-		{ patternId: pattern.id, weekKeys: [weekKey], replace: true },
+		{ patternId: source.patternId, weekKeys: [weekKey], replace: true },
 		now,
 	)
 	if (stamped.ok) {
