@@ -1,0 +1,7 @@
+# Probe on origin/main 1e9531f: npx vitest run app/utils/probe-442.server.test.ts
+PROBE add fixed day: {"ok":true}
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: WeekPatternDay_kind_fields") }), transient: false })
+PROBE delete session: THREW → 456 	await tx.workout.delete( | Error occurred during query execution: | ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: WeekPatternDay_kind_fields") }), transient: false })
+PROBE session still there: true | day workoutId: cmw6beq4300027ddgz0hzrtpq
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
