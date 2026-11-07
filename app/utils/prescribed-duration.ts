@@ -1,7 +1,7 @@
 /**
  * **How long a prescription takes** — the one duration reading every surface
  * shares (#615): the session row, I dag, the detail view, the Week Pattern's
- * fixed days, Juster, and a generated week's **Placed Hours** (ADR 0113).
+ * fixed days, Juster, and a generated week's **Placed Hours** (ADR 0116).
  *
  * Its own module, beside nothing else, because the pure season generator reads
  * it too (ADR 0053 §2) and must not import a file that holds UI palettes.
@@ -27,7 +27,7 @@ export type DurationBlock = {
 	betweenSeriesRestSec?: number | null
 	/**
 	 * The stored **Send-Off** JSON, or null. Required, so every reader selects
-	 * it: a send-off set's length is known before it starts (ADR 0113 §4), and
+	 * it: a send-off set's length is known before it starts (ADR 0116 §4), and
 	 * a reader that left it out would time the set without its rest.
 	 */
 	sendOff: string | null
@@ -95,7 +95,7 @@ export type PrescribedDuration = {
  * with neither a time nor a pace to give it one, leaves the total incomplete.
  *
  * Under a **Send-Off** each rep takes the larger of its work and its cycle
- * (ADR 0113 §4): the swimmer leaves on the clock, so the rest is whatever the
+ * (ADR 0116 §4): the swimmer leaves on the clock, so the rest is whatever the
  * cycle leaves over. An absolute cycle is its interval; an anchored one is CSS
  * plus the allowance per 100 m of the rep's distance, read through a pace. An
  * anchored cycle with no CSS to read leaves the total incomplete.

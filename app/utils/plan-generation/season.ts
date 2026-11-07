@@ -144,7 +144,7 @@ export type SeasonRequest = {
 	 * The athlete's thresholds as a session row reads them
 	 * (`getDisciplineThresholds`, with Race Anchor paces), read on every preview
 	 * and approval. What a placed session's distance steps are timed through
-	 * (ADR 0113 §1). Never the Volume Conversion's contexts.
+	 * (ADR 0116 §1). Never the Volume Conversion's contexts.
 	 */
 	thresholds: DisciplineThresholdMap
 }
@@ -271,7 +271,7 @@ export type GeneratedSeason = {
 	capacity: CapacityFit
 	/**
 	 * Each week's **Placed Hours** against the **Weekly Capacity** (ADR 0110
-	 * §4, ADR 0113): stated where over, never fixed.
+	 * §4, ADR 0116): stated where over, never fixed.
 	 */
 	placed: PlacedFit
 	weeks: GeneratedWeek[]

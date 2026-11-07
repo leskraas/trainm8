@@ -2,7 +2,7 @@
 
 Status: Accepted (agent decision on delegated issues #473 and #472, 2026-10-24).
 §1–§2 are built, and the preview states what §2 did. §4 is built, by
-[ADR 0113](./0113-a-generated-weeks-placed-hours-are-a-floor-carried-on-the-payload.md)
+[ADR 0116](./0116-a-generated-weeks-placed-hours-are-a-floor-carried-on-the-payload.md)
 (#473). §3 is decided and **not yet built** (#472). The owner confirmed §1–§2 on
 2026-10-25; §3 stays open below.
 
@@ -91,7 +91,7 @@ shortens a cited session to make the week fit.
 - **Confirmed by the owner on 2026-10-25:** one common factor across tracks,
   rather than lowering the largest track first. It keeps the athlete's mix.
 - **Proposed, owner to confirm:** §3, which is not yet built. §4 is built, by
-  ADR 0113 (#473).
+  ADR 0116 (#473).
 
 ## Deferred hardening
 
@@ -109,6 +109,6 @@ shortens a cited session to make the week fit.
   week before and after (`fromPeakHours`, `peakHours`); `over` says where, by
   how much, and that the **Quality Session Mix** alone outruns the capacity.
   `fits`, `unset` and `unpriced` add nothing. Hours read through a pace carry
-  `≈` (`estimated`), rounded once at the surface. §4 is built by ADR 0113
+  `≈` (`estimated`), rounded once at the surface. §4 is built by ADR 0116
   (`GeneratedSeason.placed`, stated on the week card and under the season's
   heading). §3 remains the open work on #472.

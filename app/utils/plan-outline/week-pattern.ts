@@ -410,7 +410,7 @@ type PrescribedBlock = {
 	repeatCount: number
 	seriesRepeatCount?: number | null
 	betweenSeriesRestSec?: number | null
-	/** Stored Send-Off JSON: a send-off rep takes its cycle (ADR 0113 §4). */
+	/** Stored Send-Off JSON: a send-off rep takes its cycle (ADR 0116 §4). */
 	sendOff: string | null
 	steps: Array<{
 		/** `rest` marks a recovery step (ADR 0007); absent reads as work. */

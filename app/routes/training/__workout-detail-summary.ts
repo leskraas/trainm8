@@ -43,7 +43,7 @@ export type SummaryWorkout = {
 		repeatCount: number
 		seriesRepeatCount?: number | null
 		betweenSeriesRestSec?: number | null
-		/** Stored Send-Off JSON: a send-off rep takes its cycle (ADR 0113 §4). */
+		/** Stored Send-Off JSON: a send-off rep takes its cycle (ADR 0116 §4). */
 		sendOff: string | null
 		steps: Array<{
 			kind: string

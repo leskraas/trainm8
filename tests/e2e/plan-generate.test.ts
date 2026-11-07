@@ -192,7 +192,7 @@ test('a season over the athlete’s weekly hours is scaled to fit, and says so',
 })
 
 /**
- * **Placed Hours** over the Weekly Capacity (#473, ADR 0110 §4, ADR 0113):
+ * **Placed Hours** over the Weekly Capacity (#473, ADR 0110 §4, ADR 0116):
  * where a week's placed sessions alone take longer than the athlete has, its
  * card says so, a line under the season heading names the weeks, and the
  * «N uker til» row names the ones behind it — all on load, nothing behind a

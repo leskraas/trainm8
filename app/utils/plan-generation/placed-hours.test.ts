@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { type PrescribedDuration } from '../prescribed-duration.ts'
 import { readPlacedDuration, readPlacedHours } from './placed-hours.ts'
 
-// #473, ADR 0113: a generated week's Placed Hours are a floor of what its placed
+// #473, ADR 0116: a generated week's Placed Hours are a floor of what its placed
 // sessions take, read against the Weekly Capacity and stated, never fixed.
 
 const timed = (

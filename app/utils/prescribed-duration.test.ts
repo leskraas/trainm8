@@ -251,7 +251,7 @@ test('prescribedDuration times a step with no Discipline of its own as the Worko
 	)
 })
 
-// --- Send-Off (ADR 0113 §4) ---
+// --- Send-Off (ADR 0116 §4) ---
 
 const swim = (distanceM: number, label: string) => ({
 	kind: 'cardio',

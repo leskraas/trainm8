@@ -75,7 +75,7 @@ export type RetrievableEntry = ProvenanceSource & {
 	goalEvents: CatalogueGoalEvent[]
 	/**
 	 * The Stock Workout's blocks and steps as stored — what a placed session
-	 * copies, and what its **Placed Hours** are read from (ADR 0113). Data, so
+	 * copies, and what its **Placed Hours** are read from (ADR 0116). Data, so
 	 * the generator times a session without querying.
 	 */
 	blocks: DurationBlock[]

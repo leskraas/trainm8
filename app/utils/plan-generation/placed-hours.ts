@@ -1,6 +1,6 @@
 /**
  * **Placed Hours** — how long a generated week's placed sessions take at least,
- * read against the athlete's **Weekly Capacity** (ADR 0110 §4, ADR 0113, #473).
+ * read against the athlete's **Weekly Capacity** (ADR 0110 §4, ADR 0116, #473).
  *
  * `capacity.ts` reads the **Week Target** in hours and lowers the anchor where a
  * week outruns the capacity. The placed sessions are the other half: a Stock
@@ -75,7 +75,7 @@ export function readPlacedDuration(
  *
  * Runs whenever a capacity is set, whatever the Week Target reading did: it
  * needs only the placed sessions and the thresholds, so an `unpriced` target
- * still gets it (ADR 0113 §3).
+ * still gets it (ADR 0116 §3).
  */
 export function readPlacedHours(input: {
 	weekCount: number

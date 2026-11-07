@@ -72,7 +72,7 @@ test('the shipped generator names itself', () => {
 	expect(DETERMINISTIC_SEASON_GENERATOR.id).toBe(DETERMINISTIC_GENERATOR_ID)
 })
 
-// --- Placed Hours (#473, ADR 0110 §4, ADR 0113) ---
+// --- Placed Hours (#473, ADR 0110 §4, ADR 0116) ---
 
 const RUN_THRESHOLDS: SeasonRequest['thresholds'] = {
 	run: {
