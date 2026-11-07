@@ -50,6 +50,12 @@ From the docs ("Automate work with scheduled tasks", formerly routines):
 - Subagents could not start subagents of their own in every Tavla run. Tasks
   that need parallel parts (review, design) list them as **Parts**, and the
   orchestrator runs them.
+- Tried on 2026-11-07: a scheduled task that creates a fresh session per run
+  starts it with no repository and without `add_repo` or `create_session`, so
+  `/factory-dispatch` can't run there. Bind the task to a dispatcher session
+  made with `create_session` (the repo as source, a cheap model) instead, and
+  replace that session when its history has grown: a dispatcher kept for two
+  days on Opus cost $27, almost all of it reading its own history.
 
 ## Playwright in the cloud: preinstalled, but not for the repo's version
 
