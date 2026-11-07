@@ -14,7 +14,7 @@ Below, `$D` means `python3 <this skill's base directory>/../factory/scripts/cond
 1. Read `AGENTS.md` and `CLAUDE.md`. Their rules bind you.
 2. Run `$D config`. Without `docs/agents/factory.md` and its `factory` block, stop: tell the human to run `/factory-setup <o>/<r>`. Under `tracker: local`, stop too: the issues live in a folder of the human's clone that no cloud session sees, so tell the human to run `/factory` there.
 3. Run `$D labels <o>/<r>`.
-4. Load `create_session`, `get_session` and `archive_session` from the `claude-code-remote` MCP server (ToolSearch, `select:` the three names). When they are missing, this session cannot start sessions: invoke the `factory` skill here with `--max <parallel × 2> --unattended`, and stop after its report. Done when the three tools are callable.
+4. Load `create_session`, `get_session`, `archive_session` and `list_events` from the `claude-code-remote` MCP server (ToolSearch, `select:` the four names). When they are missing, this session cannot start sessions: invoke the `factory` skill here with `--max <parallel × 2> --unattended`, and stop after its report. Done when the four tools are callable.
 
 ## Steps
 
@@ -23,7 +23,7 @@ Below, `$D` means `python3 <this skill's base directory>/../factory/scripts/cond
    - Any other status, or `get_session` finds no session: it has finished. When its `at` is more than 24 hours ago, archive it with `archive_session`, so finished sessions stay a day for a human to read and then leave the list.
 
    Done when every listed session is live, archived, or finished less than a day ago.
-2. **Plan.** `$D dispatch <o>/<r> --me <me> --live <for>,<for>,...` prints `start` (the sessions to start, within `capacity`), `merges`, `stale`, `logs`, `waiting` and `running`.
+2. **Plan.** Read the subscription's usage into `$S/usage.json`, as `/factory`'s [references/usage.md](../factory/references/usage.md) says. `$D dispatch <o>/<r> --me <me> --live <for>,<for>,... --usage $S/usage.json` prints `start` (the sessions to start, within `capacity`), `usage` (`hold`, `why`, `until`), `merges`, `stale`, `logs`, `waiting` and `running`.
    - For each number in `stale`, run `$D release <o>/<r> <n> --me <me>` (a run died holding it, and its label goes back), then plan once more.
    - For each issue in `logs`, run `$D log <o>/<r> <n> --me <me>`.
    - For each entry in `merges`, run `$D merge <o>/<r> <number> --me <me> --label <label>`. A merge needs no session: it checks and merges by itself. Note what it prints.
@@ -42,7 +42,8 @@ Below, `$D` means `python3 <this skill's base directory>/../factory/scripts/cond
    1. One line per session started: the item or scan, the task it starts at, and its link.
    2. One line per merge, from what `$D merge` printed.
    3. The live sessions, each with its link, and any blocked one with what it waits on.
-   4. **What waits on a human**: each item in `waiting`, with its link. "Nothing" when nothing waits.
-   5. The **handoff**, as `/factory`'s [references/handoff.md](../factory/references/handoff.md) writes it. **Automatic** names the sessions now running and says each takes its issue as far as it goes; the next dispatch, at the next scheduled run, starts the rest. **You** is the one action a wait asks for, or "nothing".
+   4. **Usage**, when `usage.hold` is true: `usage.why`, and `usage.until`, when the next dispatch can start sessions again. When `usage.overage` is `on`, the line `/factory`'s [references/usage.md](../factory/references/usage.md) gives under "Extra usage".
+   5. **What waits on a human**: each item in `waiting`, with its link. "Nothing" when nothing waits.
+   6. The **handoff**, as `/factory`'s [references/handoff.md](../factory/references/handoff.md) writes it. **Automatic** names the sessions now running and says each takes its issue as far as it goes; the next dispatch, at the next scheduled run, starts the rest. **You** is the one action a wait asks for, or "nothing".
 
    When this run started, merged or archived something, post the report with `$D note <o>/<r> $S/report.md --session <for>=<id>`, one `--session` per session started. The markers it appends are how the next dispatch finds them. In an interactive run, also give the report to the human. Done when every started session's marker is on the log issue.

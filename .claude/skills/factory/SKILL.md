@@ -22,26 +22,29 @@ With an issue or PR number, the run takes that issue and its PRs as far as they 
 
 Repeat until a step sends you to **Report**.
 
-1. **Queue.** `$D queue <o>/<r> --me <me> [--only <n>] [--skip <numbers>]` prints `run` (what can run, in order), `batch` (what to run at once, within `parallel` and `build-parallel`), `waiting`, `running`, `stale` and `logs`.
+1. **Usage.** Read the subscription's usage into `$S/usage.json`, as [references/usage.md](references/usage.md) says. Without the `claude-code-remote` tools (a local run), skip this step and leave `--usage` out below. Done when the file is written, or the tools are missing.
+2. **Queue.** `$D queue <o>/<r> --me <me> [--only <n>] [--skip <numbers>] [--usage $S/usage.json]` prints `run` (what can run, in order), `batch` (what to run at once, within `parallel` and `build-parallel`), `waiting`, `running`, `stale` and `logs`.
    - With an issue or PR number as argument, pass it as `--only <n>`: the queue then holds the issue and its PRs. With `--scan <scan>`, pass `--scan <scan>` instead.
    - Pass in `--skip` every merge that printed `pending: true` in this run; a later run takes it.
    - For each number in `stale`, run `$D release <o>/<r> <n> --me <me>` (a run died holding it, and its label goes back), then queue again.
    - For each issue in `logs`, run `$D log <o>/<r> <n> --me <me>`.
+   - When `usage.hold` is true, `batch` holds only merges: run them, then go to **Report**, which gives `usage.why` and `usage.until`.
+   - When `usage.overage` is `on`, the report carries the line [references/usage.md](references/usage.md) gives under "Extra usage".
    - When `batch` is empty, or `--max` tasks have run, go to **Report**.
 
    Done when you hold a batch with no stale item in it.
-2. **Merge and update.** An entry with `deterministic: true` is a merge: `$D merge <o>/<r> <n> --me <me> --label <label>` claims, checks and merges by itself. Note what it prints. An entry with `try_update: true` is a PR that is only behind the default branch: run `$D update <o>/<r> <n> --me <me> --label <label> --resume <resume>` first. `updated: true` means it is done without a run: drop the entry. `agent: true` means a run must do it: keep the entry for step 3.
-3. **Claim** each other entry: `$D claim <o>/<r> <n> --label <label> --me <me>`. A scan has no number and no label, and needs no claim. `claimed: false` means another run took it: drop the entry. Done when every remaining entry is yours.
-4. **Run.** For each claimed entry, start one subagent with the brief in [references/brief.md](references/brief.md), all in one message so they run side by side. Give the Agent tool the entry's `model` and `effort` when the entry has them: the project chose them per task in `models` and `effort`, to spend less where a task needs less. A task file with a **Parts** section runs as several subagents: send its first part with the batch, and each next part once the one before has returned, each with the model and effort its part names in the entry's `parts`. Done when every subagent has returned.
-5. **Apply** each result:
+3. **Merge and update.** An entry with `deterministic: true` is a merge: `$D merge <o>/<r> <n> --me <me> --label <label>` claims, checks and merges by itself. Note what it prints. An entry with `try_update: true` is a PR that is only behind the default branch: run `$D update <o>/<r> <n> --me <me> --label <label> --resume <resume>` first. `updated: true` means it is done without a run: drop the entry. `agent: true` means a run must do it: keep the entry for step 4.
+4. **Claim** each other entry: `$D claim <o>/<r> <n> --label <label> --me <me>`. A scan has no number and no label, and needs no claim. `claimed: false` means another run took it: drop the entry. Done when every remaining entry is yours.
+5. **Run.** For each claimed entry, start one subagent with the brief in [references/brief.md](references/brief.md), all in one message so they run side by side. Give the Agent tool the entry's `model` and `effort` when the entry has them: the project chose them per task in `models` and `effort`, to spend less where a task needs less. A task file with a **Parts** section runs as several subagents: send its first part with the batch, and each next part once the one before has returned, each with the model and effort its part names in the entry's `parts`. Done when every subagent has returned.
+6. **Apply** each result:
    1. Set its `tokens` to the sum, over the task's subagents, of the `total_tokens` (or `subagent_tokens`) in the `<usage>` the Agent tool reported when each returned, in its result or its task notification. Read it there for every subagent; the budget per issue counts on it. Only when no usage came back at all, put your estimate and `"tokens_estimated": true`. `apply` marks a count that is a whole multiple of 10,000 as estimated, since a real count almost never is.
    2. `$D apply <o>/<r> <result file> --me <me> --from <label> --repo-dir <the task's worktree, or .>`. It checks the whole result before it writes anything.
    3. When `apply` refuses the result, or the subagent returned none, write a result yourself: `outcome` `blocked`, the task, the item, and a `comment` quoting the error. Apply that.
 
    Done when no item from this batch carries `agent:in-progress`.
-6. **Clean.** Remove the batch's worktrees (`git worktree remove --force <path>`), and go back to step 1.
+7. **Clean.** Remove the batch's worktrees (`git worktree remove --force <path>`), and go back to step 1.
 
-A usage limit that stops a subagent stops the loop: run `$D release` for every item this run still holds, so its label goes back, then report.
+A usage limit that stops a subagent anyway stops the loop: run `$D release` for every item this run still holds, so its label goes back, then report.
 
 ## Report
 
