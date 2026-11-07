@@ -1,0 +1,79 @@
+# Probe on agent/670-event-result-fills-lopsresultater @ 1df3af7f (PR #690)
+# Appended to a copy of app/routes/_home/timeline/row-content.test.ts (its fixtures), run with: npx vitest run <copy> -t 'PROBE 706'
+# A 10 km run step at 10k race pace; the athlete's 10k result has Origin Platform garmin.
+
+import {
+	describeStepTarget,
+	resolveStepRange,
+	sessionMetricTarget,
+	racePaceBindingSet,
+} from '#app/utils/intensity-target.ts'
+
+describe('PROBE 706', () => {
+	const run = thresholds({
+		raceAnchorPaces: { '10k': 249 },
+		raceAnchorOrigins: { '10k': ['garmin'] },
+	})
+	const racePace = JSON.stringify({ kind: 'racePace', event: '10k' })
+	const w = workout([block([step({ distanceM: 10000, intensity: racePace })])])
+
+	test('what each resolved value carries', () => {
+		const range = resolveStepRange(w.blocks[0]!.steps[0]!, 'run', { run })
+		const display = sessionMetricTarget(w, { run })
+		const step = describeStepTarget(JSON.parse(racePace), run)
+		const r = row({
+			status: 'scheduled',
+			scheduledAt: LATER_TODAY,
+			source: 'generated',
+			workout: w,
+			plannedTssValue: 42,
+		})
+		const content = buildRowContent(r, PLANNED_WEEK, { thresholds: { run } })
+		console.log(
+			JSON.stringify(
+				{
+					resolveStepRange: range,
+					sessionMetricTarget: display,
+					describeStepTarget: step,
+					rowExternalLoad: content.externalLoad,
+					rowInternalLoad: content.internalLoad,
+					rowContentKeys: Object.keys(content),
+					separateWalk_racePaceBindingSet: racePaceBindingSet(w, { run }),
+				},
+				null,
+				2,
+			),
+		)
+	})
+})
+
+# Output
+{
+  "resolveStepRange": {
+    "paceMin": 249,
+    "paceMax": 249,
+    "paceUnit": "secPerKm",
+    "approximate": true
+  },
+  "sessionMetricTarget": {
+    "kind": "metric",
+    "metric": "pace",
+    "text": "10 km-fart ≈ 4:09 /km"
+  },
+  "describeStepTarget": {
+    "label": "10 km-fart",
+    "resolved": "4:09 /km",
+    "missingThreshold": null,
+    "approximate": true
+  },
+  "rowExternalLoad": "42 TSS planlagt",
+  "rowInternalLoad": "10 km i ≈ 4:09 /km",
+  "rowContentKeys": [
+    "externalLoad",
+    "internalLoad",
+    "chips"
+  ],
+  "separateWalk_racePaceBindingSet": [
+    "garmin"
+  ]
+}
