@@ -209,16 +209,16 @@ was copied from. _Avoid_: Session, activity, template (say **Catalogue Entry**)
 `CatalogueEntry.archetype`. **Authored on the `Workout`**, and a **reading** of
 it is derived at read time and **stored nowhere** — the two never occupy the
 same slot, so an authored archetype simply wins and the reader is not consulted
-(ADR 0055). Authoring does not breach the derived-never-authored rule below:
-that rule forbids a _second source of truth_ for something the model already
-holds, and a session weeks out holds nothing to derive from — which is why ADR
-0042 §9 already authors the **Quality Session Mix** for exactly that case. What
-_is_ context-dependent lives in the reading, which is why the reading has no
-column: it would freeze a 28-day window that keeps moving, the same reason ADR
-0035 stores the measured value and derives the zone label. Null on a `Workout`
-means **nobody stated one**, unambiguous precisely because a reading is never
-written there. A **Catalogue** member's two columns are **one value in two
-places**: the entry's is a component of a three-column foreign key into
+(ADR 0055). Authoring does not breach **Derived, never authored**: that rule
+forbids a _second source of truth_ for something the model already holds, and a
+session weeks out holds nothing to derive from — which is why ADR 0042 §9
+already authors the **Quality Session Mix** for exactly that case. What _is_
+context-dependent lives in the reading, which is why the reading has no column:
+it would freeze a 28-day window that keeps moving, the same reason ADR 0035
+stores the measured value and derives the zone label. Null on a `Workout` means
+**nobody stated one**, unambiguous precisely because a reading is never written
+there. A **Catalogue** member's two columns are **one value in two places**: the
+entry's is a component of a three-column foreign key into
 `Workout (id, authorship, archetype)`, so it cannot disagree, an edit cascades,
 and a corpus row provably cannot have a null archetype (ADR 0055 §5). Most
 sessions inherit rather than classify — a session placed from the Catalogue or
@@ -1097,6 +1097,24 @@ or training stress. _Avoid_: Stat, number, KPI
 truthfully calculate, shown as _ikke målt_ with its reason and never as a number
 or a zero — a Simple Activity's zones, pace, power, Planned TSS and Training
 Load, or a pace no threshold resolves. _Avoid_: Fake metric, mock stat, 0
+
+**Derived, never authored**: The test for whether a value is computed or stored
+(ADR 0112). Derive any value that is a pure function of inputs the app still
+holds; store only an authored decision (a **Week Replan**), an observation
+received from outside (an **Activity Import**), or a bake made at an act with
+the inputs it used stored beside it (a lift's load fixed with the bodyweight
+then, a completed session's frozen **Target Resolution**). A derived value
+stored for consistency or a measured cost is materialized and stays derived: it
+keeps its relation to its inputs, states its recompute triggers, and explains a
+movement in a number the athlete has already read (a **Load Recompute Notice**
+for a **Load Snapshot**). Cost never decides derive versus store. A derived
+value the athlete owns is stored only when the athlete acts on it, and is
+authored from then on (a confirmed **Weekly Capacity**); a convention the
+athlete did not choose is never stored as though authored. Cited as (Derived,
+never authored, ADR 0112). "Derived, never stored" stays correct as the narrower
+statement for a derived value that is not materialized, such as a **Training
+Week**'s volume target. _Avoid_: compute it, don't store it;
+derived-never-stored rule
 
 **`source-terms`**: The reason a value is withheld rather than shown, when the
 terms of an **Origin Platform** behind it forbid the surface it would reach —
@@ -3202,6 +3220,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   a strength segment authors no quantity that multiplies into hours; hours is no
   longer a reconciliation unit either, because nothing needs reconciling (ADR
   0041, 0043, 0046 §3).
+- A value is **Derived, never authored** (ADR 0112): it is computed whenever it
+  is a pure function of inputs the app still holds, and stored only as an
+  authored decision, an outside observation, or a bake at an act with its inputs
+  beside it. A materialized derived value keeps its relation to its inputs,
+  states its recompute triggers, and explains, never silently, a movement in a
+  number the athlete has already read.
 - A **Training Week**'s endurance volume target is **derived, never stored**: it
   is a pure function of the applicable **Season Anchor** segment, the **Volume
   Ramp** and **Block Boundary Step** of every endurance segment up to that week,
