@@ -1,0 +1,16 @@
+workouts (id,vis,hasOwner,authorship,copiedFrom):
+  ('kody-fork', 'private', 1, 'athlete', 'orph-mid')
+  ('kody-fork2', 'private', 1, 'athlete', 'orph-solo')
+  ('orph-free', 'public', 0, 'athlete', None)
+  ('orph-held', 'public', 0, 'athlete', None)
+  ('orph-mid', 'private', 0, 'athlete', 'stock_run-A1')
+  ('orph-saved', 'public', 0, 'athlete', None)
+  ('orph-solo', 'private', 0, 'athlete', None)
+  ('owned-pub', 'public', 1, 'athlete', None)
+attributions: [('attr-free', 'orph-free'), ('attr-held', 'orph-held')]
+entries for orph (id,workout,retired): [('entry-held', 'orph-held', 0)]
+session sess-held: [('sess-held', 'orph-held')]
+saves: [('save1', 'orph-saved')]
+stock workouts: [(157,)] entries: [(152,)] retired: [(0,)]
+owned workouts: [(19,)]
+jobs: []

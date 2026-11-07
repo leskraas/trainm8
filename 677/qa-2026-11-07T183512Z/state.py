@@ -1,0 +1,12 @@
+import sqlite3,sys
+c=sqlite3.connect('/tmp/trainm8-verify/db/data.db')
+q=lambda s:c.execute(s).fetchall()
+print('workouts (id,vis,hasOwner,authorship,copiedFrom):')
+for r in q("select id,visibility,ownerId is not null,authorship,copiedFromId from Workout where id like 'orph-%' or id like 'kody-fork%' or id='owned-pub' order by id"):print(' ',r)
+print('attributions:',q("select id,workoutId from Attribution"))
+print('entries for orph (id,workout,retired):',q("select id,workoutId,retiredAt is not null from CatalogueEntry where workoutId like 'orph-%'"))
+print('session sess-held:',q("select id,workoutId from WorkoutSession where id='sess-held'"))
+print('saves:',q("select id,workoutId from CatalogueSave"))
+print('stock workouts:',q("select count(*) from Workout where authorship='system'"),'entries:',q("select count(*) from CatalogueEntry"),'retired:',q("select count(*) from CatalogueEntry where retiredAt is not null"))
+print('owned workouts:',q("select count(*) from Workout where ownerId is not null"))
+print('jobs:',q("select id,kind,status,attempts,payload,lastError from Job where kind like 'orphan%'"))

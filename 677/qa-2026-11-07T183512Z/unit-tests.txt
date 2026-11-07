@@ -1,0 +1,25 @@
+→ 54 await tx.job.update(
+Foreign key constraint violated on the foreign key
+
+ [32m✓[39m app/utils/orphaned-workout-purge.server.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1476[2mms[22m[39m
+   [33m[2m✓[22m[39m the job erases the Orphaned Workouts and records counts only, on its own row [33m 407[2mms[22m[39m
+   [33m[2m✓[22m[39m a run after one that committed keeps the first record, never zeros [33m 326[2mms[22m[39m
+   [33m[2m✓[22m[39m a record that is not three counts is not taken as the first run’s [33m 365[2mms[22m[39m
+   [33m[2m✓[22m[39m a purge that fails partway erases nothing and is retried [33m 325[2mms[22m[39m
+ [32m✓[39m app/utils/account-deletion.server.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 3652[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting an account erases every Workout it wrote, published ones included (#468) [33m 358[2mms[22m[39m
+   [33m[2m✓[22m[39m a row someone else’s training points at directly is kept unattributed, never erased into their week [33m 326[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting an account applies Account Erasure to everything the athlete wrote [33m 573[2mms[22m[39m
+   [33m[2m✓[22m[39m the purge applies the same Account Erasure to Workouts orphaned before #641 [33m 600[2mms[22m[39m
+   [33m[2m✓[22m[39m the purge never reaches the corpus or a Workout somebody owns [33m 516[2mms[22m[39m
+   [33m[2m✓[22m[39m a second purge changes nothing: a row kept unattributed stays kept [33m 581[2mms[22m[39m
+ [32m✓[39m app/utils/eslint-restrictions.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 11862[2mms[22m[39m
+   [33m[2m✓[22m[39m a direct user delete outside Account Erasure fails lint, naming deleteAccount [33m 855[2mms[22m[39m
+   [33m[2m✓[22m[39m a route file is held to both restrictions at once [33m 313[2mms[22m[39m
+   [33m[2m✓[22m[39m Account Erasure itself and tests may delete a user; route tests keep the <select> guard [33m 1012[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m18 passed[39m[22m[90m (18)[39m
+[2m   Start at [22m 18:32:24
+[2m   Duration [22m 18.05s[2m (transform 4.58s, setup 4.09s, import 3.74s, tests 16.99s, environment 0ms)[22m
+

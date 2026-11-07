@@ -1,0 +1,8 @@
+
+/tmp/claude-0/-home-user-trainm8/f421a967-4f84-5f5e-adc3-6e246f95f129/scratchpad/factory/wt/677-qa/app/utils/_qa_probe/probe.server.ts
+  3:8   error  Delete a User only through deleteAccount (app/utils/account-deletion.server.ts). Workout.ownerId is SetNull, so a bare user.delete/deleteMany leaves the athlete’s Workouts behind as Orphaned Workouts (ADR 0113)  no-restricted-syntax
+  4:50  error  Delete a User only through deleteAccount (app/utils/account-deletion.server.ts). Workout.ownerId is SetNull, so a bare user.delete/deleteMany leaves the athlete’s Workouts behind as Orphaned Workouts (ADR 0113)  no-restricted-syntax
+
+✖ 2 problems (2 errors, 0 warnings)
+
+exit: 1

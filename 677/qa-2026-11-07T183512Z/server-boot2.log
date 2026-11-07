@@ -1,0 +1,19 @@
+
+> dev
+> cross-env NODE_ENV=development MOCKS=true node index.ts
+
+🔶 Mock server installed
+Starting development server
+🚀  We have liftoff!
+Local:            http://localhost:3100
+
+Press Ctrl+C to stop
+(node:1900) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+responseMode: 'json' drops mid-call notifications. subscriptions/listen streams are always served over SSE regardless; other notifications emitted before a result are dropped.
+LOADER routes/_auth/login triggered - 1.45ms
+LOADER root triggered - 892.89ms
+INFO ⏰  Server timing for route root - root_loader [892.2ms]
+INFO ⏰  Server timing for route root - getUserId [1.1ms] ["getUserId in root"]
+INFO ⏰  Server timing for route root - dev_athletes [372.9ms] ["dev athlete switcher aggregates"]
+GET /login 200 - - 29012.539 ms
