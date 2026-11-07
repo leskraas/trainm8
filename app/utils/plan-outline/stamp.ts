@@ -724,6 +724,77 @@ function scaleFor(day: StampDay, value: number | null): number {
 	return value / day.shapeVolume
 }
 
+/** A pattern slot: the weekday (Monday-first) and the Discipline laid there. */
+function slotKey(weekday: number, discipline: string): string {
+	return `${weekday}|${discipline}`
+}
+
+/**
+ * The slots kept sessions fill in one week, counted per weekday and
+ * Discipline: what {@link fillKeptSlots} reads.
+ */
+export function keptSlotsOf(
+	kept: ReadonlyArray<{ weekday: number; discipline: string }>,
+): Map<string, number> {
+	const filled = new Map<string, number>()
+	for (const session of kept) {
+		const slot = slotKey(session.weekday, session.discipline)
+		filled.set(slot, (filled.get(slot) ?? 0) + 1)
+	}
+	return filled
+}
+
+/**
+ * A week's laid sessions around the plan sessions a re-lay keeps (#505 S7
+ * review, ADR 0109 §5): a kept session still fills its slot — its weekday
+ * and Discipline — so the pattern day for that slot is not laid a second
+ * time beside it, and every other is. A lifting slot falls on no weekday of
+ * its own (ADR 0104 §3), so a lift the athlete kept fills one whatever day it
+ * is on. Returns the sessions to write, in the order given. Pure: the stamp's
+ * write and the activities edit's preview lay the same week through it.
+ */
+export function fillKeptSlots(
+	sessions: readonly StampSession[],
+	kept: ReadonlyMap<string, number>,
+): StampSession[] {
+	const filled = new Map(kept)
+	return sessions.filter((session) => {
+		const slot =
+			filled.get(slotKey(session.weekday, session.discipline)) ||
+			session.kind !== 'lifting'
+				? slotKey(session.weekday, session.discipline)
+				: keptLiftElsewhere(filled, sessions, session.discipline)
+		const taken = slot == null ? 0 : (filled.get(slot) ?? 0)
+		if (slot != null && taken > 0) {
+			filled.set(slot, taken - 1)
+			return false
+		}
+		return true
+	})
+}
+
+/**
+ * A kept session of a lifting slot's Discipline on a day this week's laying
+ * puts no lift of it on, where there is one.
+ */
+function keptLiftElsewhere(
+	filled: ReadonlyMap<string, number>,
+	sessions: readonly StampSession[],
+	discipline: string,
+): string | null {
+	const laid = new Set(
+		sessions
+			.filter((session) => session.discipline === discipline)
+			.map((session) => slotKey(session.weekday, discipline)),
+	)
+	for (const [slot, count] of filled) {
+		if (count > 0 && slot.endsWith(`|${discipline}`) && !laid.has(slot)) {
+			return slot
+		}
+	}
+	return null
+}
+
 /**
  * Where a stamped week's actual sessions disagree with its segment's **Quality
  * Session Mix** — one entry per zone the two sides state differently, ascending.

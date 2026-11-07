@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'vitest'
 import {
+	fillKeptSlots,
+	keptSlotsOf,
 	mixDisagreements,
 	planStamp,
+	type StampSession,
 	type StampDay,
 	type StampTrack,
 	type StampWeekInput,
@@ -939,5 +942,72 @@ describe('planStamp lays lifting per week', () => {
 			],
 		}
 		expect(planStamp(input)).toEqual(planStamp(input))
+	})
+})
+
+describe('fillKeptSlots', () => {
+	const session = (
+		weekday: StampSession['weekday'],
+		discipline: StampSession['discipline'],
+		kind: StampSession['kind'] = 'share',
+	): StampSession => ({
+		dayId: `${discipline}-${weekday}`,
+		weekKey: '2030-01-14',
+		weekday,
+		orderInDay: 0,
+		trackId: discipline,
+		discipline,
+		currency: discipline === 'strength' ? 'sets' : 'hours',
+		kind,
+		volume: 1,
+		sourceWorkoutId: null,
+		scale: 1,
+		shapeUnscaled: false,
+		carriesTss: discipline !== 'strength',
+		role: 'ordinary',
+		zone: null,
+	})
+	const week = [
+		session(0, 'run'),
+		session(1, 'strength', 'lifting'),
+		session(2, 'bike'),
+		session(3, 'strength', 'lifting'),
+		session(5, 'run'),
+	]
+
+	test('nothing kept lays the whole week', () => {
+		expect(fillKeptSlots(week, new Map())).toEqual(week)
+	})
+
+	test('a kept session fills its weekday and Discipline, once', () => {
+		const laid = fillKeptSlots(
+			week,
+			keptSlotsOf([
+				{ weekday: 0, discipline: 'run' },
+				{ weekday: 2, discipline: 'run' },
+			]),
+		)
+		// Monday's run is the athlete's; Wednesday's kept run fills no bike slot.
+		expect(laid.map((s) => s.dayId)).toEqual([
+			'strength-1',
+			'bike-2',
+			'strength-3',
+			'run-5',
+		])
+	})
+
+	test('a kept lift fills a lifting slot whatever day it is on, so no second lift is laid', () => {
+		const laid = fillKeptSlots(
+			week,
+			keptSlotsOf([{ weekday: 4, discipline: 'strength' }]),
+		)
+		expect(laid.filter((s) => s.discipline === 'strength')).toHaveLength(1)
+		// A lift kept on a day the week lays one fills that day's own.
+		const sameDay = fillKeptSlots(
+			week,
+			keptSlotsOf([{ weekday: 3, discipline: 'strength' }]),
+		)
+		expect(sameDay.map((s) => s.dayId)).not.toContain('strength-3')
+		expect(sameDay.map((s) => s.dayId)).toContain('strength-1')
 	})
 })

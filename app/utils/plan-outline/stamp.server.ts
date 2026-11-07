@@ -80,6 +80,8 @@ import {
 } from './session-placement.ts'
 import { sessionZone, sessionZoneSelect } from './session-zone.ts'
 import {
+	fillKeptSlots,
+	keptSlotsOf,
 	mixDisagreements,
 	planStamp,
 	WeekPatternStampSchema,
@@ -99,7 +101,11 @@ import {
 	isPatternWeekday,
 	type PatternWeekday,
 } from './week-pattern.ts'
-import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
+import {
+	clearPlanWeek,
+	readWeekOccupancy,
+	REPLACEABLE_SESSION,
+} from './week-sessions.server.ts'
 
 /**
  * Why a stamp was refused. Every one is a state the athlete can act on, so none is
@@ -315,7 +321,13 @@ export async function stampWeekPattern(
 		}
 		weeks.push({
 			...stampWeekInput(weekKey, index, specs, resolved),
-			held: await readHeldSessions(userId, outline.id, weekKey, timezone),
+			held: await readHeldSessions(
+				prisma,
+				userId,
+				outline.id,
+				weekKey,
+				timezone,
+			),
 		})
 	}
 
@@ -358,20 +370,13 @@ export async function stampWeekPattern(
 				plan.weekKey,
 				timezone,
 			)
-			const filled = aroundKeptSessions
-				? await filledSlots(tx, userId, outline.id, plan.weekKey, timezone)
-				: new Map<string, number>()
-			for (const session of plan.sessions) {
-				const slot =
-					filled.get(slotKey(session.weekday, session.discipline)) ||
-					session.kind !== 'lifting'
-						? slotKey(session.weekday, session.discipline)
-						: keptLiftElsewhere(filled, plan.sessions, session.discipline)
-				const taken = slot == null ? 0 : (filled.get(slot) ?? 0)
-				if (slot != null && taken > 0) {
-					filled.set(slot, taken - 1)
-					continue
-				}
+			const sessions = aroundKeptSessions
+				? fillKeptSlots(
+						plan.sessions,
+						await readKeptSlots(tx, userId, outline.id, plan.weekKey, timezone),
+					)
+				: plan.sessions
+			for (const session of sessions) {
 				const workoutId = await workoutForSession(
 					tx,
 					userId,
@@ -426,8 +431,12 @@ export async function stampWeekPattern(
 	}
 }
 
-/** One plan week as the planner reads it: its targets and its mixes. */
-function stampWeekInput(
+/**
+ * One plan week as the planner reads it: its targets and its mixes. Pure, so
+ * a preview reads a week off rows not yet written exactly as the stamp will
+ * read them once they are (ADR 0109 §5).
+ */
+export function stampWeekInput(
 	weekKey: string,
 	index: number,
 	specs: ReturnType<typeof phaseSpecs>,
@@ -514,7 +523,13 @@ export async function readLaidWeeks(
 		}
 		weeks.push({
 			...stampWeekInput(weekKey, index, specs, resolved),
-			held: await readHeldSessions(userId, outline.id, weekKey, timezone),
+			held: await readHeldSessions(
+				prisma,
+				userId,
+				outline.id,
+				weekKey,
+				timezone,
+			),
 		})
 	}
 	const input = swap({
@@ -534,9 +549,11 @@ export async function readLaidWeeks(
  * story 34): the ones the athlete scheduled by hand, and any another plan
  * laid — scheduled or trained, as the day rule reads them. This plan's own
  * laid sessions are not among them: the stamp is what lays those. Skipped
- * and missed sessions were not trained, so they make no day hard.
+ * and missed sessions were not trained, so they make no day hard. Read
+ * through `db`, so a caller inside a transaction reads in it.
  */
-async function readHeldSessions(
+export async function readHeldSessions(
+	db: Prisma.TransactionClient,
 	userId: string,
 	planOutlineId: string,
 	weekKey: string,
@@ -544,7 +561,7 @@ async function readHeldSessions(
 ): Promise<PlacedSession[]> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
 	const [rows, thresholds] = await Promise.all([
-		prisma.workoutSession.findMany({
+		db.workoutSession.findMany({
 			where: {
 				userId,
 				scheduledAt: { gte: start, lte: end },
@@ -568,67 +585,65 @@ async function readHeldSessions(
 	})
 }
 
-/** A pattern slot: the weekday (Monday-first) and the Discipline laid there. */
-function slotKey(weekday: number, discipline: string): string {
-	return `${weekday}|${discipline}`
-}
-
 /**
- * A kept session of a lifting slot's Discipline on a day this week's laying
- * puts no lift of it on, where there is one. A lifting slot falls on no
- * weekday of its own (ADR 0104 §3), so a lift the athlete kept fills the slot
- * whatever day it is on, and the re-lay does not lay a second lift beside it.
+ * The slots the plan's own sessions fill in one week whatever a re-lay does:
+ * the ones its gated clearing keeps (adopted, or trained), counted per
+ * weekday and Discipline. One query, the plan's sessions that are neither
+ * the athlete's own (`authored`) nor {@link REPLACEABLE_SESSION}, so it reads
+ * the same before the clearing (a preview) as after it (the write). Read
+ * through `db`, so the stamp reads it inside its transaction.
  */
-function keptLiftElsewhere(
-	filled: ReadonlyMap<string, number>,
-	sessions: readonly StampSession[],
-	discipline: string,
-): string | null {
-	const laid = new Set(
-		sessions
-			.filter((session) => session.discipline === discipline)
-			.map((session) => slotKey(session.weekday, discipline)),
-	)
-	for (const [slot, count] of filled) {
-		if (count > 0 && slot.endsWith(`|${discipline}`) && !laid.has(slot)) {
-			return slot
-		}
-	}
-	return null
-}
-
-/**
- * The slots the plan's own sessions still fill in one week after its clearing
- * — the ones it kept: adopted, or trained — counted per weekday and
- * Discipline. Read inside the stamp's transaction, after the clearing.
- */
-async function filledSlots(
-	tx: Prisma.TransactionClient,
+export async function readKeptSlots(
+	db: Prisma.TransactionClient,
 	userId: string,
 	planOutlineId: string,
 	weekKey: string,
 	timezone: string,
 ): Promise<Map<string, number>> {
+	return keptSlotsOf(
+		(
+			await readKeptPlanSessions(db, userId, planOutlineId, weekKey, timezone)
+		).flatMap((session) =>
+			session.workout
+				? [
+						{
+							weekday: weekdayIndex(localDate(session.scheduledAt, timezone)),
+							discipline: session.workout.discipline,
+						},
+					]
+				: [],
+		),
+	)
+}
+
+/**
+ * The plan's own sessions in one week that its gated clearing keeps: neither
+ * `authored` nor {@link REPLACEABLE_SESSION}. What {@link readKeptSlots}
+ * counts, for a caller that shows them too.
+ */
+export async function readKeptPlanSessions(
+	db: Prisma.TransactionClient,
+	userId: string,
+	planOutlineId: string,
+	weekKey: string,
+	timezone: string,
+) {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	const kept = await tx.workoutSession.findMany({
+	return db.workoutSession.findMany({
 		where: {
 			userId,
 			planOutlineId,
 			scheduledAt: { gte: start, lte: end },
 			source: { not: 'authored' },
+			NOT: REPLACEABLE_SESSION,
 		},
-		select: { scheduledAt: true, workout: { select: { discipline: true } } },
+		orderBy: { scheduledAt: 'asc' },
+		select: {
+			id: true,
+			scheduledAt: true,
+			workout: { select: { discipline: true } },
+		},
 	})
-	const filled = new Map<string, number>()
-	for (const session of kept) {
-		if (!session.workout) continue
-		const slot = slotKey(
-			weekdayIndex(localDate(session.scheduledAt, timezone)),
-			session.workout.discipline,
-		)
-		filled.set(slot, (filled.get(slot) ?? 0) + 1)
-	}
-	return filled
 }
 
 /**
