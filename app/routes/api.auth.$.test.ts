@@ -1,7 +1,9 @@
 import { http, HttpResponse } from 'msw'
 import { type AppLoadContext } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
+import { hashPassword } from '#app/utils/auth/password-hash.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { createUser } from '#tests/db-utils.ts'
 import { insertGitHubUser } from '#tests/mocks/github.ts'
 import { server } from '#tests/mocks/index.ts'
 import { consoleError } from '#tests/setup/setup-test-env.ts'
@@ -241,6 +243,54 @@ test('GitHub cannot create an account, even when the client asks to sign up', as
 			where: { email: githubUser.primaryEmail.toLowerCase() },
 		}),
 	).toBe(0)
+})
+
+test('a signed-in athlete cannot clear mustReenrolTwoFactor', async () => {
+	const password = 'a-long-enough-password-123'
+	const { email, username, name } = createUser()
+	const user = await prisma.user.create({
+		select: { id: true },
+		data: { email, username, name, mustReenrolTwoFactor: true },
+	})
+	await prisma.authAccount.create({
+		data: {
+			id: `${username}-credential`,
+			userId: user.id,
+			providerId: 'credential',
+			accountId: user.id,
+			password: await hashPassword(password),
+			updatedAt: new Date(),
+		},
+	})
+	const signIn = await action({
+		request: authRequest('/sign-in/email', {
+			method: 'POST',
+			headers: { Origin: APP_ORIGIN },
+			body: { email, password },
+		}),
+		...ARGS_BASE,
+	})
+	expect(signIn.status).toBe(200)
+	const cookie = signIn.headers
+		.getSetCookie()
+		.map((header) => header.split(';')[0])
+		.join('; ')
+
+	await action({
+		request: authRequest('/update-user', {
+			method: 'POST',
+			headers: { Origin: APP_ORIGIN, Cookie: cookie },
+			body: { name: 'Nytt navn', mustReenrolTwoFactor: false },
+		}),
+		...ARGS_BASE,
+	})
+
+	expect(
+		await prisma.user.findUniqueOrThrow({
+			where: { id: user.id },
+			select: { mustReenrolTwoFactor: true },
+		}),
+	).toEqual({ mustReenrolTwoFactor: true })
 })
 
 test('a POST with no Origin goes on to Better Auth', async () => {
