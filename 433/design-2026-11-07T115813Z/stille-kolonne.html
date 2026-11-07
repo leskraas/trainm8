@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+<title>Stille kolonne (prototype #433)</title>
+<!--
+  PROTOTYPE, throwaway (issue #433, design task). One direction for weather on
+  I dag and the home place in Meg: "Stille kolonne". The weather is a quiet,
+  right-hand column on each day's row (from tomorrow on) and one line on the
+  today card; the place is a row in Meg that opens its own search page.
+  Tokens are copied from app/styles/tailwind.css (light :root, .dark).
+  URL: ?view=idag|meg|hjemsted &place=1|0 &data=demo|worst &theme=light|dark
+       &text=200 &state=empty|results|nomatch|unavailable|saved &chrome=0
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;650;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+	--radius: 0.375rem;
+	--background: oklch(0.975 0.003 197);
+	--foreground: oklch(0.148 0.004 228.8);
+	--card: oklch(1 0 0);
+	--primary: #0d7a68;
+	--primary-foreground: #ffffff;
+	--muted: oklch(0.948 0.004 197);
+	--muted-foreground: oklch(0.52 0.016 213.5);
+	--border: oklch(0.915 0.005 214.3);
+	--input: oklch(0.915 0.005 214.3);
+	--destructive: oklch(0.577 0.245 27.325);
+	--ring: color-mix(in oklab, var(--primary) 55%, transparent);
+	--status-on: var(--primary);
+	--status-missed: oklch(0.56 0.17 25);
+	--track-run: oklch(0.63 0.16 32);
+	--track-bike: oklch(0.72 0.13 78);
+	--track-swim: oklch(0.62 0.1 225);
+	--track-strength: oklch(0.55 0.11 300);
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ring-card: color-mix(in oklab, var(--foreground) 5%, transparent);
+	color-scheme: light;
+}
+.dark {
+	--background: oklch(0.148 0.004 228.8);
+	--foreground: oklch(0.987 0.002 197.1);
+	--card: oklch(0.205 0.007 223.9);
+	--primary: #35b89c;
+	--primary-foreground: #0c1512;
+	--muted: oklch(0.255 0.01 216.9);
+	--muted-foreground: oklch(0.723 0.014 214.4);
+	--border: oklch(1 0 0 / 10%);
+	--input: oklch(1 0 0 / 15%);
+	--destructive: oklch(0.704 0.191 22.216);
+	--status-missed: oklch(0.7 0.15 25);
+	--track-run: oklch(0.7 0.14 32);
+	--track-bike: oklch(0.78 0.12 78);
+	--track-swim: oklch(0.72 0.09 225);
+	--track-strength: oklch(0.7 0.1 300);
+	--ring-card: color-mix(in oklab, var(--foreground) 10%, transparent);
+	color-scheme: dark;
+}
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+html.big { font-size: 32px; }
+* { box-sizing: border-box; }
+body {
+	margin: 0; background: var(--background); color: var(--foreground);
+	font-family: 'Public Sans', system-ui, sans-serif; font-size: 1rem; line-height: 1.5;
+}
+button, a, [role=option] { touch-action: manipulation; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: inherit; }
+/* Type steps (design-system.md "Type") */
+.t-title { font-size: 1.5rem; line-height: 1.875rem; font-weight: 650; letter-spacing: -0.02em; }
+.t-heading { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.012em; }
+.t-body { font-size: 1rem; line-height: 1.5rem; letter-spacing: -0.004em; }
+.t-callout { font-size: 0.9375rem; line-height: 1.3125rem; font-weight: 500; letter-spacing: -0.004em; }
+.t-footnote { font-size: 0.8125rem; line-height: 1.125rem; letter-spacing: 0.002em; }
+.t-caption { font-size: 0.75rem; line-height: 1rem; font-weight: 500; letter-spacing: 0.01em; }
+.muted { color: var(--muted-foreground); }
+.tnum { font-variant-numeric: tabular-nums; }
+.pressable { transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), color 160ms var(--ease-out); }
+.pressable:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { .pressable:active { transform: none; } }
+.card { background: var(--card); border-radius: calc(var(--radius) * 2.6); box-shadow: 0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1), 0 0 0 1px var(--ring-card); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+svg.i { width: 1.25rem; height: 1.25rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+svg.i.sm { width: 1rem; height: 1rem; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 2.75rem; padding: 0 1.25rem; border-radius: 999px; font-size: .875rem; font-weight: 500; text-decoration: none; }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); height: 3rem; font-size: 1rem; font-weight: 600; width: 100%; }
+.btn-outline { border: 1px solid var(--border); background: var(--card); }
+.chip { display: inline-flex; align-items: center; min-height: 2rem; padding: 0 .875rem; border-radius: 999px; border: 1px solid var(--border); font-size: .875rem; position: relative; }
+.chip::after { content: ''; position: absolute; inset: -6px -2px; }
+.link { color: var(--primary); text-underline-offset: 4px; position: relative; }
+@media (hover: hover) and (pointer: fine) { .link:hover, .underline-hover:hover { text-decoration: underline; } }
+
+/* ── I dag ── */
+main.idag { margin: 0 auto; width: 100%; max-width: 36rem; padding: .5rem 1rem 2rem; }
+.cols { display: flex; flex-direction: column; gap: 1.5rem; }
+.col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+@media (min-width: 1024px) {
+	main.idag { max-width: 64rem; padding: 1.5rem 1.5rem 2rem; }
+	.cols { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+}
+.topline { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.topline h1 { margin: 0; overflow-wrap: break-word; }
+.today-card { container-type: inline-size; padding: 1.25rem; display: flex; flex-direction: column; gap: .75rem; min-width: 0; }
+.kicker { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; margin: 0; }
+.dot { width: .5rem; height: .5rem; border-radius: 999px; flex: none; }
+.effort { margin-left: auto; background: var(--muted); border-radius: 999px; padding: 2px 10px; white-space: nowrap; color: var(--foreground); }
+.today-card h2 { margin: 0; text-wrap: balance; overflow-wrap: break-word; }
+.today-card p { margin: 0; overflow-wrap: break-word; }
+/* The card's weather: one line, the word beside the glyph, the hour last. */
+.card-weather { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; column-gap: .75rem; padding-top: .75rem; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.card-weather svg.i { width: 1.75rem; height: 1.75rem; color: var(--muted-foreground); }
+.card-weather .what { display: flex; flex-direction: column; min-width: 0; overflow-wrap: break-word; }
+.card-weather .nums { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@container (max-width: 17rem) { .card-weather { grid-template-columns: minmax(0,1fr); row-gap: .25rem; } .card-weather .nums { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; white-space: normal; } }
+.chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.under { display: flex; justify-content: center; gap: 1.5rem; }
+.week-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; padding: 0 .25rem; margin-bottom: .5rem; }
+.week-head h2 { margin: 0; }
+ol.week { list-style: none; margin: 0; padding: 0; overflow: hidden; container-type: inline-size; }
+ol.week > li { border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+ol.week > li:last-child { border-bottom: 0; }
+ol.week > li.today { background: color-mix(in oklab, var(--primary) 6%, transparent); }
+.dark ol.week > li.today { background: color-mix(in oklab, var(--primary) 10%, transparent); }
+/* The row. Without a place: today's three columns, unchanged. With one: a
+   fourth, fixed-width column for the day's weather, before the mark, so the
+   titles keep one left edge and the marks one right edge. */
+.row { display: grid; grid-template-columns: 2.75rem minmax(0,1fr) auto; align-items: center; column-gap: .75rem; min-height: 3.5rem; width: 100%; padding: .5rem 1rem; text-align: left; text-decoration: none; }
+.has-wx .row { grid-template-columns: 2.75rem minmax(0,1fr) 3.5rem auto; }
+.gutter { display: flex; flex-direction: column; line-height: 1; }
+.gutter.hide { visibility: hidden; }
+.gutter .wx-inline { display: none; }
+.title-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.title-col .t { overflow-wrap: break-word; }
+.missed .t { color: var(--muted-foreground); text-decoration: line-through; text-decoration-thickness: 1px; }
+.free-label { font-style: italic; }
+.wx { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; justify-self: end; text-align: right; }
+.wx .top { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
+.wx .mm { white-space: nowrap; }
+.mark { width: 1.5rem; height: 1.5rem; border-radius: 999px; display: flex; align-items: center; justify-content: center; }
+.mark.planned { border: 2px solid var(--border); }
+.mark.done { background: var(--status-on); color: var(--primary-foreground); }
+.plus { width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; color: var(--primary); }
+/* Narrow row (200% text, or 320px): the gutter stacks above the session, as
+   today, and the weather joins the day's line instead of taking a column. */
+@container (max-width: 17rem) {
+	.row, .has-wx .row { grid-template-columns: minmax(0,1fr) auto; row-gap: .25rem; }
+	.gutter { grid-column: span 2; flex-direction: row; align-items: baseline; gap: .375rem; flex-wrap: wrap; }
+	.gutter.hide { display: none; }
+	.gutter .wx-inline { display: inline-flex; align-items: center; gap: .25rem; margin-left: auto; white-space: nowrap; }
+	.row > .wx { display: none; }
+}
+.credit { margin: .5rem 0 0; padding: 0 .25rem; }
+.season-link { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 2.75rem; padding: .5rem 1.25rem; border: 1px solid var(--border); border-radius: 999px; background: var(--card); text-decoration: none; font-size: .875rem; font-weight: 500; }
+
+/* ── Meg ── */
+main.meg { margin: 0 auto; max-width: 42rem; padding: 1.5rem 1rem; }
+@media (min-width: 768px) { main.meg { padding: 2rem; } }
+.page-header { display: flex; align-items: center; gap: .5rem; min-height: 2.75rem; margin-bottom: 1.5rem; }
+.page-header h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.back { width: 2.75rem; height: 2.75rem; margin-left: -.75rem; display: flex; align-items: center; justify-content: center; border-radius: 999px; }
+.profile { display: flex; gap: 1rem; align-items: center; padding: 1rem; border: 1px solid color-mix(in oklab, var(--border) 70%, transparent); background: var(--card); border-radius: 1rem; text-decoration: none; }
+.avatar { width: 3.5rem; height: 3.5rem; border-radius: 999px; background: var(--muted); flex: none; }
+section.me { margin-top: 2rem; }
+section.me h2 { margin: 0 0 .5rem; }
+ul.list { list-style: none; margin: 0; padding: 0; }
+ul.list > li + li { border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent); }
+.me-link { display: flex; align-items: center; gap: .75rem; min-height: 2.75rem; padding: .625rem .5rem; margin: 0 -.5rem; border-radius: .7rem; text-decoration: none; transition: background-color 160ms var(--ease-out); }
+.me-link:active { background: color-mix(in oklab, var(--muted) 60%, transparent); }
+.me-link .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.me-link .txt span { display: block; }
+.new-tag { outline: 2px dashed color-mix(in oklab, var(--primary) 55%, transparent); outline-offset: 2px; border-radius: .7rem; }
+
+/* ── Hjemsted ── */
+main.place { margin: 0 auto; max-width: 28rem; padding: 1.5rem 1rem 2rem; }
+@media (min-width: 768px) { main.place { padding: 2rem; } }
+.current { display: flex; align-items: center; gap: .75rem; padding: 1rem; margin-bottom: 2rem; }
+.current .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.current .txt span { display: block; }
+.remove { min-height: 2.75rem; padding: 0 .25rem; color: var(--muted-foreground); font-size: .875rem; font-weight: 500; position: relative; flex: none; }
+label.lbl { display: block; font-size: .875rem; font-weight: 500; margin-bottom: .375rem; }
+.input-wrap { position: relative; }
+.input-wrap svg { position: absolute; left: .875rem; top: 50%; transform: translateY(-50%); color: var(--muted-foreground); pointer-events: none; z-index: 1; }
+input.search { width: 100%; height: 2.75rem; border-radius: .825rem; border: 1px solid var(--input); background: var(--card); color: var(--foreground); padding: 0 .875rem 0 2.5rem; font: inherit; font-size: 1rem; -webkit-appearance: none; appearance: none; }
+input.search:focus { outline: 3px solid var(--ring); outline-offset: 0; border-color: var(--primary); }
+@media (min-width: 768px) and (pointer: fine) { input.search { font-size: .875rem; } }
+.helper { margin: .375rem 0 0; }
+.status { margin: 1rem 0 0; min-height: 1.125rem; }
+.status.err { color: var(--foreground); }
+ul.results { list-style: none; margin: .75rem 0 0; padding: .25rem; }
+ul.results li[role=option] { display: flex; flex-direction: column; justify-content: center; min-height: 3.5rem; padding: .5rem .75rem; border-radius: .7rem; cursor: pointer; overflow-wrap: anywhere; transition: background-color 160ms var(--ease-out); }
+ul.results li[role=option][aria-selected=true] { background: var(--muted); }
+ul.results li[role=option]:active { background: var(--muted); }
+@media (hover: hover) and (pointer: fine) { ul.results li[role=option]:hover { background: var(--muted); } }
+.source { margin: 1.5rem 0 0; }
+.privacy { margin: .5rem 0 0; }
+
+/* Prototype chrome: not part of the design. */
+.proto-bar { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: calc(100vw - 16px); padding: 6px; background: #1d1d1f; color: #fff; border-radius: 14px; font: 12px/1 system-ui, sans-serif; box-shadow: 0 6px 24px rgb(0 0 0 / .3); z-index: 99; }
+.proto-bar .seg { display: flex; background: #3a3a3c; border-radius: 9px; padding: 2px; }
+.proto-bar button { color: #ddd; padding: 6px 8px; border-radius: 7px; font: inherit; }
+.proto-bar button[aria-pressed=true] { background: #fff; color: #000; }
+.no-chrome .proto-bar { display: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="proto-bar" id="bar" aria-label="Prototype controls"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<!-- Tabler outline glyphs (the app's sprite source); sun-cloud stands in for
+	     the Hugeicons fallback the icon workflow would add (Tabler has none). -->
+	<symbol id="sun" viewBox="0 0 24 24"><path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7" /></symbol>
+	<symbol id="moon" viewBox="0 0 24 24"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008" /></symbol>
+	<symbol id="sun-cloud" viewBox="0 0 24 24"><path d="M5.6 11.2a3.2 3.2 0 0 1 5.6 -2.9" /><path d="M8 3.6v1m-5.4 1.6l.7 .7m-1.7 4.3h1m10.1 -5l-.7 .7" /><path d="M9 20a3.6 3.4 0 0 1 0 -7a4.2 3.8 0 0 1 8.8 1.6h.7a2.7 2.7 0 0 1 0 5.4z" /></symbol>
+	<symbol id="cloud" viewBox="0 0 24 24"><path d="M6.657 18c-2.572 0 -4.657 -2.007 -4.657 -4.483c0 -2.475 2.085 -4.482 4.657 -4.482c.393 -1.762 1.794 -3.2 3.675 -3.773c1.88 -.572 3.956 -.193 5.444 1c1.488 1.19 2.162 3.007 1.77 4.769h.99c1.913 0 3.464 1.56 3.464 3.486c0 1.927 -1.551 3.487 -3.465 3.487h-11.878" /></symbol>
+	<symbol id="cloud-rain" viewBox="0 0 24 24"><path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7" /><path d="M11 13v2m0 3v2m4 -5v2m0 3v2" /></symbol>
+	<symbol id="cloud-snow" viewBox="0 0 24 24"><path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7" /><path d="M11 15v.01m0 3v.01m0 3v.01m4 -4v.01m0 3v.01" /></symbol>
+	<symbol id="cloud-storm" viewBox="0 0 24 24"><path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1" /><path d="M13 14l-2 4l3 0l-2 4" /></symbol>
+	<symbol id="cloud-fog" viewBox="0 0 24 24"><path d="M7 16a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-12" /><path d="M5 20l14 0" /></symbol>
+	<symbol id="chevron-right" viewBox="0 0 24 24"><path d="M9 6l6 6l-6 6" /></symbol>
+	<symbol id="chevron-left" viewBox="0 0 24 24"><path d="M15 6l-6 6l6 6" /></symbol>
+	<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5l0 14m-7 -7l14 0" /></symbol>
+	<symbol id="check" viewBox="0 0 24 24"><path d="M5 12l5 5l10 -10" /></symbol>
+	<symbol id="i-search" viewBox="0 0 24 24"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></symbol>
+	<symbol id="map-pin" viewBox="0 0 24 24"><path d="M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /><path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z" /></symbol>
+	<symbol id="settings" viewBox="0 0 24 24"><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /><path d="M12 3v2m0 14v2m9 -9h-2m-14 0h-2m15.4 -6.4l-1.4 1.4m-10 10l-1.4 1.4m12.8 0l-1.4 -1.4m-10 -10l-1.4 -1.4" /></symbol>
+	<symbol id="bar-chart" viewBox="0 0 24 24"><path d="M4 20h16M7 16v-4m5 4v-8m5 8v-11" /></symbol>
+	<symbol id="barbell" viewBox="0 0 24 24"><path d="M2 12h1m3 -4h-2a1 1 0 0 0 -1 1v6a1 1 0 0 0 1 1h2m0 -9v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1 -1v-10a1 1 0 0 0 -1 -1h-1a1 1 0 0 0 -1 1m3 4h6m0 -5v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1 -1v-10a1 1 0 0 0 -1 -1h-1a1 1 0 0 0 -1 1m3 1h2a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-2m4 -4h-1" /></symbol>
+	<symbol id="clock" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 7v5l3 3" /></symbol>
+</svg>
+
+<script>
+// ── words (what labels.ts would own: WEATHER_LABELS, HOME_PLACE_LABELS) ────
+const WX = {
+	// MET symbol_code family → glyph + Norwegian text alternative.
+	clearsky_day: ['sun', 'Klarvær'], clearsky_night: ['moon', 'Klarvær'],
+	fair_day: ['sun-cloud', 'Lettskyet'], fair_night: ['moon', 'Lettskyet'],
+	partlycloudy_day: ['sun-cloud', 'Delvis skyet'], partlycloudy_night: ['moon', 'Delvis skyet'],
+	cloudy: ['cloud', 'Skyet'], fog: ['cloud-fog', 'Tåke'],
+	lightrain: ['cloud-rain', 'Lett regn'], rain: ['cloud-rain', 'Regn'], heavyrain: ['cloud-rain', 'Kraftig regn'],
+	heavyrainshowersandthunder_day: ['cloud-storm', 'Kraftige regnbyger og torden'],
+	lightsnow: ['cloud-snow', 'Lett snø'], heavysnow: ['cloud-snow', 'Kraftig snø'],
+	heavysleetandthunder: ['cloud-storm', 'Kraftig sludd og torden'],
+}
+const L = {
+	hour: (h) => `kl. ${h}`,
+	temp: (t) => `${t < 0 ? '−' : ''}${Math.abs(t)}°`,
+	mm: (m) => `${m === 0 ? '0' : m.toFixed(1).replace('.', ',')} mm`,
+	spoken: (w) => `Vær ${L.hour(w.hour)}: ${WX[w.symbol][1]}, ${w.temp < 0 ? 'minus ' : ''}${Math.abs(w.temp)} grader, ${w.mm === 0 ? '0' : w.mm.toFixed(1).replace('.', ',')} millimeter nedbør`,
+	credit: 'Værvarsel fra MET Norway',
+	placeTitle: 'Hjemsted',
+	placeUnset: 'Ikke valgt. Gir værvarsel på I dag.',
+	searchLabel: 'Søk etter et sted',
+	searchHelp: 'Stedet brukes til å vise værvarselet på I dag.',
+	searchPlaceholder: 'For eksempel Lillehammer',
+	matches: (n) => `${n} ${n === 1 ? 'treff' : 'treff'}`,
+	noMatch: (q) => `Fant ingen steder som heter «${q}». Sjekk stavemåten, eller prøv et sted i nærheten.`,
+	unavailable: 'Stedssøket svarer ikke akkurat nå. Hjemstedet ditt er uendret.',
+	saved: (n) => `Lagret. I dag viser været for ${n}.`,
+	removed: 'Fjernet. I dag viser ikke vær lenger.',
+	remove: 'Fjern',
+	removeFor: (n) => `Fjern ${n} som hjemsted`,
+	source: 'Stedsnavn fra Kartverket',
+	privacy: 'Vi lagrer navnet og et punkt rundet av til omtrent 1 km. Bare søketeksten sendes til Kartverket, og bare punktet til MET Norway.',
+	where: (o) => `${o.type} · ${o.kommune}, ${o.fylke}`,
+}
+
+// ── data ───────────────────────────────────────────────────────────────────
+const DEMO = {
+	date: 'Tirsdag 10. november', plan: 'Mot Birkebeinerløpet',
+	card: { kind: 'session', disc: 'run', discLabel: 'Løp', effort: 'hard', title: 'Terskelintervaller', dur: '1 t', sentence: 'Varm godt opp. Hardt i dragene, rolig mellom.',
+		wx: { symbol: 'lightrain', temp: 6, mm: 0.6, hour: '17' } },
+	doneLine: '1 av 6 økter gjort',
+	days: [
+		{ wd: 'man', d: 9, name: 'mandag', past: true, sessions: [{ title: 'Rolig løp', facts: '45 min · rolig', disc: 'run', status: 'done' }] },
+		{ wd: 'tir', d: 10, name: 'tirsdag', today: true, sessions: [{ title: 'Terskelintervaller', facts: '1 t · hard', disc: 'run', status: 'planned' }] },
+		{ wd: 'ons', d: 11, name: 'onsdag', sessions: [], wx: { symbol: 'clearsky_night', temp: -1, mm: 0, hour: '07' } },
+		{ wd: 'tor', d: 12, name: 'torsdag', sessions: [{ title: 'Svømming, teknikk', facts: '50 min · middels', disc: 'swim', status: 'planned' }], wx: { symbol: 'partlycloudy_night', temp: 2, mm: 0, hour: '07' } },
+		{ wd: 'fre', d: 13, name: 'fredag', sessions: [{ title: 'Styrke A', facts: '45 min · middels', disc: 'strength', status: 'planned' }], wx: { symbol: 'cloudy', temp: 4, mm: 0, hour: '17' } },
+		{ wd: 'lør', d: 14, name: 'lørdag', sessions: [{ title: 'Langtur på sykkel', facts: '2 t 30 min · rolig', disc: 'bike', status: 'planned' }], wx: { symbol: 'rain', temp: 5, mm: 3.2, hour: '10' } },
+		{ wd: 'søn', d: 15, name: 'søndag', sessions: [{ title: 'Langtur', facts: '1 t 30 min · rolig', disc: 'run', status: 'planned' }], wx: { symbol: 'fair_day', temp: 3, mm: 0, hour: '10' } },
+	],
+	place: { name: 'Lillehammer', type: 'By', kommune: 'Lillehammer', fylke: 'Innlandet' },
+}
+const WORST = {
+	date: 'Tirsdag 10. november', plan: 'Ironman 70.3 Haugesund – sesongplan med styrke to ganger i uka og svømmeteknikk',
+	card: { kind: 'free', wx: { symbol: 'heavyrainshowersandthunder_day', temp: 11, mm: 14.6, hour: '21' } },
+	doneLine: '2 av 11 økter gjort',
+	days: [
+		{ wd: 'man', d: 9, name: 'mandag', past: true, sessions: [
+			{ title: 'Rolig løp', facts: '45 min · rolig', disc: 'run', status: 'done' },
+			{ title: 'Styrke B', facts: '40 min · middels', disc: 'strength', status: 'missed' }] },
+		{ wd: 'tir', d: 10, name: 'tirsdag', today: true, sessions: [] },
+		{ wd: 'ons', d: 11, name: 'onsdag', sessions: [
+			{ title: 'Terskelintervaller 5 × 8 min med progressiv avslutning', facts: '1 t 25 min · hard', disc: 'run', status: 'planned' },
+			{ title: 'Svømming, teknikk og pustemønster', facts: '1 t · middels', disc: 'swim', status: 'planned' },
+			{ title: 'Styrke A', facts: '45 min · middels', disc: 'strength', status: 'planned' }],
+			wx: { symbol: 'heavysnow', temp: -23, mm: 12.4, hour: '06' } },
+		{ wd: 'tor', d: 12, name: 'torsdag', sessions: [], wx: { symbol: 'heavysleetandthunder', temp: 0, mm: 9.8, hour: '07' } },
+		{ wd: 'fre', d: 13, name: 'fredag', sessions: [{ title: 'Sweet spot 3 × 15 min på rulle', facts: '1 t 30 min · middels', disc: 'bike', status: 'planned' }], wx: { symbol: 'fog', temp: 10, mm: 0.2, hour: '17' } },
+		{ wd: 'lør', d: 14, name: 'lørdag', sessions: [
+			{ title: 'Langtur på sykkel', facts: '4 t 30 min · rolig', disc: 'bike', status: 'planned' },
+			{ title: 'Brikkeløp', facts: '20 min · middels', disc: 'run', status: 'planned' }],
+			wx: { symbol: 'lightsnow', temp: -4, mm: 1, hour: '09' } },
+		{ wd: 'søn', d: 15, name: 'søndag', sessions: [{ title: 'Langtur', facts: '2 t · rolig', disc: 'run', status: 'planned' }] /* beyond the forecast: nothing */ },
+	],
+	place: { name: 'Gáivuotna – Kåfjord – Kaivuono', type: 'Kommune', kommune: 'Gáivuotna – Kåfjord – Kaivuono', fylke: 'Troms' },
+}
+const PLACES = [
+	{ name: 'Lillehammer', type: 'By', kommune: 'Lillehammer', fylke: 'Innlandet' },
+	{ name: 'Lillehammer stasjon', type: 'Jernbanestasjon', kommune: 'Lillehammer', fylke: 'Innlandet' },
+	{ name: 'Lillehamrum', type: 'Gard', kommune: 'Gausdal', fylke: 'Innlandet' },
+	{ name: 'Vik', type: 'Tettsted', kommune: 'Vik', fylke: 'Vestland' },
+	{ name: 'Vik', type: 'Tettsted', kommune: 'Sømna', fylke: 'Nordland' },
+	{ name: 'Vik', type: 'Grend', kommune: 'Hole', fylke: 'Buskerud' },
+	{ name: 'Vik', type: 'Grend', kommune: 'Midt-Telemark', fylke: 'Telemark' },
+	{ name: 'Vik', type: 'Grend', kommune: 'Aurskog-Høland', fylke: 'Akershus' },
+	{ name: 'Vik', type: 'Tettsted', kommune: 'Fræna', fylke: 'Møre og Romsdal' },
+	{ name: 'Olderdalen', type: 'Tettsted', kommune: 'Gáivuotna – Kåfjord – Kaivuono', fylke: 'Troms' },
+	{ name: 'Gáivuotna – Kåfjord – Kaivuono', type: 'Kommune', kommune: 'Gáivuotna – Kåfjord – Kaivuono', fylke: 'Troms' },
+]
+
+// ── state from the URL ─────────────────────────────────────────────────────
+const q = new URLSearchParams(location.search || window.name || '') // window.name: the canvas's iframes
+const S = {
+	view: q.get('view') || 'idag', place: q.get('place') !== '0', data: q.get('data') || 'demo',
+	theme: q.get('theme') || 'light', text: q.get('text') || '100', state: q.get('state') || 'empty',
+	chrome: q.get('chrome') !== '0',
+}
+function set(k, v) { S[k] = v; try { const u = new URL(location); u.searchParams.set(k, v); history.replaceState(null, '', u) } catch {} render() }
+const D = () => (S.data === 'worst' ? WORST : DEMO)
+
+// ── helpers ────────────────────────────────────────────────────────────────
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const icon = (id, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#${id}"/></svg>`
+const TRACK = { run: 'var(--track-run)', bike: 'var(--track-bike)', swim: 'var(--track-swim)', strength: 'var(--track-strength)' }
+
+/** The compact weather of one day: glyph and temperature over the rain. */
+function dayWeather(w) {
+	return `<span class="wx" aria-hidden="true">
+		<span class="top t-callout tnum">${icon(WX[w.symbol][0], 'sm')}${L.temp(w.temp)}</span>
+		<span class="mm t-caption muted tnum">${L.mm(w.mm)}</span></span>`
+}
+function inlineWeather(w) {
+	return `<span class="wx-inline t-caption tnum">${icon(WX[w.symbol][0], 'sm')}${L.temp(w.temp)} <span class="muted">${L.mm(w.mm)}</span></span>`
+}
+
+// ── I dag ──────────────────────────────────────────────────────────────────
+function cardWeather(w) {
+	if (!w || !S.place) return ''
+	return `<p class="card-weather t-footnote" aria-label="${esc(L.spoken(w))}">
+		${icon(WX[w.symbol][0])}
+		<span class="what" aria-hidden="true"><span class="t-callout">${WX[w.symbol][1]}</span><span class="muted tnum">${L.hour(w.hour)}</span></span>
+		<span class="nums" aria-hidden="true"><span class="t-heading">${L.temp(w.temp)}</span><span class="t-caption muted">${L.mm(w.mm)}</span></span></p>`
+}
+function todayCard(c) {
+	if (c.kind === 'free') {
+		return `<section class="card today-card" aria-labelledby="tc">
+			<h2 id="tc" class="t-title">Fri i dag</h2>
+			<p class="t-body muted">Neste økt: Terskelintervaller 5 × 8 min med progressiv avslutning, i morgen.</p>
+			${cardWeather(c.wx)}
+			<button class="btn btn-outline pressable" style="width:100%">${icon('plus', 'sm')}Legg til en økt i dag</button></section>`
+	}
+	return `<section class="card today-card" aria-labelledby="tc">
+		<p class="kicker t-footnote muted"><span class="dot" style="background:${TRACK[c.disc]}"></span><span>${c.discLabel}</span><span class="effort t-caption">${c.effort}</span></p>
+		<div style="display:flex;flex-direction:column;gap:4px">
+			<h2 id="tc" class="t-title">${esc(c.title)}</h2>
+			<p class="t-heading tnum">${c.dur}</p>
+			<p class="t-body muted">${c.sentence}</p>
+		</div>
+		${cardWeather(c.wx)}
+		<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+			<div class="chips"><span class="chip">Kortere</span><span class="chip">Lettere</span><span class="chip">Flytt</span><span class="chip">Bytt økt</span></div>
+			<button class="btn btn-primary pressable">Gjort</button>
+			<div class="under"><a href="#" class="t-footnote muted underline-hover" style="padding:4px 0">Se økta</a></div>
+		</div></section>`
+}
+function weekRows(days) {
+	return days.map((day) => {
+		const w = S.place && !day.past && !day.today ? day.wx : null
+		const wxCell = S.place ? (w ? dayWeather(w) : '<span class="wx"></span>') : ''
+		const gutter = (show) => `<span class="gutter ${show ? '' : 'hide'}" aria-hidden="true" style="color:${day.today ? 'var(--foreground)' : 'var(--muted-foreground)'}">
+			<span class="t-caption">${day.wd}</span><span class="t-callout tnum">${day.d}</span>${w && show ? inlineWeather(w) : ''}</span>`
+		const spoken = w ? `. ${L.spoken(w)}` : ''
+		if (!day.sessions.length) {
+			return `<li class="${day.today ? 'today' : ''}"><button class="row pressable" aria-label="${day.name}, fri${esc(spoken)}. Legg til en økt ${day.name}">
+				${gutter(true)}<span class="t-footnote muted free-label">fri</span>${wxCell}
+				<span class="plus" aria-hidden="true" style="${day.past ? 'color:var(--muted-foreground)' : ''}">${icon('plus', 'sm')}</span></button></li>`
+		}
+		return `<li class="${day.today ? 'today' : ''}">${day.sessions.map((s, i) => {
+			const mark = s.status === 'done' ? `<span class="mark done" aria-hidden="true">${icon('check', 'sm')}</span>`
+				: s.status === 'missed' ? `<span class="t-footnote" style="color:var(--status-missed);font-style:italic" aria-hidden="true">ikke gjort</span>`
+				: `<span class="mark planned" aria-hidden="true"></span>`
+			const cell = S.place ? (i === 0 ? wxCell : '<span class="wx"></span>') : ''
+			return `<a href="#" class="row pressable ${s.status === 'missed' ? 'missed' : ''}" aria-label="${esc(`${day.name}: ${s.title}, ${s.facts}`)}${i === 0 ? esc(spoken) : ''}">
+				${gutter(i === 0)}
+				<span class="title-col"><span class="t t-callout">${esc(s.title)}</span><span class="t-footnote muted tnum">${s.facts}</span></span>
+				${cell}${mark}</a>`
+		}).join('')}</li>`
+	}).join('')
+}
+function viewIdag() {
+	const d = D()
+	const anyWx = S.place && (d.card.wx || d.days.some((x) => x.wx && !x.past && !x.today))
+	return `<main class="idag" aria-label="I dag">
+		<header class="topline"><h1 class="t-title">${d.date}</h1><p class="t-footnote muted" style="margin:0;overflow-wrap:break-word">${esc(d.plan)}</p></header>
+		<div class="cols">
+			<div class="col">${todayCard(d.card)}</div>
+			<div class="col">
+				<section aria-labelledby="wk" class="${S.place ? 'has-wx' : ''}">
+					<div class="week-head"><h2 id="wk" class="t-heading">Denne uka</h2><p class="t-footnote muted tnum" style="margin:0">${d.doneLine}</p></div>
+					<ol class="card week">${weekRows(d.days)}</ol>
+					${anyWx ? `<p class="credit t-caption muted"><a class="underline-hover" href="https://www.met.no/" style="color:inherit;text-underline-offset:4px">${L.credit}</a></p>` : ''}
+				</section>
+				<a href="#" class="season-link pressable"><span>Se hele sesongen</span>${icon('chevron-right', 'sm')}</a>
+			</div>
+		</div></main>`
+}
+
+// ── Meg ────────────────────────────────────────────────────────────────────
+function megLink(ic, title, detail, extra = '') {
+	return `<li><a href="${extra ? '?view=hjemsted' : '#'}" class="me-link underline-hover ${extra}" ${extra ? 'data-go="hjemsted"' : ''}>${icon(ic, 'muted')}
+		<span class="txt"><span>${esc(title)}</span>${detail ? `<span class="t-footnote muted">${esc(detail)}</span>` : ''}</span>${icon('chevron-right', 'sm muted')}</a></li>`
+}
+function viewMeg() {
+	const d = D()
+	return `<main class="meg">
+		<div class="page-header"><h1 class="t-heading">Meg</h1></div>
+		<a href="#" class="profile pressable"><span class="avatar"></span><span style="flex:1;min-width:0"><span class="t-callout" style="display:block;font-weight:600">Kari Nordmann</span><span class="t-footnote muted" style="display:block">@kari</span><span class="t-footnote muted" style="display:block">Profil, e-post, passord, totrinns, passnøkler og dataene dine</span></span>${icon('chevron-right', 'muted')}</a>
+		<section class="me"><h2 class="t-heading">Innstillinger</h2><ul class="list">
+			${megLink('bar-chart', 'Nivå og ønsker', 'Erfaren · intervaller, langturer')}
+			${megLink('settings', 'Trening og terskler', '')}
+			${megLink('barbell', 'Styrke', 'To ganger i uka')}
+			${megLink('clock', 'Løpsresultater', '3 resultater')}
+			${megLink('map-pin', L.placeTitle, S.place ? d.place.name : L.placeUnset, 'new-tag')}
+		</ul></section></main>`
+}
+
+// ── Hjemsted ───────────────────────────────────────────────────────────────
+let query = ''
+let active = -1
+function results() {
+	if (S.state === 'nomatch' || S.state === 'unavailable') return []
+	const needle = query.trim().toLowerCase()
+	if (!needle) return []
+	return PLACES.filter((p) => p.name.toLowerCase().startsWith(needle) || p.kommune.toLowerCase().startsWith(needle))
+}
+function viewPlace() {
+	const d = D()
+	if (S.state === 'results' && !query) query = S.data === 'worst' ? 'Vik' : 'Lilleham'
+	if (S.state === 'nomatch' && !query) query = 'Lillehamar'
+	if (S.state === 'unavailable' && !query) query = 'Lillehammer'
+	const list = results()
+	let status = ''
+	if (S.state === 'nomatch') status = `<p class="status t-footnote err" role="status">${esc(L.noMatch(query))}</p>`
+	else if (S.state === 'unavailable') status = `<p class="status t-footnote err" role="status">${L.unavailable}</p>`
+	else if (S.state === 'saved') status = `<p class="status t-footnote muted" role="status">${esc(S.place ? L.saved(d.place.name) : L.removed)}</p>`
+	else status = `<p class="status sr" role="status">${query ? L.matches(list.length) : ''}</p>`
+	const current = S.place ? `<div class="card current"><span class="muted">${icon('map-pin')}</span>
+		<span class="txt"><span class="t-callout">${esc(d.place.name)}</span><span class="t-footnote muted">${esc(L.where(d.place))}</span></span>
+		<button class="remove pressable" data-remove aria-label="${esc(L.removeFor(d.place.name))}">${L.remove}</button></div>` : ''
+	return `<main class="place">
+		<div class="page-header"><a class="back pressable" href="?view=meg" data-go="meg" aria-label="Tilbake til Meg">${icon('chevron-left')}</a><h1 class="t-heading">${L.placeTitle}</h1></div>
+		${current}
+		<label class="lbl" for="search">${L.searchLabel}</label>
+		<div class="input-wrap">${icon("i-search", "sm")}
+			<input id="search" class="search" type="search" autocomplete="off" enterkeyhint="search" placeholder="${L.searchPlaceholder}" value="${esc(query)}"
+				role="combobox" aria-expanded="${list.length > 0}" aria-controls="results" aria-describedby="help" aria-autocomplete="list" ${active >= 0 ? `aria-activedescendant="opt-${active}"` : ''} /></div>
+		<p id="help" class="helper t-footnote muted">${L.searchHelp}</p>
+		${status}
+		${list.length ? `<ul id="results" class="card results" role="listbox" aria-label="${L.searchLabel}">${list.map((p, i) => `<li id="opt-${i}" role="option" aria-selected="${i === active}" data-pick="${i}">
+			<span class="t-callout">${esc(p.name)}</span><span class="t-footnote muted">${esc(L.where(p))}</span></li>`).join('')}</ul>` : ''}
+		<p class="source t-caption muted"><a class="underline-hover" href="https://www.kartverket.no/" style="color:inherit;text-underline-offset:4px">${L.source}</a></p>
+		<p class="privacy t-caption muted">${L.privacy}</p></main>`
+}
+
+// ── render + chrome ────────────────────────────────────────────────────────
+function seg(key, opts) {
+	return `<div class="seg">${opts.map(([v, t]) => `<button data-k="${key}" data-v="${v}" aria-pressed="${String(S[key]) === String(v)}">${t}</button>`).join('')}</div>`
+}
+function render() {
+	document.documentElement.className = `${S.theme === 'dark' ? 'dark' : ''} ${S.text === '200' ? 'big' : ''} ${S.chrome ? '' : 'no-chrome'}`
+	const app = document.getElementById('app')
+	app.innerHTML = S.view === 'meg' ? viewMeg() : S.view === 'hjemsted' ? viewPlace() : viewIdag()
+	document.getElementById('bar').innerHTML =
+		seg('view', [['idag', 'I dag'], ['meg', 'Meg'], ['hjemsted', 'Hjemsted']]) +
+		seg('place', [[true, 'Sted satt'], [false, 'Uten sted']]) +
+		seg('data', [['demo', 'Demo data'], ['worst', 'Worst case']]) +
+		(S.view === 'hjemsted' ? seg('state', [['empty', 'Tom'], ['results', 'Treff'], ['nomatch', 'Ingen treff'], ['unavailable', 'Utilgjengelig'], ['saved', 'Lagret']]) : '') +
+		seg('theme', [['light', 'Lys'], ['dark', 'Mørk']]) +
+		seg('text', [['100', '100 %'], ['200', '200 %']])
+	wire()
+}
+function wire() {
+	document.querySelectorAll('#bar button').forEach((b) => b.addEventListener('click', () => {
+		const v = b.dataset.v; if (b.dataset.k === 'state') { query = ''; active = -1 }
+		set(b.dataset.k, v === 'true' ? true : v === 'false' ? false : v)
+	}))
+	document.querySelectorAll('[data-go]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); query = ''; active = -1; S.state = 'empty'; set('view', a.dataset.go) }))
+	const input = document.getElementById('search')
+	if (input) {
+		let t
+		input.addEventListener('input', () => {
+			query = input.value; active = -1
+			clearTimeout(t)
+			// Debounced, as the server-side search would be; no animation on typing.
+			t = setTimeout(() => { if (S.state !== 'nomatch' && S.state !== 'unavailable') S.state = query ? (results().length ? 'results' : 'nomatch') : 'empty'; rerenderKeepFocus() }, 250)
+		})
+		input.addEventListener('keydown', (e) => {
+			const n = results().length
+			if (e.key === 'ArrowDown' && n) { e.preventDefault(); active = (active + 1) % n; rerenderKeepFocus() }
+			if (e.key === 'ArrowUp' && n) { e.preventDefault(); active = (active - 1 + n) % n; rerenderKeepFocus() }
+			if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(active) }
+			if (e.key === 'Escape') { query = ''; active = -1; rerenderKeepFocus() }
+		})
+	}
+	document.querySelectorAll('[data-pick]').forEach((li) => li.addEventListener('click', () => pick(Number(li.dataset.pick))))
+	const rm = document.querySelector('[data-remove]')
+	if (rm) rm.addEventListener('click', () => { S.place = false; S.state = 'saved'; query = ''; render() })
+}
+function pick(i) {
+	const p = results()[i]
+	DEMO.place = p; WORST.place = p
+	S.place = true; S.state = 'saved'; query = ''; active = -1; render()
+}
+function rerenderKeepFocus() {
+	const pos = document.getElementById('search')?.selectionStart
+	render()
+	const input = document.getElementById('search')
+	if (input) { input.focus(); if (pos != null) input.setSelectionRange(pos, pos) }
+}
+render()
+</script>
+</body>
+</html>
