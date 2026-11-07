@@ -1,0 +1,64 @@
+{
+  "desktop": {
+    "leadOverflow": 0,
+    "scrolledTo": 16,
+    "prefill": "75,981",
+    "untouchedPrefill": "Forhåndsvisning\n\nLøping fra uke 46: nytt startnivå 76 km, og stigningen starter på nytt der. 1 uke får nytt mål. Fasene, ukene før uke 46 og de andre sporene står som før.\n\nUkene som endres\n\nTrykk på en uke for å se hvordan tallet er regnet ut.\n\nUke 46\nnedtrapping · Nedtrapping\n36,9 → \nblir\n38\nregnet ut\n\nTallene er ukemålene. I uker der du har egne økter, legges appens økter rundt dem.\n\n1 uke får nytt mål\n\nBruk endringen",
+    "focused": "season-anchor-preview-title",
+    "previewOverflow": 0,
+    "rows": 1,
+    "small": [
+      "A:Endre volumet:32",
+      "INPUT:action:1",
+      "INPUT:action:1",
+      "INPUT::1"
+    ],
+    "refusal": "Kan ikke endre tallet her\n\nStartnivået fra uke 37 gjelder også uke 37–45, som du har trent. De står som de ble, så tallet kan ikke endres der.\n\nStart på nytt fra uke 46 med 50 km",
+    "errors": [
+      "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <div className=\"space-y-3\" data-season-edits={true} data-tsd-source=\"/app/route...\">\n      <p>\n      <SeasonAnchorEdit outlineId=\"cmw6gh0ek0...\" tracks={[...]} firstUnbegunWeekKey=\"2026-11-09\" reply={null} ...>\n        <EditShell kind=\"season-anchor\" summary=\"Endre star...\" detail=\"Tallet hve...\" outlineId=\"cmw6gh0ek0...\" ...>\n          <div data-season-edit=\"season-anchor\" id=\"season-edi...\" className=\"scroll-mt-4\" ...>\n            <CollapsibleSection summary=\"Endre star...\" detail=\"Tallet hve...\" open={true} ...>\n              <Collapsible defaultOpen={false} open={true} onOpenChange={function bound dispatchSetState} ...>\n                <CollapsibleRoot2 data-slot=\"collapsible\" defaultOpen={false} open={true} ...>\n                  <div data-open=\"\" data-slot=\"collapsible\" data-tsd-source=\"/app/route...\" ref={null} ...>\n                    <CollapsibleTrigger>\n                    <CollapsibleContent data-tsd-source=\"/app/route...\">\n                      <CollapsiblePanel2 data-slot=\"collapsibl...\" className=\"motion-col...\" ...>\n                        <div data-open=\"\" hidden={false} id=\"base-ui-_R...\" style={{...}} data-slot=\"collapsibl...\" ...>\n                          <div className=\"space-y-4 ...\" data-tsd-source=\"/app/route...\">\n                            <Form method=\"POST\" className=\"space-y-4 ...\" aria-label=\"Endre star...\" id=\"season-anc...\" ...>\n                              <form ref={null} method=\"post\" action={\"/trainin...\"} onSubmit={function submitHandler} ...>\n                                <input\n                                  type=\"hidden\"\n                                  name=\"intent\"\n                                  value=\"preview-season-edit\"\n                                  data-tsd-source=\"/app/routes/training/__season-edits.tsx:739:6\"\n-                                 style={{}}\n                                >\n                                <input\n                                  type=\"hidden\"\n                                  name=\"edit\"\n                                  value=\"season-anchor\"\n                                  data-tsd-source=\"/app/routes/training/__season-edits.tsx:740:6\"\n-                                 style={{}}\n                                >\n                                <input\n                                  type=\"hidden\"\n                                  name=\"outlineId\"\n                                  value=\"cmw6gh0ek00pn7dcv7kzncn3q\"\n                                  data-tsd-source=\"/app/routes/training/__season-edits.tsx:741:6\"\n-                                 style={{}}\n                                >\n                                <input\n                                  type=\"hidden\"\n                                  name=\"trackId\"\n                                  value=\"cmw6gh0ey00pt7dcv7qhwi63v\"\n                                  data-tsd-source=\"/app/routes/training/__season-edits.tsx:1246:5\"\n-                                 style={{}}\n                                >\n                                <RadioGroupField>\n                                ...\n                                  <Input id=\"season-anc...\" aria-invalid={undefined} aria-describedby={undefined} ...>\n                                    <Input2 type=\"text\" data-slot=\"input\" className=\"bg-input/5...\" id=\"season-anc...\" ...>\n                                      <FieldControl2 ref={null} type=\"text\" data-slot=\"input\" className=\"bg-input/5...\" ...>\n                                        <input\n                                          id=\"season-anchor-edit-addValue\"\n                                          disabled={false}\n                                          name=\"addValue\"\n                                          ref={function}\n                                          aria-labelledby={undefined}\n                                          autoFocus={false}\n                                          defaultValue=\"75,981\"\n                                          onChange={function}\n                                          onFocus={function}\n                                          onBlur={function}\n                                          onKeyDown={function}\n                                          type=\"text\"\n                                          data-slot=\"input\"\n                                          aria-invalid={undefined}\n                                          aria-describedby={undefined}\n                                          form=\"season-anchor-edit\"\n                                          inputMode=\"decimal\"\n                                          autoComplete=\"off\"\n                                          onInput={function}\n                                          data-tsd-source=\"/app/components/forms.tsx:189:6\"\n                                          className=\"bg-input/50 file:text-foreground placeholder:text-muted-foregroun...\"\n-                                         style={{}}\n                                        >\n                                ...\n                                  <Input id=\"season-anc...\" aria-invalid={undefined} aria-describedby={undefined} ...>\n                                    <Input2 type=\"text\" data-slot=\"input\" className=\"bg-input/5...\" id=\"season-anc...\" ...>\n                                      <FieldControl2 ref={null} type=\"text\" data-slot=\"input\" className=\"bg-input/5...\" ...>\n                                        <input\n                                          id=\"season-anchor-edit-setValue\"\n                                          disabled={false}\n                                          name=\"setValue\"\n                                          ref={function}\n                                          aria-labelledby={undefined}\n                                          autoFocus={false}\n                                          defaultValue=\"55\"\n                                          onChange={function}\n                                          onFocus={function}\n                                          onBlur={function}\n                                          onKeyDown={function}\n                                          type=\"text\"\n                                          data-slot=\"input\"\n                                          aria-invalid={undefined}\n                                          aria-describedby={undefined}\n                                          form=\"season-anchor-edit\"\n                                          inputMode=\"decimal\"\n                                          autoComplete=\"off\"\n                                          onInput={function}\n                                          data-tsd-source=\"/app/components/forms.tsx:189:6\"\n                                          className=\"bg-input/50 file:text-foreground placeholder:text-muted-foregroun...\"\n-                                         style={{}}\n                                        >\n                                ...\n      ...\n",
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ]
+  },
+  "narrow": {
+    "leadOverflow": 0,
+    "scrolledTo": 32,
+    "prefill": "75,981",
+    "untouchedPrefill": "Forhåndsvisning\n\nLøping fra uke 46: nytt startnivå 76 km, og stigningen starter på nytt der. 1 uke får nytt mål. Fasene, ukene før uke 46 og de andre sporene står som før.\n\nUkene som endres\n\nTrykk på en uke for å se hvordan tallet er regnet ut.\n\nUke 46\nnedtrapping · Nedtrapping\n36,9 → \nblir\n38\nregnet ut\n\nTallene er ukemålene. I uker der du har egne økter, legges appens økter rundt dem.\n\n1 uke får nytt mål\n\nBruk endringen",
+    "focused": "season-anchor-preview-title",
+    "previewOverflow": 0,
+    "rows": 1,
+    "small": [
+      "A:Endre volumet:32",
+      "INPUT:action:1",
+      "INPUT:action:1",
+      "INPUT::1"
+    ],
+    "refusal": "Kan ikke endre tallet her\n\nStartnivået fra uke 37 gjelder også uke 37–45, som du har trent. De står som de ble, så tallet kan ikke endres der.\n\nStart på nytt fra uke 46 med 50 km",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ]
+  },
+  "mobile": {
+    "leadOverflow": 0,
+    "scrolledTo": 32,
+    "prefill": "75,981",
+    "untouchedPrefill": "Forhåndsvisning\n\nLøping fra uke 46: nytt startnivå 76 km, og stigningen starter på nytt der. 1 uke får nytt mål. Fasene, ukene før uke 46 og de andre sporene står som før.\n\nUkene som endres\n\nTrykk på en uke for å se hvordan tallet er regnet ut.\n\nUke 46\nnedtrapping · Nedtrapping\n36,9 → \nblir\n38\nregnet ut\n\nTallene er ukemålene. I uker der du har egne økter, legges appens økter rundt dem.\n\n1 uke får nytt mål\n\nBruk endringen",
+    "focused": "season-anchor-preview-title",
+    "previewOverflow": 0,
+    "rows": 1,
+    "small": [
+      "A:Endre volumet:32",
+      "INPUT:action:1",
+      "INPUT:action:1",
+      "INPUT::1"
+    ],
+    "refusal": "Kan ikke endre tallet her\n\nStartnivået fra uke 37 gjelder også uke 37–45, som du har trent. De står som de ble, så tallet kan ikke endres der.\n\nStart på nytt fra uke 46 med 50 km",
+    "offerAction": true,
+    "offerMessage": "Løping fra uke 46: nytt startnivå 50 km, og stigningen starter på nytt der. 1 uke får nytt mål. Fasene, ukene før uke 46 og de andre sporene står som før.",
+    "toast": "Startnivået er endret\nLøping fra uke 46: nytt startnivå 50 km, og stigningen starter på nytt der. 1 uke får nytt mål. Fasene, ukene før uke 46 og de andre sporene står som før.",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ]
+  }
+}
