@@ -1,0 +1,12 @@
+$ curl http://localhost:3100/mcp tools/call get_today   (2026-11-07T14:46:56Z)
+weather: {
+ "status": "available",
+ "value": {
+  "at": "2026-11-07T20:00:00.000Z",
+  "symbol": "fog",
+  "label": "Tåke",
+  "temperatureC": 0,
+  "precipitationMm": 0
+ }
+}
+credits: [{"platform": "met-norway", "text": "Værvarsel fra MET Norway"}]

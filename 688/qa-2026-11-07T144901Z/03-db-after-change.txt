@@ -1,0 +1,4 @@
+$ sqlite3 $DATABASE_PATH 'select hp.* from HomePlace hp join AthleteProfile a on a.id=hp.athleteProfileId join User u on u.id=a.userId where u.username="kody"'
+['id', 'name', 'kind', 'municipality', 'county', 'latitude', 'longitude', 'createdAt', 'updatedAt', 'athleteProfileId']
+('cmw6hjcyy00057d51asytz56v', 'Tromsø', 'Kommune', 'Tromsø', 'Troms', 69.65, 18.96, 1794060898667, 1794060903053, 'cmw6hac3d000k7dbi5m4o1xfi')
+1 row(s)

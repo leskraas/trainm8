@@ -1,0 +1,75 @@
+url http://localhost:3100/ width 390 load(domcontent) 719ms at 2026-11-07T14:18:28.904Z
+today-card weather count: 1
+  card innerText: "Vær kl. 20: Tåke, 0 grader, ingen nedbør\nTåke\nkl. 20\n0°\n0 mm"
+  card textContent (incl. sr-only): "Vær kl. 20: Tåke, 0 grader, ingen nedbørTåkekl. 200°0 mm"
+  card html: <p data-calm-weather="true" class="border-border/60 @container border-t pt-3" data-tsd-source="/app/routes/_home/__calm-today-view.tsx:318:3"><span class="sr-only" data-tsd-source="/app/routes/_home/__calm-today-view.tsx:319:4">Vær kl. 20: Tåke, 0 grader, ingen nedbør</span><span aria-hidden="true" class="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 @max-[17rem]:grid-cols-1 @max-[17rem]:gap-y-1" data-tsd-source="/app/routes/_home/__calm-today-view.tsx:320:4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-weather-glyph="cloud-fog" class="inline shrink-0 self-center text-muted-foreground size-7" data-tsd-source="/app/components/weather-glyph.tsx:74:3"><path d="M7 16a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-12" data-tsd-source="/app/components/weather-glyph.tsx:87:5"></path><path d="M5 20l14 0" data-tsd-source="/app/components/weather-glyph.tsx:87:5"></path></svg><span class="flex min-w-0 flex-col" data-tsd-source="/app/routes/_home/__calm-today-view.tsx:328:5"><span class="text-callout [overflow-wrap:break-word]" data-tsd-source="/app/routes/_home/__calm-today-view.tsx:329:6">Tåke</span><span class="text-footnote text-muted-foreground tabular-nums" data-tsd-source="/app/routes/_home/__calm-today-view.tsx:332:6">kl. 20</span></span><span class="flex flex-col items-end @max-[17rem]:items-start" data-tsd-source="/app/routes/_home
+week-row weather cells: 1
+  cell: visible=true "−22°0 mm" html=<span aria-hidden="true" data-calm-day-weather="true" class="flex flex-col items-end gap-0.5 justify-self-end leading-none @max-[20rem]:hidden" data-tsd-source="/app/routes/_home/__calm-today-view.tsx:833:3"><span class="text-callout text-foreground flex items-center gap-1 tabular-nums" data-tsd-source="/app/routes/_home/__calm-today-view.tsx:838:4"><svg aria-hidden="true" focusable="false" data-weather-glyph="sun" data-tsd-source="/app/components/weather-glyph.tsx:64:4" class="inline shrink-0 self-center text-muted-foreground size-4"><use href="/app/components/ui/icons/sprite.svg#sun" data-tsd-source="/app/components/ui/icon.tsx:74:4"></use></svg>−22°</span><span class="text-caption text-mu
+inline weather: 1
+  inline visible=false "·−22°0 mm"
+row aria-labels: ["søndag 8. nov: Easy Aerobic Run, 48 min, ikke gjort ennå. Vær kl. 18: Klarvær, minus 22 grader, ingen nedbør"]
+MET credit count: 1 href: https://www.met.no/
+MAIN TEXT:
+Lørdag 7. nov
+
+Klassisk 3:1 · uke 9 av 10
+
+gjort
+
+Ferdig for i dag
+
+Du har gjort Annen aktivitet · 1 t 20 min, Klatring og Weekend Long Run.
+
+Neste økt: Easy Aerobic Run, i morgen, 48 min.
+
+Vær kl. 20: Tåke, 0 grader, ingen nedbør
+Tåke
+kl. 20
+0°
+0 mm
+
+Denne uka er lagt ut
+
+Forrige uke hadde ingen planlagt belastning å måle mot, så vi har for lite å gå på. Denne uka står som planlagt.
+
+Denne uka
+
+5 av 6 økter gjort
+
+man
+2
+fri
+tir
+3
+Threshold 4×8 (demo)
+55 min
+ons
+4
+fri
+tor
+5
+1 h 23 min run
+1 t 23 min
+fre
+6
+fri
+lør
+7
+Annen aktivitet · 1 t 20 min
+1 t 20 min
+Klatring
+1 t 30 min · middels
+Weekend Long Run
+1 t 50 min · middels
+søn
+8
+Easy Aerobic Run
+48 min
+−22°
+0 mm
+
+Værvarsel fra MET Norway
+
+Se hele sesongen
+unrounded floats: null
+pageerrors: []

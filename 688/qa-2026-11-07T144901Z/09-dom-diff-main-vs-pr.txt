@@ -1,0 +1,76 @@
+== 390: diff main vs PR (no Home Place), main <main> DOM, data-tsd-source and ids stripped
+43c43
+< <span aria-hidden="true" class="flex size-8 items-center justify-center text-muted-foreground">
+---
+> <span aria-hidden="true" class="flex size-8 items-center justify-center justify-self-center text-muted-foreground">
+62c62
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+78c78
+< <span aria-hidden="true" class="flex size-8 items-center justify-center text-muted-foreground">
+---
+> <span aria-hidden="true" class="flex size-8 items-center justify-center justify-self-center text-muted-foreground">
+97c97
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+113c113
+< <span aria-hidden="true" class="flex size-8 items-center justify-center text-muted-foreground">
+---
+> <span aria-hidden="true" class="flex size-8 items-center justify-center justify-self-center text-muted-foreground">
+132c132
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+150c150
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+168c168
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+184c184
+< <span aria-hidden="true" class="flex size-8 items-center justify-center text-primary">
+---
+> <span aria-hidden="true" class="flex size-8 items-center justify-center justify-self-center text-primary">
+== 1280: diff main vs PR (no Home Place), main <main> DOM, data-tsd-source and ids stripped
+43c43
+< <span aria-hidden="true" class="flex size-8 items-center justify-center text-muted-foreground">
+---
+> <span aria-hidden="true" class="flex size-8 items-center justify-center justify-self-center text-muted-foreground">
+62c62
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+78c78
+< <span aria-hidden="true" class="flex size-8 items-center justify-center text-muted-foreground">
+---
+> <span aria-hidden="true" class="flex size-8 items-center justify-center justify-self-center text-muted-foreground">
+97c97
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+113c113
+< <span aria-hidden="true" class="flex size-8 items-center justify-center text-muted-foreground">
+---
+> <span aria-hidden="true" class="flex size-8 items-center justify-center justify-self-center text-muted-foreground">
+132c132
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+150c150
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+168c168
+< <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full">
+---
+> <span data-calm-mark="done" aria-hidden="true" class="bg-status-on text-primary-foreground flex size-6 items-center justify-center justify-self-center rounded-full">
+184c184
+< <span aria-hidden="true" class="flex size-8 items-center justify-center text-primary">
+---
+> <span aria-hidden="true" class="flex size-8 items-center justify-center justify-self-center text-primary">
+390: {"size":[390,1213],"differingPixels":0,"rows":null}
+1280: {"size":[1280,932],"differingPixels":0,"rows":null}

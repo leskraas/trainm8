@@ -1,0 +1,118 @@
+ ✓ app/utils/weather/forecast.server.test.ts > each day reads the one step covering its hour: hourly near, 6-hourly far (precipitation per hour), nothing beyond 30ms
+ ✓ app/utils/weather/forecast.server.test.ts > one call per rounded point, asked with the rounded point and trainm8’s User-Agent 9ms
+ ✓ app/utils/weather/forecast.server.test.ts > MET erroring with nothing cached: every day is forecast-unavailable, never a throw 4ms
+ ✓ app/utils/weather/forecast.server.test.ts > MET answering nonsense is forecast-unavailable too 5ms
+ ✓ app/routes/settings/hjemsted.test.tsx > matches carry municipality and county, and picking one saves it at once 593ms
+ ✓ app/utils/weather/forecast.server.test.ts > a slow MET is cut at about 2 seconds 2003ms
+ ✓ app/utils/weather/forecast.server.test.ts > a stale forecast is served while MET errors, up to 24 hours past Expires 7ms
+ ✓ app/utils/weather/forecast.server.test.ts > past 24 hours stale, a forecast is not served 13ms
+ ✓ app/utils/weather/forecast.server.test.ts > a refresh asks If-Modified-Since, and a 304 keeps the cached forecast 10ms
+ ✓ app/utils/weather/forecast.server.test.ts > no days asked: no call at all 2ms
+ ✓ app/routes/settings/hjemsted.test.tsx > a municipality is not named twice 366ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > I dag opens on today's card with one large Gjort, then this week 297ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > no session still ahead offers done or missed, and Marker som ikke gjort is nowhere 70ms
+ ✓ app/routes/settings/hjemsted.test.tsx > no match says so and keeps the text; retyping asks again 692ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > a free day is fri, and tapping it opens the composer 287ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > a free today says Fri i dag and names the next session 43ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > under autopilot, Neste uke er lagt ut sits above the week, one line per change with Angre 150ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > one change has its Angre and no Angre alt; an undone one says Angret 62ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > once its week has begun, the notice says Denne uka and no longer offers Gjør uka lettere 45ms
+ ✓ app/routes/settings/hjemsted.test.tsx > a silent search says it does not answer, and the place stays 386ms
+ ✓ app/routes/settings/hjemsted.test.tsx > Fjern removes the place at once 48ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > a next round says its peak week before → after under its reason 54ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > the first notice after the switch says so once, with the way to Spør meg først in Meg 52ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > a notice without the one-time line has no link to Meg 58ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > a week the autopilot could not lay is said in the notice, with why 50ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > a notice not yet seen tells the server once it is on screen, and a seen one does not 126ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > Se hele sesongen leads to the full Home Timeline 44ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > with no plan, I dag invites the athlete to the start instead of an empty calendar 36ms
+ ✓ app/utils/weather/forecast.server.test.ts > MET down with nothing cached: one wait, then no call and no wait until the back-off ends 2003ms
+ ✓ app/utils/weather/forecast.server.test.ts > a 429 is not asked again before its Retry-After, and the back-off is per point 6ms
+ ✓ app/utils/weather/forecast.server.test.ts > without Retry-After a failure backs off for the default period 5ms
+ ✓ app/utils/weather/forecast.server.test.ts > a stale forecast is still served during a back-off 9ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > Bytt økt opens Bibliotek as a picker, and a pick replaces today’s session 270ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > Avansert leads to the session, the composer and Plan’s Avansert 369ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > with a Home Place: one weather line on the card, a column from tomorrow on, MET credited once 125ms
+ ✓ app/routes/_home/index.calm-view.test.tsx > without a Home Place I dag is as it was: no weather, no credit, no empty slot 62ms
+ ✓ app/routes/settings/hjemsted.route.test.ts > the search requires a signed-in athlete 13ms
+ ✓ app/routes/settings/hjemsted.route.test.ts > a search answers with matches that tell same-named places apart, and stores nothing 162ms
+ ✓ app/routes/settings/hjemsted.route.test.ts > no match keeps the text; a silent Kartverket is unavailable and the place unchanged 126ms
+ ✓ app/routes/settings/hjemsted.route.test.ts > choosing saves at once, rounded; Meg then shows the place by name 126ms
+ ✓ app/routes/settings/hjemsted.route.test.ts > changing replaces the place; Fjern removes it 120ms
+ ✓ app/routes/settings/hjemsted.route.test.ts > a point outside Norway, or a broken form, is refused and changes nothing 123ms
+ ✓ app/routes/_home/index.weather.test.ts > with a Home Place, I dag gets today’s forecast and the days ahead, never the past 226ms
+ ✓ app/routes/_home/season.test.ts > signed out, the full view asks for a login and comes back to itself 7ms
+ ✓ app/routes/_home/index.weather.test.ts > the today card and get_today say the same weather 167ms
+ ✓ app/routes/_home/season.test.ts > the full view reads the same timeline I dag reads 214ms
+ ✓ app/routes/_home/index.weather.test.ts > after Fjern, the next load of I dag has no weather and asks MET nothing 152ms
+ ✓ app/routes/_home/index.weather.test.ts > MET down with nothing cached: I dag loads as normal, without weather 110ms
+ ✓ app/routes/_home/season.test.ts > a session written on the full view lands as one written on I dag does 182ms
+ ✓ app/routes/_home/season.test.ts > the full view keeps I dag the current tab 10ms
+ ✓ app/routes/_home/__calm-today.test.ts > the today card names today's session: name, activity, duration, effort word and one sentence 36ms
+ ✓ app/routes/_home/__calm-today.test.ts > a title that says its effort (Rolig løpetur) drops the effort pill 18ms
+ ✓ app/routes/_home/__calm-today.test.ts > a title that says its effort (45 min moderat) drops the effort pill 25ms
+ ✓ app/routes/_home/__calm-today.test.ts > a title that says its effort (45 min Moderat) drops the effort pill 11ms
+ ✓ app/routes/_home/__calm-today.test.ts > a title that says its effort (4 × 6 min terskel) drops the effort pill 12ms
+ ✓ app/routes/_home/__calm-today.test.ts > a title that names another effort keeps the pill 11ms
+ ✓ app/routes/_home/__calm-today.test.ts > the athlete's own note is the card's sentence, its first sentence only 12ms
+ ✓ app/routes/_home/__calm-today.test.ts > a threshold session written as pace reads hard against T-pace (#617) 9ms
+ ✓ app/routes/_home/__calm-today.test.ts > a distance written in a zone word is timed through the threshold pace on the card and the row (#615) 9ms
+ ✓ app/routes/_home/__calm-today.test.ts > minutes timed through a pace read as a translation, with ≈, on the card and the row (#638) 12ms
+ ✓ app/routes/_home/__calm-today.test.ts > a timed warm-up and a distance in a zone word total both (#615) 18ms
+ ✓ app/routes/_home/__calm-today.test.ts > a Simple Activity's card says the Effort Word the athlete stored, not one read from its step 22ms
+ ✓ app/routes/_home/__calm-today.test.ts > Gjort is offered only on today and on past sessions not yet done; nothing still ahead offers it 21ms
+ ✓ app/routes/_home/__calm-today.test.ts > this week is seven rows: fri on a free day, ikke gjort on a past missed day, and n av m økter gjort 11ms
+ ✓ app/routes/_home/__calm-today.test.ts > the week's count is the full view's own: the same week model, never a second count 9ms
+ ✓ app/routes/_home/__calm-today.test.ts > a free day says Fri i dag and names the next session and its day 8ms
+ ✓ app/routes/_home/__calm-today.test.ts > a free day with the next session tomorrow says i morgen 8ms
+ ✓ app/routes/_home/__calm-today.test.ts > a next session past this week is named with its date 8ms
+ ✓ app/routes/_home/__calm-today.test.ts > today done: the card says so and names the next session 9ms
+ ✓ app/routes/_home/__calm-today.test.ts > before the Plan Start Week the card says when the plan starts and names the first session 12ms
+ ✓ app/routes/_home/__calm-today.test.ts > with no plan and nothing written, I dag invites the athlete to the start instead of an empty calendar 5ms
+ ✓ app/routes/_home/__calm-today.test.ts > with no plan, a week the athlete wrote in is still shown 5ms
+ ✓ app/routes/_home/__calm-today.test.ts > the top line is the date and the plan name 9ms
+ ✓ app/routes/_home/__calm-today.test.ts > with no plan but a session written for today, the card is that session and the start is still offered 6ms
+ ✓ app/routes/_home/__calm-today.test.ts > with a plan, nothing invites the athlete to the start 11ms
+ ✓ app/routes/_home/__calm-today.test.ts > Gjort on a session reaches back a week at most, as the full view offers it 10ms
+ ✓ app/routes/_home/__calm-today.test.ts > with a Home Place: the card carries today’s forecast, the rows from tomorrow on theirs 11ms
+ ✓ app/routes/_home/__calm-today.test.ts > without a Home Place, or with no forecast at all, I dag is exactly as before 34ms
+ ✓ app/routes/_home/__calm-today.test.ts > a temperature just below zero reads 0°, never −0° 9ms
+ ✓ app/routes/_marketing/privacy.test.tsx > the privacy page is a Norwegian Art. 13 notice marked as a draft 282ms
+ ✓ app/routes/_marketing/privacy.test.tsx > the notice has no repeated heading or line within a section 3ms
+ ✓ app/routes/_marketing/privacy.test.tsx > the notice does not promise more deletion than account deletion does 16ms
+ ✓ app/routes/_marketing/privacy.test.tsx > the notice names the Home Place, its two recipients and its retention 15ms
+ ✓ app/utils/home-place.server.test.ts > choosing a place stores the name and a point rounded to 2 decimals, nothing finer 53ms
+ ✓ app/utils/home-place.server.test.ts > choosing again replaces the place; Fjern removes it 46ms
+ ✓ app/utils/home-place.server.test.ts > a point outside Kartverket’s area is refused, and the place is unchanged 26ms
+ ✓ app/utils/home-place.server.test.ts > the place goes with the account 26ms
+ ✓ app/utils/home-place.server.test.ts > choosing a place before the athlete has a profile creates it as every other path does, with its discipline profiles 34ms
+ ✓ app/actions/get-today.weather.test.ts > with a Home Place: the forecast at today’s first open session, credited to MET Norway 214ms
+ ✓ app/actions/get-today.weather.test.ts > no Home Place: unavailable as no-home-place, MET never asked, no credit 44ms
+ ✓ app/actions/get-today.weather.test.ts > a forecast that ends before today’s hour: beyond-forecast 40ms
+ ✓ app/actions/get-today.weather.test.ts > MET down with nothing cached: forecast-unavailable, and get_today still answers 64ms
+ ✓ app/utils/weather/athlete-forecast.server.test.ts > no Home Place is null whatever days are asked, even none 31ms
+ ✓ app/utils/weather/athlete-forecast.server.test.ts > a Home Place with no days asked is an empty forecast, not null 24ms
+ ✓ app/utils/weather/forecast-hour.test.ts > past days get no hour; a free day is read at the training time 20ms
+ ✓ app/utils/weather/forecast-hour.test.ts > a day with sessions is read at its first one not yet done, floored to the hour 5ms
+ ✓ app/utils/weather/forecast-hour.test.ts > today, before its session: that hour 4ms
+ ✓ app/utils/weather/forecast-hour.test.ts > today, once the hour has passed: the coming hour 3ms
+ ✓ app/utils/weather/forecast-hour.test.ts > today, done with its session: the training time, or the coming hour once passed 3ms
+ ✓ app/utils/weather/forecast-hour.test.ts > a day across the DST change keeps its local training hour 3ms
+ ✓ app/utils/weather/forecast-hour.test.ts > a skipped or missed session sets no hour: only a session still planned does 2ms
+ ✓ app/utils/place-search/search.server.test.ts > matches carry municipality and county, so same-named places can be told apart 28ms
+ ✓ app/utils/place-search/search.server.test.ts > a county in three languages is said in the first 5ms
+ ✓ app/utils/place-search/search.server.test.ts > no match is found with no places; empty text asks nobody 7ms
+ ✓ app/utils/place-search/search.server.test.ts > Kartverket erroring or answering nonsense: unavailable, never a throw 6ms
+ ✓ app/utils/place-search/search.server.test.ts > Kartverket gets the text and trainm8’s User-Agent, nothing about the athlete 4ms
+ ✓ app/utils/weather/symbol.test.ts > MET symbol codes read into trainm8’s families, night as a flag 5ms
+ ✓ app/utils/weather/symbol.test.ts > showers fold into their precipitation; intensity and thunder stay 7ms
+ ✓ app/utils/weather/symbol.test.ts > an undocumented code is no symbol, never a guess 5ms
+ ✓ app/utils/weather/symbol.test.ts > every symbol is reachable from a MET code 6ms
+ ✓ app/utils/outbound-privacy.test.ts > the hosts that get a search text or a point are both scrubbed 8ms
+ ✓ app/utils/outbound-privacy.test.ts > a fetch breadcrumb to Kartverket or MET keeps the call, not the query 3ms
+ ✓ app/utils/outbound-privacy.test.ts > a full URL in a breadcrumb loses its query too 2ms
+ ✓ app/utils/outbound-privacy.test.ts > an outgoing span to MET keeps its host and path, not lat and lon 8ms
+ ✓ app/utils/outbound-privacy.test.ts > calls to any other host are left as they are 3ms
+ ✓ app/utils/athlete-schema.test.ts > trainingTimeOf: the athlete’s own time, else the documented 07:00 3ms
+ Test Files  16 passed (16)
+      Tests  116 passed (116)

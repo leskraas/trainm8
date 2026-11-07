@@ -1,0 +1,7 @@
+url http://localhost:3100/privacy
+Hjemsted, hvis du velger et i Meg: stedets navn, kommune og fylke, og et punkt avrundet til omtrent én kilometer. Det brukes bare til værvarselet på I dag.
+Værvarsel: hjemstedet du selv velger, for å vise været der du trener (artikkel 6 nr. 1 bokstav b).
+MET Norway (Meteorologisk institutt), hvis du har valgt et hjemsted: får bare det avrundede punktet når vi henter værvarselet. Kartverket får bare teksten du søker på når du leter etter et hjemsted. Ingen av dem får navnet ditt, kontoen din eller IP-adressen din: vi spør fra våre servere, ikke fra nettleseren din.
+Hjemstedet: så lenge du har konto, eller til du fjerner det i Meg. Sletter du kontoen, slettes det også. Det du søker på for å finne det, lagrer og logger vi ikke.
+$ curl -s http://localhost:3100/privacy | grep -o 'Værvarsler vi[^<]*'
+Værvarsler vi har hentet, lagres per avrundet punkt uten kobling til deg, og brukes i høyst ett døgn etter at de er utdatert.

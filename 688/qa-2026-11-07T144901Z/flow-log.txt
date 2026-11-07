@@ -1,0 +1,26 @@
+MEG ROW (unset): "Hjemsted\nIkke valgt. Gir værvarsel på I dag."
+HJEMSTED PAGE: "Søk etter et sted\nSøk etter et sted\n\nStedet brukes til å vise værvarselet på I dag.\n\nStedsnavn fra Kartverket\n\nVi lagrer stedets navn og et punkt avrundet til omtrent én kilometer. Bare det punktet sendes til MET Norway for værvarselet, og bare det du søker på sendes til Kartverket – aldri navnet ditt, kontoen din eller IP-adressen din."
+input attrs: {"type":"text","inputmode":"search","enterkeyhint":"search","describedby":"home-place-helper","helper":"Stedet brukes til å vise værvarselet på I dag."}
+OPTIONS Lillehammer: ["Lillehammer\nBy · Lillehammer, Innlandet","Lillehammer\nAnnen kulturdetalj · Marker, Østfold"]
+STATUS: Lagret. I dag viser været for Lillehammer.
+CARD: "Lillehammer\nBy · Lillehammer, Innlandet\nFjern"
+$ sqlite3 $DATABASE_PATH 'select hp.* from HomePlace hp join AthleteProfile a on a.id=hp.athleteProfileId join User u on u.id=a.userId where u.username="kody"'
+['id', 'name', 'kind', 'municipality', 'county', 'latitude', 'longitude', 'createdAt', 'updatedAt', 'athleteProfileId']
+('cmw6hjcyy00057d51asytz56v', 'Lillehammer', 'By', 'Lillehammer', 'Innlandet', 61.12, 10.47, 1794060898667, 1794060898667, 'cmw6hac3d000k7dbi5m4o1xfi')
+1 row(s)
+
+MEG ROW (set): "Hjemsted\nLillehammer"
+NO MATCH: Fant ingen steder som heter «Xyzzyvik». Sjekk skrivemåten, eller prøv en by eller kommune i nærheten. | input value: Xyzzyvik
+OPTIONS Trom: ["Tromsø\nKommune · Troms"]
+$ sqlite3 $DATABASE_PATH 'select hp.* from HomePlace hp join AthleteProfile a on a.id=hp.athleteProfileId join User u on u.id=a.userId where u.username="kody"'
+['id', 'name', 'kind', 'municipality', 'county', 'latitude', 'longitude', 'createdAt', 'updatedAt', 'athleteProfileId']
+('cmw6hjcyy00057d51asytz56v', 'Lillehammer', 'By', 'Lillehammer', 'Innlandet', 61.12, 10.47, 1794060898667, 1794060898667, 'cmw6hac3d000k7dbi5m4o1xfi')
+1 row(s)
+
+CARD after change: "Tromsø\nKommune · Troms\nFjern"
+$ sqlite3 $DATABASE_PATH 'select hp.* from HomePlace hp join AthleteProfile a on a.id=hp.athleteProfileId join User u on u.id=a.userId where u.username="kody"'
+['id', 'name', 'kind', 'municipality', 'county', 'latitude', 'longitude', 'createdAt', 'updatedAt', 'athleteProfileId']
+('cmw6hjcyy00057d51asytz56v', 'Tromsø', 'Kommune', 'Tromsø', 'Troms', 69.65, 18.96, 1794060898667, 1794060903053, 'cmw6hac3d000k7dbi5m4o1xfi')
+1 row(s)
+
+KARTVERKET CREDIT href: https://www.kartverket.no/

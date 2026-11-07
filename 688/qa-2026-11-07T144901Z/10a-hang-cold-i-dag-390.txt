@@ -1,0 +1,58 @@
+url http://localhost:3100/ width 390 load(domcontent) 5043ms at 2026-11-07T14:21:50.529Z
+today-card weather count: 0
+week-row weather cells: 0
+inline weather: 0
+row aria-labels: []
+MET credit count: 0 href: -
+MAIN TEXT:
+Lørdag 7. nov
+
+Klassisk 3:1 · uke 9 av 10
+
+gjort
+
+Ferdig for i dag
+
+Du har gjort Annen aktivitet · 1 t 20 min, Klatring og Weekend Long Run.
+
+Neste økt: Tuesday Tempo Run, tirsdag 10. nov, 50 min.
+
+Denne uka er lagt ut
+
+Forrige uke hadde ingen planlagt belastning å måle mot, så vi har for lite å gå på. Denne uka står som planlagt.
+
+Denne uka
+
+5 av 5 økter gjort
+
+man
+2
+fri
+tir
+3
+Threshold 4×8 (demo)
+55 min
+ons
+4
+fri
+tor
+5
+1 h 23 min run
+1 t 23 min
+fre
+6
+fri
+lør
+7
+Annen aktivitet · 1 t 20 min
+1 t 20 min
+Klatring
+1 t 30 min · middels
+Weekend Long Run
+1 t 50 min · middels
+søn
+8
+fri
+Se hele sesongen
+unrounded floats: null
+pageerrors: []

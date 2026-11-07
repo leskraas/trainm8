@@ -1,0 +1,4 @@
+Fjern target {"x":302.125,"y":157,"width":55.875,"height":44}
+status: Hjemstedet er fjernet. I dag viser ikke vær lenger. | card count: 1
+Meg row after remove: "Hjemsted\nIkke valgt. Gir værvarsel på I dag."
+pageerrors []

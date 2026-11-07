@@ -1,0 +1,5 @@
+session statuses (Klatring 17:00, Weekend Long Run 18:00): [('cmw6hacdf00ac7dbi7vjf9tvz', 'completed'), ('cmw6hacef00bj7dbiohkft9qj', 'completed')]
+defaultTrainingTime: [(None,)]
+defaultTrainingTime: [('20:00',)]
+Sunday's Easy Aerobic Run deleted via session page (Mer > Slett økta); row gone:
+[(0,)]

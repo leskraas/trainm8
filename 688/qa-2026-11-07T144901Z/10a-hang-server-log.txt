@@ -1,0 +1,11 @@
+# server log, MET and Kartverket unreachable (TCP accepted, never answered); no MOCK_WEATHER; place Lillehammer, nothing cached for 61.12,10.47
+GET /login 200 - - 23187.345 ms
+GET /login?redirectTo=/me 200 - - 102.426 ms
+GET /login?redirectTo=/me 200 - - 1241.797 ms
+GET /app/assets/favicons/apple-touch-icon.png?import 200 - - 0.370 ms
+POST /login.data?redirectTo=/me 202 - - 112.549 ms
+GET /me.data 200 - - 106.043 ms
+GET / 200 - - 2296.522 ms
+GET /app/assets/favicons/apple-touch-icon.png?import 304 - - 0.242 ms
+GET /app/routes/_home/+logos/testing-library.png?import 200 - - 0.419 ms
+GET /app/routes/_home/+logos/stars.jpg?import 200 - - 0.251 ms

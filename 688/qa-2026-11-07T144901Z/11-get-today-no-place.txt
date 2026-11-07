@@ -1,0 +1,7 @@
+$ curl http://localhost:3100/mcp tools/call get_today   (2026-11-07T14:23:57Z)
+weather: {
+ "status": "unavailable",
+ "reason": "no-home-place",
+ "label": "Ikke satt: du har ikke valgt et hjemsted i Meg."
+}
+credits: []
