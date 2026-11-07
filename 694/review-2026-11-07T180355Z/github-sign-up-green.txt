@@ -1,0 +1,3 @@
+ ✓ app/routes/api.auth.$.test.ts (10 tests) 1767ms
+   ✓ in tests, /api/auth/ok answers 200  1465ms
+      Tests  10 passed (10)

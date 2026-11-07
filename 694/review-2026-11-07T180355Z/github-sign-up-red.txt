@@ -1,0 +1,7 @@
+   × GitHub cannot create an account, even when the client asks to sign up 1676ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 'http://localhost:3000/api/auth/error?…' to match /error=signup_disabled/
+- Expected: 
++ Received: 
+      Tests  1 failed | 9 skipped (10)
+Without the fix Better Auth reaches createOAuthUser (logged: 'Unable to create OAuth user PrismaClientValidationError'); only Epic's required User.username stops the row, by accident.

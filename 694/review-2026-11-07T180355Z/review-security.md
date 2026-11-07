@@ -1,0 +1,18 @@
+# Security review: PR #694 at 730085b (by hand)
+
+`security-review` skill not used: it reviews the pending changes of the session's working directory (the main clone on main), and cannot be pointed at the PR worktree. Reviewed the diff by hand, checking each point against better-auth 1.7.12's dist and with tests.
+
+## Findings
+1. **HIGH, fixed (b7a7084): GitHub sign-up open via `requestSignUp`.** options.server.ts set only `disableImplicitSignUp: true`. better-auth sign-in.mjs:196 / callback.mjs:140: `disableSignUp: provider.disableImplicitSignUp && !requestSignUp || provider.options?.disableSignUp`. `POST /api/auth/sign-in/social {provider:'github', requestSignUp:true}` then the callback reaches `createOAuthUser`; only Epic's required `User.username` stopped the insert, by accident (evidence:github-sign-up-red.txt). Dark in production, so no live exposure, but ADR 0113 §4 says closed on every path. Fixed with `disableSignUp: true` and a route-level OAuth test (evidence:github-sign-up-green.txt).
+
+## Verified, no finding
+- Production 404 gate: handler.server.ts:21 reads only `process.env.NODE_ENV`; no header, no other env var, checked before the dynamic import of better-auth.server.ts. other/Dockerfile sets NODE_ENV=production. Only the route imports the handler; nothing else in app/ or server/ imports options.server.ts or better-auth.server.ts (grep). handler.production.server.test.ts proves the module is never imported.
+- Origin check: non-GET/HEAD/OPTIONS with an Origin other than `new URL(APP_ORIGIN).origin` gets 403, with and without a cookie; lookalikes and `null` refused (tests at api.auth.$.test.ts). No Origin passes to Better Auth, whose sign-up is closed; browsers always send Origin on POST.
+- Sign-up closed: `/sign-up/email` (disableSignUp, tested), email code (`disableSignUp` makes send-verification-otp store nothing for an unknown address, routes.mjs:103; test added 1629332), GitHub (fixed above). admin `createUser` needs an admin; passkey registration needs a session; no anonymous/magic-link plugin.
+- Client-writable user fields: parseUserInput filters by `input`; admin's role/banned/banReason/banExpires and twoFactorEnabled are `input: false` in the plugins; `mustReenrolTwoFactor` `input: false`, now tested through update-user (d3c6a8b). username/displayUsername writable by design.
+- Secrets out of the export: AuthAccount/AuthPasskey/AuthSession via `select` allow-lists; TwoFactor and AuthVerification excluded with reasons; test seeds known secrets and asserts absence. AuthSession `id` is not the cookie (the token is).
+- Logs: no secret logged by new code. Dev-only: Epic's sendEmail prints the email (so the OTP) when RESEND_API_KEY is unset; pre-existing pattern, unreachable in production.
+- AuthVerification erasure: erase.server.ts in deleteAccount's transaction, exact match after a LIKE pre-filter; flow tests for email code, reset, 2FA cookie, passkey challenge, plus a lookalike-address test. Low: candidate query loads every `2fa-*` row; fine at this scale.
+- Migration: 5 CREATE TABLE + 9 `ALTER TABLE "User" ADD COLUMN`; no DROP, no `new_User` redefinition, no data copied.
+- Pins exact; lockfile bumps all forced by new packages' ranges (set-cookie-parser 3.0.1 -> 3.2.2 by better-call ^3.1.2; @simplewebauthn/server 13.3.3 by @better-auth/passkey ^13.3.1, which Epic's live passkey login also uses — minor, within its existing ^13.2.2 range). parseString's nullable return is handled in the four test utils.
+- Secret config: BETTER_AUTH_SECRET min 32, optional, no fallback to SESSION_SECRET; APP_ORIGIN from config, never Host.
