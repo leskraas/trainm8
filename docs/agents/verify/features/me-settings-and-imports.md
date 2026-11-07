@@ -4,7 +4,7 @@ The _Meg_ tab: the athlete's profile and levels, account settings, connections
 to Strava and Intervals.icu, and file imports. Specs to copy from:
 `tests/e2e/settings-profile.test.ts`, `tests/e2e/imports.test.ts`,
 `tests/e2e/onboarding.test.ts`, `tests/e2e/2fa.test.ts`,
-`tests/e2e/passkey.test.ts`.
+`tests/e2e/passkey.test.ts`, `tests/e2e/meg-activities-edit.test.ts`.
 
 ## Sub-features
 
@@ -13,6 +13,11 @@ to Strava and Intervals.icu, and file imports. Specs to copy from:
   (_Passord_, then _Bytt passord_), profile photo (_Bytt profilbilde_), 2FA and
   passkeys.
 - Training settings and level: `/settings/training`, `/settings/level`.
+- The plan's activities at `/settings/level` (#587, ADR 0109): the start's chips
+  pressed with the plan's activities, _Vis ny uke_ for the server's preview of
+  the first week the edit lays, _Bekreft_ to lay it. A plan toward an Event,
+  measured in km or TSS, or lifting only shows the activities read-only with
+  why; no plan shows no editor.
 - Integrations at `/settings/integrations`: connect Strava or Intervals.icu
   (mocked under `MOCKS=true`) and sync.
 - File import at `/imports/upload` (FIT, TCX; fixtures in `tests/fixtures/fit`,
@@ -40,6 +45,12 @@ await page
 ```
 
 ## Gotchas
+
+- The activities editor needs a plan the start made (hours, no Event). Make one
+  with
+  `createFirstRunPlan(userId, { level, discipline, otherSports, hours, days, family, strength })`
+  before opening `/settings/level`; the chips are `button`s with `aria-pressed`,
+  under `[data-meg-activities]`, and the preview is `[data-activities-preview]`.
 
 - Changing kody's username or password breaks the next login with
   `kody`/`kodylovesyou`. Do it last, or on a user you signed up through
