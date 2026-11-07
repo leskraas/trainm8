@@ -21,7 +21,9 @@ import { getUserImgSrc } from './misc.tsx'
  *
  * **Secrets stay out.** Provider tokens, the password hash and login-session
  * ids (the cookie value) are credentials, not information about the athlete,
- * and are never written to a file that may be shared onwards.
+ * and are never written to a file that may be shared onwards. Better Auth's
+ * tables are read through a `select` allow-list for the same reason, and its
+ * secret-only tables are in {@link USER_DATA_EXPORT_EXCLUSIONS}.
  *
  * When a new user-owned table lands (consent records, `McpAuditEvent`, agent
  * transcripts), add it here.
@@ -31,6 +33,10 @@ import { getUserImgSrc } from './misc.tsx'
 export const USER_DATA_EXPORT_EXCLUSIONS = {
 	Password:
 		'Only a bcrypt hash of the password: a credential, not information about the athlete.',
+	TwoFactor:
+		'The TOTP secret and backup codes: credentials. That two-factor is on is exported as `User.twoFactorEnabled`.',
+	AuthVerification:
+		'One-time codes and tokens that expire within the hour: credentials, not information about the athlete.',
 } as const satisfies Record<string, string>
 
 type Row = Record<string, unknown>
@@ -95,6 +101,42 @@ export async function exportUserData({
 		Session: await prisma.session.findMany({ where: own, omit: { id: true } }),
 		Connection: await prisma.connection.findMany({ where: own }),
 		Passkey: await prisma.passkey.findMany({ where: own }),
+		// Better Auth's Sign-in Methods and Sign-in Sessions (ADR 0113 §6), each
+		// through an allow-list, so a secret column a later version adds stays
+		// out by default. A `credential` row means a password is set; `github`
+		// means GitHub is linked. Never the password hash, the provider tokens,
+		// the session token or the passkey's key.
+		AuthAccount: await prisma.authAccount.findMany({
+			where: own,
+			select: {
+				id: true,
+				providerId: true,
+				accountId: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		}),
+		AuthPasskey: await prisma.authPasskey.findMany({
+			where: own,
+			select: {
+				id: true,
+				name: true,
+				deviceType: true,
+				backedUp: true,
+				createdAt: true,
+			},
+		}),
+		AuthSession: await prisma.authSession.findMany({
+			where: own,
+			select: {
+				id: true,
+				createdAt: true,
+				updatedAt: true,
+				expiresAt: true,
+				ipAddress: true,
+				userAgent: true,
+			},
+		}),
 
 		AthleteProfile: await prisma.athleteProfile.findMany({ where: own }),
 		DisciplineProfile: await prisma.disciplineProfile.findMany({
