@@ -10,6 +10,7 @@ import {
 	updateActivityImportSnapshot,
 } from './activity-import.server.ts'
 import { readEventResultView } from './event-result.server.ts'
+import { answerImportQuestion, undoImportAnswer } from './import-link.server.ts'
 import {
 	cancelEvent,
 	createEvent,
@@ -465,5 +466,34 @@ test('a distance that is no Race Anchor is stored at exact metres and resolves n
 	expect((await getDisciplineThresholds(userId)).run?.raceAnchorPaces).toEqual(
 		{},
 	)
+	expect((await planned(ahead)).tss).toBeNull()
+})
+
+test("taking back the answer that linked the Recording to the result session (Angre) removes the Event's result", async () => {
+	const userId = await athlete()
+	const ahead = await racePaceSession(userId)
+	const event = await race(userId)
+	// No planned session yet, so auto-save stands the Recording up on its own;
+	// the athlete then answers "this was my planned race" by hand.
+	const imported = await importRun(userId)
+	await autoSaveImport(userId, imported.id, 'UTC')
+	const sessionId = await runSession(userId, { at: RACE_START })
+	const answered = await answerImportQuestion(
+		userId,
+		imported.id,
+		{ kind: 'link', sessionId },
+		NOW,
+	)
+	if (!answered.ok || !answered.undo) throw new Error('expected an Angre')
+	await setEventResult(userId, event.id, sessionId)
+	expect(await eventRow(event.id)).toMatchObject({
+		activityImportId: imported.id,
+	})
+	expect((await planned(ahead)).tss).not.toBeNull()
+
+	const undone = await undoImportAnswer(userId, answered.undo)
+
+	expect(undone).toMatchObject({ ok: true, undone: true })
+	expect(await eventRow(event.id)).toBeNull()
 	expect((await planned(ahead)).tss).toBeNull()
 })
