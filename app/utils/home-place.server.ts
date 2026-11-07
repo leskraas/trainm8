@@ -1,5 +1,5 @@
 /**
- * The **Home Place**'s storage (ADR 0112 §2): read, choose, remove. Choosing
+ * The **Home Place**'s storage (ADR 0113 §2): read, choose, remove. Choosing
  * upserts the one `HomePlace` row, rounded to 2 decimals here whatever the
  * form sent, and refuses a point outside the area Kartverket covers; _Fjern_
  * is one delete. Nothing here sees the search text that found the place.

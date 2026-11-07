@@ -915,7 +915,7 @@ export const MEG_ZOD_ISSUE_LABELS = {
 } as const
 
 /**
- * _Hjemsted_ in Meg (#433, ADR 0112 §2): the athlete's **Home Place**, found
+ * _Hjemsted_ in Meg (#433, ADR 0113 §2): the athlete's **Home Place**, found
  * by name in Kartverket's place names and used only for the weather on I dag.
  */
 export const HOME_PLACE_LABELS = {

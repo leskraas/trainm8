@@ -39,7 +39,7 @@ const mockIntervalsIcu =
 const mockPolar =
 	process.env.NODE_ENV === 'test' || process.env.MOCK_POLAR === 'true'
 
-// MET Norway's forecast and Kartverket's place search (ADR 0112): mocked in
+// MET Norway's forecast and Kartverket's place search (ADR 0113): mocked in
 // tests, opt-in mock in dev (MOCK_WEATHER=true); otherwise the real, keyless
 // services answer.
 const mockWeather =

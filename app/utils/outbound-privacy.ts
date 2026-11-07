@@ -1,6 +1,6 @@
 /**
  * What error and performance monitoring may not keep about the open lookups
- * the server calls (ADR 0112 §2): Kartverket's query is the athlete's search
+ * the server calls (ADR 0113 §2): Kartverket's query is the athlete's search
  * text, which is never logged, and MET's is the rounded Home Place. The
  * monitoring's own fetch instrumentation records each outgoing URL with its
  * query (breadcrumbs and `http.client` spans), so the query is cut from both

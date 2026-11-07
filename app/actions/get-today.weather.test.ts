@@ -18,7 +18,7 @@ import {
 } from '#tests/mocks/met-norway.ts'
 import { runAction } from './run.server.ts'
 
-// get_today's weather (#433, ADR 0112 §5): today's Day Forecast as one
+// get_today's weather (#433, ADR 0113 §5): today's Day Forecast as one
 // Reading, the same the today card shows, with MET Norway credited.
 
 const HOUR = 60 * 60 * 1000

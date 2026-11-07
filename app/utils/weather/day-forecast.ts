@@ -1,5 +1,5 @@
 /**
- * A **Day Forecast** as the screen and the server share it (ADR 0112 §3), and
+ * A **Day Forecast** as the screen and the server share it (ADR 0113 §3), and
  * the glyph each symbol is drawn with. A runtime leaf: the `/` loader sends
  * these to I dag, and `__calm-today.ts` reads them there.
  */

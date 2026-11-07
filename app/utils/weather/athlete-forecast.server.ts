@@ -1,5 +1,5 @@
 /**
- * An athlete's **Day Forecasts** (ADR 0112 §3): their **Home Place**, each
+ * An athlete's **Day Forecasts** (ADR 0113 §3): their **Home Place**, each
  * day's **Forecast Hour** from their own sessions and training time, and the
  * weather module's answer for it. The one read both I dag's `/` loader and
  * `get_today` call, so the today card and an Assistant always see the same

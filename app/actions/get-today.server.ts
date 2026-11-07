@@ -39,7 +39,7 @@ import { toWeekTrack, WeekTrackSchema } from './week-tracks.server.ts'
  * history, so its binding set is every Recording's platform (ADR 0098 §1).
  *
  * `weather` is today's **Day Forecast** at the athlete's **Home Place**, the
- * one the today card shows (ADR 0112 §5). Additive, so still revision 1.
+ * one the today card shows (ADR 0113 §5). Additive, so still revision 1.
  */
 export const getTodayAction = defineAction({
 	name: 'get_today',

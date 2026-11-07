@@ -552,7 +552,7 @@ test('Gjort on a session reaches back a week at most, as the full view offers it
 	expect(view.week.days[0]!.sessions[0]!.markDone).not.toBeNull()
 })
 
-// ── the weather (#433, ADR 0112 §6) ──────────────────────────────────────
+// ── the weather (#433, ADR 0113 §6) ──────────────────────────────────────
 
 function forecast(
 	at: string,

@@ -14,7 +14,7 @@ The athlete's landing page and the whole season as one bi-directional stream
   (`[data-timeline-today]`, `[data-today-pill]`), and the writing line.
 - Marking a session done (_Merk <tittel> som gjort_) and answering an import's
   question (_Hva var dette?_).
-- The weather (#433, ADR 0112): with a Home Place set (_Meg_ › _Hjemsted_, see
+- The weather (#433, ADR 0113): with a Home Place set (_Meg_ › _Hjemsted_, see
   `me-settings-and-imports.md`), one weather line on the today card
   (`[data-calm-weather]`), a weather column on this week's rows from tomorrow on
   (`[data-calm-day-weather]`) and _Værvarsel fra MET Norway_ under the week.

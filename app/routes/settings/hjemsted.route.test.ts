@@ -10,7 +10,7 @@ import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader as meLoader } from '../me.tsx'
 import { action, loader } from './hjemsted.tsx'
 
-// _Hjemsted_ in Meg (#433, ADR 0112 §2): search, choose, change and remove
+// _Hjemsted_ in Meg (#433, ADR 0113 §2): search, choose, change and remove
 // the Home Place, through the route's own actions.
 
 const ARGS = {

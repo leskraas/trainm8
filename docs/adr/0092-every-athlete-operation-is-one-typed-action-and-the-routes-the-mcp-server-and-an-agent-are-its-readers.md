@@ -1,7 +1,7 @@
 # Every athlete operation is one typed action, and the routes, the MCP server and an agent are its readers
 
 > **Amended by
-> [ADR 0112](./0112-weather-on-i-dag-comes-from-met-norway-for-a-home-place-fetched-and-cached-on-the-server.md)
+> [ADR 0113](./0113-weather-on-i-dag-comes-from-met-norway-for-a-home-place-fetched-and-cached-on-the-server.md)
 > (#433)** in §5 and §6: a credit may be MET Norway's, and a Reading may hold
 > one observation whose figures stand or fall together (a **Day Forecast**).
 

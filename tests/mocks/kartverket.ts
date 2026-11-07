@@ -1,7 +1,7 @@
 import { http, HttpResponse, passthrough, type HttpHandler } from 'msw'
 
 /**
- * Kartverket's Stedsnavn API (ADR 0112), mocked: a handful of places shaped
+ * Kartverket's Stedsnavn API (ADR 0113), mocked: a handful of places shaped
  * like Kartverket's own answers, matched on the start of the name, case
  * blind. Two places named Lillehammer (a town and a cultural site in Marker)
  * so a test can tell same-named places apart, a municipality whose name is

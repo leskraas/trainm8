@@ -69,7 +69,7 @@ test('the notice does not promise more deletion than account deletion does', () 
 	expect(screen.queryByText(/visningsnavnet du delte den med/)).toBeNull()
 })
 
-// The Home Place (#433, ADR 0112 §7, ADR 0105 §3): named as stored data, with
+// The Home Place (#433, ADR 0113 §7, ADR 0105 §3): named as stored data, with
 // what MET Norway and Kartverket each get, what neither gets, and how long it
 // is kept.
 test('the notice names the Home Place, its two recipients and its retention', () => {

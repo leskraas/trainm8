@@ -1128,7 +1128,7 @@ not exist. _Avoid_: Blocked, redacted, licence error, missing
 _unavailable_ with its reason and the athlete's words for it, never a zero, a
 blank or an omitted field (ADR 0092). The value is one number, one band, or one
 observation whose figures stand or fall together, such as a **Day Forecast**
-(ADR 0112). An **Unavailable Metric** is a Reading that is unavailable;
+(ADR 0113). An **Unavailable Metric** is a Reading that is unavailable;
 `source-terms` is one of its reasons. Distinct from a **Workout Reading**, which
 is a whole account of one session whose numbers are Readings. _Avoid_: Value,
 data point, nullable number, metric (alone)
@@ -1641,7 +1641,7 @@ discipline filter. _Avoid_: Local filter state, tab state
 day's first session not yet done (still scheduled; a skipped or missed one does
 not count), else the athlete's default training time (**Training
 Availability**), else 07:00; today, once that hour has passed, the coming hour.
-One rule for every surface that shows weather (ADR 0112). _Avoid_: Weather time,
+One rule for every surface that shows weather (ADR 0113). _Avoid_: Weather time,
 training hour
 
 **Day Forecast**: The weather forecast for one day at its **Forecast Hour** at
@@ -1651,7 +1651,7 @@ figures stand or fall together. It is a forecast, never a measurement and never
 a **Training Metric**: on I dag a day with no forecast (past, beyond the
 forecast's reach, no Home Place, the source silent) shows nothing at all, not an
 **Unavailable Metric**; to an **Assistant** it is a **Reading** with its reason
-(ADR 0112). _Avoid_: Weather (alone, as a code term), conditions, forecast
+(ADR 0113). _Avoid_: Weather (alone, as a code term), conditions, forecast
 metric
 
 ### People and scope
@@ -1682,7 +1682,7 @@ train from, kept as its name, where it lies (municipality and county) and a
 point rounded to about a kilometre (UI word: _Hjemsted_, set in _Meg_). It is
 stated by the athlete, never inferred from recordings or the browser, and is
 used only to fetch the **Day Forecast**. At most one; none means no weather
-anywhere (ADR 0112). _Avoid_: Location, position, address, home (alone)
+anywhere (ADR 0113). _Avoid_: Location, position, address, home (alone)
 
 ### App structure
 

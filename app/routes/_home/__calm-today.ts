@@ -20,7 +20,7 @@
  * - **Before the Plan Start Week** the card says when the plan starts and
  *   names its first session; with **no plan** it invites the athlete to the
  *   start.
- * - **The weather** (#433, ADR 0112 §6): with a **Home Place**, the card
+ * - **The weather** (#433, ADR 0113 §6): with a **Home Place**, the card
  *   carries today's **Day Forecast** and each row from tomorrow on its day's;
  *   today's row, past days and days without a forecast carry nothing. With no
  *   Home Place nothing changes at all.
@@ -197,7 +197,7 @@ export function buildCalmToday({
 	/** What an Effort Word reads an absolute pace, watts or bpm by (#617). */
 	thresholds?: DisciplineThresholdMap
 	/**
-	 * The Day Forecasts the `/` loader read, by day (ADR 0112 §6): only the
+	 * The Day Forecasts the `/` loader read, by day (ADR 0113 §6): only the
 	 * days that have one. Null or absent with no Home Place.
 	 */
 	weather?: Readonly<Record<string, DayForecast>> | null
