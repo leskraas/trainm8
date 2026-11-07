@@ -25,6 +25,35 @@ async function createAthlete() {
 	})
 }
 
+/** A Program day on `workoutId`, an athlete-authored Workout. */
+async function createProgramDay(workoutId: string) {
+	const program = await prisma.strengthProgram.create({
+		select: { days: { select: { id: true } } },
+		data: {
+			id: `prog_${workoutId}`,
+			key: `key_${workoutId}`,
+			variantId: 'basic',
+			name: 'Program',
+			cursorKind: 'alternatingDays',
+			initialCursor: JSON.stringify({
+				kind: 'alternatingDays',
+				nextDayId: 'A',
+			}),
+			days: {
+				create: {
+					dayId: 'A',
+					orderIndex: 0,
+					workoutId,
+					workoutAuthorship: 'athlete',
+				},
+			},
+		},
+	})
+	const day = program.days[0]
+	if (!day) throw new Error('no Program day')
+	return day
+}
+
 async function createWorkout(data: {
 	ownerId?: string
 	authorship?: string
@@ -330,6 +359,13 @@ async function createErasureWorld() {
 		title: 'held by a slot',
 	})
 	const slot = await createSlot(reader.id, heldBySlot.id, 'fixed')
+	// A Program day may point at an athlete-authored Workout: the composite key
+	// carries `workoutAuthorship`, and its CHECK allows 'athlete'.
+	const heldByProgramDay = await createWorkout({
+		ownerId: author.id,
+		title: 'held by a Program day',
+	})
+	const programDay = await createProgramDay(heldByProgramDay.id)
 
 	return {
 		author,
@@ -342,11 +378,13 @@ async function createErasureWorld() {
 		fork,
 		adopted,
 		fromRoot,
-		held: [heldBySession.id, heldBySlot.id],
+		held: [heldBySession.id, heldBySlot.id, heldByProgramDay.id],
 		heldBySession,
 		heldBySlot,
+		heldByProgramDay,
 		session,
 		slot,
+		programDay,
 	}
 }
 
@@ -370,6 +408,7 @@ async function expectErased(world: ErasureWorld) {
 	).toEqual([
 		{ ownerId: null, visibility: 'private' },
 		{ ownerId: null, visibility: 'private' },
+		{ ownerId: null, visibility: 'private' },
 	])
 	expect(
 		await prisma.attribution.count({
@@ -381,6 +420,13 @@ async function expectErased(world: ErasureWorld) {
 			where: { workoutId: { in: world.held }, retiredAt: null },
 		}),
 	).toBe(0)
+	// Retired, not deleted: the published one's entry is still there.
+	expect(
+		await prisma.catalogueEntry.findFirst({
+			where: { workoutId: world.heldBySession.id },
+			select: { retiredAt: true },
+		}),
+	).toEqual({ retiredAt: expect.any(Date) })
 	// …and the reader's training on them is still there, still on them.
 	expect(
 		await prisma.workoutSession.findUniqueOrThrow({
@@ -394,6 +440,12 @@ async function expectErased(world: ErasureWorld) {
 			select: { workoutId: true },
 		}),
 	).toEqual({ workoutId: world.heldBySlot.id })
+	expect(
+		await prisma.strengthProgramDay.findUniqueOrThrow({
+			where: { id: world.programDay.id },
+			select: { workoutId: true },
+		}),
+	).toEqual({ workoutId: world.heldByProgramDay.id })
 
 	// A fork of an erased fork of a cited Stock Workout keeps its Citation; a
 	// fork with no surviving ancestor keeps nothing, and still opens.
@@ -464,7 +516,7 @@ test('deleting an account applies Account Erasure to everything the athlete wrot
 
 	const erasure = await deleteAccount(world.author.id)
 
-	expect(erasure).toEqual({ erased: 4, keptUnattributed: 2, spliced: 2 })
+	expect(erasure).toEqual({ erased: 4, keptUnattributed: 3, spliced: 2 })
 	expect(
 		await prisma.user.findUnique({ where: { id: world.author.id } }),
 	).toBeNull()
@@ -483,7 +535,7 @@ test('the purge applies the same Account Erasure to Workouts orphaned before #64
 
 	const erasure = await prisma.$transaction((tx) => eraseOrphanedWorkouts(tx))
 
-	expect(erasure).toEqual({ erased: 4, keptUnattributed: 2, spliced: 2 })
+	expect(erasure).toEqual({ erased: 4, keptUnattributed: 3, spliced: 2 })
 	await expectErased(world)
 	const catalogueAfter = await Promise.all(
 		(['stock', 'community'] as const).map((tier) =>
@@ -515,7 +567,7 @@ test('a second purge changes nothing: a row kept unattributed stays kept', async
 
 	const again = await prisma.$transaction((tx) => eraseOrphanedWorkouts(tx))
 
-	expect(again).toEqual({ erased: 0, keptUnattributed: 2, spliced: 0 })
+	expect(again).toEqual({ erased: 0, keptUnattributed: 3, spliced: 0 })
 	expect(await snapshotWorkouts()).toEqual(before)
 	await expectErased(world)
 })
