@@ -427,8 +427,9 @@ export const ACTIVITIES_EDIT_LABELS = {
 		`${track}: ${nbJoin(days)}`,
 	overridesTitle: 'Timer du har satt selv på en uke, fjernes',
 	/** `uke 47 (16. november)`: one cleared week, never split across lines. */
+	/** One cleared week, held on one line (non-breaking spaces). */
 	overrideWeek: (isoWeek: number, monday: string) =>
-		`uke ${isoWeek} (${monday})`,
+		`uke\u00a0${isoWeek}\u00a0(${monday.replace(/ /g, '\u00a0')})`,
 	confirm: 'Bekreft',
 	confirmNote: 'Ukene du har trent, blir som før.',
 	stale:
