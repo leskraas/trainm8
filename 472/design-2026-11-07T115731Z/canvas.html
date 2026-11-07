@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Generate preview figures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;650;700&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   Canvas chrome (not under review). Neutral, system font.
+   ------------------------------------------------------------------ */
+:root {
+  --c-bg: #f6f7f7; --c-fg: #16191a; --c-muted: #5d676b; --c-line: #dfe3e4; --c-panel: #ffffff;
+  --c-chip: #eceff0; --c-accent: #0d7a68;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --c-bg: #111415; --c-fg: #eef1f1; --c-muted: #a3adb0; --c-line: #2a3133; --c-panel: #191d1f; --c-chip: #232a2c; --c-accent: #35b89c; }
+}
+:root[data-theme="dark"] { --c-bg: #111415; --c-fg: #eef1f1; --c-muted: #a3adb0; --c-line: #2a3133; --c-panel: #191d1f; --c-chip: #232a2c; --c-accent: #35b89c; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; background: var(--c-bg); color: var(--c-fg); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.cv { max-width: 1180px; margin: 0 auto; padding: 76px 16px 120px; }
+.cv h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+.cv h2 { font-size: 18px; margin: 48px 0 8px; padding-top: 16px; border-top: 1px solid var(--c-line); }
+.cv h3 { font-size: 15px; margin: 20px 0 8px; }
+.cv p { margin: 6px 0; max-width: 72ch; }
+.cv .sub { color: var(--c-muted); font-size: 13px; }
+.strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
+.chip { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; background: var(--c-chip); font-size: 13px; white-space: nowrap; }
+.chip.lead { background: var(--c-fg); color: var(--c-bg); font-weight: 600; }
+.status { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--c-chip); }
+.status.current { background: color-mix(in oklab, var(--c-accent) 18%, transparent); color: var(--c-accent); }
+table.cmp { border-collapse: collapse; width: 100%; max-width: 820px; font-size: 14px; }
+table.cmp th, table.cmp td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--c-line); }
+table.cmp th { color: var(--c-muted); font-weight: 500; width: 150px; }
+.frames { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.frame > .cap { font-size: 12px; color: var(--c-muted); }
+.phone { width: 390px; max-width: 100%; height: 844px; overflow: auto; border-radius: 28px; border: 1px solid var(--c-line); box-shadow: 0 10px 30px rgba(0,0,0,.08); overscroll-behavior: contain; }
+.wide { width: 100%; max-width: 1180px; height: 760px; overflow: auto; border-radius: 14px; border: 1px solid var(--c-line); }
+.before-after { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; max-width: 820px; }
+.ba-card { border-radius: 18px; padding: 16px; }
+details.appx { margin-top: 20px; max-width: 820px; }
+details.appx summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.cv ul.plain { padding-left: 18px; margin: 6px 0; max-width: 80ch; }
+.cv ul.plain li { margin: 4px 0; }
+.cv code { font-size: 12.5px; background: var(--c-chip); padding: 1px 5px; border-radius: 5px; }
+.themebar { display: flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 13px; color: var(--c-muted); }
+.themebar button { font: inherit; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--c-line); background: var(--c-panel); color: var(--c-fg); cursor: pointer; touch-action: manipulation; }
+.themebar button[aria-pressed="true"] { background: var(--c-fg); color: var(--c-bg); border-color: var(--c-fg); }
+@media (max-width: 440px) { .phone { width: 100%; } }
+
+/* break-ui data toggle: plain chrome, bottom-center */
+.data-toggle { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 2147483646; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: #e7e7e7; box-shadow: 0 4px 14px rgba(0,0,0,.12); font: 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.data-toggle button { height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: #333; font: inherit; cursor: pointer; white-space: nowrap; touch-action: manipulation; user-select: none; }
+.data-toggle button[aria-pressed="true"] { background: #fff; color: #000; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+
+/* ------------------------------------------------------------------
+   The Picker — verbatim from PICKER.md. One variant (unattended run).
+   data-position="top": the break-ui toggle holds bottom-center.
+   ------------------------------------------------------------------ */
+.proto-picker {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.82);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 8px 24px rgba(0, 0, 0, 0.24),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.proto-picker-highlight {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  will-change: transform;
+}
+.proto-picker[data-ready] .proto-picker-highlight {
+  transition:
+    transform 250ms cubic-bezier(0.23, 1, 0.32, 1),
+    width 250ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .proto-picker[data-ready] .proto-picker-highlight { transition: none; }
+}
+.proto-picker-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font: inherit;
+  cursor: pointer;
+  transition: color 150ms ease-out;
+}
+.proto-picker-item:hover { color: rgba(255, 255, 255, 0.85); }
+.proto-picker-item:active { transform: scale(0.97); }
+.proto-picker-item:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.4); outline-offset: 2px; }
+.proto-picker-item[data-active] { color: #fff; }
+.proto-picker-divider { width: 1px; height: 16px; margin: 0 4px; background: rgba(255, 255, 255, 0.12); }
+.proto-picker-replay { padding: 0 10px; font-size: 14px; }
+.proto-picker[data-position="top"] { bottom: auto; top: 24px; }
+
+/* ------------------------------------------------------------------
+   trainm8 tokens (app/styles/tailwind.css), light :root and .dark
+   ------------------------------------------------------------------ */
+.tm {
+  --background: oklch(0.975 0.003 197);
+  --foreground: oklch(0.148 0.004 228.8);
+  --card: oklch(1 0 0);
+  --primary: #0d7a68;
+  --primary-foreground: #ffffff;
+  --secondary: oklch(0.955 0.004 197);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.948 0.004 197);
+  --muted-foreground: oklch(0.52 0.016 213.5);
+  --border: oklch(0.915 0.005 214.3);
+  --status-under: oklch(0.55 0.13 65);
+  --track-run-ink: oklch(0.54 0.15 32);
+  --track-bike-ink: oklch(0.53 0.11 78);
+  --track-swim-ink: oklch(0.52 0.09 225);
+  --ring-card: transparent;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Public Sans', 'Public Sans Variable', system-ui, sans-serif;
+  font-size: 16px; line-height: 24px; letter-spacing: -0.004em;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+  container-type: inline-size;
+}
+.tm.dark {
+  --background: oklch(0.148 0.004 228.8);
+  --foreground: oklch(0.987 0.002 197.1);
+  --card: oklch(0.205 0.007 223.9);
+  --primary: #35b89c;
+  --primary-foreground: #0c1512;
+  --secondary: oklch(0.275 0.011 216.9);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.255 0.01 216.9);
+  --muted-foreground: oklch(0.723 0.014 214.4);
+  --border: oklch(1 0 0 / 10%);
+  --status-under: oklch(0.82 0.12 65);
+  --track-run-ink: oklch(0.74 0.13 32);
+  --track-bike-ink: oklch(0.8 0.12 78);
+  --track-swim-ink: oklch(0.76 0.09 225);
+  --ring-card: oklch(0.987 0.002 197.1 / 10%);
+  color-scheme: dark;
+}
+.tm *, .tm *::before, .tm *::after { box-sizing: border-box; }
+.tm p, .tm h1, .tm h2, .tm h3, .tm ul { margin: 0; padding: 0; }
+.tm ul { list-style: none; }
+.tm .container { max-width: 672px; margin: 0 auto; padding: 24px 16px; }
+@container (min-width: 768px) { .tm .container { padding: 32px 32px; } }
+.tm .t-title { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.012em; }
+.tm .t-heading { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.012em; }
+.tm .t-callout { font-size: 15px; line-height: 21px; font-weight: 500; letter-spacing: -0.004em; }
+.tm .t-footnote { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: 0.002em; }
+.tm .t-caption { font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.01em; }
+.tm .muted { color: var(--muted-foreground); }
+.tm .num { font-variant-numeric: tabular-nums; }
+.tm .semi { font-weight: 600; }
+.tm .wrapany { overflow-wrap: anywhere; }
+.tm .ph { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.tm .ph .back { width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; color: var(--foreground); position: relative; flex-shrink: 0; }
+.tm .ph .back::after { content: ''; position: absolute; inset: -6px; }
+.tm .ph .t-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm .intro { margin-bottom: 24px; display: grid; gap: 4px; }
+.tm .well { background: color-mix(in oklab, var(--muted) 60%, transparent); border-radius: 15.6px; padding: 16px; margin-bottom: 24px; display: grid; gap: 8px; }
+@container (min-width: 768px) { .tm .well { padding: 24px; } }
+.tm .stub { background: var(--card); border-radius: 15.6px; padding: 16px; margin-bottom: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / .06), 0 2px 4px -2px rgb(0 0 0 / .06), 0 0 0 1px var(--ring-card); display: flex; justify-content: space-between; gap: 12px; align-items: center; min-height: 44px; }
+.tm .season-head { display: grid; gap: 4px; margin: 32px 0 12px; }
+.tm .weeks { display: grid; gap: 12px; }
+.tm .card { --sp: 16px; background: var(--card); border-radius: 15.6px; padding: var(--sp) 0; display: grid; gap: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / .06), 0 2px 4px -2px rgb(0 0 0 / .06), 0 0 0 1px var(--ring-card); }
+@container (min-width: 768px) { .tm .card { --sp: 20px; } }
+.tm .card > * { padding: 0 var(--sp); }
+.tm .whead { display: grid; gap: 4px; }
+.tm .wtitle { display: flex; align-items: baseline; gap: 8px; }
+.tm .wtitle h3 { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 15px; line-height: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tm .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 500; background: var(--secondary); color: var(--secondary-foreground); white-space: nowrap; }
+.tm .badge.primary { background: var(--primary); color: var(--primary-foreground); }
+.tm .rows > li { padding: 12px 0; border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent); display: grid; gap: 2px; }
+.tm .rows > li:first-child { padding-top: 4px; }
+.tm .rows > li:last-child { padding-bottom: 0; border-bottom: 0; }
+.tm .dayline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+.tm .dayline b { color: var(--foreground); font-weight: 600; }
+.tm .more { min-height: 44px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; }
+.tm .btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 18px; border-radius: 15.6px; border: 0; font: 500 14px/1 inherit; font-family: inherit; background: var(--primary); color: var(--primary-foreground); width: 100%; cursor: pointer; transition: transform 160ms var(--ease-out); touch-action: manipulation; user-select: none; }
+.tm .btn:active { transform: scale(0.97); }
+@container (min-width: 640px) { .tm .btn { width: auto; } }
+.tm .approve { margin-top: 32px; display: grid; gap: 12px; justify-items: start; }
+.tm .approve .btn { justify-self: stretch; }
+@container (min-width: 640px) { .tm .approve .btn { justify-self: start; } }
+
+/* ---- The variant: "Two figures, one line" ---------------------- */
+/* One row per Training Track. Names share a column so the figures line up down
+   the card; each figure stays whole with its label (nowrap), and the track's
+   figures wrap as a unit under its own name, never into the next track's row. */
+.tm .tracks { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 10px; row-gap: 2px; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.tm .tracks > li { display: contents; }
+.tm .tname { font-weight: 600; overflow-wrap: anywhere; }
+.tm .tname.run { color: var(--track-run-ink); }
+.tm .tname.bike { color: var(--track-bike-ink); }
+.tm .tname.swim { color: var(--track-swim-ink); }
+.tm .tfig { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; min-width: 0; }
+.tm .tfig > span { white-space: nowrap; }
+.tm .lbl { color: var(--muted-foreground); }
+.tm .val { color: var(--foreground); font-weight: 500; }
+.tm .unm { color: var(--muted-foreground); }
+.tm .drift { color: var(--status-under); font-weight: 700; }
+/* Today's line, for the before/after */
+.tm .oldline { display: flex; flex-wrap: wrap; column-gap: 6px; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.tm .oldline > span { white-space: nowrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Solo mode (screenshots): only the page, at the real viewport */
+body.solo { background: transparent; }
+body.solo .cv, body.solo .proto-picker, body.solo .data-toggle { display: none; }
+body.solo #solo { display: block; }
+#solo { display: none; }
+</style>
+</head>
+<body>
+<div id="solo"></div>
+
+<div class="cv">
+  <h1>#472 · Week Target and Planned Volume on the generate preview</h1>
+  <p class="sub">Design · run 1 · unattended · Emil's prototype (standalone) · axis: how a week card states its two numbers per track</p>
+
+  <!-- ======================= 1. OVERVIEW ======================= -->
+  <section id="overview">
+    <div class="strip" aria-label="Verdict">
+      <span class="chip lead">Recommended: Two figures, one line (6 build changes)</span>
+      <span class="chip">run 1</span>
+      <span class="chip">1 variant</span>
+      <span class="chip">6 decisions</span>
+      <span class="chip">two-way doors</span>
+      <span class="chip">risk: ≠ rule and large text</span>
+    </div>
+
+    <h3>One picture: a week card before and after</h3>
+    <div class="before-after">
+      <div class="frame"><div class="cap">Today: target only</div><div class="tm ba-card" id="ba-before"></div></div>
+      <div class="frame"><div class="cap">Two figures, one line</div><div class="tm ba-card" id="ba-after"></div></div>
+    </div>
+    <p class="sub">Uke 46 of a triathlon season. Today the card says «Løping 32 km». After, it also shows what the placed sessions add up to: 24 km plus one run with no km figure, the same reading <i>Sesong</i> shows after approval.</p>
+
+    <h3>Comparison</h3>
+    <table class="cmp">
+      <thead><tr><th></th><th>Two figures, one line</th></tr></thead>
+      <tbody>
+        <tr><th>Axis position</th><td>One text row per track, names in a column, <code>mål · planlagt</code> both with units, <code>≠</code> at the end. No meter.</td></tr>
+        <tr><th>Gain</th><td>Uses <i>Sesong</i>'s words and <code>≠</code> rule, so the athlete reads the same week the same way before and after the yes. Figures line up down the card and across the 4 open weeks.</td></tr>
+        <tr><th>Cost</th><td>The card grows by one line per track (a triathlon week goes from 1 line to 3). The gap is read from digits and <code>≠</code> only; no picture of its size.</td></tr>
+        <tr><th>Criteria held</th><td>9 of 12 hold; 2, 6, 12 partly (critic). <code>≠</code> is gated per track, Sesong gates it per week; the row overflows at 200 % text.</td></tr>
+        <tr><th>Worst case</th><td>Holds at 320, 390 and 1440. Breaks at 390 with 200 % text: rows overflow the card by ~66 px and clip the planned figure. <code>≠</code> can wrap alone.</td></tr>
+        <tr><th>Build cost</th><td>none given (one variant)</td></tr>
+        <tr><th>Status</th><td><span class="status current">Chosen</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Decisions</h3>
+    <ul class="plain">
+      <li><b>How each track's numbers sit on the card:</b> one row per track, the track's name in its ink and a shared name column, replacing today's single comma-joined line of targets.</li>
+      <li><b>Unit on both figures:</b> <code>mål 32 km · planlagt 24 km</code>, not <i>Sesong</i>'s <code>mål 32 km · planlagt 24</code>, because a preview row wraps more often and a screen reader then hears each figure with its unit.</li>
+      <li><b>No meter in the preview:</b> text and <code>≠</code> only. Before approval nothing is done, so <i>Sesong</i>'s meter would only draw a dashed outline and a tick, on every track of every week.</li>
+      <li><b>The page sentence carries the <code>≠</code> legend:</b> one footnote under «Sesongen», saying that sessions are placed as published and what <code>≠</code> means. Not repeated on the cards.</li>
+      <li><b><code>≠</code> on a track with nothing placed, in a week with other sessions:</b> show it, by Sesong's week-level rule (<code>hasSessions</code> = the week has sessions). Uke 49's run reads <code>mål 26 km · planlagt 0 km ≠</code>, as Sesong will after approval. (Critic; replaces the per-track rule drawn.)</li>
+      <li><b>Large text and wrapping:</b> in a narrow container the name stacks above the figures; <code>nowrap</code> only on value + unit; <code>≠</code> glued to the last figure; <code>·</code> hung on the target group; no comma before <code>+N uten</code>; <code>subgrid</code>, not <code>display: contents</code>. (Critic.)</li>
+      <li><b>Hours wording:</b> <code>+1 uten timer</code> (the existing <code>unmeasuredCountLabel</code>), not <code>uten t</code> as criterion 8 writes it. Criterion 3 asks for the existing wording.</li>
+    </ul>
+
+    <details class="appx">
+      <summary>Appendix: method, details, rejected directions</summary>
+      <h3>Critic's scoring</h3>
+      <table class="cmp">
+        <thead><tr><th>Criterion</th><th>Score · what was seen</th></tr></thead>
+        <tbody>
+          <tr><th>1 Two labelled figures</th><td>holds · <code>mål 32 km · planlagt 24 km</code>, never blended</td></tr>
+          <tr><th>2 Preview = Sesong</th><td>partly · figures match <code>total()</code>; the <code>≠</code> does not (see 6); unit on planned differs on purpose</td></tr>
+          <tr><th>3 Unmeasured apart</th><td>holds · <code>+1 uten km</code>; comma joiner to drop</td></tr>
+          <tr><th>4 None measured</th><td>holds · <code>planlagt 2 økter uten km</code>, singular right</td></tr>
+          <tr><th>5 Nothing placed = 0</th><td>holds · <code>planlagt 0 km</code>, unfilled lines unchanged</td></tr>
+          <tr><th>6 <code>≠</code> by Sesong's rule</th><td>partly · tolerance and unmeasured rule right; gated per track where Sesong gates per week (<code>presenter.ts:975</code>), so Uke 49's run loses its <code>≠</code></td></tr>
+          <tr><th>7 Null target</th><td>holds · <code>mål —</code>, planned kept</td></tr>
+          <tr><th>8 Hours, thresholds</th><td>holds with decision · <code>uten timer</code>; timing is build work</td></tr>
+          <tr><th>9 One sentence</th><td>holds · once under «Sesongen», with the <code>≠</code> legend</td></tr>
+          <tr><th>10 No rescaling</th><td>holds · nothing touched; test is build work</td></tr>
+          <tr><th>11 Regenerate server-side</th><td>holds · figures are part of the rebuilt card</td></tr>
+          <tr><th>12 390, wrap as unit, screen reader</th><td>partly · no overflow at 390; <code>≠</code> wraps alone at 320; <code>display: contents</code> risks WebKit list semantics; overflow at 200 % text</td></tr>
+        </tbody>
+      </table>
+      <p class="sub"><b>Designer's pick:</b> the same variant, so there is no disagreement. On its open question (meter-less row or Sesong's <code>TrackMeter</code>): the meter-less row. Before approval nothing is done, so the meter would draw only an outline and a tick, and its 72 px column is what would push the figures onto two lines at 390.</p>
+      <p class="sub">Craft, fit and the full worst case: <code>critic.md</code> in this folder. Needs a real phone: VoiceOver on the track list and <code>≠</code>; iOS Larger Text.</p>
+      <h3>Method</h3>
+      <ul class="plain">
+        <li>Tool: Emil's prototype (bredvid-design-engineering <code>prototype-ui</code>), standalone branch, in the tokens from <code>app/styles/tailwind.css</code> (light and dark) and the type steps from <code>docs/design/design-system.md</code>. Unattended run, so one variant.</li>
+        <li>The figures follow the same rules as <code>week-volumes.ts</code>: <code>drift()</code> with <code>DRIFT_TOLERANCE = 0.1</code>, where a week that is short but has unmeasured sessions gets no mark, plus <i>Sesong</i>'s <code>hasSessions</code> condition (<code>week-words.ts</code> <code>driftLabel</code>). The words follow <code>WEEK_FIGURE_LABELS</code>, <code>unmeasuredCountLabel</code>, <code>unmeasuredFigureLabel</code> and <code>DRIFT_MARK_LABEL</code>.</li>
+        <li>Today's card: <code>WeekCard</code> in <code>app/routes/training/plan.generate.$eventId.tsx</code> (targets line, ~555–570). The canonical line it follows: <code>TrackMeter</code> in <code>app/routes/_home/timeline/stream.tsx</code>.</li>
+        <li>New label (proposed): <code>PLAN_GENERATE_LABELS.placedAsPublished</code> = «Øktene legges inn slik kilden publiserte dem og skaleres aldri for å treffe ukemålet, så målet og summen av øktene kan være to ulike tall. ≠&nbsp;betyr at planlagt er mer enn 10&nbsp;% unna målet.»</li>
+        <li>Screen reader: every figure has its word as visible text (<code>mål</code>, <code>planlagt</code>). <code>≠</code> is <code>role="img"</code> with <code>DRIFT_MARK_LABEL</code>, as on <i>Sesong</i>. The list is named «Mål og planlagt per idrett».</li>
+        <li>Motion: none. The figures arrive with the page and change only on a rebuild, which is a navigation (Emil: a static readout does not animate).</li>
+        <li>The rows are unchanged: per-session size is #475's row treatment and out of scope.</li>
+        <li>A fully unfilled track reads <code>planlagt 0 km</code> with no <code>≠</code>. That is <i>Sesong</i>'s rule (a week with nothing written is unwritten, not underplanned), and the unfilled lines below say why.</li>
+      </ul>
+      <h3>Rejected directions</h3>
+      <ul class="plain">
+        <li><b><i>Sesong</i>'s meter row</b> (<code>TrackMeter</code> as is): the closest copy of what comes after approval, but with nothing done it draws only a dashed outline and a tick on every track of up to 30 weeks, and the 72 px meter column pushes the figures onto two lines at 390 px.</li>
+        <li><b>A gap figure</b> (<code>planlagt 24 km (−8)</code>): this blends the two numbers into a third one, which the criteria forbid.</li>
+        <li><b>Words only</b> («øktene summerer til mindre enn målet»): rejected by the spec. It hides a number the app already computes.</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ======================= 2. VARIANT BOARD ======================= -->
+  <section id="variant">
+    <h2>Two figures, one line <span class="status current">Chosen</span></h2>
+    <p>The whole generate preview with demo data from a realistic triathlon season. The four open weeks show each case: a short week whose shortfall could be the unmeasured run (no <code>≠</code>), an over-planned bike week (<code>≠</code>), a week where no run has a km figure, a track with no target (<code>mål —</code>), and an easy week with nothing placed (<code>planlagt 0 km</code>).</p>
+    <div class="themebar" role="group" aria-label="Theme">Theme
+      <button type="button" data-theme-btn="light" aria-pressed="true">Light</button>
+      <button type="button" data-theme-btn="dark" aria-pressed="false">Dark</button>
+    </div>
+    <div class="frames" style="margin-top:12px">
+      <div class="frame"><div class="cap">390 × 844</div><div class="phone" id="stage"></div></div>
+      <div class="frame" style="flex:1 1 600px"><div class="cap">Wide (container ≥ 768)</div><div class="wide" id="stage-wide"></div></div>
+    </div>
+  </section>
+
+  <!-- ======================= 3. WORST CASE ======================= -->
+  <section id="worst">
+    <h2>Worst case</h2>
+    <p>Switch the data with the toggle at the bottom. <b>Worst case</b>: a long event name, three tracks with large figures (142 km against 168,4 km, <code>+12 uten km</code>), every target an <b>Unavailable Metric</b>, a target of 0 with sessions placed, one unmeasured session (<code>1 økt uten km</code>), long session titles and 52 weeks. <b>Empty</b>: a week where every slot is unfilled. <b>One</b>: one session with no number. Check it at 320 and 390 px, and with the root font at 200 %.</p>
+    <div class="frames">
+      <div class="frame"><div class="cap">320 px</div><div class="phone" style="width:320px" id="wc-320"></div></div>
+      <div class="frame"><div class="cap">390 px</div><div class="phone" id="wc-390"></div></div>
+      <div class="frame"><div class="cap">390 px, text 200 %</div><div class="phone" id="wc-zoom"></div></div>
+    </div>
+    <h3>What held, what broke</h3>
+    <table class="cmp">
+      <thead><tr><th>Case</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><th>Long figures + <code>+12 uten km</code> + <code>≠</code> at 320</th><td>Held. The row wraps under its own name, each group stays whole, and no figure loses its label.</td></tr>
+        <tr><th>Every target <code>null</code></th><td>Held. Reads <code>mål —</code> and keeps the planned figure.</td></tr>
+        <tr><th>Target 0, sessions placed</th><td>Held. <code>mål 0 km · planlagt 6 km ≠</code>, the same as the <code>target === 0</code> branch of <code>drift()</code>.</td></tr>
+        <tr><th>1 unmeasured session</th><td>Held. <code>1 økt uten km</code> uses the singular.</td></tr>
+        <tr><th>Long event name in the header</th><td>Held, with a fix the build needs: the <code>PageHeader</code> title truncates, so the event line below wraps (<code>overflow-wrap:anywhere</code>, as today).</td></tr>
+        <tr><th>A wrapped row at 320</th><td>Ugly. When <code>planlagt</code> wraps, its line starts with <code>·</code>. Fix in the build: hang the separator at the end of the target group instead (<code>mål 142 km ·</code>), so a wrapped line starts with a label.</td></tr>
+        <tr><th>Text at 200 %</th><td><b>Broken</b> (critic). At a 195 CSS px viewport (390 px at 200 %) the track rows overflow the card by ~66 px and clip <code>planlagt 24…</code>; only <code>.tracks</code> overflows. The <code>zoom: 2</code> frame here hides it. Fix: stack the name above the figures in a narrow container; <code>nowrap</code> on value + unit only.</td></tr>
+        <tr><th><code>≠</code> on a wrapped row</th><td>Ugly (critic). <code>+11 uten timer ≠</code> at 320: <code>≠</code> can start a line alone. Fix: put it in the last figure's <code>nowrap</code> group.</td></tr>
+        <tr><th>Track with nothing placed, week with sessions</th><td>Wrong data (critic). Uke 49 run shows no <code>≠</code>; Sesong shows one. Fix: week-level <code>hasSessions</code>.</td></tr>
+        <tr><th><code>22,8 t, +11 uten timer</code></th><td>Ugly (critic). A comma beside a comma-decimal. Fix: a space.</td></tr>
+        <tr><th>52 weeks</th><td>Held. Four open, the rest behind «48 uker til», as today.</td></tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<nav class="proto-picker" aria-label="Prototype variants" data-position="top">
+  <span class="proto-picker-highlight" aria-hidden="true"></span>
+  <button class="proto-picker-item" data-active aria-current="true">Two figures</button>
+</nav>
+
+<div class="data-toggle" role="group" aria-label="Data">
+  <button type="button" data-set="demo">Demo data</button>
+  <button type="button" data-set="worst">Worst case</button>
+  <button type="button" data-set="empty">Empty</button>
+  <button type="button" data-set="one">One</button>
+</div>
+
+<script>
+/* ===================== Words (labels.ts, and the proposed one) ===================== */
+const NB_DISC = { run: 'Løping', bike: 'Sykling', swim: 'Svømming' };
+const UNIT = { km: 'km', hours: 't' };
+const UNM_WORD = { km: 'km', hours: 'timer' };
+const WEEK_FIGURE = { target: 'mål', planned: 'planlagt' };
+const DRIFT_MARK_LABEL = 'planlagt er mer enn 10 % unna målet';
+const PLACED_AS_PUBLISHED = 'Øktene legges inn slik kilden publiserte dem og skaleres aldri for å treffe ukemålet, så målet og summen av øktene kan være to ulike tall. ≠\u00a0betyr at planlagt er mer enn 10\u00a0% unna målet.';
+const DRIFT_TOLERANCE = 0.1;
+
+function nbFig(v) {
+  const r = Math.round(v * 10) / 10;
+  let [w, f] = String(Math.abs(r)).split('.');
+  w = w.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return (r < 0 ? '−' : '') + w + (f ? ',' + f : '');
+}
+const unmCount = (n, c) => `+${n} uten ${UNM_WORD[c]}`;
+const unmFigure = (n, c) => `${n} ${n === 1 ? 'økt' : 'økter'} uten ${UNM_WORD[c]}`;
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+/* week-volumes.ts drift(), plus Sesong's hasSessions condition (week-words.ts) */
+function drift(target, planned, unmeasured) {
+  if (target == null) return false;
+  const sum = planned ?? 0;
+  if (target === 0) return sum > 0 ? true : unmeasured > 0 ? null : false;
+  const off = (sum - target) / target;
+  if (off > DRIFT_TOLERANCE) return true;
+  if (unmeasured > 0) return null;
+  return off < -DRIFT_TOLERANCE;
+}
+
+/* ===================== The variant's track rows ===================== */
+function trackRows(tracks) {
+  const rows = tracks.map((t) => {
+    const unit = UNIT[t.cur];
+    const hasSessions = t.sessions > 0;
+    // Planned Volume: 0 with nothing placed; null when placed but none measured.
+    const planned = hasSessions ? (t.measured > 0 ? t.sum : null) : 0;
+    const unm = hasSessions ? t.sessions - t.measured : 0;
+    const mark = hasSessions && drift(t.target, planned, unm) === true;
+    const target = t.target == null ? '—' : `${nbFig(t.target)} ${unit}`;
+    const plannedText = planned == null ? unmFigure(unm, t.cur) : `${nbFig(planned)} ${unit}`;
+    const beside = planned != null && unm > 0 ? `<span class="unm">${esc(unmCount(unm, t.cur))}</span>` : '';
+    return `<li>
+      <span class="tname ${t.d}">${NB_DISC[t.d]}</span>
+      <span class="tfig">
+        <span><span class="lbl">${WEEK_FIGURE.target}</span> <span class="val">${target}</span></span>
+        <span><span class="lbl" aria-hidden="true">·</span> <span class="lbl">${WEEK_FIGURE.planned}</span> <span class="val">${esc(plannedText)}</span>${beside ? '<span class="lbl">,</span>' : ''}</span>
+        ${beside}
+        ${mark ? `<span class="drift" role="img" aria-label="${DRIFT_MARK_LABEL}" title="${DRIFT_MARK_LABEL}">≠</span>` : ''}
+      </span>
+    </li>`;
+  }).join('');
+  return `<ul class="tracks" aria-label="Mål og planlagt per idrett">${rows}</ul>`;
+}
+
+/* Today's line, for the before/after */
+function oldTargets(tracks) {
+  return `<p class="oldline">${tracks.map((t, i) =>
+    `${i ? '<span aria-hidden="true">·</span>' : ''}<span>${NB_DISC[t.d]} ${t.target == null ? '—' : nbFig(t.target) + ' ' + UNIT[t.cur]}</span>`).join('')}</p>`;
+}
+
+function weekCard(w, total, variant) {
+  const head = `<div class="whead">
+    <div class="wtitle"><h3>Uke ${w.iso}${w.role ? ` <span class="badge">${w.role}</span>` : ''}${w.final ? ' <span class="badge primary">Løpsuke</span>' : ''}</h3>
+      <span class="t-footnote muted num" style="flex-shrink:0">${w.date}</span></div>
+    <p class="t-footnote muted num">uke ${w.n} av ${total} · ${w.phase}</p>
+    ${variant === 'before' ? oldTargets(w.tracks) : trackRows(w.tracks)}
+  </div>`;
+  const rows = [...w.sessions.map((s) => `<li>
+      <p class="t-footnote muted dayline"><b>${s.day}</b><span aria-hidden="true">·</span><span>${NB_DISC[s.d]}</span><span aria-hidden="true">·</span><span>${s.arch}</span>${s.zone ? `<span aria-hidden="true">·</span><span>sone ${s.zone}</span>` : ''}</p>
+      <p class="t-callout wrapany" style="font-weight:400">${esc(s.title)}</p>
+      <p class="t-footnote muted wrapany">${esc(s.prov)}</p></li>`),
+    ...w.unfilled.map((u) => `<li>
+      <p class="t-footnote muted dayline"><b>${u.day}</b><span aria-hidden="true">·</span><span>${NB_DISC[u.d]}</span></p>
+      <p class="t-footnote">${esc(u.text)}</p></li>`)].join('');
+  return `<article class="card" aria-label="Uke ${w.iso}">${head}${rows ? `<ul class="rows">${rows}</ul>` : ''}</article>`;
+}
+
+function page(ds) {
+  const shown = ds.weeks.slice(0, 4);
+  const rest = ds.totalWeeks - shown.length;
+  return `<div class="container">
+    <div class="ph"><span class="back" aria-label="Legg den opp selv">‹</span><h1 class="t-title">Sesongen din, klar til å se over</h1></div>
+    <div class="intro">
+      <p class="t-heading wrapany" style="font-weight:400">${esc(ds.event)}</p>
+      <p class="t-footnote muted num">${ds.eventDate} · ${ds.sessions} økter over ${ds.totalWeeks} uker · Sesongen lander på løpsuka.</p>
+      <p class="t-footnote muted">Hver økt er hentet fra katalogen og viser hvor den kommer fra. Ingenting havner i kalenderen før du legger det inn.</p>
+    </div>
+    ${ds.emptyDays ? `<section class="well"><h2 class="t-callout semi">Dette er ikke med i sesongen</h2>
+      <p class="t-footnote"><span class="semi num">${ds.emptyDays} treningsdager er tomme.</span> Katalogen har ingen økt som passer det de dagene ba om, og ingenting er satt inn i stedet. De er merket i ukene under.</p></section>` : ''}
+    <div class="stub"><span class="t-callout">Hvor står du nå?</span><span class="t-footnote muted">Jeg trener jevnt og bygger videre</span></div>
+    <div class="stub"><span class="t-callout">Formen på sesongen</span><span class="t-footnote muted num">${ds.totalWeeks} uker</span></div>
+    <div class="stub"><span class="t-callout">Hvor starter ukene?</span><span class="t-footnote muted">3 idretter</span></div>
+    <section class="season" aria-labelledby="the-season">
+      <div class="season-head">
+        <h2 id="the-season" class="t-heading">Sesongen</h2>
+        <p class="t-footnote muted num">${ds.phases}</p>
+        <p class="t-footnote muted" data-placed-as-published>${PLACED_AS_PUBLISHED}</p>
+      </div>
+      <ul class="weeks">${shown.map((w) => `<li>${weekCard(w, ds.totalWeeks)}</li>`).join('')}</ul>
+      ${rest > 0 ? `<div class="more"><span><span class="t-callout semi num" style="display:block">${rest} uker til</span><span class="t-footnote muted">Den samme sesongen, uke for uke, helt fram til løpet.</span></span><span class="muted" aria-hidden="true">⌄</span></div>` : ''}
+    </section>
+    <div class="approve"><button class="btn" type="button">Legg disse ${ds.sessions} øktene i kalenderen</button>
+      <p class="t-footnote muted">Alt havner der som vanlige økter du kan endre – og hver av dem peker tilbake til katalogøkta den kom fra.</p></div>
+  </div>`;
+}
+
+/* ===================== Data ===================== */
+const DAN = 'Kilde: Daniels — Daniels’ Running Formula';
+const PFZ = 'Kilde: Pfitzinger & Douglas — Advanced Marathoning';
+const SEI = 'Kilde: Seiler — Time-in-zone and the polarized model';
+const CON = 'Vanlig trenerpraksis — trainm8 viser ikke til noen publisert kilde for denne økta.';
+const MAG = 'Kilde: Maglischo — Swimming Fastest';
+const S = (day, d, arch, zone, title, prov) => ({ day, d, arch, zone, title, prov });
+
+const DEMO = {
+  event: 'Oslo Triatlon, olympisk distanse', eventDate: '13. juni 2027', sessions: 186, totalWeeks: 31, emptyDays: 4,
+  phases: 'Grunntrening 12 uker · Oppbygging 10 uker · Spissing 6 uker · Nedtrapping 3 uker',
+  weeks: [
+    { iso: 46, date: '9. nov.', n: 1, phase: 'Grunntrening',
+      tracks: [ { d: 'run', cur: 'km', target: 32, sum: 24, sessions: 3, measured: 2 },
+                { d: 'bike', cur: 'hours', target: 4, sum: 4.7, sessions: 2, measured: 2 },
+                { d: 'swim', cur: 'km', target: 6, sum: 5.4, sessions: 2, measured: 2 } ],
+      sessions: [ S('Mandag', 'run', 'Rolig', 2, 'Easy run (rolig tur)', DAN),
+                  S('Tirsdag', 'bike', 'Rolig', 2, 'Endurance ride (langtur)', SEI),
+                  S('Onsdag', 'swim', 'Jevn', 2, 'Aerobic pyramid', MAG),
+                  S('Torsdag', 'run', 'Rolig', 2, 'Easy run with strides (rolig med stigningsløp)', CON),
+                  S('Fredag', 'swim', 'Rolig', 1, 'Straight swim', MAG),
+                  S('Lørdag', 'run', 'Langtur', 2, 'Classic long run (langtur)', PFZ),
+                  S('Søndag', 'bike', 'Langtur', 2, 'Endurance ride (langtur)', SEI) ], unfilled: [] },
+    { iso: 47, date: '16. nov.', n: 2, phase: 'Grunntrening',
+      tracks: [ { d: 'run', cur: 'km', target: 35, sum: 36, sessions: 3, measured: 3 },
+                { d: 'bike', cur: 'hours', target: 4.3, sum: 3.1, sessions: 3, measured: 2 },
+                { d: 'swim', cur: 'km', target: 6.5, sum: 6.2, sessions: 2, measured: 2 } ],
+      sessions: [ S('Mandag', 'run', 'Rolig', 2, 'Easy run (rolig tur)', DAN),
+                  S('Tirsdag', 'bike', 'Jevn', 3, 'Tempo ride', SEI),
+                  S('Onsdag', 'swim', 'Jevn', 2, 'Long pull set', MAG),
+                  S('Torsdag', 'run', 'Terskel', 4, 'Cruise intervals (terskeldrag)', DAN),
+                  S('Fredag', 'swim', 'Rolig', 1, 'Straight swim', MAG),
+                  S('Lørdag', 'bike', 'Langtur', 2, 'Endurance ride with sprints', SEI),
+                  S('Søndag', 'run', 'Langtur', 2, 'Classic long run (langtur)', PFZ),
+                  S('Søndag', 'bike', 'Restitusjon', 1, 'Recovery spin', CON) ], unfilled: [] },
+    { iso: 48, date: '23. nov.', n: 3, phase: 'Grunntrening',
+      tracks: [ { d: 'run', cur: 'km', target: 38, sum: 0, sessions: 2, measured: 0 },
+                { d: 'bike', cur: 'hours', target: null, sum: 3.8, sessions: 2, measured: 2 },
+                { d: 'swim', cur: 'km', target: 7, sum: 3, sessions: 1, measured: 1 } ],
+      sessions: [ S('Tirsdag', 'bike', 'Rolig', 2, 'Endurance ride (langtur)', SEI),
+                  S('Onsdag', 'run', 'Terskel', 4, 'Threshold run with full frame (Pfitzinger)', PFZ),
+                  S('Fredag', 'swim', 'Rolig', 1, 'Straight swim', MAG),
+                  S('Lørdag', 'run', 'Langtur', 2, 'Capped aerobic base run (langkjøring med tak)', CON),
+                  S('Søndag', 'bike', 'Langtur', 2, 'Durability ride (tempo finish)', SEI) ],
+      unfilled: [ { day: 'Onsdag', d: 'swim', text: 'Ingenting å legge inn – terskel eller under terskel i grunntrening finnes ikke i katalogen for denne idretten.' } ] },
+    { iso: 49, date: '30. nov.', n: 4, phase: 'Grunntrening', role: 'lett uke',
+      tracks: [ { d: 'run', cur: 'km', target: 26, sum: 0, sessions: 0, measured: 0 },
+                { d: 'bike', cur: 'hours', target: 3, sum: 2.9, sessions: 2, measured: 2 },
+                { d: 'swim', cur: 'km', target: 4.5, sum: 4.4, sessions: 2, measured: 2 } ],
+      sessions: [ S('Tirsdag', 'bike', 'Rolig', 2, 'Endurance ride (langtur)', SEI),
+                  S('Onsdag', 'swim', 'Jevn', 2, 'Aerobic pyramid', MAG),
+                  S('Fredag', 'swim', 'Rolig', 1, 'Straight swim', MAG),
+                  S('Søndag', 'bike', 'Restitusjon', 1, 'Recovery spin', CON) ],
+      unfilled: [ { day: 'Mandag', d: 'run', text: 'Ingenting å legge inn – restitusjon i grunntrening finnes ikke i katalogen for denne idretten.' },
+                  { day: 'Torsdag', d: 'run', text: 'Ingenting å legge inn – rolig i grunntrening finnes ikke i katalogen for denne idretten.' },
+                  { day: 'Lørdag', d: 'run', text: 'Ingenting å legge inn – langtur i grunntrening finnes ikke i katalogen for denne idretten.' } ] },
+  ],
+};
+
+const LONG_RUN = 'Long run with marathon finish (langtur med marsjfart)';
+const WORST = {
+  event: 'Norseman Xtreme Triathlon – Eidfjord til Gaustatoppen (full distanse, 226 km)', eventDate: '7. august 2027', sessions: 1284, totalWeeks: 52, emptyDays: 117,
+  phases: 'Grunntrening 16 uker · Oppbygging 18 uker · Spissing 12 uker · Nedtrapping 6 uker',
+  weeks: [
+    { iso: 33, date: '16. aug.', n: 1, phase: 'Grunntrening',
+      tracks: [ { d: 'run', cur: 'km', target: 142, sum: 168.4, sessions: 18, measured: 6 },
+                { d: 'bike', cur: 'hours', target: 18.5, sum: 22.75, sessions: 14, measured: 3 },
+                { d: 'swim', cur: 'km', target: 1270.5, sum: 1188.25, sessions: 9, measured: 9 } ],
+      sessions: [ S('Mandag', 'run', 'VO₂maks (lange drag)', 5, LONG_RUN + ' – Canova specific long run with 3 × 5 km at marathon pace and a 2 km float between', 'Kilde: Canova & Arcelli — Marathon Training: A Scientific Approach, kapittel 7, «Special block» med variasjoner'),
+                  S('Tirsdag', 'bike', 'Under terskel', 3, 'Rønnestad moderate-intensity session', 'Publisert av Aleksandra Wiśniewska-Kowalczyk') ], unfilled: [] },
+    { iso: 34, date: '23. aug.', n: 2, phase: 'Grunntrening',
+      tracks: [ { d: 'run', cur: 'km', target: null, sum: 41.2, sessions: 4, measured: 4 },
+                { d: 'bike', cur: 'hours', target: null, sum: 0, sessions: 1, measured: 0 },
+                { d: 'swim', cur: 'km', target: null, sum: 0, sessions: 0, measured: 0 } ],
+      sessions: [ S('Onsdag', 'run', 'Rolig', 2, 'Jo', CON) ], unfilled: [] },
+    { iso: 35, date: '30. aug.', n: 3, phase: 'Grunntrening', role: 'lett uke',
+      tracks: [ { d: 'run', cur: 'km', target: 0, sum: 6, sessions: 1, measured: 1 },
+                { d: 'bike', cur: 'hours', target: 0.5, sum: 0, sessions: 1, measured: 0 },
+                { d: 'swim', cur: 'km', target: 2, sum: 2.2, sessions: 1, measured: 1 } ],
+      sessions: [ S('Lørdag', 'run', 'Restitusjon', 1, 'Recovery run (restitusjonsjogg)', DAN) ], unfilled: [] },
+    { iso: 36, date: '6. sep.', n: 4, phase: 'Grunntrening', role: 'lett uke',
+      tracks: [ { d: 'run', cur: 'km', target: 18.5, sum: 9.9, sessions: 2, measured: 2 },
+                { d: 'bike', cur: 'hours', target: 2.5, sum: 1, sessions: 2, measured: 1 },
+                { d: 'swim', cur: 'km', target: 3, sum: 2.95, sessions: 1, measured: 1 } ],
+      sessions: [], unfilled: [ { day: 'Søndag', d: 'run', text: 'Ingenting å legge inn – terskel, under terskel, VO₂maks (korte drag) eller VO₂maks (lange drag) i konkurranseuke finnes ikke i katalogen for denne idretten.' } ] },
+  ],
+};
+
+const EMPTY = { ...DEMO, sessions: 0, emptyDays: 21, weeks: [
+  { iso: 46, date: '9. nov.', n: 1, phase: 'Grunntrening',
+    tracks: [ { d: 'run', cur: 'km', target: 32, sum: 0, sessions: 0, measured: 0 },
+              { d: 'bike', cur: 'hours', target: 4, sum: 0, sessions: 0, measured: 0 },
+              { d: 'swim', cur: 'km', target: 6, sum: 0, sessions: 0, measured: 0 } ],
+    sessions: [], unfilled: [
+      { day: 'Mandag', d: 'run', text: 'Ingenting å legge inn – rolig i grunntrening finnes ikke i katalogen for denne idretten.' },
+      { day: 'Tirsdag', d: 'bike', text: 'Ingenting å legge inn – rolig i grunntrening finnes ikke i katalogen for denne idretten.' },
+      { day: 'Fredag', d: 'swim', text: 'Ingenting å legge inn – rolig i grunntrening finnes ikke i katalogen for denne idretten.' } ] } ] };
+
+const ONE = { ...DEMO, sessions: 1, totalWeeks: 1, emptyDays: 0, phases: 'Nedtrapping 1 uke', weeks: [
+  { iso: 23, date: '7. juni', n: 1, phase: 'Nedtrapping', role: 'nedtrapping', final: true,
+    tracks: [ { d: 'run', cur: 'km', target: 12, sum: 0, sessions: 1, measured: 0 } ],
+    sessions: [ S('Tirsdag', 'run', 'Rolig', 2, 'Easy run with strides (rolig med stigningsløp)', CON) ], unfilled: [] } ] };
+
+const SETS = { demo: DEMO, worst: WORST, empty: EMPTY, one: ONE };
+
+/* ===================== Mounting ===================== */
+const params = new URLSearchParams(location.search);
+let theme = params.get('theme') === 'dark' ? 'dark' : 'light';
+let wcSet = SETS[params.get('data')] ? params.get('data') : 'worst';
+
+function tm(html, extra = '') { return `<div class="tm ${theme === 'dark' ? 'dark' : ''}" ${extra}>${html}</div>`; }
+
+if (params.get('solo')) {
+  document.body.classList.add('solo');
+  const set = SETS[params.get('data')] || DEMO;
+  document.getElementById('solo').innerHTML = tm(page(set), 'style="min-height:100vh"');
+  document.documentElement.style.background = 'transparent';
+} else {
+  const variants = [() => tm(page(DEMO))];
+  const stage = document.getElementById('stage');
+  const stageWide = document.getElementById('stage-wide');
+
+  function renderStatic() {
+    const w = DEMO.weeks[0];
+    document.getElementById('ba-before').outerHTML = `<div class="tm ba-card ${theme === 'dark' ? 'dark' : ''}" id="ba-before">${weekCard({ ...w, sessions: w.sessions.slice(0, 2) }, DEMO.totalWeeks, 'before')}</div>`;
+    document.getElementById('ba-after').outerHTML = `<div class="tm ba-card ${theme === 'dark' ? 'dark' : ''}" id="ba-after">${weekCard({ ...w, sessions: w.sessions.slice(0, 2) }, DEMO.totalWeeks)}</div>`;
+    const set = SETS[wcSet];
+    document.getElementById('wc-320').innerHTML = tm(page(set));
+    document.getElementById('wc-390').innerHTML = tm(page(set));
+    document.getElementById('wc-zoom').innerHTML = tm(page(set), 'style="zoom:2"');
+    document.querySelectorAll('.data-toggle button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.set === wcSet)));
+  }
+
+  /* Picker wiring, verbatim from PICKER.md (stage = the variant board) */
+  const picker = document.querySelector('.proto-picker');
+  const highlight = picker.querySelector('.proto-picker-highlight');
+  const items = [...picker.querySelectorAll('.proto-picker-item:not(.proto-picker-replay)')];
+  const replay = picker.querySelector('.proto-picker-replay');
+  let current = 0;
+  function moveHighlight() {
+    const el = items[current];
+    highlight.style.width = el.offsetWidth + 'px';
+    highlight.style.transform = `translateX(${el.offsetLeft}px)`;
+  }
+  function mount(i) {
+    stage.innerHTML = ''; stageWide.innerHTML = '';
+    requestAnimationFrame(() => { stage.innerHTML = variants[i](); stageWide.innerHTML = variants[i](); });
+  }
+  function setActive(i) {
+    if (i < 0 || i >= variants.length) return;
+    current = i;
+    items.forEach((el, j) => {
+      el.toggleAttribute('data-active', j === i);
+      if (j === i) el.setAttribute('aria-current', 'true');
+      else el.removeAttribute('aria-current');
+    });
+    moveHighlight();
+    const url = new URL(location);
+    url.searchParams.set('v', i + 1);
+    history.replaceState(null, '', url);
+    mount(i);
+  }
+  items.forEach((el, i) => el.addEventListener('click', () => setActive(i)));
+  replay?.addEventListener('click', () => mount(current));
+  window.addEventListener('resize', moveHighlight);
+  document.addEventListener('keydown', (e) => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const num = parseInt(e.key, 10);
+    if (num >= 1 && num <= variants.length) setActive(num - 1);
+    else if (e.key === 'ArrowRight') setActive((current + 1) % variants.length);
+    else if (e.key === 'ArrowLeft') setActive((current - 1 + variants.length) % variants.length);
+    else if (e.key === 'r' || e.key === 'R') mount(current);
+  });
+
+  /* Data toggle (break-ui), persisted in ?data= */
+  document.querySelectorAll('.data-toggle button').forEach((b) => b.addEventListener('click', () => {
+    wcSet = b.dataset.set;
+    const url = new URL(location); url.searchParams.set('data', wcSet); history.replaceState(null, '', url);
+    renderStatic();
+  }));
+  /* Theme (light/dark tokens) */
+  document.querySelectorAll('[data-theme-btn]').forEach((b) => b.addEventListener('click', () => {
+    theme = b.dataset.themeBtn;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelectorAll('[data-theme-btn]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.themeBtn === theme)));
+    renderStatic(); mount(current);
+  }));
+
+  renderStatic();
+  setActive((parseInt(new URLSearchParams(location.search).get('v'), 10) || 1) - 1);
+  requestAnimationFrame(() => requestAnimationFrame(() => picker.setAttribute('data-ready', '')));
+}
+</script>
+</body>
+</html>

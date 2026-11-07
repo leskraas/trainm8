@@ -1,0 +1,10 @@
+# Design · #472 · part 1 (Designer) todo
+
+1. **Read where it stands.** Fetch the issue: its acceptance criteria, its decisions, and on a resumed run the human's answer, which decides over everything else. A canvas from an earlier run is linked in its comment; read it and every comment on it as feedback. Done when each piece of feedback is something this run changes, or a line in your comment saying why not.
+   - done: issue fetched (12 criteria, 3 spec decisions); no human answer (not a resumed run); no earlier canvas linked in any comment. The 2026-10-24 triage comment ("blocked by #475") is answered by the spec decision "Build it on the generate preview now", which this run follows.
+2. **Choose the tool** by the question the issue asks: (table) Screens, flow, layout → `/design` when `design: design` and the run is interactive; otherwise Emil's prototype · Interaction and motion → Emil's prototype · Logic and state → Matt's prototype, its logic branch. Emil's prototype is user-invoked only: read `SKILL.md` and `PICKER.md` in its skill folder and follow phases 1–5 with the issue as the brief, building its standalone branch: one self-contained HTML file in the project's own tokens.
+   - done: question is layout (what a week card says); `design: prototype` and unattended → Emil's prototype (bredvid-design-engineering prototype-ui, SKILL.md + PICKER.md read), standalone branch.
+3. **Draw.** Interactive run: three variants on one axis. **Unattended run**: one variant, the direction you would ship, with its gain, its cost, and the worst case beside it. Done when each variant works in the browser with the issue's real content.
+   - done: one variant, "Two figures, one line"; worst case beside it.
+4. **Canvas.** Write `canvas.html` in the evidence folder as canvas.md describes, with the verdict left to the critic, and a screenshot of each variant at 390 and 1440 pixels wide (`<variant>-mobile.png`, `<variant>-desktop.png`).
+   - done: canvas.html + two-figures-mobile.png / two-figures-desktop.png (+ worst-case screenshots).
