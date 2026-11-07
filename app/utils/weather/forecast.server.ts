@@ -28,7 +28,10 @@ import { z } from 'zod/v4'
 import { cache } from '#app/utils/cache.server.ts'
 import { type GeoPoint, roundedPoint } from '#app/utils/home-place.ts'
 import { OUTBOUND_USER_AGENT } from '#app/utils/outbound-user-agent.ts'
-import { readMetSymbol, type WeatherSymbol } from './symbol.ts'
+import { type DayForecast } from './day-forecast.ts'
+import { readMetSymbol } from './symbol.ts'
+
+export { type DayForecast }
 
 export const MET_FORECAST_URL =
 	'https://api.met.no/weatherapi/locationforecast/2.0/compact'
@@ -40,18 +43,6 @@ export const FORECAST_STALE_MS = 24 * 60 * 60 * 1000
 /** When MET sends no usable `Expires`: its documented typical half hour. */
 const DEFAULT_FRESH_MS = 30 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
-
-/** One day's forecast at its Forecast Hour, from one forecast step. */
-export type DayForecast = {
-	/** The Forecast Hour, an ISO instant in UTC. */
-	at: string
-	symbol: WeatherSymbol
-	/** Night or polar twilight at that step: the glyph is a moon. */
-	night: boolean
-	temperatureC: number
-	/** Over the step's own period (one hour, or six further out). */
-	precipitationMm: number
-}
 
 /** Why a day has no forecast, from this module's side. */
 export type NoForecast = 'beyond-forecast' | 'forecast-unavailable'

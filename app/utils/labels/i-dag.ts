@@ -11,6 +11,7 @@ import type { AdherenceTone } from '../load/adherence.ts'
 import type { ReadinessTone } from '../load/readiness.ts'
 import type { PlannedDiscipline } from '../planned-discipline.ts'
 import type { ActivityKind } from '../simple-activity.ts'
+import type { WeatherSymbol } from '../weather/symbol.ts'
 import type { Discipline } from '../workout-schema.ts'
 import type { SentenceProblem, UnreadReason } from '../workout-sentence.ts'
 /* eslint-enable import/consistent-type-specifier-style */
@@ -674,4 +675,79 @@ export const CALM_TODAY_LABELS = {
 	weekChangeWaiting: (count: number) =>
 		`Ukeskiftet har ${count} forslag som venter på deg.`,
 	weekChangeOpen: 'Se forslagene',
+} as const
+
+/** A whole number as the weather writes it: a true minus sign, never `-0`. */
+function nbSigned(value: number): string {
+	const rounded = Math.round(value)
+	return rounded < 0 ? `−${Math.abs(rounded)}` : String(Math.abs(rounded))
+}
+
+/** Precipitation to one decimal with a Norwegian comma; `0` when dry. */
+function nbPrecipitation(mm: number): string {
+	const tenths = Math.round(mm * 10) / 10
+	return tenths <= 0 ? '0' : tenths.toFixed(1).replace('.', ',')
+}
+
+/**
+ * The **Day Forecast** on I dag (#433, ADR 0112): each symbol's Norwegian
+ * word, the hour, the numbers as the 3.5rem column writes them (`6°`, `−23°`,
+ * `0,6 mm`) and the sentence a screen reader hears instead, with its units
+ * in full. `get_today`'s `label` is the same word.
+ */
+export const WEATHER_LABELS = {
+	symbol: {
+		'clear-sky': 'Klarvær',
+		fair: 'Lettskyet',
+		'partly-cloudy': 'Delvis skyet',
+		cloudy: 'Skyet',
+		fog: 'Tåke',
+		'light-rain': 'Lett regn',
+		rain: 'Regn',
+		'heavy-rain': 'Kraftig regn',
+		'light-sleet': 'Lett sludd',
+		sleet: 'Sludd',
+		'heavy-sleet': 'Kraftig sludd',
+		'light-snow': 'Lett snø',
+		snow: 'Snø',
+		'heavy-snow': 'Kraftig snø',
+		'light-rain-and-thunder': 'Lett regn og torden',
+		'rain-and-thunder': 'Regn og torden',
+		'heavy-rain-and-thunder': 'Kraftig regn og torden',
+		'light-sleet-and-thunder': 'Lett sludd og torden',
+		'sleet-and-thunder': 'Sludd og torden',
+		'heavy-sleet-and-thunder': 'Kraftig sludd og torden',
+		'light-snow-and-thunder': 'Lett snø og torden',
+		'snow-and-thunder': 'Snø og torden',
+		'heavy-snow-and-thunder': 'Kraftig snø og torden',
+	} satisfies Record<WeatherSymbol, string>,
+	/** `kl. 17`: the Forecast Hour, local. */
+	hour: (hour: string) => `kl. ${hour}`,
+	/** `6°`, `−23°`. */
+	temperature: (celsius: number) => `${nbSigned(celsius)}°`,
+	/** `0,6 mm`, `0 mm`. */
+	precipitation: (mm: number) => `${nbPrecipitation(mm)} mm`,
+	/** What a screen reader hears: `Vær kl. 17: Lett regn, 6 grader, 0,6 millimeter nedbør`. */
+	spoken: ({
+		hour,
+		word,
+		celsius,
+		mm,
+	}: {
+		hour: string
+		word: string
+		celsius: number
+		mm: number
+	}) => {
+		const rounded = Math.round(celsius)
+		const degrees =
+			rounded < 0 ? `minus ${Math.abs(rounded)}` : String(Math.abs(rounded))
+		const rain = nbPrecipitation(mm)
+		return `Vær kl. ${hour}: ${word}, ${degrees} grader, ${
+			rain === '0' ? 'ingen nedbør' : `${rain} millimeter nedbør`
+		}`
+	},
+	/** MET Norway's credit, once under the week (its licence asks for it). */
+	credit: 'Værvarsel fra MET Norway',
+	creditHref: 'https://www.met.no/',
 } as const

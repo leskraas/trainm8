@@ -63,10 +63,19 @@ function isUnavailable(value: unknown): value is Unavailable {
 }
 
 /**
- * A credit a result owes for values it carries (ADR 0098 §3), in the
- * platform's own wording.
+ * Whose credit a result can owe: the Origin Platforms whose terms ask for one
+ * (ADR 0098 §3), then MET Norway for a **Day Forecast** (ADR 0112 §5), in the
+ * order a result lists them. Widened, never renamed: `Credit.platform` keeps
+ * its name for the clients that read it.
  */
-export type Credit = { platform: Attribution; text: string }
+export const CREDIT_SOURCES = [...ATTRIBUTIONS, 'met-norway'] as const
+export type CreditSource = (typeof CREDIT_SOURCES)[number]
+
+/**
+ * A credit a result owes for values it carries (ADR 0098 §3), in the
+ * source's own wording.
+ */
+export type Credit = { platform: CreditSource; text: string }
 
 /**
  * The slice of a run's context the gate reads: who is calling, and where the
@@ -217,6 +226,6 @@ export const AthleteTextSchema = z.object({
 })
 
 export const CreditSchema = z.object({
-	platform: z.enum(ATTRIBUTIONS),
+	platform: z.enum(CREDIT_SOURCES),
 	text: z.string(),
 })
