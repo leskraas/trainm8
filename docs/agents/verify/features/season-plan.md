@@ -9,7 +9,9 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 ## Sub-features
 
 - The season plan at `/training/plan`, with its closed _Avansert_ section
-  holding the season editors (ADR 0101 §2).
+  holding the season editors (ADR 0101 §2). Its Week Pattern editor: a day
+  picks the Workout of one of the athlete's own sessions (fixed) or a shape for
+  a share day (_formet etter <tittel>_).
 - Plan creation at `/training/plan/new`: a dated goal (_Mål_, _Dato_, _Lag målet
   og gå videre_), then _Legg opp sesongen_ (base, units, start volume).
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
@@ -49,3 +51,8 @@ await page.getByRole('heading', { name: 'Legg opp sesongen' }).waitFor()
   before you drive creation.
 - Season editors are inside _Avansert_, closed by default: open it with one tap
   on its heading (`openPlanAdvanced` in `tests/playwright-utils.ts`).
+- A Week Pattern day holds the plan's own copy of what it picked, a **Held
+  Workout** (ADR 0112): the row is `Workout.heldByOutlineId = <plan id>`, never
+  the session's own `workoutId`. After picking, deleting or editing that session
+  succeeds and the day keeps its title. The copies never show in the picker or
+  in Bibliotek's "your sessions" list; a crafted publish of one is refused.
