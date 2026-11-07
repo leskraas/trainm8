@@ -89,12 +89,17 @@ A derived value may be stored for consistency or for a measured cost. It is then
   event that recomputes it.
 
 A **Load Snapshot** (ADR 0008) materializes daily TSS totals and CTL, ATL and
-TSB, recomputed on a session log, an import promotion, a threshold change, or a
-recorded missed or skipped **Session Status**. `plannedTssValue` (ADR 0019 §2)
-is materialized on the **Workout Session**, recomputed on a prescription edit
-and on a threshold change, because per-render computation was "wasteful and
-inconsistent across views". Both are stored and neither is authored, which is
-why the name is "derived, never authored" and not "derived, never stored".
+TSB. As built, it is recomputed on a session log, an import promotion, a
+provider sync or backfill, a threshold change, a recorded missed or skipped
+**Session Status**, and a formula-correction backfill (the case §4 exists for).
+`plannedTssValue` (ADR 0019 §2) is materialized on the **Workout Session**,
+because per-render computation was "wasteful and inconsistent across views". As
+built, it is recomputed on a prescription edit, a threshold change, a typed
+**Performance Result**, and by the writers that lay or change a plan. These
+lists describe the code today and are examples, not the closed set a new
+materialization is checked against. Both are stored and neither is authored,
+which is why the name is "derived, never authored" and not "derived, never
+stored".
 
 ### 4. A moved number the athlete has read is explained, never silent
 
