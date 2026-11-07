@@ -67,7 +67,11 @@ import {
 	readPlanStartAnswers,
 	type PlanStartAnswersReading,
 } from './plan-start-options.server.ts'
-import { draftStart, layStartFamily } from './start-draft.ts'
+import {
+	draftStart,
+	layStartFamily,
+	type TrainingLevel,
+} from './start-draft.ts'
 import { readLiftingWorkoutId } from './start-strength.server.ts'
 
 export type ActivitiesEditRefusal =
@@ -89,6 +93,10 @@ export type ActivitiesEditResult =
 	| {
 			ok: true
 			outlineId: string
+			/** The Training Level the week was laid at: its session cap. */
+			level: TrainingLevel
+			/** The plan's hours a week the week was laid for. */
+			hours: number
 			/** The boundary is the week being lived: nothing trained in it yet. */
 			boundaryThisWeek: boolean
 			preview: ActivitiesEditPreview
@@ -383,6 +391,8 @@ async function computeActivitiesEdit(
 	return {
 		ok: true,
 		outlineId: outline.id,
+		level: answers.level,
+		hours: answers.hours,
 		boundaryThisWeek: boundaryWeekKey === weekMonday(now, timezone),
 		preview,
 	}

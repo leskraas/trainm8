@@ -1,16 +1,21 @@
 /**
  * **Nivå og økter** — what the start asked, in _Meg_ (#558 story 12 and 124,
- * #571): the **Training Level**, the activities the plan has tracks for, and
- * the **Session Preferences**. The level and the preferences are the
- * athlete's answers and change here; the activities are the plan's Training
- * Tracks, read from the plan and changed where tracks are (Plan → Avansert).
- * Changing an answer never rewrites the weeks already laid: it is read the
- * next time the Start Options are (_Bytt treningsform_, ADR 0102).
+ * #571, #587): the activities the plan lays, the **Training Level** and the
+ * **Session Preferences**.
+ *
+ * - The activities are the plan's Training Tracks, retired ones left out.
+ *   Editing them re-lays the plan's tracks and days from the first week not
+ *   yet begun, previewed first (_Vis ny uke_) and laid on _Bekreft_ (ADR
+ *   0109, `__activities-edit.tsx`). A plan the edit cannot lay keeps them
+ *   read-only, with why and the way to Plan.
+ * - The level and the preferences are the athlete's answers and change here
+ *   without rewriting the weeks laid: they are read the next time the Start
+ *   Options are (_Bytt treningsform_, ADR 0102).
  */
 import { getFormProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod/v3'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
-import { data, Form, Link, useNavigation } from 'react-router'
+import { data, Form, useNavigation } from 'react-router'
 import { z } from 'zod/v3'
 import {
 	CheckboxCardsField,
@@ -24,6 +29,7 @@ import {
 	updateAthleteProfile,
 } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { readPlanStartAnswers } from '#app/utils/first-run/plan-start-options.server.ts'
 import {
 	SESSION_PREFERENCES,
 	TRAINING_LEVELS,
@@ -33,15 +39,20 @@ import {
 	PreferencesSchema,
 } from '#app/utils/first-run/start-schema.ts'
 import {
+	ACTIVITIES_EDIT_LABELS,
 	APP_TAB_LABELS,
-	NB_DISCIPLINE_LABELS,
 	SESSION_PREFERENCE_LABELS,
 	SIMPLE_START_LABELS,
 } from '#app/utils/labels.ts'
-import { findActiveOutline } from '#app/utils/training.server.ts'
-import { type Discipline } from '#app/utils/workout-schema.ts'
+import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
+import { getActiveSeason } from '#app/utils/training.server.ts'
 import { type Route } from './+types/level.ts'
-import { MegNote, MegResult, MegSection } from './__meg-ui.tsx'
+import {
+	activitiesAction,
+	activitiesViewOf,
+} from './__activities-edit.server.ts'
+import { ActivitiesSection } from './__activities-edit.tsx'
+import { MegNote, MegResult } from './__meg-ui.tsx'
 
 export const handle: SEOHandle = { getSitemapEntries: () => null }
 
@@ -58,24 +69,31 @@ const StartAnswersSchema = z.object({
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const [answers, active] = await Promise.all([
+	const now = new Date()
+	const [answers, season] = await Promise.all([
 		readStartAnswersOf(userId),
-		findActiveOutline(userId, new Date()),
+		getActiveSeason(userId, now),
 	])
-	// One activity per Training Track, in the plan's order, each once.
-	const activities = [
-		...new Set(
-			(active?.outline.tracks ?? []).map(
-				(track) => NB_DISCIPLINE_LABELS[track.discipline as Discipline],
-			),
-		),
-	]
-	return { ...answers, activities }
+	// The plan's activities from the first week not yet begun: where an edit
+	// would begin, and what it would change (ADR 0109).
+	const from = season
+		? await readFirstUnbegunWeekKey(userId, now, season.timezone)
+		: null
+	const reading = await readPlanStartAnswers(userId, season, from ?? '', now)
+	return {
+		...answers,
+		activities: activitiesViewOf(season, reading, from ?? ''),
+	}
 }
 
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
-	const submission = parseWithZod(await request.formData(), {
+	const formData = await request.formData()
+	const intent = formData.get('intent')
+	if (intent === 'preview-activities' || intent === 'confirm-activities') {
+		return activitiesAction(userId, formData)
+	}
+	const submission = parseWithZod(formData, {
 		schema: StartAnswersSchema,
 	})
 	if (submission.status !== 'success') {
@@ -98,9 +116,12 @@ export default function StartAnswersRoute({
 }: Route.ComponentProps) {
 	const navigation = useNavigation()
 	const saving = navigation.state !== 'idle' && navigation.formMethod === 'POST'
+	// The activities answer through their own fetcher; this is the level's.
+	const answered = actionData && 'result' in actionData ? actionData : null
+	const saved = answered?.saved
 	const [form, fields] = useForm({
 		id: 'meg-start-answers',
-		lastResult: actionData?.result,
+		lastResult: answered?.result,
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: StartAnswersSchema })
 		},
@@ -114,70 +135,61 @@ export default function StartAnswersRoute({
 				back={{ to: '/me', label: APP_TAB_LABELS.me }}
 			/>
 			<main className="mt-6 space-y-8">
-				<MegNote>{L.intro}</MegNote>
+				<ActivitiesSection view={loaderData.activities} />
 
-				<MegSection id="meg-activities" title={L.activities}>
-					<div className="space-y-2" data-meg-activities>
-						<p className="text-callout [overflow-wrap:anywhere]">
-							{loaderData.activities.length > 0
-								? loaderData.activities.join(', ')
-								: L.activitiesNone}
-						</p>
-						{loaderData.activities.length > 0 ? (
-							<>
-								<MegNote>{L.activitiesNote}</MegNote>
-								<Link
-									to="/training/plan"
-									prefetch="intent"
-									className="text-callout text-primary flex min-h-11 items-center underline-offset-4 hover:underline"
-								>
-									{L.activitiesLink}
-								</Link>
-							</>
-						) : null}
+				<section
+					aria-labelledby="meg-answers"
+					className="space-y-8"
+					data-meg-answers
+				>
+					<div className="space-y-1">
+						<h2 id="meg-answers" className="text-heading">
+							{ACTIVITIES_EDIT_LABELS.answersTitle}
+						</h2>
+						<MegNote>{ACTIVITIES_EDIT_LABELS.answersIntro}</MegNote>
 					</div>
-				</MegSection>
+					<Form method="POST" className="space-y-8" {...getFormProps(form)}>
+						<RadioGroupField
+							name={fields.level.name}
+							legend={L.level}
+							legendClassName="text-heading"
+							defaultValue={loaderData.level ?? undefined}
+							options={TRAINING_LEVELS.map((value) => ({
+								value,
+								label: SIMPLE_START_LABELS.levels[value].name,
+								description: SIMPLE_START_LABELS.levels[value].description,
+							}))}
+							errorId={fields.level.errorId}
+							errors={fields.level.errors}
+						/>
 
-				<Form method="POST" className="space-y-8" {...getFormProps(form)}>
-					<RadioGroupField
-						name={fields.level.name}
-						legend={L.level}
-						legendClassName="text-heading"
-						defaultValue={loaderData.level ?? undefined}
-						options={TRAINING_LEVELS.map((value) => ({
-							value,
-							label: SIMPLE_START_LABELS.levels[value].name,
-							description: SIMPLE_START_LABELS.levels[value].description,
-						}))}
-						errorId={fields.level.errorId}
-						errors={fields.level.errors}
-					/>
+						<CheckboxCardsField
+							name={fields.preferences.name}
+							legend={SESSION_PREFERENCE_LABELS.legend}
+							legendClassName="text-heading"
+							defaultValue={loaderData.preferences}
+							options={SESSION_PREFERENCES.map((value) => ({
+								value,
+								label: SESSION_PREFERENCE_LABELS.options[value].name,
+								description:
+									SESSION_PREFERENCE_LABELS.options[value].description,
+							}))}
+						/>
 
-					<CheckboxCardsField
-						name={fields.preferences.name}
-						legend={SESSION_PREFERENCE_LABELS.legend}
-						legendClassName="text-heading"
-						defaultValue={loaderData.preferences}
-						options={SESSION_PREFERENCES.map((value) => ({
-							value,
-							label: SESSION_PREFERENCE_LABELS.options[value].name,
-							description: SESSION_PREFERENCE_LABELS.options[value].description,
-						}))}
-					/>
-
-					<ErrorList errors={form.errors} id={form.errorId} />
-					<div className="space-y-2">
-						<StatusButton
-							type="submit"
-							className="text-callout w-full sm:w-auto"
-							status={saving ? 'pending' : 'idle'}
-							disabled={saving}
-						>
-							{L.save}
-						</StatusButton>
-						<MegResult result={actionData?.saved} />
-					</div>
-				</Form>
+						<ErrorList errors={form.errors} id={form.errorId} />
+						<div className="space-y-2">
+							<StatusButton
+								type="submit"
+								className="text-callout w-full sm:w-auto"
+								status={saving ? 'pending' : 'idle'}
+								disabled={saving}
+							>
+								{L.save}
+							</StatusButton>
+							<MegResult result={saved} />
+						</div>
+					</Form>
+				</section>
 			</main>
 		</div>
 	)

@@ -354,13 +354,9 @@ export const SESSION_PREFERENCE_LABELS = {
 		/** The row on Meg: `Mosjonist · Korte økter`. */
 		row: (level: string | null, preferences: string) =>
 			`${level ?? 'Nivå ikke valgt'} · ${preferences}`,
-		intro:
-			'Det du svarte da planen ble laget. Endrer du her, endres ikke uka som ligger. Det brukes neste gang du velger en måte å trene på.',
 		level: 'Nivå',
 		activities: 'Aktiviteter',
 		activitiesNone: 'Ingen plan ennå, så ingen aktiviteter.',
-		activitiesNote:
-			'Idrettene planen din har spor for. Du legger til og fjerner dem i Plan, under Avansert.',
 		activitiesLink: 'Endre aktiviteter i Plan',
 		save: 'Lagre',
 		saved: 'Nivå og økter er lagret.',
@@ -384,6 +380,8 @@ export const ACTIVITIES_EDIT_LABELS = {
 	show: 'Vis ny uke',
 	same: 'Det er de samme aktivitetene som planen har nå. Ingenting er endret.',
 	none: 'Velg minst én aktivitet. Ingenting er endret.',
+	liftingOnly:
+		'Styrke legges ved siden av en idrett eller en aktivitet. Velg minst én av dem også. Ingenting er endret.',
 	changedSince:
 		'Du har endret valgene etter forhåndsvisningen. Trykk Vis ny uke for å se uka de gir.',
 	/** `Ny uke · uke 46`: the ISO week the edit begins in. */
