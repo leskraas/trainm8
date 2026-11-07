@@ -107,8 +107,9 @@ import {
 	volumeSessionOf,
 } from '#app/utils/plan-outline/week-volumes.ts'
 import {
-	buildLedgerRows,
-	type SessionRow,
+	buildSessionEntryRows,
+	type SessionEntryRow as SessionRow,
+	sessionProfile,
 } from '#app/utils/session-ledger-rows.ts'
 import {
 	type SessionOwner,
@@ -583,13 +584,13 @@ export function buildTimelineSeason({
 	// The earliest day this screen knows anything about. Behind it the query
 	// asked nothing, so nothing behind it is built and no row speaks for it.
 	const reachesBackKey = addDays(todayKey, -TIMELINE_TRAILING_DAYS)
-	// The ledger's own row builder decides what a row *is* (status, load, band,
-	// profile bars), so the stream and the Session Ledger can never disagree
-	// about a session. Its `now` divider is dropped here: the week headers and
-	// today's own row already say where the boundary is, twice over.
-	const ledgerRows = buildLedgerRows(ledger, now, timezone, thresholds).filter(
-		(row): row is SessionRow => row.kind === 'session',
-	)
+	// The ledger's own row builder decides what a row *is* (status, load,
+	// band), so the stream and the Session Ledger can never disagree about a
+	// session. Its profile bars are only drawn, so a row derives them when its
+	// day is built (`buildSession`), by the ledger's own rule; and the ledger's
+	// `now` divider has no place here: the week headers and today's own row
+	// already say where the boundary is, twice over.
+	const ledgerRows = buildSessionEntryRows(ledger, now, timezone, thresholds)
 	// Weeks are bucketed by the Athlete Calendar, the same Monday–Sunday windows
 	// Weekly Plan Adherence uses — and identically on server and client, so the
 	// stream cannot hydrate into a different shape than it rendered.
@@ -1234,6 +1235,8 @@ function buildSession({
 	const { session, entry } = row
 	const content = buildRowContent(row, week, { isToday, thresholds })
 	const owner = sessionOwner(session)
+	// The shape bars: by the Session Ledger's own rule, built with the row.
+	const profile = sessionProfile(session)
 	return {
 		id: session.id,
 		to: `/training/sessions/${session.id}`,
@@ -1244,8 +1247,8 @@ function buildSession({
 			entry.title ??
 			nbSessionNoun(entry.discipline),
 		status: entry.status,
-		bars: row.bars,
-		groups: row.groups,
+		bars: profile.bars,
+		groups: profile.groups,
 		externalLoad: content.externalLoad,
 		internalLoad: content.internalLoad,
 		chips: content.chips,

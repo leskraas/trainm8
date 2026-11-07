@@ -9,12 +9,27 @@
  */
 import { expect, test, vi } from 'vitest'
 import type * as Format from '#app/utils/format.ts'
+import type * as SessionProfile from '#app/utils/session-profile.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import { buildCalmToday } from '../__calm-today.ts'
 import { findDay } from './day-lookup.ts'
 import { buildTimelineSeason, weekDays } from './presenter.ts'
 
 const dayLabels = vi.hoisted(() => ({ calls: 0 }))
+const profiles = vi.hoisted(() => ({ calls: 0 }))
+
+vi.mock('#app/utils/session-profile.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof SessionProfile>()
+	return {
+		...actual,
+		deriveSessionProfile: (
+			...args: Parameters<typeof actual.deriveSessionProfile>
+		) => {
+			profiles.calls += 1
+			return actual.deriveSessionProfile(...args)
+		},
+	}
+})
 
 vi.mock('#app/utils/format.ts', async (importOriginal) => {
 	const actual = await importOriginal<typeof Format>()
@@ -61,11 +76,16 @@ function longSeason() {
 	return buildTimelineSeason({ ledger, now: NOW, timezone: 'UTC' })
 }
 
-test('building the season builds no week its days', () => {
+test('building the season builds no week its days, and draws no session its bars', () => {
 	dayLabels.calls = 0
+	profiles.calls = 0
 	const season = longSeason()
 	expect(season.weeks.length).toBeGreaterThan(50)
 	expect(dayLabels.calls).toBe(0)
+	// A row's profile bars are only drawn: they are built with its day.
+	expect(profiles.calls).toBe(0)
+	weekDays(season.weeks[season.todayWeekIndex + 2]!)
+	expect(profiles.calls).toBe(1)
 })
 
 test('reading a week builds that week its days, once, and no other week', () => {

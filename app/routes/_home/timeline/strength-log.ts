@@ -9,7 +9,7 @@
 import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
 import { readPlannedSets } from '#app/utils/dashboard.ts'
 import { QUICK_LOG_LABELS } from '#app/utils/labels.ts'
-import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
+import { type SessionEntryRow as SessionRow } from '#app/utils/session-ledger-rows.ts'
 import {
 	canQuickLogStrength,
 	QUICK_LOG_REACH_DAYS,

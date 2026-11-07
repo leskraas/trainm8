@@ -4,14 +4,15 @@ Status: Accepted · Issue #503 · **Decides the proposal in
 [ADR 0078](0078-the-stream-keeps-its-own-windowing-and-the-cost-at-full-span-was-never-the-rows.md)
 "Reopened"** (hydrate only the weeks near today, mount the rest of the past
 after hydration): **not built**, because the profile below puts the cost
-elsewhere. **Keeps** ADR 0078 §1 (no virtualiser; `use-timeline-scroll.ts`
-owns scroll position) and
+elsewhere. **Keeps** ADR 0078 §1 (no virtualiser; `use-timeline-scroll.ts` owns
+scroll position) and
 [ADR 0086](0086-i-dag-has-no-hero-reads-like-a-calendar-and-the-scroll-engine-never-writes-under-a-reader.md)
 §4 whole: the past is mounted up front, nothing grows above the reader, and the
 app writes no `scrollTop` under a scrolling reader.
 
 Scope: `app/routes/_home/timeline/`, `app/utils/athlete-calendar.ts`, and the
-calm I dag view's reading of the same season (`app/routes/_home/__calm-today.ts`).
+calm I dag view's reading of the same season
+(`app/routes/_home/__calm-today.ts`).
 
 ## Context
 
@@ -34,9 +35,9 @@ through the build's source maps. The probe scripts and their output are in the
    time-sliced and is in no long task. Opening it from _Se hele sesongen_ is the
    same: 1,881ms of a 1,895ms task is the presenter, in the client render.
 2. **Most of the presenter is building date formatters.** `localDate` and
-   `tzOffsetMs` in the Athlete Calendar construct a new `Intl.DateTimeFormat`
-   on every call, and the presenter calls them per day and per session: 812ms
-   of the 1,336ms (61%) by URL, 1,263ms of 1,895ms (67%) by navigation. Next is
+   `tzOffsetMs` in the Athlete Calendar construct a new `Intl.DateTimeFormat` on
+   every call, and the presenter calls them per day and per session: 812ms of
+   the 1,336ms (61%) by URL, 1,263ms of 1,895ms (67%) by navigation. Next is
    `stepToZone` in `session-profile.ts` (143–230ms), per planned step.
 3. **The presenter builds the whole season, mounted or not**: all 52 weeks and
    all 247 ledger sessions, where the Stream mounts 32 weeks on open (the past,
@@ -64,34 +65,33 @@ through the build's source maps. The probe scripts and their output are in the
 Opening the full view does work in proportion to what it mounts and hydrates it
 in pieces React can yield between.
 
-1. **The Athlete Calendar caches its formatters.** `localDate`, `tzOffsetMs`
-   and `localTimeOfDay` reuse one `Intl.DateTimeFormat` per timezone and shape
-   (a module-level `Map`, as `format.ts` does). Same outputs, so server and
-   client still agree; every caller of the module gains, the server render and
-   the calm I dag view included.
-2. **A week's days are built when the week is read, once.** The presenter
-   splits along the seam the profile shows: `buildTimelineSeason` builds the
-   season's **week skeleton** (shape, header, track volumes, phase, what the
-   Week Strip and the headers read), and a week's **days** (`buildDay`,
-   `buildSession`, and the per-session row facts) are built by one cached
-   accessor per week, keyed on the week object, the first time anything reads
-   them. `WeekBlock` reads them in its own render, so the work happens per week
-   inside React's sliced hydration and render, and a week that never mounts
-   never builds its days. Every other reader goes through the same accessor:
-   `weekHeightEstimate`, `day-lookup.ts`, the Ukeskiftet card's
-   `week-change.ts`, and the calm view's `__calm-today.ts`, whose search for
-   the next planned session walks weeks lazily and stops at the first hit
-   rather than flattening every week's days.
+1. **The Athlete Calendar caches its formatters.** `localDate`, `tzOffsetMs` and
+   `localTimeOfDay` reuse one `Intl.DateTimeFormat` per timezone and shape (a
+   module-level `Map`, as `format.ts` does). Same outputs, so server and client
+   still agree; every caller of the module gains, the server render and the calm
+   I dag view included.
+2. **A week's days are built when the week is read, once.** The presenter splits
+   along the seam the profile shows: `buildTimelineSeason` builds the season's
+   **week skeleton** (shape, header, track volumes, phase, what the Week Strip
+   and the headers read), and a week's **days** (`buildDay`, `buildSession`, and
+   the per-session row facts) are built by one cached accessor per week, keyed
+   on the week object, the first time anything reads them. `WeekBlock` reads
+   them in its own render, so the work happens per week inside React's sliced
+   hydration and render, and a week that never mounts never builds its days.
+   Every other reader goes through the same accessor: `weekHeightEstimate`,
+   `day-lookup.ts`, the Ukeskiftet card's `week-change.ts`, and the calm view's
+   `__calm-today.ts`, whose search for the next planned session walks weeks
+   lazily and stops at the first hit rather than flattening every week's days.
 3. **Each week block hydrates on its own.** Every week in the Stream is its own
-   `<Suspense>` boundary. The server renders every mounted week as today, so
-   the Landing Position, the Week Strip's jumps, the anchoring and Safari's
+   `<Suspense>` boundary. The server renders every mounted week as today, so the
+   Landing Position, the Week Strip's jumps, the anchoring and Safari's
    behaviour do not change; on the client the frame, the top line, the Week
    Strip and the Stream element hydrate first, and the weeks follow at idle
-   priority. A tap on a week not yet hydrated hydrates that week first and
-   React replays the tap, so no tap is dropped. **The week elements handed to
-   the boundaries are referentially stable** (built in a `useMemo` over the
-   visible weeks and their stable props), so a frame state change during load
-   does not force every boundary to hydrate in one task (finding 6).
+   priority. A tap on a week not yet hydrated hydrates that week first and React
+   replays the tap, so no tap is dropped. **The week elements handed to the
+   boundaries are referentially stable** (built in a `useMemo` over the visible
+   weeks and their stable props), so a frame state change during load does not
+   force every boundary to hydrate in one task (finding 6).
 
 ### If the budget is still missed
 
@@ -102,20 +102,20 @@ these, in order, re-measuring after each:
 
 - **Server-render fewer weeks ahead.** The first chunk ahead in the server
   render shrinks to what a landing can show (this week and the next); the rest
-  of the chunk is appended after hydration, below the reader, which ADR 0086
-  §4 already allows.
+  of the chunk is appended after hydration, below the reader, which ADR 0086 §4
+  already allows.
 - **Then stop.** If a criterion is still over, the remainder is the ledger
   payload and the parse and style of the mounted markup. The build returns the
-  numbers to the spec rather than changing what the loader ships: which
-  sessions carry their whole `workout` to the client is a loader-shape decision
-  with its own trade-offs (the composer, the popover and appended weeks read
-  it) and is not taken on a guess.
+  numbers to the spec rather than changing what the loader ships: which sessions
+  carry their whole `workout` to the client is a loader-shape decision with its
+  own trade-offs (the composer, the popover and appended weeks read it) and is
+  not taken on a guess.
 
 ## Considered options
 
 - **ADR 0078's proposal: server-render and hydrate only the weeks near today,
-  mount the rest of the past after hydration.** Rejected. Both seasons mount
-  the same 25 past weeks, so it attacks a difference that is not there, while
+  mount the rest of the past after hydration.** Rejected. Both seasons mount the
+  same 25 past weeks, so it attacks a difference that is not there, while
   bringing back growth above the reader that ADR 0086 removed: a `ReadingHold`
   write on Safari during load, which #503's "no `scrollTop` while the reader is
   scrolling" forbids, and a Week Strip jump to a past week that has not mounted
@@ -138,9 +138,9 @@ these, in order, re-measuring after each:
 ## Consequences
 
 - **The week skeleton and the days are two halves of one presenter, and stay in
-  `presenter.ts`.** A field a header or the strip reads belongs to the
-  skeleton; a field only a row reads belongs to the days. Putting a row field on
-  the skeleton quietly brings back the whole-season pass.
+  `presenter.ts`.** A field a header or the strip reads belongs to the skeleton;
+  a field only a row reads belongs to the days. Putting a row field on the
+  skeleton quietly brings back the whole-season pass.
 - **The boundaries' elements must stay stable**, beside the memoised `WeekBlock`
   and `DayRow` ADR 0078 already made load-bearing. Like those memos, nothing
   fails loudly if a later change breaks it: the load just gets slow again, in
@@ -154,6 +154,17 @@ these, in order, re-measuring after each:
 - **The ledger still ships every session's whole `workout`.** The 52-week
   season's payload is 6× the seed's. It is in no long task today; it is the
   named next lever if the budget is missed (above).
-- **In-app navigation has no script yet.** `scripts/measure-home-stream.ts`
-  measures a load by URL; #503's third criterion needs it to measure the
-  navigation from _Se hele sesongen_ on I dag as well.
+- **A finished boundary is rendered in place** (found while building it, #503).
+  React's server renderer outlines every finished `<Suspense>` boundary once
+  12.8KB of the page has flushed (`progressiveChunkSize`), sending it as a
+  hidden segment that a script swaps in later. With a boundary per week that was
+  most of the Stream, after the landing script had already run, so the Stream
+  opened at the top of the season and jumped to today. `entry.server.tsx` sets
+  `progressiveChunkSize` to infinity: a finished boundary goes out where it
+  stands, and one still waiting for data streams as before.
+- **A row's profile bars are part of its days**, not the skeleton: the presenter
+  reads each session's ledger entry for the week's numbers
+  (`buildSessionEntryRows`) and derives its bars (`sessionProfile`, the Session
+  Ledger's own rule) when the row is built.
+- **In-app navigation is measured** by `scripts/measure-home-stream.ts --nav`,
+  beside the load by URL; both take several servers and interleave them.

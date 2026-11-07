@@ -13,7 +13,7 @@ import { type SessionLedgerEntry, toSessionLedgerEntry } from './training.ts'
  * workout's authored structure when it has one, otherwise a recording's
  * HR-derived phases. Both render identically; recordings carry no groups.
  */
-function sessionProfile(s: LedgerSession): {
+export function sessionProfile(s: LedgerSession): {
 	bars: ProfileBar[]
 	groups: ProfileBarGroup[]
 } {
@@ -25,14 +25,23 @@ function sessionProfile(s: LedgerSession): {
 	}
 }
 
-export type SessionRow = {
+/**
+ * A session's row without its Profile bars: what it is (status, load, band)
+ * and nothing that is only drawn. The home timeline reads every session's
+ * entry to build its week skeleton, and only a mounted row's bars, so it
+ * derives those (`sessionProfile`) when it builds the row (ADR 0112 §2).
+ */
+export type SessionEntryRow = {
 	kind: 'session'
 	id: string
 	session: LedgerSession
 	entry: SessionLedgerEntry
+	isPast: boolean
+}
+
+export type SessionRow = SessionEntryRow & {
 	bars: ProfileBar[]
 	groups: ProfileBarGroup[]
-	isPast: boolean
 }
 
 export type NowRow = { kind: 'now'; id: '__now__' }
@@ -52,26 +61,38 @@ export function buildLedgerRows(
 	/** What a distance step's duration is timed against (#615). */
 	thresholds: DisciplineThresholdMap = {},
 ): LedgerRow[] {
-	const nowMs = now.getTime()
 	const rows: LedgerRow[] = []
 	let nowInserted = false
-	for (const s of sessions) {
-		const isPast = new Date(s.scheduledAt).getTime() < nowMs
-		if (!isPast && !nowInserted) {
+	for (const row of buildSessionEntryRows(
+		sessions,
+		now,
+		timezone,
+		thresholds,
+	)) {
+		if (!row.isPast && !nowInserted) {
 			rows.push({ kind: 'now', id: '__now__' })
 			nowInserted = true
 		}
-		const profile = sessionProfile(s)
-		rows.push({
-			kind: 'session',
-			id: s.id,
-			session: s,
-			entry: toSessionLedgerEntry(s, now, timezone, thresholds),
-			bars: profile.bars,
-			groups: profile.groups,
-			isPast,
-		})
+		const profile = sessionProfile(row.session)
+		rows.push({ ...row, bars: profile.bars, groups: profile.groups })
 	}
 	if (!nowInserted) rows.push({ kind: 'now', id: '__now__' })
 	return rows
+}
+
+/** Every session's row in order, without its Profile bars or a `now` divider. */
+export function buildSessionEntryRows(
+	sessions: LedgerSession[],
+	now: Date = new Date(),
+	timezone?: string,
+	thresholds: DisciplineThresholdMap = {},
+): SessionEntryRow[] {
+	const nowMs = now.getTime()
+	return sessions.map((s) => ({
+		kind: 'session',
+		id: s.id,
+		session: s,
+		entry: toSessionLedgerEntry(s, now, timezone, thresholds),
+		isPast: new Date(s.scheduledAt).getTime() < nowMs,
+	}))
 }
