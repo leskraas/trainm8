@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Placed Hours Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;650;700&display=swap" rel="stylesheet">
+<!--
+  #473 design canvas. PROTOTYPE, throwaway: a self-contained drawing of the
+  generate preview (/training/plan/generate/:eventId) in the project's own
+  tokens (app/styles/tailwind.css, docs/design/design-system.md). One variant,
+  "Inline well", because the run is unattended.
+  ?solo=1 renders only the preview (for screenshots); &data=demo|worst|one|none
+  picks the dataset; &open=1 opens the remaining weeks.
+-->
+<style>
+:root {
+  --background: oklch(0.975 0.003 197);
+  --foreground: oklch(0.148 0.004 228.8);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.948 0.004 197);
+  --muted-foreground: oklch(0.52 0.016 213.5);
+  --secondary: oklch(0.955 0.004 197);
+  --border: oklch(0.915 0.005 214.3);
+  --primary: #0d7a68;
+  --primary-foreground: #ffffff;
+  --status-under: oklch(0.55 0.13 65);
+  --track-run: oklch(0.63 0.16 32);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: oklch(0.148 0.004 228.8);
+    --foreground: oklch(0.987 0.002 197.1);
+    --card: oklch(0.205 0.007 223.9);
+    --muted: oklch(0.255 0.01 216.9);
+    --muted-foreground: oklch(0.723 0.014 214.4);
+    --secondary: oklch(0.275 0.011 216.9);
+    --border: oklch(1 0 0 / 10%);
+    --primary: #35b89c;
+    --primary-foreground: #0c1512;
+    --status-under: oklch(0.82 0.12 65);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --background: oklch(0.148 0.004 228.8);
+  --foreground: oklch(0.987 0.002 197.1);
+  --card: oklch(0.205 0.007 223.9);
+  --muted: oklch(0.255 0.01 216.9);
+  --muted-foreground: oklch(0.723 0.014 214.4);
+  --secondary: oklch(0.275 0.011 216.9);
+  --border: oklch(1 0 0 / 10%);
+  --primary: #35b89c;
+  --primary-foreground: #0c1512;
+  --status-under: oklch(0.82 0.12 65);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: 'Public Sans', system-ui, sans-serif; }
+p, h1, h2, h3, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+button { font: inherit; color: inherit; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+
+/* Type steps (design-system.md §Type), in rem so 200 % root text scales them. */
+.t-title { font-size: 1.5rem; line-height: 1.875rem; font-weight: 650; letter-spacing: -0.02em; }
+.t-heading { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.012em; }
+.t-body { font-size: 1rem; line-height: 1.5rem; letter-spacing: -0.004em; }
+.t-callout { font-size: 0.9375rem; line-height: 1.3125rem; font-weight: 500; letter-spacing: -0.004em; }
+.t-footnote { font-size: 0.8125rem; line-height: 1.125rem; letter-spacing: 0.002em; }
+.t-caption { font-size: 0.75rem; line-height: 1rem; font-weight: 500; letter-spacing: 0.01em; }
+.t-overline { font-size: 0.6875rem; line-height: 1rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.muted { color: var(--muted-foreground); }
+.semi { font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; }
+.nowrap { white-space: nowrap; }
+.wrap-any { overflow-wrap: anywhere; }
+
+/* ---------- The preview page ---------- */
+.page { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 6rem; }
+@media (min-width: 768px) { .page { padding: 2rem 2rem 6rem; } }
+.back { display: inline-flex; align-items: center; gap: .25rem; min-height: 2.75rem; color: var(--primary); text-decoration: none; }
+.intro { margin: .25rem 0 1.5rem; display: grid; gap: .25rem; }
+.well-muted { background: color-mix(in oklab, var(--muted) 60%, transparent); border-radius: 15.6px; padding: 1rem; margin-bottom: 1.5rem; display: grid; gap: .5rem; }
+@media (min-width: 768px) { .well-muted { padding: 1.5rem; } }
+.card { background: var(--card); border-radius: 15.6px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1), 0 0 0 1px color-mix(in oklab, var(--foreground) 5%, transparent); padding: 1rem; display: grid; gap: .75rem; overflow: hidden; }
+@media (min-width: 768px) { .card { padding: 1.25rem; } }
+.plancard { display: grid; gap: .75rem; }
+.closedrow { display: flex; align-items: center; gap: .75rem; min-height: 2.75rem; }
+.field { display: grid; gap: .375rem; }
+.input { min-height: 2.75rem; border-radius: 13.2px; background: color-mix(in oklab, var(--border) 60%, transparent); padding: .625rem .875rem; font-size: 1rem; max-width: 20rem; }
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; border-radius: 15.6px; padding: 0 1.25rem; border: 0; font-weight: 500; font-size: .875rem; cursor: pointer; transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out); }
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-secondary { background: var(--secondary); }
+@media (max-width: 639px) { .btn { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .btn { transition: background-color 160ms var(--ease-out); } .btn:active { transform: none; } }
+
+.season { display: grid; gap: .75rem; margin-top: 2rem; }
+.season-head { display: grid; gap: .25rem; }
+.weeks { display: grid; gap: .75rem; }
+
+/* Week card (WeekCard in plan.generate.$eventId.tsx). */
+.week-head { display: grid; gap: .25rem; }
+/* The date wraps under the title rather than squeezing the role badge out of
+   the card at 320 px with 200 % text (a fix to today's row, AC 11). */
+.week-title-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .5rem; }
+.week-title-row h3 { flex: 1 0 auto; max-width: 100%; display: flex; flex-wrap: wrap; align-items: center; column-gap: .5rem; row-gap: .25rem; }
+.badge { display: inline-flex; align-items: center; border-radius: 999px; padding: .125rem .5rem; font-size: .75rem; line-height: 1rem; font-weight: 500; background: var(--secondary); white-space: nowrap; }
+.badge-primary { background: var(--primary); color: var(--primary-foreground); }
+.targets { display: flex; flex-wrap: wrap; column-gap: .375rem; }
+/* A sport and its figure stay on one line while they fit; at 320 px with
+   200 % text the sport yields to its own line, and the figure never splits. */
+.target { display: inline-flex; flex-wrap: wrap; column-gap: .25em; min-width: 0; }
+.sessions > li { padding: .75rem 0; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.sessions > li:first-child { padding-top: .25rem; border-top: 0; }
+.sessions > li:last-child { padding-bottom: 0; }
+.dayline { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .375rem; }
+
+/* ===== The variant: "Inline well" =====
+   The placed-hours statement as the week's own line, directly under its
+   targets: the status-under (amber) tint and hairline that RiseWarningNotice
+   uses on Sesong. The words carry the warning; the colour only marks it. */
+.placed-well { background: color-mix(in oklab, var(--status-under) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--status-under) 35%, transparent); border-radius: 13.2px; padding: .625rem .875rem; margin-top: .25rem; }
+/* The season line beside lowered/over: the `over` notice's own voice. */
+.season-line { }
+
+/* Remaining weeks (CollapsibleSection). */
+.remaining { display: grid; gap: .75rem; }
+.remaining-trigger { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 2.75rem; text-align: left; background: var(--card); border: 0; border-radius: 15.6px; padding: .75rem 1rem; box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 5%, transparent), 0 1px 2px rgb(0 0 0 / .05); cursor: pointer; }
+.chev { flex-shrink: 0; transition: transform 200ms var(--ease-out); }
+[aria-expanded="true"] .chev { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+
+/* ---------- Canvas chrome ---------- */
+.canvas { max-width: 76rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+.canvas h1 { margin-bottom: .5rem; }
+.board { margin-top: 2.5rem; }
+.board > h2 { margin-bottom: .75rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0 1.25rem; }
+.chip { border-radius: 999px; padding: .25rem .75rem; background: var(--card); box-shadow: 0 0 0 1px var(--border); font-size: .8125rem; font-weight: 500; }
+.chip-pending { background: var(--muted); }
+.status { display: inline-block; border-radius: 999px; padding: .0625rem .5rem; font-size: .75rem; font-weight: 600; background: var(--muted); }
+.frames { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+.frame { width: 390px; max-width: 100%; border-radius: 24px; overflow: hidden; box-shadow: 0 0 0 1px var(--border), 0 10px 30px rgb(0 0 0 / .08); background: var(--background); }
+.frame-320 { width: 320px; }
+.frames > div { min-width: 0; max-width: 100%; }
+.frame-label { margin-bottom: .5rem; }
+table.cmp { border-collapse: collapse; width: 100%; max-width: 52rem; font-size: .875rem; }
+table.cmp th, table.cmp td { text-align: left; vertical-align: top; padding: .5rem .75rem; border-top: 1px solid var(--border); }
+table.cmp th { width: 11rem; font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+.decisions li { padding: .375rem 0; border-top: 1px solid var(--border); font-size: .875rem; line-height: 1.35; }
+details { margin-top: 1.25rem; }
+summary { cursor: pointer; font-weight: 600; min-height: 2.75rem; display: flex; align-items: center; }
+.seg { position: sticky; bottom: 1rem; display: flex; justify-content: center; margin-top: 1rem; }
+.seg-track { display: inline-flex; gap: 2px; background: #e5e5e5; padding: 3px; border-radius: 999px; font-family: system-ui, sans-serif; font-size: 13px; }
+.seg-track button { border: 0; background: transparent; padding: 6px 12px; border-radius: 999px; cursor: pointer; color: #333; }
+.seg-track button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
+.prose { max-width: 46rem; font-size: .9375rem; line-height: 1.45; }
+.prose p + p { margin-top: .5rem; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict'
+const NB = ' '
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des']
+const DAYS = { mon: 'Mandag', tue: 'Tirsdag', wed: 'Onsdag', thu: 'Torsdag', fri: 'Fredag', sat: 'Lørdag', sun: 'Søndag' }
+
+// ---------- Helpers, mirroring app/utils (format.ts, labels/*.ts) ----------
+function addDays(iso, n) { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
+function isoWeek(iso) {
+  const d = new Date(iso + 'T00:00:00Z'); const day = (d.getUTCDay() + 6) % 7
+  d.setUTCDate(d.getUTCDate() - day + 3); const firstThu = new Date(Date.UTC(d.getUTCFullYear(), 0, 4))
+  return 1 + Math.round(((d - firstThu) / 864e5 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7)
+}
+function dayMonth(iso) { const d = new Date(iso + 'T00:00:00Z'); return `${d.getUTCDate()}. ${MONTHS[d.getUTCMonth()]}` }
+const round1 = (h) => Math.round(h * 10) / 10
+function nbHours(h) { return String(round1(h)).replace('.', ',') }
+/** `≈ 7,5 t`: rounded once, here; no-break spaces throughout (#638). */
+function hoursFigure(h, estimated) { const t = `${nbHours(h)} t`; return (estimated ? `≈ ${t}` : t).replaceAll(' ', NB) }
+function weeklyHours(h, estimated) { const t = `${nbHours(h)} t/uke`; return (estimated ? `≈ ${t}` : t).replaceAll(' ', NB) }
+function spanLabel(a, b) { return a === b ? `Uke ${a}` : `Uke ${a}–${b}` }
+function weekSpans(spans) {
+  const parts = spans.map((s, i) => (i === 0 ? s : s[0].toLowerCase() + s.slice(1)))
+  const last = parts.length > 1 ? parts.pop() : null
+  return last == null ? parts[0] : `${parts.join(', ')} og ${last}`
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]) }
+
+// ---------- Proposed copy (app/utils/labels/plan-generate.ts) ----------
+const L = {
+  /** Week card. `figure` arrives formatted: `minst ≈ 7,5 t`, `7,5 t`. */
+  placedWeek: (figure, capacity) => [`Øktene alene tar ${figure}`, `, kapasiteten din er ${capacity}.`],
+  /** Season line, beside `lowered` and `over`. */
+  placedOverLead: 'Øktene alene tar mer tid enn du har.',
+  placedOver: (spans, single, capacity) =>
+    `${spans} har økter som til sammen tar lengre tid enn kapasiteten din på ${capacity}. Ingen økt er kortet ned eller byttet ut – ${single ? 'uka viser' : 'hver av ukene viser'} hvor mye.`,
+  everyWeek: 'Hver uke i sesongen',
+  /** On the remaining-weeks trigger, when a breach sits behind it. */
+  remainingBreach: (spans) => `${spans} ligger her, og øktene der tar mer tid enn du har.`,
+  remaining: (n) => (n === 1 ? 'Én uke til' : `${n} uker til`),
+  remainingDetail: 'Den samme sesongen, uke for uke, helt fram til løpet.',
+}
+
+/** The figure the athlete reads, and whether it breaches (hoursFitWarnings' rounding). */
+function placedReading(week, capacity) {
+  if (capacity == null || week.placed == null || week.placed.hours === 0) return null
+  if (!(round1(week.placed.hours) > round1(capacity))) return null
+  const fig = hoursFigure(week.placed.hours, week.placed.estimated)
+  // `minst` may wrap away from the figure; the figure itself never splits.
+  return { figure: week.placed.floor ? `minst ${fig}` : fig }
+}
+
+// ---------- Data ----------
+const RUN = 'Løping', BIKE = 'Sykling', SWIM = 'Svømming'
+const PHASES_20 = [['Grunntrening', 6], ['Oppbygging', 8], ['Spissing', 4], ['Nedtrapping', 2]]
+function phaseAt(phases, i) { let n = 0; for (const [name, w] of phases) { if (i < n + w) return name; n += w } return phases.at(-1)[0] }
+
+const RUN_SESSIONS = {
+  thr: { weekday: 'tue', d: RUN, arch: 'Terskel', zone: 4, title: 'Cruise intervals (terskeldrag)', src: 'Kilde: Daniels — Daniels’ Running Formula' },
+  easy: { weekday: 'thu', d: RUN, arch: 'Rolig', zone: 2, title: 'Easy run (rolig tur)', src: 'Kilde: Daniels — Daniels’ Running Formula' },
+  strides: { weekday: 'sat', d: RUN, arch: 'Rolig', zone: 2, title: 'Easy run with strides (rolig med stigningsløp)', src: 'Vanlig trenerpraksis — trainm8 viser ikke til noen publisert kilde for denne økta.' },
+  long: { weekday: 'sun', d: RUN, arch: 'Langtur', zone: 2, title: 'Classic long run (langtur)', src: 'Kilde: Pfitzinger og Douglas — Advanced Marathoning' },
+  longMp: { weekday: 'sun', d: RUN, arch: 'Langtur', zone: 3, title: 'Long run with marathon finish (langtur med marsjfart)', src: 'Kilde: Pfitzinger og Douglas — Advanced Marathoning' },
+  vo2: { weekday: 'tue', d: RUN, arch: 'VO₂maks (lange drag)', zone: 5, title: 'Helgerud 4 × 4 (fire ganger fire)', src: 'Kilde: Helgerud m.fl. — Aerobic high-intensity intervals improve VO₂max more than moderate training (2007)' },
+}
+
+function demo() {
+  // A half-marathon athlete, run only, 6 t/uke. The Week Target was lowered
+  // (§2, built), and some weeks' placed sessions still take longer (§4).
+  const start = '2026-11-16'
+  const total = 20
+  const hoursByWeek = [4.6, 5.1, 6.4, 4.2, 5.3, 5.6, 5.2, 4.4, 5.8, 6.3, 6.7, 4.9, 6.04, 7.1, 5.9, 5.8, 5.2, 4.4, 3.6, 2.4]
+  const kmByWeek = [36, 39, 42, 31, 41, 44, 40, 33, 45, 48, 51, 37, 47, 52, 46, 44, 40, 32, 26, 14]
+  const weeks = []
+  for (let i = 0; i < total; i++) {
+    const key = addDays(start, 7 * i)
+    const phase = phaseAt(PHASES_20, i)
+    const role = i === total - 1 ? 'race' : (i + 1) % 4 === 0 ? 'lett uke' : i >= 18 ? 'nedtrapping' : null
+    const long = phase === 'Spissing' || phase === 'Oppbygging' ? RUN_SESSIONS.longMp : RUN_SESSIONS.long
+    const first = phase === 'Spissing' ? RUN_SESSIONS.vo2 : RUN_SESSIONS.thr
+    weeks.push({
+      key, phase, role,
+      targets: [[RUN, `${kmByWeek[i]} km`]],
+      sessions: [first, RUN_SESSIONS.easy, RUN_SESSIONS.strides, long],
+      unfilled: [],
+      // Cruise intervals carry open rests: the figure is a floor.
+      placed: { hours: hoursByWeek[i], estimated: true, floor: first === RUN_SESSIONS.thr },
+    })
+  }
+  return {
+    event: { name: 'Vårløpet halvmaraton', date: '10. apr 2027' },
+    start, phases: PHASES_20, weeks, capacity: 6,
+    lowered: { after: weeklyHours(5.9, true), before: weeklyHours(7.2, true) },
+    over: null, absences: { strength: true, emptyDays: 0 },
+  }
+}
+
+function worst() {
+  // A triathlete with 2,5 t/uke: every week breaches, the season runs across
+  // New Year (uke 47 → 13), the target reading is `over` as well, one day is
+  // empty, titles are the corpus's longest, three tracks wrap.
+  const d = demo()
+  const longSwim = { weekday: 'wed', d: SWIM, arch: 'Terskel', zone: 4, title: 'Threshold set with descending rest (terskelserie med synkende pause)', src: 'Kilde: Olbrecht — The Science of Winning: Planning, Periodizing and Optimizing Swim Training' }
+  const bikeLong = { weekday: 'sat', d: BIKE, arch: 'Langtur', zone: 2, title: 'Long endurance ride with tempo inserts (langtur med tempodrag)', src: 'Kilde: Friel — The Cyclist’s Training Bible (5. utg.)' }
+  d.capacity = 2.5
+  d.lowered = null
+  d.over = { peak: weeklyHours(9.6, true), capacity: weeklyHours(2.5, false) }
+  d.absences = { strength: true, emptyDays: 3 }
+  d.event = { name: 'Ironman 70.3 Haugesund – Norges første halvdistanse med havsvøm og fjellsykling langs kysten', date: '12. apr 2027' }
+  d.weeks.forEach((w, i) => {
+    w.targets = [[RUN, `${(32 + i * 1.5).toFixed(1).replace('.', ',')} km`], [BIKE, `${(4.5 + i * 0.25).toFixed(1).replace('.', ',')} t`], [SWIM, `${(6200 + i * 150).toLocaleString('nb-NO').replace(/\s/g, NB)} m`]]
+    w.sessions = [RUN_SESSIONS.thr, longSwim, RUN_SESSIONS.easy, bikeLong, RUN_SESSIONS.longMp]
+    w.unfilled = i % 7 === 2 ? [{ weekday: 'fri', d: SWIM, text: 'Ingenting å legge inn – terskel eller under terskel i grunntrening finnes ikke i katalogen for denne idretten.' }] : []
+    w.placed = { hours: 8.4 + (i % 5) * 0.85, estimated: true, floor: true }
+  })
+  return d
+}
+
+function one() {
+  // One breaching week, and a week (index 12) at 6,04 t that rounds to the
+  // capacity and so says nothing.
+  const d = demo()
+  d.weeks.forEach((w, i) => { w.placed = { ...w.placed, hours: i === 13 ? 7.1 : Math.min(w.placed.hours, 6.04) } })
+  // Week index 13 is timed end to end: no `minst`.
+  d.weeks[13].placed.floor = false
+  d.lowered = null
+  return d
+}
+
+function none() { const d = demo(); d.capacity = null; d.lowered = null; return d }
+
+const DATASETS = { demo, worst, one, none }
+const DATA_LABELS = { demo: 'Demo data', worst: 'Worst case', one: 'Én uke', none: 'Ingen kapasitet' }
+
+// ---------- Render ----------
+function spansFor(d, indices) {
+  const runs = []
+  for (const i of indices) { const r = runs.at(-1); if (r && r[1] === i - 1) r[1] = i; else runs.push([i, i]) }
+  if (runs.length === 1 && runs[0][0] === 0 && runs[0][1] === d.weeks.length - 1) return { text: L.everyWeek, single: false, every: true }
+  return {
+    text: weekSpans(runs.map(([a, b]) => spanLabel(isoWeek(addDays(d.start, 7 * a)), isoWeek(addDays(d.start, 7 * b))))),
+    single: runs.length === 1 && runs[0][0] === runs[0][1],
+    every: false,
+  }
+}
+
+function weekCard(d, w, i) {
+  const p = placedReading(w, d.capacity)
+  const badge = w.role === 'race' ? '<span class="badge badge-primary">Løpsuke</span>' : w.role ? `<span class="badge">${w.role}</span>` : ''
+  const targets = w.targets.map(([dis, v], k) => `${k ? '<span aria-hidden="true">·</span>' : ''}<span class="target"><span class="nowrap">${dis}</span><span class="nowrap">${v.replaceAll(' ', NB)}</span></span>`).join('')
+  const rows = w.sessions.map((s) => `
+    <li><div style="display:grid;gap:.125rem">
+      <p class="t-footnote muted dayline"><span class="semi" style="color:var(--foreground)">${DAYS[s.weekday]}</span><span aria-hidden="true">·</span><span>${s.d}</span><span aria-hidden="true">·</span><span>${esc(s.arch)}</span><span aria-hidden="true">·</span><span>sone ${s.zone}</span></p>
+      <p class="t-callout wrap-any">${esc(s.title)}</p>
+      <p class="t-footnote muted wrap-any">${esc(s.src)}</p>
+    </div></li>`).join('') + w.unfilled.map((u) => `
+    <li><div style="display:grid;gap:.125rem">
+      <p class="t-footnote muted dayline"><span class="semi" style="color:var(--foreground)">${DAYS[u.weekday]}</span><span aria-hidden="true">·</span><span>${u.d}</span></p>
+      <p class="t-footnote">${esc(u.text)}</p>
+    </div></li>`).join('')
+  let well = ''
+  if (p) {
+    const [lead, rest] = L.placedWeek(p.figure, weeklyHours(d.capacity, false))
+    well = `<p class="placed-well t-footnote num" data-placed="over"><span class="semi">${lead}</span>${rest}</p>`
+  }
+  return `<article class="card" aria-labelledby="w-${w.key}">
+    <div class="week-head">
+      <div class="week-title-row">
+        <h3 id="w-${w.key}" class="t-callout semi num">Uke ${isoWeek(w.key)} ${badge}</h3>
+        <span class="t-footnote muted num" style="flex-shrink:0">${dayMonth(w.key)}</span>
+      </div>
+      <p class="t-footnote muted num">uke ${i + 1} av ${d.weeks.length} · ${w.phase}</p>
+      <p class="t-footnote num targets">${targets}</p>
+      ${well}
+    </div>
+    <ul class="sessions">${rows}</ul>
+  </article>`
+}
+
+function preview(d, { open = false, id = 'p' } = {}) {
+  const SHOWN = 4
+  const breaching = d.weeks.map((w, i) => (placedReading(w, d.capacity) ? i : -1)).filter((i) => i >= 0)
+  const sessions = d.weeks.reduce((n, w) => n + w.sessions.length, 0)
+  let lines = ''
+  if (d.lowered) lines += `<p class="t-footnote muted num" data-capacity="lowered">Skalert ned til kapasiteten din på ${weeklyHours(d.capacity, false)}: den tyngste uka er nå ${d.lowered.after}, ned fra ${d.lowered.before}.</p>`
+  if (d.over) lines += `<p class="t-footnote num" data-capacity="over"><span class="semi">Sesongen passer fortsatt ikke timene dine.</span> Hver uke i sesongen ber om opptil ${d.over.peak} utholdenhetstrening, og kapasiteten din er ${d.over.capacity}. Kvalitetsøktene alene krever mer enn det, så et lavere startvolum hjelper ikke – startvolumet står som det er.</p>`
+  if (breaching.length) {
+    const s = spansFor(d, breaching)
+    lines += `<p class="t-footnote num season-line" data-placed="season"><span class="semi">${L.placedOverLead}</span> ${L.placedOver(s.text, s.single, weeklyHours(d.capacity, false))}</p>`
+  }
+  const hiddenBreach = breaching.filter((i) => i >= SHOWN)
+  const hiddenSpans = hiddenBreach.length && !spansFor(d, breaching).every ? spansFor(d, hiddenBreach).text : null
+  const absences = d.absences.strength || d.absences.emptyDays ? `
+    <section class="well-muted" aria-label="Dette er ikke med i sesongen">
+      <h2 class="t-callout semi">Dette er ikke med i sesongen</h2>
+      ${d.absences.strength ? '<p class="t-footnote"><span class="semi">Ingen spor for styrke.</span> Ingen av sesongformene har en styrkeblokk, og en styrkeblokk trenger et mål, en lengde og et antall økter i uka som ingenting her kan lese. I stedet for å finne på dem lar sesongen den være ute – legg til en selv på planen når sesongen er lagt inn.</p>' : ''}
+      ${d.absences.emptyDays ? `<p class="t-footnote"><span class="semi num">${d.absences.emptyDays} treningsdager er tomme.</span> Katalogen har ingen økt som passer det de dagene ba om, og ingenting er satt inn i stedet. De er merket i ukene under.</p>` : ''}
+    </section>` : ''
+  const phases = d.phases.map(([n, w]) => `${n} ${w}${NB}uker`).join(' · ')
+  return `<main class="page" data-preview="${id}">
+    <a class="back t-footnote" href="#">‹ Legg den opp selv</a>
+    <h1 class="t-title" style="margin-bottom:1rem">Sesongen din, klar til å se over</h1>
+    <div class="intro">
+      <p class="t-heading wrap-any">${esc(d.event.name)}</p>
+      <p class="t-footnote muted num">${d.event.date} · ${sessions} økter over ${d.weeks.length} uker · Sesongen lander på løpsuka.</p>
+      <p class="t-footnote muted">Hver økt er hentet fra katalogen og viser hvor den kommer fra. Ingenting havner i kalenderen før du legger det inn.</p>
+    </div>
+    ${absences}
+    <div style="display:grid;gap:1.5rem">
+      <section class="card plancard"><h2 class="t-heading">Hvor står du nå?</h2><p class="t-footnote muted">Svaret avgjør hvor høyt opp på katalogens doseringsstige øktene hentes.</p><p class="t-callout">● Jeg trener jevnt og bygger videre</p></section>
+      <section class="card plancard"><h2 class="t-heading">Formen på sesongen</h2><div class="closedrow"><span style="flex:1;min-width:0"><span class="t-callout semi" style="display:block">Klassisk oppbygging</span><span class="t-footnote muted num" style="display:block">20${NB}uker · valgt fordi den lander nærmest løpet</span></span><span class="muted">⌄</span></div></section>
+      <section class="card plancard"><h2 class="t-heading">Hvor starter ukene?</h2><div class="field"><label class="t-footnote semi">Startvolum per uke i løping (km)</label><div class="input num">36</div><p class="t-footnote muted">Fylt inn fra din egen trening. Endre det gjerne.</p></div></section>
+      <div><button class="btn btn-secondary">Bygg sesongen på nytt</button></div>
+    </div>
+    <section class="season" aria-labelledby="season-${id}">
+      <div class="season-head">
+        <h2 id="season-${id}" class="t-heading">Sesongen</h2>
+        <p class="t-footnote muted num">${phases}</p>
+        ${lines}
+      </div>
+      <ul class="weeks">${d.weeks.slice(0, SHOWN).map((w, i) => `<li>${weekCard(d, w, i)}</li>`).join('')}</ul>
+      <div class="remaining">
+        <button class="remaining-trigger" aria-expanded="${open}" data-toggle-remaining>
+          <span style="flex:1;min-width:0"><span class="t-callout semi" style="display:block">${L.remaining(d.weeks.length - SHOWN)}</span>
+          <span class="t-footnote muted" style="display:block">${L.remainingDetail}</span>
+          ${hiddenSpans ? `<span class="t-footnote num" style="display:block;margin-top:.125rem">${L.remainingBreach(hiddenSpans)}</span>` : ''}</span>
+          <span class="chev muted" aria-hidden="true">⌄</span>
+        </button>
+        <ul class="weeks" ${open ? '' : 'hidden'}>${d.weeks.slice(SHOWN).map((w, i) => `<li>${weekCard(d, w, i + SHOWN)}</li>`).join('')}</ul>
+      </div>
+    </section>
+    <div style="margin-top:2rem;display:grid;gap:.75rem">
+      <div><button class="btn btn-primary">Legg disse ${sessions} øktene i kalenderen</button></div>
+      <p class="t-footnote muted">Alt havner der som vanlige økter du kan endre – og hver av dem peker tilbake til katalogøkta den kom fra.</p>
+    </div>
+  </main>`
+}
+
+function wire(root) {
+  root.querySelectorAll('[data-toggle-remaining]').forEach((b) => b.addEventListener('click', () => {
+    const open = b.getAttribute('aria-expanded') !== 'true'
+    b.setAttribute('aria-expanded', String(open))
+    b.nextElementSibling.hidden = !open
+  }))
+}
+
+function segmented(current, onPick) {
+  const wrap = document.createElement('div'); wrap.className = 'seg'
+  wrap.innerHTML = `<div class="seg-track" role="group" aria-label="Data">${Object.keys(DATASETS).map((k) => `<button aria-pressed="${k === current}" data-k="${k}">${DATA_LABELS[k]}</button>`).join('')}</div>`
+  wrap.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => onPick(b.dataset.k)))
+  return wrap
+}
+
+function mountLive(el, dataKey, opts) {
+  const draw = (k) => {
+    el.innerHTML = preview(DATASETS[k](), opts); wire(el)
+    if (opts.toggle) el.appendChild(segmented(k, draw))
+  }
+  draw(dataKey)
+}
+
+// ---------- Canvas ----------
+const q = new URLSearchParams(location.search)
+const app = document.getElementById('app')
+if (q.get('solo')) {
+  if (q.get('zoom') === '2') document.documentElement.style.fontSize = '200%'
+  const k = q.get('data') in DATASETS ? q.get('data') : 'demo'
+  app.innerHTML = preview(DATASETS[k](), { open: q.get('open') === '1' }); wire(app)
+} else {
+  app.innerHTML = `<div class="canvas">
+    <p class="t-overline muted">trainm8 #473 · design · run 1</p>
+    <h1 class="t-title">Placed hours over the Weekly Capacity, in the generate preview</h1>
+
+    <section class="board" id="overview">
+      <div class="chips"><span class="chip">Recommended: Inline well</span><span class="chip">run 1</span><span class="chip">5 decisions</span><span class="chip">two-way doors</span><span class="chip">11 of 12 hold · AC 7 partly</span><span class="chip">Inline well · <span class="status">Chosen</span></span></div>
+      <div class="frames">
+        <div><p class="t-caption muted frame-label">390 px · demo data · the target was lowered (§2) and week 49 still breaches (§4)</p><div class="frame" id="hero" style="height:860px;overflow-y:auto;overscroll-behavior:contain"></div></div>
+        <div class="prose" style="flex:1;min-width:18rem">
+          <h2 class="t-heading" style="margin-bottom:.5rem">Comparison</h2>
+          <div class="tablewrap"><table class="cmp">
+            <tr><th>Variant</th><td><b>Inline well</b> <span class="status">Chosen</span></td></tr>
+            <tr><th>Axis position</th><td>Emphasis of the week card statement: quiet line ↔ <b>tinted well</b> ↔ card-level edge and badge. Middle.</td></tr>
+            <tr><th>Gain</th><td>The breach sits under the week's own target, where the athlete reads the week's size, and is findable while scrolling by its amber tint; the season line and the remaining-weeks trigger name the weeks before any tap.</td></tr>
+            <tr><th>Cost</th><td>One more tinted surface in a page that already carries a muted well; a season where every week breaches tints every card.</td></tr>
+            <tr><th>Criteria held</th><td>11 of 12 hold; AC 7 partly: the season line and the «N uker til» trigger say which weeks breach on load, but a hidden week's own figure is behind the tap.</td></tr>
+            <tr><th>Worst case</th><td>No overflow at 320 px / 200 %, no figure splits. Breaches every other week: the trigger lists 8 weeks and grows to 670 px. Every week breaching: 20 amber wells, and two lines in a row that open «Hver uke i sesongen».</td></tr>
+            <tr><th>Build cost</th><td>Medium (critic's estimate): the UI is small, but the corpus read must carry blocks and the generator must price each placed session from the athlete's thresholds.</td></tr>
+            <tr><th>Status</th><td>Chosen</td></tr>
+          </table></div>
+          <h2 class="t-heading" style="margin:1.25rem 0 .5rem">Decisions</h2>
+          <ul class="decisions">
+            <li><b>How loud is the week card statement?</b> An amber-tinted well with a hairline under the targets (RiseWarningNotice's treatment), lead in semibold foreground.</li>
+            <li><b>What does the season line say?</b> The weeks and the capacity, not a peak figure: «Øktene alene tar mer tid enn du har.» + spans; the figures live on the cards, so «minst ≈» is never stacked with «opptil».</li>
+            <li><b>What about breaching weeks behind «N uker til»?</b> The trigger names them under its detail line, so the tap is never where a guard hides (#429).</li>
+            <li><b>Does AC 7 need each hidden week's figure before the tap?</b> No. Keep the remaining weeks collapsed. The season line and the trigger are the guard on load, and the owner confirms this reading.</li>
+            <li><b>Many breaching weeks behind the tap?</b> Past three spans the trigger gives a count («8 av ukene her tar mer tid enn du har»), and the season line still names every week.</li>
+          </ul>
+          <details><summary>Appendix</summary>
+            <p><b>Critic scoring (Inline well, opened in Chromium at 320, 390 and 1440 px, light and dark, 200 % root text, datasets demo / worst / one / none plus an alternating-breach case):</b></p>
+            <ol class="t-footnote" style="padding-left:1.25rem;list-style:decimal;display:grid;gap:.25rem">
+              <li><b>Holds.</b> Week-card statement: the well sits under the targets and reads «Øktene alene tar minst ≈ 6,4 t, kapasiteten din er 6 t/uke» in foreground text.</li>
+              <li><b>Holds.</b> Floor: carried as data (<code>floor</code>). The arithmetic is the build's, pinned by unit tests.</li>
+              <li><b>Holds.</b> «minst» appears only with a floor. In «Én uke», uke 7 reads «≈ 7,1 t» with no «minst».</li>
+              <li><b>Holds.</b> «≈», rounded once, with no-break spaces. Measured: no figure and no capacity ever split across a line.</li>
+              <li><b>Holds.</b> Rounded comparison: 6,04 t against 6 t (uke 6 in «Én uke») says nothing. The rounding matches <code>hoursFitWarnings</code> / <code>roundToCurrency(…, 'hours')</code> at 1 decimal.</li>
+              <li><b>Holds.</b> Season line: it names the spans, reads «Hver uke i sesongen» in the worst case, and shows beside both <code>lowered</code> (demo) and <code>over</code> (worst).</li>
+              <li><b>Partly.</b> Never behind a tap: the season line and the trigger name the hidden breaching weeks on load, but a hidden week's own figure needs a tap. Decision above; the build pins the on-load lines with a test.</li>
+              <li><b>Holds.</b> Nothing changes: the copy says «Ingen økt er kortet ned eller byttet ut». The build pins it with a test.</li>
+              <li><b>Holds.</b> No capacity, no statement («Ingen kapasitet» shows nothing). The unpriced-target case is not drawn, so the build tests it.</li>
+              <li><b>Holds.</b> Weeks that fit (uke 47–48 in demo) add nothing to their cards.</li>
+              <li><b>Holds.</b> The server recomputes on approval. A drawing can't show this, so a build test covers it.</li>
+              <li><b>Holds.</b> At 320 and 390 px with 200 % text, scrollWidth equals clientWidth. This depends on the designer's two WeekCard wrap fixes, which the build must ship.</li>
+            </ol>
+            <p><b>Craft (emil-design-eng):</b> the trigger's breach line must be foreground, but the real <code>CollapsibleSection</code> renders <code>detail</code> muted, so pass a node with <code>text-foreground</code>. Build the real border-top trigger row, not the card drawn here. When every week breaches, 20 amber wells mark nothing; that's an accepted cost, because the words carry it. The <code>over</code> line and the placed line repeat «alene» and «Hver uke i sesongen»; AC 6 keeps both. No motion is right for this.</p>
+            <p><b>Mobile (mobile-native):</b> nothing new to tap; the trigger keeps <code>ROW_PRESS</code>. Sizes are in rem. A real phone must still check the amber in sunlight and on OLED, iOS Dynamic Type at its largest, and how VoiceOver reads «≈».</p>
+            <p><b>Fit:</b> it reuses <code>RiseWarningNotice</code>'s treatment, <code>CapacityNotice</code>'s slot and <code>isoWeekSpanLabel</code>. #472's Planned Volume and ≠ land on the targets line above the well without moving it.</p>
+            <p><b>Method:</b> standalone prototype in the project's tokens (no prototype-ui skill in the repo; the repo's <code>prototype</code> skill's UI branch, standalone). Copy is a draft for <code>PLAN_GENERATE_LABELS</code>: <code>placedWeek</code>, <code>placedOverLead</code>, <code>placedOver</code>, <code>remainingBreach</code>. Placement: inside <code>WeekCard</code>'s header after the targets line; the season line in <code>CapacityNotice</code>'s slot after <code>lowered</code>/<code>over</code>.</p>
+            <p><b>Rejected directions:</b> a badge «Over kapasitet» in the week title (colour/badge competes with the role and race badges and still needs the sentence); a per-session minutes column on every row (shows on every week, overlaps #472's Planned Volume, and no criterion names it); a left edge in <code>status-under</code> on the whole card (colour without the word at a glance, and an edge reads as a track mark in this system).</p>
+            <p><b>No motion added:</b> the statement arrives with the page and changes only on a rebuild, which is a navigation (as <code>CapacityNotice</code>).</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="board" id="variant">
+      <h2 class="t-heading">Inline well <span class="status">Chosen</span></h2>
+      <p class="t-footnote muted" style="margin:.25rem 0 1rem">Working: tap «16 uker til» to open the rest; flip the data below. Én uke shows a single breach timed end to end (no «minst») and week 6 at 6,04 t, which rounds to the 6 t capacity and says nothing.</p>
+      <div class="frames"><div class="frame" id="live"></div></div>
+    </section>
+
+    <section class="board" id="worst">
+      <h2 class="t-heading">Worst case</h2>
+      <p class="t-footnote muted" style="margin:.25rem 0 1rem">break-ui data at 320 px with 200 % root text (AC 11): 2,5 t/uke, three tracks, every week breaches across New Year, the target reading is <code>over</code> too, three empty days, the corpus's longest titles and citations.</p>
+      <div class="prose" style="margin-bottom:1rem"><p class="t-footnote"><b>What broke (critic, break-ui report-only):</b></p>
+        <ul class="t-footnote" style="list-style:disc;padding-left:1.25rem;display:grid;gap:.25rem">
+          <li><b>Ugly:</b> with breaches every other week, the «16 uker til» trigger lists 8 weeks and is 670 px tall at 320 px / 200 %. Fix: past three spans, give a count; the season line names them all.</li>
+          <li><b>Fragile:</b> in the drawing, the trigger's breach line is foreground, but the real <code>CollapsibleSection</code> mutes <code>detail</code>. Fix: give it a node with <code>text-foreground</code>; no new slot is needed.</li>
+          <li><b>Fragile:</b> today's WeekCard overflows at 320 px / 200 % with a «nedtrapping» badge or a swim target (the designer's probe). Fix: the two wrap rules drawn here, plus an e2e case with this data.</li>
+          <li><b>Ugly (accepted):</b> when every week breaches, every card is tinted, and the <code>over</code> and placed lines stack about 1 100 px of text above the first card at 320 px / 200 %.</li>
+          <li><b>Held:</b> no horizontal overflow at 320 or 390 px with 200 % text; no split figure; the 6,04 t week stays silent; «Hver uke i sesongen» spans New Year; no capacity means silence; the singular «uka viser».</li>
+        </ul></div>
+      <div class="frames"><iframe class="frame frame-320" title="Worst case at 320 px, 200 % text" src="?solo=1&amp;data=worst&amp;zoom=2" style="height:900px;border:0"></iframe><div class="frame" id="worst390"></div></div>
+    </section>
+
+    <details class="board"><summary>Earlier runs</summary><p class="t-footnote muted">None: this is the first design run on #473.</p></details>
+  </div>`
+  mountLive(document.getElementById('hero'), 'demo', { id: 'hero' })
+  { const h = document.getElementById('hero'); const w = h.querySelector('[data-placed="over"]'); h.scrollTop = (w ? w.closest('article').getBoundingClientRect().top - h.getBoundingClientRect().top + h.scrollTop : h.querySelector('.season').offsetTop) - 8 }
+  mountLive(document.getElementById('live'), 'demo', { id: 'live', toggle: true })
+  mountLive(document.getElementById('worst390'), 'worst', { id: 'w390' })
+}
+</script>
+</body>
+</html>
