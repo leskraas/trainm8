@@ -79,3 +79,12 @@ future `prisma.user.delete` from making new ones.
 - `git grep` stays the backstop for shapes lint does not see: the delegate
   handed off under a client name the rule does not list, or a raw delete whose
   SQL is assembled from pieces.
+- The job row is both the run-once marker and the record. ADR 0105's proposed
+  job retention (30 days after a job finishes) must keep one-time job rows of
+  this kind, or boot enqueues the purge again (harmless, since the rules are
+  idempotent, but it is a second run) and the record is lost. The retention
+  sweep is not built; when it is, it exempts them.
+- A purge that fails on every attempt ends `failed`, and no later boot enqueues
+  another. The owner's check is therefore two reads: the `Job` of kind
+  `orphaned-workout-purge` is `completed` (its `lastError` says why if not), and
+  ADR 0051 §5's SQL count shows only kept rows.
