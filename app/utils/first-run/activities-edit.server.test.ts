@@ -4,7 +4,7 @@ import {
 	weekBoundsFromMondayUTC,
 	weekdayIndex,
 } from '#app/utils/athlete-calendar.ts'
-import { plannedMinutes } from '#app/utils/dashboard.ts'
+import { plannedMinutes } from '#app/utils/prescribed-duration.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { trackRetiredAt } from '#app/utils/plan-outline/from-rows.ts'
 import { getSeasonForOutline } from '#app/utils/training.server.ts'

@@ -27,7 +27,7 @@ import {
 	getAthleteTimezone,
 	readAvailablePatternDays,
 } from '../athlete.server.ts'
-import { plannedMinutes } from '../dashboard.ts'
+import { plannedMinutes } from '../prescribed-duration.ts'
 import { prisma } from '../db.server.ts'
 import { readEffortWord } from '../effort-word.ts'
 import { liftDisplayName } from '../exercise-aliases-nb.ts'
