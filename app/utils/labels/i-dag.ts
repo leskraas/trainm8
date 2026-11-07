@@ -690,7 +690,7 @@ function nbPrecipitation(mm: number): string {
 }
 
 /**
- * The **Day Forecast** on I dag (#433, ADR 0114): each symbol's Norwegian
+ * The **Day Forecast** on I dag (#433, ADR 0115): each symbol's Norwegian
  * word, the hour, the numbers as the 3.5rem column writes them (`6°`, `−23°`,
  * `0,6 mm`) and the sentence a screen reader hears instead, with its units
  * in full. `get_today`'s `label` is the same word.

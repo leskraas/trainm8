@@ -1,5 +1,5 @@
 /**
- * The **Home Place**'s point rules (ADR 0114 §2), as pure data: the 2-decimal
+ * The **Home Place**'s point rules (ADR 0115 §2), as pure data: the 2-decimal
  * rounding every write and every forecast call goes through, and the area a
  * Home Place may lie in. A runtime leaf, shared by the server and the tests.
  */

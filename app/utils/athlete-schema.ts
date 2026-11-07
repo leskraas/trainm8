@@ -88,7 +88,7 @@ export const DEFAULT_TRAINING_TIME = '07:00'
  * The athlete's **Default Training Time**, or the documented convention when
  * they have not said (ADR 0044 §4): the one fallback every reader of "what
  * time does a session go on" shares — the stamp, the catalogue, the plan
- * generator, the authoring route and the **Forecast Hour** (ADR 0114 §3).
+ * generator, the authoring route and the **Forecast Hour** (ADR 0115 §3).
  */
 export function trainingTimeOf(
 	profile: { defaultTrainingTime: string | null } | null | undefined,

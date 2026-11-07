@@ -1,5 +1,5 @@
 /**
- * I dag's weather through the `/` loader (#433, ADR 0114 §3 and §6): read
+ * I dag's weather through the `/` loader (#433, ADR 0115 §3 and §6): read
  * beside the timeline, only with a Home Place, never an error, and the same
  * forecast `get_today` hands an Assistant.
  */

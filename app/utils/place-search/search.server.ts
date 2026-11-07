@@ -1,5 +1,5 @@
 /**
- * The place search behind _Hjemsted_ (ADR 0114 §1): a typed name in, places
+ * The place search behind _Hjemsted_ (ADR 0115 §1): a typed name in, places
  * in Norway out, from Kartverket's Stedsnavn API (`ws.geonorge.no/stedsnavn/
  * v1`, CC BY 4.0, credited under the search). One function,
  * {@link searchPlaces}, with one adapter behind it and no provider interface.

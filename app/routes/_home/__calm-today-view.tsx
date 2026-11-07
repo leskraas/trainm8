@@ -13,7 +13,7 @@
  * Under Autopilot the Autopilot Notice sits between the card and the week
  * (#576, ADR 0100 §5, `__autopilot-notice.tsx`).
  *
- * With a **Home Place** (#433, ADR 0114 §6) the card carries one weather line
+ * With a **Home Place** (#433, ADR 0115 §6) the card carries one weather line
  * and each row from tomorrow on a quiet weather column before its mark, with
  * MET Norway credited once under the week. Without one, or with no forecast
  * at all, nothing here changes. The weather never moves: no motion on it.

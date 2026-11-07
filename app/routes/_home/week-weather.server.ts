@@ -1,12 +1,12 @@
 /**
- * I dag's weather (#433, ADR 0114 §3 and §6): the **Day Forecast** for today
+ * I dag's weather (#433, ADR 0115 §3 and §6): the **Day Forecast** for today
  * and each of this week's days still ahead, read only by the `/` loader.
  * `readHomeTimeline` stays weather-free, so _Se hele sesongen_ never waits on
  * MET.
  *
  * Only forecasts that exist cross to the screen: on I dag a day with none
  * (beyond the forecast's reach, MET silent with nothing cached) is an
- * absence, never a reason (ADR 0114 §4). Null means no **Home Place**, and
+ * absence, never a reason (ADR 0115 §4). Null means no **Home Place**, and
  * then MET is never asked and I dag is exactly ADR 0101 §3's.
  */
 import { addDays, localDate, weekMonday } from '#app/utils/athlete-calendar.ts'

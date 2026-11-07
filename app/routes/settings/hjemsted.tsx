@@ -1,5 +1,5 @@
 /**
- * **Hjemsted** in _Meg_ (#433, ADR 0114 §2): the athlete's **Home Place**,
+ * **Hjemsted** in _Meg_ (#433, ADR 0115 §2): the athlete's **Home Place**,
  * found by name in Kartverket's place names, used only for the weather on I
  * dag. Picking a match saves it at once; _Fjern_ removes it at once (cheap to
  * undo: search again). Without one, I dag shows no weather at all.

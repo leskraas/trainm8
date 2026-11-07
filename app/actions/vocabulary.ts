@@ -133,7 +133,7 @@ export const VOLUME_CONVERSION_REASONS = [
  * - `structure-not-verifiable`: Structure Adherence could not confirm the
  *   structure (ADR 0034) — never charged to the athlete as a miss.
  *
- * And the **Day Forecast**'s (ADR 0114 §5), which is a forecast, never a
+ * And the **Day Forecast**'s (ADR 0115 §5), which is a forecast, never a
  * measurement:
  *
  * - `no-home-place`: the athlete has chosen no **Home Place**.

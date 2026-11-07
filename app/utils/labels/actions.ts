@@ -115,7 +115,7 @@ export const READING_UNAVAILABLE_LABELS: Record<UnavailableReason, string> = {
 	'not-logged': 'Ikke logget.',
 	'structure-not-verifiable':
 		'Ikke målt: strukturen kunne ikke bekreftes fra opptaket.',
-	// The Day Forecast's reasons (ADR 0114 §5): a forecast, never a measurement.
+	// The Day Forecast's reasons (ADR 0115 §5): a forecast, never a measurement.
 	'no-home-place': 'Ikke satt: du har ikke valgt et hjemsted i Meg.',
 	'beyond-forecast':
 		'Ikke varslet ennå: dagen ligger lenger fram enn værvarselet rekker.',
