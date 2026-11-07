@@ -275,3 +275,31 @@ test('an unknown timezone still throws on every call, and is never cached', () =
 	expect(() => localDate(new Date(), 'Nowhere/Atlantis')).toThrow(RangeError)
 	expect(() => localDate(new Date(), 'Nowhere/Atlantis')).toThrow(RangeError)
 })
+
+test('a timezone written in another letter case reuses the same formatter, so the cache stays bounded by IANA', () => {
+	// Intl reads a zone name in any case (`asia/kathmandu` is Asia/Kathmandu),
+	// and the Athlete Timezone is stored as typed: keyed on the raw string, a
+	// user rewriting their zone in new casings would grow the process-lifetime
+	// cache without end.
+	const Real = Intl.DateTimeFormat
+	let built = 0
+	class Counting extends Real {
+		constructor(
+			locales?: Intl.LocalesArgument,
+			options?: Intl.DateTimeFormatOptions,
+		) {
+			super(locales, options)
+			built += 1
+		}
+	}
+	Intl.DateTimeFormat = Counting as typeof Intl.DateTimeFormat
+	const instant = new Date('2030-02-10T12:00:00.000Z')
+	try {
+		for (const zone of ['Asia/Kathmandu', 'asia/kathmandu', 'ASIA/KATHMANDU']) {
+			expect(localDate(instant, zone)).toBe('2030-02-10')
+		}
+	} finally {
+		Intl.DateTimeFormat = Real
+	}
+	expect(built).toBe(1)
+})

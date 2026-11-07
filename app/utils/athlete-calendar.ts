@@ -22,7 +22,9 @@
  * helpers per day and per session: before the cache, building formatters was
  * two thirds of the longest task on opening the full view of a 52-week season.
  * Formatting with a reused instance gives the same answer, so server and client
- * still agree. The set of timezones is bounded by IANA, so nothing is evicted.
+ * still agree. Keyed on the zone name lower-cased, because Intl reads a zone
+ * in any letter case and the Athlete Timezone is stored as typed: so the set of
+ * keys is bounded by IANA, and nothing is evicted.
  */
 const FORMATTERS = new Map<string, Intl.DateTimeFormat>()
 
@@ -31,7 +33,7 @@ function cachedFormatter(
 	timezone: string,
 	build: () => Intl.DateTimeFormat,
 ): Intl.DateTimeFormat {
-	const key = `${shape} ${timezone}`
+	const key = `${shape} ${timezone.toLowerCase()}`
 	let formatter = FORMATTERS.get(key)
 	if (!formatter) {
 		// An unknown zone throws here, before anything is cached, exactly as an
