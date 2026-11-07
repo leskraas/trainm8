@@ -5,7 +5,7 @@
  * and none blocks a save.
  *
  * The Guard Notices mount through `PlanGuardNotices` alone, in _Plan_'s lead
- * (ADR 0112): the three notices are private to this module, so no second caller
+ * (ADR 0113): the three notices are private to this module, so no second caller
  * can mount a copy of one.
  */
 
@@ -68,7 +68,7 @@ const NOTICE_LINK_TARGET =
 	'relative after:absolute after:-inset-x-1 after:-inset-y-[13px] md:after:-inset-y-3.5'
 
 /**
- * The plan's **Guard Notices**, in _Plan_'s lead under the card (ADR 0112): the
+ * The plan's **Guard Notices**, in _Plan_'s lead under the card (ADR 0113): the
  * ramp guard, then the availability fit notice, then the band fit notice, as one
  * stack with no heading. With no guard firing it renders nothing — no wrapper and
  * no gap.
@@ -80,7 +80,7 @@ const NOTICE_LINK_TARGET =
  * The guards **open** here, always: they warn and never block (ADR 0040 §12),
  * which only works if the athlete reads them without asking, so none of the three
  * sits behind a `Disclosure` — not even _Avansert_'s, which is why they left it
- * (ADR 0112). Hiding a warning before it has been read is a warning withheld —
+ * (ADR 0113). Hiding a warning before it has been read is a warning withheld —
  * progressive disclosure is for controls, never for what the plan is trying to
  * tell you. Closing one **after** reading it is the opposite act, and it is the
  * athlete's (#399 story 95): see `DismissibleNotice`, which is where the
@@ -174,7 +174,7 @@ export function PlanGuardNotices({ season }: { season: SeasonData }) {
  * they just pressed. Three of these can sit in a row, so losing your place on the
  * first is losing it before you have read the other two.
  *
- * **Standing content, not news** (ADR 0112 §4): `role="note"` in place of
+ * **Standing content, not news** (ADR 0113 §4): `role="note"` in place of
  * `Alert`'s `role="alert"`. In the lead these mount on every visit, and a live
  * region would read three long notices aloud on each arrival. `Alert` itself
  * keeps `role="alert"` for its other callers.

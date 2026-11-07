@@ -2680,7 +2680,7 @@ whose `%1RM` sits outside the band their **Strength Goal** derives). Each
 **warns and never blocks**, is open on arrival, and can be closed once read, for
 that visit only: closing is the athlete's decision about a warning they have
 read, never disclosure that hides one they have not. They stand in _Plan_'s lead
-under the card, once each, and are about the plan being viewed (ADR 0112). The
+under the card, once each, and are about the plan being viewed (ADR 0113). The
 mix-disagreement notices and _Hva planen ikke kan si_ are statements about the
 plan, not Guard Notices. _Avoid_: Alert (they are standing content, not news),
 guard (alone, for the notice rather than the check behind it), warning banner.

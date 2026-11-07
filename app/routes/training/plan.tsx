@@ -760,7 +760,7 @@ export default function PlanRoute({
 					) : null
 				}
 				// The plan's Guard Notices, under the card and before Bibliotek (ADR
-				// 0112). Keyed by the plan, so a dismissal belongs to one plan: the
+				// 0113). Keyed by the plan, so a dismissal belongs to one plan: the
 				// next `?outline=` or `?event=` page brings its notices back open
 				// even where their words match.
 				notices={<PlanGuardNotices key={season.outlineId} season={season} />}

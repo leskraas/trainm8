@@ -2323,7 +2323,7 @@ test('a guard the athlete has read and decided about closes, alone', async () =>
 	).toHaveValue(12)
 })
 
-// ── The Guard Notices stand in Plan's lead (ADR 0112, #672) ─────────────────
+// ── The Guard Notices stand in Plan's lead (ADR 0113, #672) ─────────────────
 
 /** The three Guard Notices, by what each one's close button names. */
 const GUARD_NAMES = [
