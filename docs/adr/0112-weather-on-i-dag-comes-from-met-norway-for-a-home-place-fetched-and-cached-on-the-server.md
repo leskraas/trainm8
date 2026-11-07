@@ -55,6 +55,14 @@ and never logged.
 The row's existence is the invariant "a place is set": every field is present or
 none is, which six nullable columns on `AthleteProfile` could not enforce.
 
+Search, choose and remove are the _Hjemsted_ route's own actions, web only, and
+not typed actions in `app/actions/`. This is a deliberate exception to ADR 0092
+§1 ("every athlete operation is one typed action"), taken under its §9 (the
+registry grows slice by slice): setting the place over MCP is out of #433's
+scope, and the search posts free text to a third party, which an Assistant
+should not do on the athlete's behalf until a slice decides it may. The slice
+that lets an Assistant set the Home Place moves the write into the registry.
+
 ### 3. One rule for the hour, one module for the forecast
 
 The **Forecast Hour** is one pure function, used by I dag and by `get_today`
