@@ -129,7 +129,8 @@ the database or in memory alike.
 
 A derived value is stored only when the athlete acts on it, and from then on it
 is an authored decision, never re-read from its source. The derivation is shown
-as a pre-fill; the athlete's act is what makes it theirs.
+as a pre-fill; the athlete's act is what makes it theirs, and an **Assistant**
+never supplies that act (ADR 0093, §2).
 
 - **Weekly Capacity** (ADR 0050 §2): proposed from recent weekly hours, and once
   authored "nothing re-reads history". History says what the athlete did; a
