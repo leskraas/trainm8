@@ -196,9 +196,10 @@ test('a month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL r
 		},
 	})
 	// A rise, and one the triad shows in whole numbers.
-	expect(notice.ctlAfter).toBeGreaterThan(notice.ctlBefore)
-	expect(Math.round(notice.ctlAfter)).toBeGreaterThan(
-		Math.round(notice.ctlBefore),
+	expect(notice.ctlBefore).not.toBeNull()
+	expect(notice.ctlAfter).toBeGreaterThan(notice.ctlBefore!)
+	expect(Math.round(notice.ctlAfter!)).toBeGreaterThan(
+		Math.round(notice.ctlBefore!),
 	)
 	expect(notice.dismissedAt).toBeNull()
 
@@ -211,7 +212,7 @@ test('a month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL r
 	const reread = await prisma.loadRecomputeNotice.findFirstOrThrow({
 		where: { athleteId: user.id },
 	})
-	expect(reread.ctlBefore).toBeCloseTo(notice.ctlBefore, 6)
+	expect(reread.ctlBefore).toBeCloseTo(notice.ctlBefore!, 6)
 })
 
 test('a retry after the paces were written still recomputes the load', async () => {
@@ -279,7 +280,44 @@ test('a swimmer without CSS still gets the notice: the pace they read changed', 
 		where: { athleteId: user.id },
 	})
 	expect(notice.kind).toBe(SWIM_REST_LEFT_THE_PACE_NOTICE)
-	expect(Math.round(notice.ctlAfter)).toBe(Math.round(notice.ctlBefore))
+	// CTL moved nothing beyond noise, so there is no movement to name: the pair
+	// is absent, not today's CTL on both sides (ADR 0112).
+	expect(notice.ctlBefore).toBeNull()
+	expect(notice.ctlAfter).toBeNull()
+
+	// A rerun writes no second notice and leaves the absent pair absent.
+	await runSwimPaceBackfill()
+	const reread = await prisma.loadRecomputeNotice.findMany({
+		where: { athleteId: user.id },
+	})
+	expect(reread).toEqual([notice])
+})
+
+test('a swimmer with no Load Snapshots gets an absent pair, never 0 → 0', async () => {
+	// No Athlete Profile: no thresholds, nothing recomputed, no Load Snapshot
+	// before or after. The old backfill stored 0 on both sides here.
+	const userData = createUser()
+	const user = await prisma.user.create({
+		select: { id: true },
+		data: {
+			...userData,
+			password: { create: createPassword(userData.username) },
+		},
+	})
+	const imp = await createPoolSwim(user.id, { start: daysAgo(3) })
+
+	await runSwimPaceBackfill()
+
+	expect((await paceOf(imp.id)).paceAvgSecPerKm).toBeCloseTo(SWUM_PACE, 6)
+	expect(
+		await prisma.loadSnapshot.count({ where: { athleteId: user.id } }),
+	).toBe(0)
+	const notice = await prisma.loadRecomputeNotice.findFirstOrThrow({
+		where: { athleteId: user.id },
+	})
+	expect(notice.kind).toBe(SWIM_REST_LEFT_THE_PACE_NOTICE)
+	expect(notice.ctlBefore).toBeNull()
+	expect(notice.ctlAfter).toBeNull()
 })
 
 /** Run the one-shot through the queue, as the worker does, and read its row. */

@@ -42,7 +42,11 @@ import {
 } from '#app/utils/load/coach.ts'
 import { buildEasedPrescription } from '#app/utils/load/eased-prescription.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
-import { isLoadRecomputeKind } from '#app/utils/load/recompute-notice.ts'
+import {
+	type CtlMovement,
+	isLoadRecomputeKind,
+	type LoadRecomputeNoticeRecord,
+} from '#app/utils/load/recompute-notice.ts'
 import {
 	type SessionNudge,
 	decideSessionNudge,
@@ -580,12 +584,6 @@ export function buildPhaseBands(
 //      per correction, never generated from a template — a vague "some numbers
 //      changed" line explains nothing and is worse than saying nothing.
 // ---------------------------------------------------------------------------
-export type LoadRecomputeNotice = {
-	kind: string
-	ctlBefore: number
-	ctlAfter: number
-}
-
 export type LoadRecomputeLine = {
 	/** Echoed back on acknowledgement so one "got it" dismisses one notice. */
 	kind: string
@@ -595,13 +593,14 @@ export type LoadRecomputeLine = {
 	explanation: string
 	/**
 	 * The movement, e.g. "Kondisjonen falt med opptil 14 — 62 → 48 på det
-	 * meste", or null when the rounded figures did not move.
+	 * meste", or null when there is none to name: the notice carries no CTL
+	 * pair (ADR 0112), or its rounded figures did not move.
 	 */
 	movement: string | null
 }
 
 export function buildLoadRecomputeLine(
-	notice: LoadRecomputeNotice | null,
+	notice: LoadRecomputeNoticeRecord | null,
 ): LoadRecomputeLine | null {
 	if (!notice) return null
 	if (!isLoadRecomputeKind(notice.kind)) return null
@@ -614,19 +613,21 @@ export function buildLoadRecomputeLine(
 	// a correction may raise CTL as well as lower it (ADR 0107 §3).
 	// A movement the rounded triad cannot show is left out rather than printed
 	// as "0 — 3 → 3": the swim notice is owed for the pace alone (ADR 0107 §2).
-	const before = roundLoad(notice.ctlBefore)
-	const after = roundLoad(notice.ctlAfter)
-	return {
-		kind: notice.kind,
-		...copy,
-		movement:
-			after === before
-				? null
-				: RECOMPUTE_NOTICE_LABELS.movement(
-						after > before ? 'rose' : 'fell',
-						String(Math.abs(after - before)),
-						String(before),
-						String(after),
-					),
-	}
+	// A notice with no CTL pair takes the same branch: there is no CTL movement
+	// to name, which is not an Unavailable Metric, so nothing stands in for it
+	// (ADR 0112 §2).
+	return { kind: notice.kind, ...copy, movement: movementLine(notice.ctl) }
+}
+
+function movementLine(ctl: CtlMovement | null): string | null {
+	if (!ctl) return null
+	const before = roundLoad(ctl.ctlBefore)
+	const after = roundLoad(ctl.ctlAfter)
+	if (after === before) return null
+	return RECOMPUTE_NOTICE_LABELS.movement(
+		after > before ? 'rose' : 'fell',
+		String(Math.abs(after - before)),
+		String(before),
+		String(after),
+	)
 }

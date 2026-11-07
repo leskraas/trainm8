@@ -805,8 +805,7 @@ describe('buildLoadRecomputeLine', () => {
 	test('names the drop, its cause, and that the athlete changed nothing', () => {
 		const line = buildLoadRecomputeLine({
 			kind: 'strength-left-the-triad',
-			ctlBefore: 62.4,
-			ctlAfter: 47.8,
+			ctl: { ctlBefore: 62.4, ctlAfter: 47.8 },
 		})
 		expect(line).not.toBeNull()
 		expect(line!.kicker).toBe('Kondisjonen er regnet ut på nytt')
@@ -832,8 +831,7 @@ describe('buildLoadRecomputeLine', () => {
 		// vouch for a number this change hasn't fixed.
 		const line = buildLoadRecomputeLine({
 			kind: 'strength-left-the-triad',
-			ctlBefore: 62.4,
-			ctlAfter: 47.8,
+			ctl: { ctlBefore: 62.4, ctlAfter: 47.8 },
 		})
 		// No pointer to that surface. ("mixing the two" is the copy describing what
 		// it stopped doing, which is the opposite of a recommendation.)
@@ -843,8 +841,7 @@ describe('buildLoadRecomputeLine', () => {
 	test('a correction that raised CTL says it rose (ADR 0107 §3)', () => {
 		const line = buildLoadRecomputeLine({
 			kind: 'swim-rest-left-the-pace',
-			ctlBefore: 41.2,
-			ctlAfter: 44.6,
+			ctl: { ctlBefore: 41.2, ctlAfter: 44.6 },
 		})
 		expect(line).not.toBeNull()
 		expect(line!.movement).toBe(
@@ -856,8 +853,7 @@ describe('buildLoadRecomputeLine', () => {
 	test('the swim correction names the rest at the wall and the file it read', () => {
 		const line = buildLoadRecomputeLine({
 			kind: 'swim-rest-left-the-pace',
-			ctlBefore: 41.2,
-			ctlAfter: 44.6,
+			ctl: { ctlBefore: 41.2, ctlAfter: 44.6 },
 		})
 		expect(line!.kicker).toBe('Svømmeøktene er regnet ut på nytt')
 		expect(line!.explanation).toMatch(/pausene ved kanten/i)
@@ -869,8 +865,7 @@ describe('buildLoadRecomputeLine', () => {
 	test('a huge movement is printed whole, in the units the triad shows', () => {
 		const line = buildLoadRecomputeLine({
 			kind: 'swim-rest-left-the-pace',
-			ctlBefore: 0.4,
-			ctlAfter: 1234.6,
+			ctl: { ctlBefore: 0.4, ctlAfter: 1234.6 },
 		})
 		expect(line!.movement).toBe(
 			'Kondisjonen steg med opptil 1235 — 0 → 1235 på det meste',
@@ -882,26 +877,42 @@ describe('buildLoadRecomputeLine', () => {
 		// 0107 §2); the line then says why, and names no movement.
 		const line = buildLoadRecomputeLine({
 			kind: 'swim-rest-left-the-pace',
-			ctlBefore: 3.1,
-			ctlAfter: 3.4,
+			ctl: { ctlBefore: 3.1, ctlAfter: 3.4 },
 		})
 		expect(line).not.toBeNull()
 		expect(line!.movement).toBeNull()
 		expect(line!.explanation).toMatch(/bare lengdene du svømte/i)
 	})
 
+	test('a notice with no CTL pair keeps its words and names no movement (ADR 0112)', () => {
+		// An absent pair is no CTL movement to name, not an Unavailable Metric:
+		// nothing stands in for the movement, not "ikke målt", not a zero.
+		const line = buildLoadRecomputeLine({
+			kind: 'swim-rest-left-the-pace',
+			ctl: null,
+		})
+		expect(line).toEqual({
+			kind: 'swim-rest-left-the-pace',
+			kicker: 'Svømmeøktene er regnet ut på nytt',
+			explanation: expect.stringMatching(/bare lengdene du svømte/i),
+			movement: null,
+		})
+	})
+
 	test('renders nothing when there is no notice', () => {
 		expect(buildLoadRecomputeLine(null)).toBeNull()
 	})
 
-	test('renders nothing for a kind it has no words for', () => {
+	test('renders nothing for a kind it has no words for, with a pair or without', () => {
 		// Never invent an explanation: an unknown kind is silence, not a guess.
 		expect(
 			buildLoadRecomputeLine({
 				kind: 'some-future-recompute',
-				ctlBefore: 10,
-				ctlAfter: 5,
+				ctl: { ctlBefore: 10, ctlAfter: 5 },
 			}),
+		).toBeNull()
+		expect(
+			buildLoadRecomputeLine({ kind: 'some-future-recompute', ctl: null }),
 		).toBeNull()
 	})
 })

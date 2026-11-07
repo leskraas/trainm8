@@ -1931,15 +1931,21 @@ model LoadSnapshot {
 ///
 /// Written once by the one-shot backfill that caused the movement, dismissed by
 /// the athlete. Unique on (athlete, kind), so a re-run can never nag twice. See
-/// ADR 0046 §2.
+/// ADR 0046 §2 and ADR 0112.
 model LoadRecomputeNotice {
   id   String @id @default(cuid())
-  kind String // 'strength-left-the-triad'
+  kind String // a `LoadRecomputeKind` (app/utils/load/recompute-notice.ts)
 
-  /// The athlete's latest CTL immediately before and after the recompute, so
-  /// the line can name the movement it caused rather than warn in the abstract.
-  ctlBefore Float
-  ctlAfter  Float
+  /// The athlete's CTL on either side of the recompute, on the day it moved
+  /// most, so the line can name the movement it caused rather than warn in the
+  /// abstract. Both null when there is no CTL movement to name: a load
+  /// correction that moved CTL by no more than noise, or a prescription
+  /// correction, which moves no Load Snapshot (ADR 0112). Never one without the
+  /// other: a hand-written CHECK in
+  /// `20261107121546_a_notice_may_carry_no_ctl_pair` keeps them
+  /// both-or-neither, and a table rebuild must restore it.
+  ctlBefore Float?
+  ctlAfter  Float?
 
   createdAt   DateTime  @default(now())
   dismissedAt DateTime?

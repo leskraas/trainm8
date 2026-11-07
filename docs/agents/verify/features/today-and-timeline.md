@@ -14,6 +14,11 @@ The athlete's landing page and the whole season as one bi-directional stream
   (`[data-timeline-today]`, `[data-today-pill]`), and the writing line.
 - Marking a session done (_Merk <tittel> som gjort_) and answering an import's
   question (_Hva var dette?_).
+- The **Load Recompute Notice** above the stream on `/season`
+  (`load-recompute-notice`): a kicker (`h2`), an optional movement line
+  (_Kondisjonen steg/falt med opptil N — A → B på det meste_), the explanation
+  and _Skjønner_, which dismisses that kind only. A notice with no CTL pair
+  (ADR 0112) shows no movement line at all.
 
 ## How to get to it
 
@@ -34,6 +39,11 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
 
 ## Gotchas
 
+- Only one-shot backfills write a Load Recompute Notice, so the seed has none.
+  To see one, insert a `LoadRecomputeNotice` row for kody in QA's own database
+  (`kind` `swim-rest-left-the-pace` or `strength-left-the-triad`; `ctlBefore`
+  and `ctlAfter` both set or both NULL, a CHECK refuses one alone). The newest
+  outstanding notice shows; after _Skjønner_ and a reload the next one does.
 - The stream scrolls in both directions and loads weeks as it goes: scroll the
   `timeline-stream` element itself to reach a week, or the rows are not rendered
   yet.

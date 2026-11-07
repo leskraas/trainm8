@@ -10,7 +10,6 @@ import {
 	recordLoadRecomputeNotice,
 } from './recompute-notice.server.ts'
 import {
-	type CtlMovement,
 	type LoadRecomputeKind,
 	widestCtlMovement,
 } from './recompute-notice.ts'
@@ -48,8 +47,8 @@ import { recomputeLoadFrom } from './snapshot.server.ts'
 export const SWIM_PACE_BACKFILL_JOB_KIND = 'swim-pace-backfill'
 
 /** The `LoadRecomputeNotice.kind` this backfill writes. */
-export const SWIM_REST_LEFT_THE_PACE_NOTICE: LoadRecomputeKind =
-	'swim-rest-left-the-pace'
+export const SWIM_REST_LEFT_THE_PACE_NOTICE =
+	'swim-rest-left-the-pace' satisfies LoadRecomputeKind
 
 /** Two paces are the same reading to within float noise (sec/km). */
 const SAME_PACE = 1e-6
@@ -190,13 +189,6 @@ async function findCorrections(): Promise<Map<string, Correction[]>> {
 	return byAthlete
 }
 
-/** Today's CTL on both sides: the movement of a recompute that moved none. */
-function latestCtl(ctlByDate: Map<string, number>): CtlMovement {
-	const latest = [...ctlByDate.keys()].sort().at(-1)
-	const ctl = latest ? ctlByDate.get(latest)! : 0
-	return { ctlBefore: ctl, ctlAfter: ctl }
-}
-
 /**
  * Correct every swim `findCorrections` names, athlete by athlete: write the
  * pace swum, recompute load from the earliest corrected swim's day, and leave
@@ -263,15 +255,17 @@ export async function runSwimPaceBackfill(): Promise<void> {
 			await recomputeLoadFrom(athleteId, localDate(earliest, profile.timezone))
 		}
 		// The pace on each corrected swim is a number the athlete read, so the
-		// notice is owed even when CTL moved too little to show (no CSS, or a
-		// lone swim); the line then leaves its movement out (ADR 0107 §2). A retry
+		// notice is owed even when CTL moved too little to show (no CSS, a lone
+		// swim, no Load Snapshots at all). Then there is no CTL movement to name,
+		// and the pair is stored absent rather than as a placeholder figure
+		// (ADR 0112); the line leaves its movement out (ADR 0107 §2). A retry
 		// that wrote no pace still owes it when a crash came before the notice;
 		// the notice is create-only, so one already written stands.
 		const after = await readCtlByDate(athleteId)
 		await recordLoadRecomputeNotice({
 			athleteId,
 			kind: SWIM_REST_LEFT_THE_PACE_NOTICE,
-			...(widestCtlMovement(before, after, 'rise') ?? latestCtl(after)),
+			ctl: widestCtlMovement(before, after, 'rise'),
 		})
 	}
 
