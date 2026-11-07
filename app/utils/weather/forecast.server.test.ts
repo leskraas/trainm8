@@ -1,6 +1,6 @@
 import { delay, http, HttpResponse } from 'msw'
 import { afterEach, expect, test } from 'vitest'
-import { cache } from '#app/utils/cache.server.ts'
+import { cache, lruCache } from '#app/utils/cache.server.ts'
 import { server } from '#tests/mocks/index.ts'
 import {
 	MET_FORECAST_URL,
@@ -9,7 +9,9 @@ import {
 	mockStep,
 } from '#tests/mocks/met-norway.ts'
 import {
+	FORECAST_BACKOFF_MS,
 	FORECAST_STALE_MS,
+	forecastBackoffKey,
 	forecastCacheKey,
 	readDayForecasts,
 } from './forecast.server.ts'
@@ -27,8 +29,10 @@ function freshPoint() {
 	return point
 }
 afterEach(async () => {
-	for (const point of used.splice(0))
+	for (const point of used.splice(0)) {
 		await cache.delete(forecastCacheKey(point))
+		lruCache.delete(forecastBackoffKey(point))
+	}
 })
 
 function countRequests() {
@@ -198,4 +202,72 @@ test('no days asked: no call at all', async () => {
 	requests.stop()
 	expect(forecasts.size).toBe(0)
 	expect(requests.seen).toHaveLength(0)
+})
+
+test('MET down with nothing cached: one wait, then no call and no wait until the back-off ends', async () => {
+	const point = freshPoint()
+	server.use(
+		http.get(MET_FORECAST_URL, async () => {
+			await delay(6_000)
+			return HttpResponse.json(metForecast(START))
+		}),
+	)
+	await readDayForecasts(point, new Map([['a', at(2)]]))
+	const requests = countRequests()
+	const started = Date.now()
+	const forecasts = await readDayForecasts(point, new Map([['a', at(2)]]))
+	requests.stop()
+	expect(Date.now() - started).toBeLessThan(200)
+	expect(requests.seen).toHaveLength(0)
+	expect(forecasts.get('a')).toEqual({ reason: 'forecast-unavailable' })
+})
+
+test('a 429 is not asked again before its Retry-After, and the back-off is per point', async () => {
+	const point = freshPoint()
+	server.use(
+		http.get(
+			MET_FORECAST_URL,
+			() =>
+				new HttpResponse(null, {
+					status: 429,
+					headers: { 'Retry-After': '3600' },
+				}),
+		),
+	)
+	await readDayForecasts(point, new Map([['a', at(2)]]))
+	const entry = lruCache.get(forecastBackoffKey(point))
+	expect(entry?.metadata.ttl).toBe(HOUR)
+	server.use(metForecastHandler({ from: START }))
+	const requests = countRequests()
+	const same = await readDayForecasts(point, new Map([['a', at(3)]]))
+	const other = await readDayForecasts(freshPoint(), new Map([['a', at(3)]]))
+	requests.stop()
+	expect(requests.seen).toHaveLength(1)
+	expect(same.get('a')).toEqual({ reason: 'forecast-unavailable' })
+	expect(other.get('a')).toMatchObject({ symbol: 'rain' })
+})
+
+test('without Retry-After a failure backs off for the default period', async () => {
+	const point = freshPoint()
+	server.use(
+		http.get(MET_FORECAST_URL, () => new HttpResponse(null, { status: 500 })),
+	)
+	await readDayForecasts(point, new Map([['a', at(2)]]))
+	expect(lruCache.get(forecastBackoffKey(point))?.metadata.ttl).toBe(
+		FORECAST_BACKOFF_MS,
+	)
+})
+
+test('a stale forecast is still served during a back-off', async () => {
+	const point = freshPoint()
+	await seedCache(point, 5 * HOUR)
+	server.use(
+		http.get(MET_FORECAST_URL, () => new HttpResponse(null, { status: 503 })),
+	)
+	await readDayForecasts(point, new Map([['a', at(3)]]))
+	const requests = countRequests()
+	const forecasts = await readDayForecasts(point, new Map([['a', at(3)]]))
+	requests.stop()
+	expect(requests.seen).toHaveLength(0)
+	expect(forecasts.get('a')).toMatchObject({ symbol: 'rain' })
 })

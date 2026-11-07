@@ -11,10 +11,12 @@
  * - **Cached by the point alone** (`toFixed(2)`, no user), fresh until MET's
  *   `Expires`, refreshed with `If-Modified-Since`, and served stale while it
  *   refreshes, for at most 24 hours past `Expires`.
- * - **Never a wait, never an error.** A fetch is cut at 2 seconds; when MET
- *   errors or is slow the caller gets a stale forecast or the reason
- *   `forecast-unavailable`, never a throw. Weather is an aid on I dag, never
- *   why the page is slow or broken.
+ * - **Never more than one wait, never an error.** A fetch is cut at 2
+ *   seconds; when MET errors or is slow the caller gets a stale forecast or
+ *   the reason `forecast-unavailable`, never a throw. A failed fetch backs
+ *   that point off (MET's `Retry-After`, else 5 minutes): until it ends, MET
+ *   is not asked and nobody waits. Weather is an aid on I dag, never why the
+ *   page is slow or broken, and a MET that throttles is left alone.
  * - **One step per day.** A day's symbol, temperature and precipitation come
  *   from the one forecast step that covers its hour (hourly for about 60
  *   hours, then 6-hourly), so its figures never mix steps.
@@ -23,9 +25,11 @@ import {
 	cachified,
 	type CacheEntry,
 	type CachifiedOptions,
+	createCacheEntry,
+	type GetFreshValueContext,
 } from '@epic-web/cachified'
 import { z } from 'zod/v4'
-import { cache } from '#app/utils/cache.server.ts'
+import { cache, lruCache } from '#app/utils/cache.server.ts'
 import { type GeoPoint, roundedPoint } from '#app/utils/home-place.ts'
 import { OUTBOUND_USER_AGENT } from '#app/utils/outbound-user-agent.ts'
 import { type DayForecast } from './day-forecast.ts'
@@ -40,6 +44,10 @@ export const MET_FORECAST_URL =
 export const FORECAST_TIMEOUT_MS = 2_000
 /** How long past `Expires` a forecast is still served while it refreshes. */
 export const FORECAST_STALE_MS = 24 * 60 * 60 * 1000
+/** How long a point is not asked again after a failed fetch, without `Retry-After`. */
+export const FORECAST_BACKOFF_MS = 5 * 60 * 1000
+/** The longest back-off a `Retry-After` can ask for. */
+const MAX_BACKOFF_MS = 6 * 60 * 60 * 1000
 /** When MET sends no usable `Expires`: its documented typical half hour. */
 const DEFAULT_FRESH_MS = 30 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
@@ -98,6 +106,42 @@ export function forecastCacheKey(point: GeoPoint): string {
 	return `met-forecast:${latitude.toFixed(2)},${longitude.toFixed(2)}`
 }
 
+/**
+ * The back-off marker for a point, in this instance's memory: a short-lived
+ * local rule, so it needs no shared cache.
+ */
+export function forecastBackoffKey(point: GeoPoint): string {
+	return `${forecastCacheKey(point)}:backoff`
+}
+
+class MetUnavailable extends Error {
+	constructor(
+		message: string,
+		readonly retryAfter: string | null = null,
+	) {
+		super(message)
+	}
+}
+
+function backOff(point: GeoPoint, error: unknown) {
+	const retryAfter = error instanceof MetUnavailable ? error.retryAfter : null
+	lruCache.set(
+		forecastBackoffKey(point),
+		createCacheEntry(true, { ttl: backoffFor(retryAfter) }),
+	)
+}
+
+/** `Retry-After` (seconds or an HTTP date) in milliseconds, else the default. */
+function backoffFor(retryAfter: string | null): number {
+	if (!retryAfter) return FORECAST_BACKOFF_MS
+	const seconds = Number(retryAfter)
+	const ms = Number.isFinite(seconds)
+		? seconds * 1000
+		: Date.parse(retryAfter) - Date.now()
+	if (Number.isNaN(ms) || ms <= 0) return FORECAST_BACKOFF_MS
+	return Math.min(ms, MAX_BACKOFF_MS)
+}
+
 async function readForecast(point: GeoPoint): Promise<StoredForecast> {
 	const key = forecastCacheKey(point)
 	const options: CachifiedOptions<StoredForecast> = {
@@ -108,29 +152,49 @@ async function readForecast(point: GeoPoint): Promise<StoredForecast> {
 		staleWhileRevalidate: FORECAST_STALE_MS,
 		checkValue: StoredForecastSchema,
 		async getFreshValue(context) {
-			const previous = await cachedForecast(key)
-			const response = await fetch(metUrl(point), {
-				headers: {
-					'User-Agent': OUTBOUND_USER_AGENT,
-					Accept: 'application/json',
-					...(previous?.lastModified
-						? { 'If-Modified-Since': previous.lastModified }
-						: {}),
-				},
-				signal: AbortSignal.timeout(FORECAST_TIMEOUT_MS),
-			})
-			context.metadata.ttl = freshFor(response.headers.get('expires'))
-			if (response.status === 304 && previous) return previous
-			if (!response.ok) {
-				throw new Error(`MET Locationforecast answered ${response.status}`)
+			// Backing off: no call. A stale forecast is still served by cachified.
+			if (lruCache.get(forecastBackoffKey(point))) {
+				throw new MetUnavailable('MET Locationforecast is backed off')
 			}
-			return {
-				steps: readSteps(await response.json()),
-				lastModified: response.headers.get('last-modified'),
+			try {
+				return await fetchForecast(point, key, context)
+			} catch (error) {
+				backOff(point, error)
+				throw error
 			}
 		},
 	}
 	return cachified(options)
+}
+
+async function fetchForecast(
+	point: GeoPoint,
+	key: string,
+	context: GetFreshValueContext,
+): Promise<StoredForecast> {
+	const previous = await cachedForecast(key)
+	const response = await fetch(metUrl(point), {
+		headers: {
+			'User-Agent': OUTBOUND_USER_AGENT,
+			Accept: 'application/json',
+			...(previous?.lastModified
+				? { 'If-Modified-Since': previous.lastModified }
+				: {}),
+		},
+		signal: AbortSignal.timeout(FORECAST_TIMEOUT_MS),
+	})
+	context.metadata.ttl = freshFor(response.headers.get('expires'))
+	if (response.status === 304 && previous) return previous
+	if (!response.ok) {
+		throw new MetUnavailable(
+			`MET Locationforecast answered ${response.status}`,
+			response.headers.get('retry-after'),
+		)
+	}
+	return {
+		steps: readSteps(await response.json()),
+		lastModified: response.headers.get('last-modified'),
+	}
 }
 
 async function cachedForecast(key: string): Promise<StoredForecast | null> {
