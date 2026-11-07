@@ -151,6 +151,10 @@ empty population, and ADR 0006's own Revisit note already names the 1 %-wide
 band holes in `coggan-power-7`, `friel-hr-5-*`, `daniels-pace-5` and
 `stryd-run-power-5` as the same shape of problem.
 
+_Widened by ADR 0112 (#463): the CTL pair is optional, and each kind declares
+whether its correction moved load or prescription. The first prescription notice
+still brings its own words and any movement shape it needs._
+
 ## Amendment (#454, #436) — a recipe is defaulted; a threshold is not
 
 Two of this ADR's consequences assume an athlete who chose a recipe: "existing

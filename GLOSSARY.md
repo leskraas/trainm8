@@ -1172,20 +1172,25 @@ day in the athlete's local timezone (daily TSS totals, CTL, ATL, TSB). _Avoid_:
 Daily load, load row
 
 **Load Recompute Notice**: The one-time, athlete-visible explanation for a
-correction that moved a **Load Snapshot** number the athlete had already read —
-what changed, why, and the CTL it moved. Written by the one-shot backfill that
-caused the movement, shown as a bar above the **Home Timeline** until
-acknowledged. It exists because ADR 0008 forbids switching an athlete's numbers
-_silently_; where the athlete's own data has not changed there is nothing to opt
-into, so what is owed is an explanation rather than an offer (ADR 0046 §2). A
-correction the app has no written words for shows nothing at all — never a
-generic "some numbers changed". A correction may lower CTL (strength leaving the
-triad) or raise it (a pool swim's rest leaving its pace, ADR 0107); the line
-says which, from the day the correction moved CTL furthest in its own direction,
-and sizes the movement as the gap between the two rounded figures it prints. It
-is owed whenever a number the athlete read moved, so a corrected swim pace earns
-one even when CTL did not visibly move; the line then names no movement.
-_Avoid_: Banner, alert, migration message
+correction that moved a number the athlete had already read — what changed, why,
+and the CTL it moved, where it moved any. Each kind of correction moved either
+**load** (a **Load Snapshot** number) or **prescription** (bands, **Planned
+TSS**, **Adherence Bands**, chip tint), and says which. Written by the one-shot
+backfill that caused the movement, shown as a bar above the **Home Timeline**
+until acknowledged. It exists because ADR 0008 forbids switching an athlete's
+numbers _silently_; where the athlete's own data has not changed there is
+nothing to opt into, so what is owed is an explanation rather than an offer (ADR
+0046 §2). A correction the app has no written words for shows nothing at all —
+never a generic "some numbers changed". A correction may lower CTL (strength
+leaving the triad) or raise it (a pool swim's rest leaving its pace, ADR 0107);
+the line says which, from the day the correction moved CTL furthest in its own
+direction, and sizes the movement as the gap between the two rounded figures it
+prints. It is owed whenever a number the athlete read moved, so a corrected swim
+pace earns one even when CTL did not visibly move; the line then names no
+movement. A notice that moved no CTL beyond noise, and every prescription
+notice, carries no CTL figures at all: there is no movement to name, which is
+not an **Unavailable Metric** (ADR 0112). _Avoid_: Banner, alert, migration
+message
 
 **Load Formula**: The named method used to compute TSS for one session — one of
 `coggan` (power-based), `hrTSS` (heart-rate-based), `rTSS` (pace-based run),
