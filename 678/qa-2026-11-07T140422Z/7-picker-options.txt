@@ -1,0 +1,4 @@
+PICKER_RUN ["Weekend Long Run · Løping","VO₂max Intervals (edited by QA) · Løping"]
+PICKER_STRENGTH ["Strength Circuit · Styrke"]
+Held rows at this moment (heldByOutlineId set): Easy Aerobic Run, Tuesday Tempo Run, VO₂max Intervals (copies of sessions since deleted or retitled).
+Authored run sessions' Workouts: Weekend Long Run, VO₂max Intervals (edited by QA). None of the held titles appear as extra entries.

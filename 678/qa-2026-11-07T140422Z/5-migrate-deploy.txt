@@ -1,0 +1,4 @@
+  └─ 20261107130000_a_plan_holds_its_pattern_workouts/
+    └─ migration.sql
+      
+All migrations have been successfully applied.

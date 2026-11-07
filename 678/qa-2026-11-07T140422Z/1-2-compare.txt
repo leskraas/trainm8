@@ -1,0 +1,4 @@
+AC1 held copy unchanged after session delete: True
+AC1 week-46 session stamped after delete (cmw6gcq1900gc) == deleted session prescription: True
+AC1 == stamped before delete: True
+AC2 share shape copy unchanged after session delete: True

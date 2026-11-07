@@ -1,0 +1,5 @@
+id | weekday | kind | weight | workoutId | title | heldByOutlineId | copiedFromId
+cmw6h0h3i00eh7dul362nniq0 | 0 | fixed | None | cmw6gykt7000q7dsn7r14jomj.cmw6gynjl00pn7dsnsvuqr93w | Easy Aerobic Run | cmw6gynjl00pn7dsnsvuqr93w | cmw6gykt7000q7dsn7r14jomj
+cmw6h0nnk00ew7dul4ahtqkfv | 2 | share | 1.0 | cmw6gykti000y7dsnr04hlaui.cmw6gynjl00pn7dsnsvuqr93w | Tuesday Tempo Run | cmw6gynjl00pn7dsnsvuqr93w | cmw6gykti000y7dsnr04hlaui
+cmw6h0szj00ey7duloxnihywm | 5 | fixed | None | cmw6gykto00187dsn92hn8f3a.cmw6gynjl00pn7dsnsvuqr93w | Weekend Long Run | cmw6gynjl00pn7dsnsvuqr93w | cmw6gykto00187dsn92hn8f3a
+--

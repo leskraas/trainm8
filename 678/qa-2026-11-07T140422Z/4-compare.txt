@@ -1,0 +1,3 @@
+AC4 completed session QA Lift 4 deleted via UI: session and its Workout rows gone (see DB counts 0)
+AC4 lifting slot held copy unchanged: True
+AC4 lifting session laid after the delete (wk46) == deleted session prescription: True ; sets per step [1, 1, 0]

@@ -1,0 +1,9 @@
+session itself changed (title/blocks/steps): True VO₂max Intervals (edited by QA) 4 blocks
+AC3a held copy unchanged after session edit: True
+AC3a held copy == session as picked: True
+AC3a session stamped after the edit (wk46 Fri) == session as picked: True VO₂max Intervals 3 blocks
+stamped Fri session edited: False
+AC3b Fri held copy unchanged: True
+AC3b Mon held copy unchanged: True
+AC3b other stamped session (Mon wk46) unchanged: True
+(correction) the edit forked the stamped session onto Workout cmw6gpp7n00ih; edited vs stamped: True warm-up sec 1200 blocks 4

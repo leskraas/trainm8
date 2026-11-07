@@ -1,0 +1,234 @@
+{
+ "cmw6gac4k00ez7d1fqoiqtmgf": {
+  "activityKind": null,
+  "archetype": null,
+  "authorship": "athlete",
+  "blocks": [
+   {
+    "betweenSeriesRestSec": null,
+    "name": "Warm-up",
+    "orderIndex": 0,
+    "repeatCount": 1,
+    "sendOff": null,
+    "seriesRepeatCount": 1,
+    "steps": [
+     {
+      "cadenceRpmMax": null,
+      "cadenceRpmMin": null,
+      "discipline": "run",
+      "distanceM": null,
+      "durationSec": 600,
+      "exerciseId": null,
+      "gradePctMax": null,
+      "gradePctMin": null,
+      "intensity": "easy",
+      "intensityHrMax": null,
+      "intensityHrMin": null,
+      "intensityPaceMax": null,
+      "intensityPaceMin": null,
+      "intensityPowerMax": null,
+      "intensityPowerMin": null,
+      "kind": "cardio",
+      "notes": "Easy jog",
+      "orderIndex": 0,
+      "rest": null,
+      "restBetweenSetsSec": null,
+      "sets": [],
+      "verticalM": null
+     }
+    ]
+   },
+   {
+    "betweenSeriesRestSec": null,
+    "name": "Main",
+    "orderIndex": 1,
+    "repeatCount": 1,
+    "sendOff": null,
+    "seriesRepeatCount": 1,
+    "steps": [
+     {
+      "cadenceRpmMax": null,
+      "cadenceRpmMin": null,
+      "discipline": "run",
+      "distanceM": null,
+      "durationSec": 1980,
+      "exerciseId": null,
+      "gradePctMax": null,
+      "gradePctMin": null,
+      "intensity": "endurance",
+      "intensityHrMax": null,
+      "intensityHrMin": null,
+      "intensityPaceMax": null,
+      "intensityPaceMin": null,
+      "intensityPowerMax": null,
+      "intensityPowerMin": null,
+      "kind": "cardio",
+      "notes": "Steady zone 2",
+      "orderIndex": 0,
+      "rest": null,
+      "restBetweenSetsSec": null,
+      "sets": [],
+      "verticalM": null
+     }
+    ]
+   },
+   {
+    "betweenSeriesRestSec": null,
+    "name": "Cool-down",
+    "orderIndex": 2,
+    "repeatCount": 1,
+    "sendOff": null,
+    "seriesRepeatCount": 1,
+    "steps": [
+     {
+      "cadenceRpmMax": null,
+      "cadenceRpmMin": null,
+      "discipline": "run",
+      "distanceM": null,
+      "durationSec": 300,
+      "exerciseId": null,
+      "gradePctMax": null,
+      "gradePctMin": null,
+      "intensity": "easy",
+      "intensityHrMax": null,
+      "intensityHrMin": null,
+      "intensityPaceMax": null,
+      "intensityPaceMin": null,
+      "intensityPowerMax": null,
+      "intensityPowerMin": null,
+      "kind": "cardio",
+      "notes": "Easy jog",
+      "orderIndex": 0,
+      "rest": null,
+      "restBetweenSetsSec": null,
+      "sets": [],
+      "verticalM": null
+     }
+    ]
+   }
+  ],
+  "description": "Conversational aerobic run to bank easy volume.",
+  "discipline": "run",
+  "effortWord": null,
+  "intent": "endurance",
+  "strengthGoal": null,
+  "title": "Easy Aerobic Run",
+  "visibility": "private"
+ },
+ "cmw6gcq1900gc7d1fyuoakhdy": {
+  "activityKind": null,
+  "archetype": null,
+  "authorship": "athlete",
+  "blocks": [
+   {
+    "betweenSeriesRestSec": null,
+    "name": "Warm-up",
+    "orderIndex": 0,
+    "repeatCount": 1,
+    "sendOff": null,
+    "seriesRepeatCount": 1,
+    "steps": [
+     {
+      "cadenceRpmMax": null,
+      "cadenceRpmMin": null,
+      "discipline": "run",
+      "distanceM": null,
+      "durationSec": 600,
+      "exerciseId": null,
+      "gradePctMax": null,
+      "gradePctMin": null,
+      "intensity": "easy",
+      "intensityHrMax": null,
+      "intensityHrMin": null,
+      "intensityPaceMax": null,
+      "intensityPaceMin": null,
+      "intensityPowerMax": null,
+      "intensityPowerMin": null,
+      "kind": "cardio",
+      "notes": "Easy jog",
+      "orderIndex": 0,
+      "rest": null,
+      "restBetweenSetsSec": null,
+      "sets": [],
+      "verticalM": null
+     }
+    ]
+   },
+   {
+    "betweenSeriesRestSec": null,
+    "name": "Main",
+    "orderIndex": 1,
+    "repeatCount": 1,
+    "sendOff": null,
+    "seriesRepeatCount": 1,
+    "steps": [
+     {
+      "cadenceRpmMax": null,
+      "cadenceRpmMin": null,
+      "discipline": "run",
+      "distanceM": null,
+      "durationSec": 1980,
+      "exerciseId": null,
+      "gradePctMax": null,
+      "gradePctMin": null,
+      "intensity": "endurance",
+      "intensityHrMax": null,
+      "intensityHrMin": null,
+      "intensityPaceMax": null,
+      "intensityPaceMin": null,
+      "intensityPowerMax": null,
+      "intensityPowerMin": null,
+      "kind": "cardio",
+      "notes": "Steady zone 2",
+      "orderIndex": 0,
+      "rest": null,
+      "restBetweenSetsSec": null,
+      "sets": [],
+      "verticalM": null
+     }
+    ]
+   },
+   {
+    "betweenSeriesRestSec": null,
+    "name": "Cool-down",
+    "orderIndex": 2,
+    "repeatCount": 1,
+    "sendOff": null,
+    "seriesRepeatCount": 1,
+    "steps": [
+     {
+      "cadenceRpmMax": null,
+      "cadenceRpmMin": null,
+      "discipline": "run",
+      "distanceM": null,
+      "durationSec": 300,
+      "exerciseId": null,
+      "gradePctMax": null,
+      "gradePctMin": null,
+      "intensity": "easy",
+      "intensityHrMax": null,
+      "intensityHrMin": null,
+      "intensityPaceMax": null,
+      "intensityPaceMin": null,
+      "intensityPowerMax": null,
+      "intensityPowerMin": null,
+      "kind": "cardio",
+      "notes": "Easy jog",
+      "orderIndex": 0,
+      "rest": null,
+      "restBetweenSetsSec": null,
+      "sets": [],
+      "verticalM": null
+     }
+    ]
+   }
+  ],
+  "description": "Conversational aerobic run to bank easy volume.",
+  "discipline": "run",
+  "effortWord": null,
+  "intent": "endurance",
+  "strengthGoal": null,
+  "title": "Easy Aerobic Run",
+  "visibility": "private"
+ }
+}

@@ -1,0 +1,6 @@
+AC5 held copy Easy Aerobic Run (fixed, session deleted) == pre-migration day Workout: True
+AC5 held copy Tuesday Tempo Run (share shape, session deleted) == pre-migration day Workout: True
+AC5 held copy Weekend Long Run (fixed, session edited) == pre-migration day Workout: True
+Weekend Long Run session Workout edited post-migration: True [5940, 3600, 600, 1200, 600]
+AC5 next stamped Mon (Easy Aerobic Run) post == pre: True
+AC5 next stamped Sat (Weekend Long Run) post == pre: True

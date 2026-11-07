@@ -1,0 +1,634 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user-trainm8/67130cda-91c9-5646-94b8-57170f2f1fb7/scratchpad/f/wt/678-qa[39m
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": SQLite database "base.db.17587.tmp" at "file:/tmp/claude-0/-home-user-trainm8/67130cda-91c9-5646-94b8-57170f2f1fb7/scratchpad/f/wt/678-qa/tests/prisma/base.db.17587.tmp"
+
+SQLite database base.db.17587.tmp created at file:/tmp/claude-0/-home-user-trainm8/67130cda-91c9-5646-94b8-57170f2f1fb7/scratchpad/f/wt/678-qa/tests/prisma/base.db.17587.tmp
+
+Applying migration `20250221233640_init`
+Applying migration `20260416140410_add_training_domain`
+Applying migration `20260508093352_remove_notes_domain`
+Applying migration `20260508095402_add_session_log`
+Applying migration `20260514074656_add_workout_authoring_fields`
+Applying migration `20260519120108_rename_scheduled_session_to_workout_session`
+Applying migration `20260519120112_rename_activity_to_discipline`
+Applying migration `20260519120706_add_workout_intent`
+Applying migration `20260519125819_add_activity_import_inbox`
+Applying migration `20260519125835_add_event_entity`
+Applying migration `20260519125854_add_athlete_profile_thresholds`
+Applying migration `20260519130231_add_step_discriminated_union`
+Applying migration `20260520000001_backfill_intensity_json`
+Applying migration `20260520065953_tss_triad_load_snapshot`
+Applying migration `20260528184726_add_account_connection`
+Applying migration `20260528200421_add_job_queue`
+Applying migration `20260606120000_add_training_availability`
+Applying migration `20260607071940_add_generated_plan_persistence`
+Applying migration `20260608055031_add_planned_tss`
+Applying migration `20260626140523_add_activity_import_metrics`
+Applying migration `20260626150459_add_activity_import_phase_bars`
+Applying migration `20260629100206_add_activity_stream`
+Applying migration `20260705212920_add_week_replan`
+Applying migration `20260707141528_relax_account_connection_for_key_providers`
+Applying migration `20260715150052_add_structure_detection_groundwork`
+Applying migration `20260716065940_add_run_power_threshold`
+Applying migration `20260727190451_relational_plan_outline`
+Applying migration `20260727202553_drop_redundant_plan_outline_indexes`
+Applying migration `20260730141217_retire_volume_landmarks`
+Applying migration `20260731070614_add_load_recompute_notice`
+Applying migration `20260731100000_backfill_endurance_segments`
+Applying migration `20260731203000_require_strength_goal_and_frequency`
+Applying migration `20260808162757_add_weekly_capacity`
+Applying migration `20260808173119_default_zone_recipe_per_discipline`
+Applying migration `20260809053306_add_structure_and_quantities`
+Applying migration `20260809065500_add_performance_result`
+Applying migration `20260809073956_add_catalogue_four_axes`
+Applying migration `20260809081502_add_session_adoption`
+Applying migration `20260809090000_add_community_tier`
+Applying migration `20260813120000_threshold_provenance_construct_and_protocol`
+Applying migration `20260813130000_session_archetype_on_workout`
+Applying migration `20260813140000_exercise_set_log`
+Applying migration `20260814120000_strength_anchors_programs_and_variants`
+Applying migration `20260817090000_exercise_laterality_is_a_statement_not_a_default`
+Applying migration `20260817140000_program_session_application`
+Applying migration `20260818120000_ship_the_exercise_corpus_and_the_three_programs`
+Applying migration `20260818160000_an_orphaned_exercise_belongs_to_nobody_and_is_healed_only_where_the_corpus_knows_it`
+Applying migration `20260819090000_a_logged_set_outlives_the_prescription_it_answered`
+Applying migration `20260819140000_a_logged_set_states_which_realization_it_was`
+Applying migration `20261007175838_the_week_replan_proposes_and_a_session_can_be_handed_back`
+Applying migration `20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them`
+Applying migration `20261007190320_the_week_change_runs_each_step_once`
+Applying migration `20261007191933_an_open_ended_plan_owns_itself_and_the_sessions_it_laid`
+Applying migration `20261007212213_a_plan_records_the_philosophy_it_follows`
+Applying migration `20261007225432_a_session_may_count_in_no_track`
+Applying migration `20261008041623_an_import_remembers_what_the_athlete_said_about_it`
+Applying migration `20261011061500_an_account_connection_remembers_when_it_last_checked`
+Applying migration `20261011120000_the_lifts_answer_to_their_norwegian_names`
+Applying migration `20261013120000_an_import_is_keyed_by_its_athlete`
+Applying migration `20261013130000_every_import_records_its_origin_platform`
+Applying migration `20261013140000_one_activity_is_one_row`
+Applying migration `20261013150000_the_harvest_budget_is_the_keys`
+Applying migration `20261017130000_an_applied_proposal_keeps_its_before_image`
+Applying migration `20261017160000_the_athlete_keeps_their_training_level`
+Applying migration `20261017170000_a_simple_activity_is_a_planned_session`
+Applying migration `20261017185740_the_athlete_answers_how_often_they_lift`
+Applying migration `20261017185741_the_start_lifts_a_full_body_stock_workout`
+Applying migration `20261017185742_the_athlete_keeps_their_session_preferences`
+Applying migration `20261017190000_the_simple_activities_share_a_track_on_other`
+Applying migration `20261018060000_the_autopilot_applies_at_the_close`
+Applying migration `20261018070000_a_juster_keeps_what_it_replaced`
+Applying migration `20261018080000_the_autopilot_notice_is_seen_and_kept`
+Applying migration `20261018090000_the_autopilot_is_on_for_everyone`
+Applying migration `20261018100000_lifting_is_laid_per_week`
+Applying migration `20261018110000_a_track_names_its_own_days`
+Applying migration `20261024120000_strava_streams_checked`
+Applying migration `20261025090000_grade_is_a_band`
+Applying migration `20261025090100_the_hill_rows_state_their_grade`
+Applying migration `20261107130000_a_plan_holds_its_pattern_workouts`
+
+Database reset successful
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20250221233640_init/
+    └─ migration.sql
+  └─ 20260416140410_add_training_domain/
+    └─ migration.sql
+  └─ 20260508093352_remove_notes_domain/
+    └─ migration.sql
+  └─ 20260508095402_add_session_log/
+    └─ migration.sql
+  └─ 20260514074656_add_workout_authoring_fields/
+    └─ migration.sql
+  └─ 20260519120108_rename_scheduled_session_to_workout_session/
+    └─ migration.sql
+  └─ 20260519120112_rename_activity_to_discipline/
+    └─ migration.sql
+  └─ 20260519120706_add_workout_intent/
+    └─ migration.sql
+  └─ 20260519125819_add_activity_import_inbox/
+    └─ migration.sql
+  └─ 20260519125835_add_event_entity/
+    └─ migration.sql
+  └─ 20260519125854_add_athlete_profile_thresholds/
+    └─ migration.sql
+  └─ 20260519130231_add_step_discriminated_union/
+    └─ migration.sql
+  └─ 20260520000001_backfill_intensity_json/
+    └─ migration.sql
+  └─ 20260520065953_tss_triad_load_snapshot/
+    └─ migration.sql
+  └─ 20260528184726_add_account_connection/
+    └─ migration.sql
+  └─ 20260528200421_add_job_queue/
+    └─ migration.sql
+  └─ 20260606120000_add_training_availability/
+    └─ migration.sql
+  └─ 20260607071940_add_generated_plan_persistence/
+    └─ migration.sql
+  └─ 20260608055031_add_planned_tss/
+    └─ migration.sql
+  └─ 20260626140523_add_activity_import_metrics/
+    └─ migration.sql
+  └─ 20260626150459_add_activity_import_phase_bars/
+    └─ migration.sql
+  └─ 20260629100206_add_activity_stream/
+    └─ migration.sql
+  └─ 20260705212920_add_week_replan/
+    └─ migration.sql
+  └─ 20260707141528_relax_account_connection_for_key_providers/
+    └─ migration.sql
+  └─ 20260715150052_add_structure_detection_groundwork/
+    └─ migration.sql
+  └─ 20260716065940_add_run_power_threshold/
+    └─ migration.sql
+  └─ 20260727190451_relational_plan_outline/
+    └─ migration.sql
+  └─ 20260727202553_drop_redundant_plan_outline_indexes/
+    └─ migration.sql
+  └─ 20260730141217_retire_volume_landmarks/
+    └─ migration.sql
+  └─ 20260731070614_add_load_recompute_notice/
+    └─ migration.sql
+  └─ 20260731100000_backfill_endurance_segments/
+    └─ migration.sql
+  └─ 20260731203000_require_strength_goal_and_frequency/
+    └─ migration.sql
+  └─ 20260808162757_add_weekly_capacity/
+    └─ migration.sql
+  └─ 20260808173119_default_zone_recipe_per_discipline/
+    └─ migration.sql
+  └─ 20260809053306_add_structure_and_quantities/
+    └─ migration.sql
+  └─ 20260809065500_add_performance_result/
+    └─ migration.sql
+  └─ 20260809073956_add_catalogue_four_axes/
+    └─ migration.sql
+  └─ 20260809081502_add_session_adoption/
+    └─ migration.sql
+  └─ 20260809090000_add_community_tier/
+    └─ migration.sql
+  └─ 20260813120000_threshold_provenance_construct_and_protocol/
+    └─ migration.sql
+  └─ 20260813130000_session_archetype_on_workout/
+    └─ migration.sql
+  └─ 20260813140000_exercise_set_log/
+    └─ migration.sql
+  └─ 20260814120000_strength_anchors_programs_and_variants/
+    └─ migration.sql
+  └─ 20260817090000_exercise_laterality_is_a_statement_not_a_default/
+    └─ migration.sql
+  └─ 20260817140000_program_session_application/
+    └─ migration.sql
+  └─ 20260818120000_ship_the_exercise_corpus_and_the_three_programs/
+    └─ migration.sql
+  └─ 20260818160000_an_orphaned_exercise_belongs_to_nobody_and_is_healed_only_where_the_corpus_knows_it/
+    └─ migration.sql
+  └─ 20260819090000_a_logged_set_outlives_the_prescription_it_answered/
+    └─ migration.sql
+  └─ 20260819140000_a_logged_set_states_which_realization_it_was/
+    └─ migration.sql
+  └─ 20261007175838_the_week_replan_proposes_and_a_session_can_be_handed_back/
+    └─ migration.sql
+  └─ 20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them/
+    └─ migration.sql
+  └─ 20261007190320_the_week_change_runs_each_step_once/
+    └─ migration.sql
+  └─ 20261007191933_an_open_ended_plan_owns_itself_and_the_sessions_it_laid/
+    └─ migration.sql
+  └─ 20261007212213_a_plan_records_the_philosophy_it_follows/
+    └─ migration.sql
+  └─ 20261007225432_a_session_may_count_in_no_track/
+    └─ migration.sql
+  └─ 20261008041623_an_import_remembers_what_the_athlete_said_about_it/
+    └─ migration.sql
+  └─ 20261011061500_an_account_connection_remembers_when_it_last_checked/
+    └─ migration.sql
+  └─ 20261011120000_the_lifts_answer_to_their_norwegian_names/
+    └─ migration.sql
+  └─ 20261013120000_an_import_is_keyed_by_its_athlete/
+    └─ migration.sql
+  └─ 20261013130000_every_import_records_its_origin_platform/
+    └─ migration.sql
+  └─ 20261013140000_one_activity_is_one_row/
+    └─ migration.sql
+  └─ 20261013150000_the_harvest_budget_is_the_keys/
+    └─ migration.sql
+  └─ 20261017130000_an_applied_proposal_keeps_its_before_image/
+    └─ migration.sql
+  └─ 20261017160000_the_athlete_keeps_their_training_level/
+    └─ migration.sql
+  └─ 20261017170000_a_simple_activity_is_a_planned_session/
+    └─ migration.sql
+  └─ 20261017185740_the_athlete_answers_how_often_they_lift/
+    └─ migration.sql
+  └─ 20261017185741_the_start_lifts_a_full_body_stock_workout/
+    └─ migration.sql
+  └─ 20261017185742_the_athlete_keeps_their_session_preferences/
+    └─ migration.sql
+  └─ 20261017190000_the_simple_activities_share_a_track_on_other/
+    └─ migration.sql
+  └─ 20261018060000_the_autopilot_applies_at_the_close/
+    └─ migration.sql
+  └─ 20261018070000_a_juster_keeps_what_it_replaced/
+    └─ migration.sql
+  └─ 20261018080000_the_autopilot_notice_is_seen_and_kept/
+    └─ migration.sql
+  └─ 20261018090000_the_autopilot_is_on_for_everyone/
+    └─ migration.sql
+  └─ 20261018100000_lifting_is_laid_per_week/
+    └─ migration.sql
+  └─ 20261018110000_a_track_names_its_own_days/
+    └─ migration.sql
+  └─ 20261024120000_strava_streams_checked/
+    └─ migration.sql
+  └─ 20261025090000_grade_is_a_band/
+    └─ migration.sql
+  └─ 20261025090100_the_hill_rows_state_their_grade/
+    └─ migration.sql
+  └─ 20261107130000_a_plan_holds_its_pattern_workouts/
+    └─ migration.sql
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mtwo racing creates leave one plan, and the loser is told why
+[22m[39mprisma:error 
+Invalid `tx.planOutline.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/67130cda-91c9-5646-94b8-57170f2f1fb7/scratchpad/f/wt/678-qa/app/utils/plan-outline/authoring.server.ts:486:39
+
+  483 	phases: PhaseLay[],
+  484 	withoutMix: readonly PlannedDiscipline[] = [],
+  485 ): Promise<{ id: string }> {
+→ 486 	const created = await tx.planOutline.create(
+Unique constraint failed on the fields: (`eventId`)
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mthe anchor candidates are the athlete’s own upcoming Events
+[22m[39mprisma:query - 36ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts.server.test.ts[2m > [22m[2ma Workout a day still uses cannot be deleted out from under it
+[22m[39mprisma:error 
+Invalid `	prisma.workout.delete()` invocation in
+/tmp/claude-0/-home-user-trainm8/67130cda-91c9-5646-94b8-57170f2f1fb7/scratchpad/f/wt/678-qa/app/utils/plan-outline/held-workouts.server.test.ts:802:18
+
+  799 	(day) => day.kind === 'fixed',
+  800 )
+  801 await expect(
+→ 802 	prisma.workout.delete(
+Foreign key constraint violated on the foreign key
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mtwo racing adds for one Discipline leave one track, and the loser is told why
+[22m[39mprisma:error 
+Invalid `prisma.trainingTrack.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/67130cda-91c9-5646-94b8-57170f2f1fb7/scratchpad/f/wt/678-qa/app/utils/plan-outline/authoring.server.ts:860:46
+
+  857 }
+  858 
+  859 try {
+→ 860 	const created = await prisma.trainingTrack.create(
+Unique constraint failed on the fields: (`outlineId`,`discipline`)
+
+ [32m✓[39m app/utils/plan-outline/held-workouts.server.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 4290[2mms[22m[39m
+   [33m[2m✓[22m[39m after the strength offer, the strength session the lifts copy can be deleted and the next laid weeks still lift it [33m 404[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting the plan or its Event takes its Held Workouts, fixed, share and lifting alike [33m 533[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2ma Langrenn day moved to Saturday stays on Saturday, and the run’s hard session is laid around it
+[22m[39mprisma:query - 22ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2ma Langrenn day moved to Saturday stays on Saturday, and the run’s hard session is laid around it
+[22m[39mprisma:query - 25ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2mLa appen velge deals the track’s days again around the others
+[22m[39mprisma:query - 34ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2mLa appen velge deals the track’s days again around the others
+[22m[39mprisma:query - 24ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2mLa appen velge deals the track’s days again around the others
+[22m[39mprisma:query - 26ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2mLa appen velge deals the track’s days again around the others
+[22m[39mprisma:query - 21ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/routes/training/plan.test.ts[2m > [22m[2mthree blank counts clear the mix, and that is a save rather than a refusal
+[22m[39mprisma:query - 21ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2mundoing from the toast puts back exactly what the change replaced
+[22m[39mprisma:query - 41ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/routes/training/plan.test.ts[2m > [22m[2ma pattern is added to the plan, named and positioned
+[22m[39mprisma:query - 29ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2mundoing the first days chosen for a track with none puts back none
+[22m[39mprisma:query - 26ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2ma pinned track trains only on its days in every Week Pattern, and the undo puts each back
+[22m[39mprisma:query - 31ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2mundoing puts back a day shaped by a Stock Workout exactly as it was
+[22m[39mprisma:query - 23ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/routes/training/plan.test.ts[2m > [22m[2man anchor keyed outside the plan reads as a sentence on the form
+[22m[39mprisma:query - 28ms - COMMIT
+
+ [32m✓[39m app/routes/training/plan.test.ts [2m([22m[2m84 tests[22m[2m)[22m[33m 16288[2mms[22m[39m
+   [33m[2m✓[22m[39m a shape that does not fill the run-in says so, and stretches nothing [33m 444[2mms[22m[39m
+   [33m[2m✓[22m[39m the loader exposes each pattern day, with fixed days already priced [33m 370[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2ma track that loses every pinned day goes back to La appen velge
+[22m[39mprisma:query - 31ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2maddStrengthSegment[2m > [22m[2ma goal outside ACSM’s three is refused, and no band or rep range is typable
+[22m[39mprisma:query - 26ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2maddStrengthSegment[2m > [22m[2ma ramp steeper than the guard’s convention is stored, not refused
+[22m[39mprisma:query - 23ms - COMMIT
+
+[90mstdout[2m | app/utils/first-run/plan.server.test.ts[2m > [22m[2ma two-track plan is refused whole when the athlete has a plan
+[22m[39mprisma:query - 22ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/track-days.server.test.ts[2m > [22m[2mSesong’s starter week keeps a pinned track on its days and deals the others around it
+[22m[39mprisma:query - 21ms - COMMIT
+
+ [32m✓[39m app/utils/plan-outline/track-days.server.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 16883[2mms[22m[39m
+   [33m[2m✓[22m[39m every endurance track and Simple Activity can have its days chosen, La appen velge by default [33m 479[2mms[22m[39m
+   [33m[2m✓[22m[39m a Simple Activity picked again for another day stays one unit (ADR 0113 §2) [33m 565[2mms[22m[39m
+   [33m[2m✓[22m[39m a Langrenn day moved to Saturday stays on Saturday, and the run’s hard session is laid around it [33m 1017[2mms[22m[39m
+   [33m[2m✓[22m[39m an endurance track pinned to two days trains only on them, its week spread over them [33m 699[2mms[22m[39m
+   [33m[2m✓[22m[39m La appen velge deals the track’s days again around the others [33m 1103[2mms[22m[39m
+   [33m[2m✓[22m[39m undoing from the toast puts back exactly what the change replaced [33m 1349[2mms[22m[39m
+   [33m[2m✓[22m[39m undoing the first days chosen for a track with none puts back none [33m 1069[2mms[22m[39m
+   [33m[2m✓[22m[39m a pinned track trains only on its days in every Week Pattern, and the undo puts each back [33m 1038[2mms[22m[39m
+   [33m[2m✓[22m[39m undoing puts back a day shaped by a Stock Workout exactly as it was [33m 1103[2mms[22m[39m
+   [33m[2m✓[22m[39m a shape a choice drops waits for its undo, then goes with the next write (ADR 0113 §4) [33m 1558[2mms[22m[39m
+   [33m[2m✓[22m[39m an undo cannot put an orphaned athlete's Workout into the week (#639 H26) [33m 693[2mms[22m[39m
+   [33m[2m✓[22m[39m a choice made against a plan that changed since is refused [33m 770[2mms[22m[39m
+   [33m[2m✓[22m[39m a day the athlete does not train on cannot be chosen [33m 431[2mms[22m[39m
+   [33m[2m✓[22m[39m a Simple Activity always has a day: it cannot be handed to the app [33m 442[2mms[22m[39m
+   [33m[2m✓[22m[39m Week Replan is told a missed ride’s track’s chosen days [33m 789[2mms[22m[39m
+   [33m[2m✓[22m[39m taking a day out of Training Availability drops it from the tracks that pinned it, and says so [33m 1246[2mms[22m[39m
+   [33m[2m✓[22m[39m a track that loses every pinned day goes back to La appen velge [33m 1055[2mms[22m[39m
+   [33m[2m✓[22m[39m clearing every day of Training Availability drops every pinned day, not none [33m 1000[2mms[22m[39m
+   [33m[2m✓[22m[39m Sesong’s starter week keeps a pinned track on its days and deals the others around it [33m 460[2mms[22m[39m
+[90mstdout[2m | app/utils/first-run/plan.server.test.ts[2m > [22m[2ma Start Option picked with Velg denne[2m > [22m[2mpolarized is made as its card showed it, and nothing is marked done or ikke gjort
+[22m[39mprisma:query - 20ms - COMMIT
+
+[90mstdout[2m | app/utils/first-run/plan.server.test.ts[2m > [22m[2ma Start Option picked with Velg denne[2m > [22m[2mpolarized is made as its card showed it, and nothing is marked done or ikke gjort
+[22m[39mprisma:query - 21ms - INSERT INTO `main`.`PlanOutline` (`id`, `startWeekKey`, `createdAt`, `updatedAt`, `athleteId`, `eventId`, `family`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/first-run/plan.server.test.ts[2m > [22m[2ma Start Option picked with Velg denne[2m > [22m[2mpolarized is made as its card showed it, and nothing is marked done or ikke gjort
+[22m[39mprisma:query - 22ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mweek volume overrides[2m > [22m[2mzero is a week off, stored rather than refused
+[22m[39mprisma:query - 24ms - COMMIT
+
+[90mstdout[2m | app/utils/first-run/plan.server.test.ts[2m > [22m[2ma Start Option picked with Velg denne[2m > [22m[2mwith ["short"] the plan made is the card, minute for minute, and the weeks after keep its shape
+[22m[39mprisma:query - 41ms - COMMIT
+
+[90mstdout[2m | app/utils/first-run/plan.server.test.ts[2m > [22m[2ma Start Option picked with Velg denne[2m > [22m[2mwith ["short"] the plan made is the card, minute for minute, and the weeks after keep its shape
+[22m[39mprisma:query - 42ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mweek volume overrides[2m > [22m[2ma week orphaned by a shrunken plan is still clearable
+[22m[39mprisma:query - 20ms - COMMIT
+
+[90mstdout[2m | app/utils/first-run/plan.server.test.ts[2m > [22m[2ma Start Option picked with Velg denne[2m > [22m[2mwith ["short"] the plan made is the card, minute for minute, and the weeks after keep its shape
+[22m[39mprisma:query - 32ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mweek volume overrides[2m > [22m[2manother athlete cannot hand-set or clear a week, and nothing is written
+[22m[39mprisma:query - 23ms - COMMIT
+
+[90mstdout[2m | app/utils/first-run/plan.server.test.ts[2m > [22m[2ma Start Option picked with Velg denne[2m > [22m[2mwith ["long","short"] the plan made is the card, minute for minute, and the weeks after keep its shape
+[22m[39mprisma:query - 39ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+ [32m✓[39m app/utils/first-run/plan.server.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 6459[2mms[22m[39m
+   [33m[2m✓[22m[39m an open-ended first plan lays its first two weeks on the chosen days only, each week adding up to its target [33m 335[2mms[22m[39m
+   [33m[2m✓[22m[39m the plan made is the plan shown: same family, same days, same minutes [33m 313[2mms[22m[39m
+   [33m[2m✓[22m[39m Terskelfokus lays its two hard sessions in each of the first two weeks, titled as the preview showed [33m 321[2mms[22m[39m
+   [33m[2m✓[22m[39m seven chosen days lay six, and keep all seven as the athlete’s availability [33m 401[2mms[22m[39m
+   [33m[2m✓[22m[39m a two-track plan made is the plan shown, minute for minute [33m 372[2mms[22m[39m
+     [33m[2m✓[22m[39m polarized is made as its card showed it, and nothing is marked done or ikke gjort [33m 350[2mms[22m[39m
+     [33m[2m✓[22m[39m classic is made as its card showed it, and nothing is marked done or ikke gjort [33m 342[2mms[22m[39m
+     [33m[2m✓[22m[39m several sports ('run' first) are made as the card showed them: every track, minute for minute [33m 383[2mms[22m[39m
+     [33m[2m✓[22m[39m several sports ('swim' first) are made as the card showed them: every track, minute for minute [33m 388[2mms[22m[39m
+     [33m[2m✓[22m[39m with ["short"] the plan made is the card, minute for minute, and the weeks after keep its shape [33m 698[2mms[22m[39m
+     [33m[2m✓[22m[39m with ["long","short"] the plan made is the card, minute for minute, and the weeks after keep its shape [33m 642[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mweek volume overrides[2m > [22m[2ma strength track hand-sets a week exactly like a run track
+[22m[39mprisma:query - 20ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mweek volume overrides[2m > [22m[2mthe stored value is the week’s final target, and the weeks after it are untouched
+[22m[39mprisma:query - 26ms - INSERT INTO `main`.`Password` (`hash`, `userId`) VALUES (?,?) RETURNING `userId` AS `userId`
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mweek volume overrides[2m > [22m[2ma hand-set week survives a later re-anchor, still marked and still revertible
+[22m[39mprisma:query - 29ms - INSERT INTO `main`.`Event` (`id`, `name`, `kind`, `priority`, `startDate`, `endDate`, `disciplines`, `status`, `createdAt`, `updatedAt`, `athleteId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mfitting a plan to its Event (#362 follow-up)[2m > [22m[2ma season running past the Event gives its weeks back, base first
+[22m[39mprisma:query - 43ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mfitting a plan to its Event (#362 follow-up)[2m > [22m[2ma season ending early puts the weeks into the base
+[22m[39mprisma:query - 23ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2mfitting a plan to its Event (#362 follow-up)[2m > [22m[2ma season ending early puts the weeks into the base
+[22m[39mprisma:query - 30ms - COMMIT
+
+ [32m✓[39m app/utils/first-run/start-draft.test.ts [2m([22m[2m30 tests[22m[2m)[22m[33m 4523[2mms[22m[39m
+   [33m[2m✓[22m[39m for every level and day count the options are the level’s families, ranked, and no two lay the same week [33m 591[2mms[22m[39m
+   [33m[2m✓[22m[39m two and three sports at every level: week 1 adds up to the hours across every track, one session a day, within the level’s session cap [33m 3086[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mchoosing Tuesday and Thursday lifts on Tuesday and Thursday in every week, and the run’s intervals are laid away from them
+[22m[39mprisma:query - 41ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mchoosing Tuesday and Thursday lifts on Tuesday and Thursday in every week, and the run’s intervals are laid away from them
+[22m[39mprisma:query - 20ms - INSERT INTO `main`.`Event` (`id`, `name`, `kind`, `priority`, `startDate`, `disciplines`, `status`, `createdAt`, `updatedAt`, `athleteId`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mchoosing Tuesday and Thursday lifts on Tuesday and Thursday in every week, and the run’s intervals are laid away from them
+[22m[39mprisma:query - 24ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mchoosing Tuesday and Thursday lifts on Tuesday and Thursday in every week, and the run’s intervals are laid away from them
+[22m[39mprisma:query - 20ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2ma Week Pattern to start from (#362 follow-up)[2m > [22m[2ma run and bike plan that both carry the mix keeps it on the run only
+[22m[39mprisma:query - 24ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mchoosing Tuesday and Thursday lifts on Tuesday and Thursday in every week, and the run’s intervals are laid away from them
+[22m[39mprisma:query - 20ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mchoosing Tuesday and Thursday lifts on Tuesday and Thursday in every week, and the run’s intervals are laid away from them
+[22m[39mprisma:query - 20ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts-migration.server.test.ts[2m > [22m[2mthe migration gives every day a row its own plan holds, copying only what something else uses
+[22m[39mprisma:query - 53ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts-migration.server.test.ts[2m > [22m[2mthe migration gives every day a row its own plan holds, copying only what something else uses
+[22m[39mprisma:query - 23ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts-migration.server.test.ts[2m > [22m[2mthe migration gives every day a row its own plan holds, copying only what something else uses
+[22m[39mprisma:query - 20ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2ma Week Pattern to start from (#362 follow-up)[2m > [22m[2ma strength track gets lifting slots on no weekday, on the session it lifts, not the first days of the week
+[22m[39mprisma:query - 22ms - INSERT INTO `main`.`Event` (`id`, `name`, `kind`, `priority`, `startDate`, `endDate`, `disciplines`, `status`, `createdAt`, `updatedAt`, `athleteId`) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/plan-outline/authoring.server.test.ts[2m > [22m[2ma Week Pattern to start from (#362 follow-up)[2m > [22m[2ma strength track gets lifting slots on no weekday, on the session it lifts, not the first days of the week
+[22m[39mprisma:query - 24ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mthe Strength Frequency is the number of days chosen
+[22m[39mprisma:query - 22ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts-migration.server.test.ts[2m > [22m[2mthe migration gives every day a row its own plan holds, copying only what something else uses
+[22m[39mprisma:query - 22ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts-migration.server.test.ts[2m > [22m[2mthe migration gives every day a row its own plan holds, copying only what something else uses
+[22m[39mprisma:query - 24ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mthe Strength Frequency is the number of days chosen
+[22m[39mprisma:query - 28ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts-migration.server.test.ts[2m > [22m[2mthe migration gives every day a row its own plan holds, copying only what something else uses
+[22m[39mprisma:query - 28ms - CREATE TABLE "_HeldWorkoutBackfill" (
+    "outlineId" TEXT NOT NULL,
+    "workoutId" TEXT NOT NULL,
+    "copy" INTEGER NOT NULL,
+    PRIMARY KEY ("outlineId", "workoutId")
+)
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts-migration.server.test.ts[2m > [22m[2mthe migration gives every day a row its own plan holds, copying only what something else uses
+[22m[39mprisma:query - 23ms - INSERT INTO "_HeldWorkoutBackfill" ("outlineId", "workoutId", "copy")
+SELECT DISTINCT p."outlineId", w."id",
+    CASE WHEN w."authorship" = 'athlete'
+        AND w."ownerId" = o."athleteId"
+        AND w."visibility" = 'private'
+        AND w."heldByOutlineId" IS NULL
+        AND NOT EXISTS (SELECT 1 FROM "WorkoutSession" s WHERE s."workoutId" = w."id")
+        AND NOT EXISTS (
+            SELECT 1 FROM "WeekPatternDay" od
+            JOIN "WeekPattern" op ON op."id" = od."patternId"
+            WHERE od."workoutId" = w."id" AND op."outlineId" <> p."outlineId"
+        )
+        AND NOT EXISTS (SELECT 1 FROM "CatalogueEntry" e WHERE e."workoutId" = w."id")
+        AND NOT EXISTS (SELECT 1 FROM "Attribution" a WHERE a."workoutId" = w."id")
+        AND NOT EXISTS (SELECT 1 FROM "CatalogueSave" cs WHERE cs."workoutId" = w."id")
+        AND NOT EXISTS (SELECT 1 FROM "StrengthProgramDay" pd WHERE pd."workoutId" = w."id")
+        AND NOT EXISTS (SELECT 1 FROM "WorkoutReport" r WHERE r."workoutId" = w."id")
+    THEN 0 ELSE 1 END
+FROM "WeekPatternDay" d
+JOIN "WeekPattern" p ON p."id" = d."patternId"
+JOIN "PlanOutline" o ON o."id" = p."outlineId"
+JOIN "Workout" w ON w."id" = d."workoutId"
+WHERE w."heldByOutlineId" IS NULL OR w."heldByOutlineId" <> p."outlineId"
+
+ [32m✓[39m app/utils/plan-outline/authoring.server.test.ts [2m([22m[2m169 tests[22m[2m)[22m[33m 29969[2mms[22m[39m
+   [33m[2m✓[22m[39m the anchor candidates are the athlete’s own upcoming Events [33m 331[2mms[22m[39m
+     [33m[2m✓[22m[39m another athlete cannot remove an anchor [33m 308[2mms[22m[39m
+     [33m[2m✓[22m[39m a week orphaned by a shrunken plan is still clearable [33m 308[2mms[22m[39m
+     [33m[2m✓[22m[39m another athlete cannot hand-set or clear a week, and nothing is written [33m 489[2mms[22m[39m
+     [33m[2m✓[22m[39m the stored value is the week’s final target, and the weeks after it are untouched [33m 312[2mms[22m[39m
+     [33m[2m✓[22m[39m a hand-set week survives a later re-anchor, still marked and still revertible [33m 325[2mms[22m[39m
+     [33m[2m✓[22m[39m a season already landing on the Event is left alone [33m 493[2mms[22m[39m
+     [33m[2m✓[22m[39m a run and bike plan that both carry the mix keeps it on the run only [33m 358[2mms[22m[39m
+     [33m[2m✓[22m[39m a strength track gets lifting slots on no weekday, on the session it lifts, not the first days of the week [33m 371[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mthe Strength Frequency is the number of days chosen
+[22m[39mprisma:query - 30ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mthe strength blocks lift as often as the days chosen, and the undo puts their frequency back (story 20)
+[22m[39mprisma:query - 26ms - INSERT INTO `main`.`Event` (`id`, `name`, `kind`, `priority`, `startDate`, `disciplines`, `status`, `createdAt`, `updatedAt`, `athleteId`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts-migration.server.test.ts[2m > [22m[2mthe migration copies a reported row rather than holding it, so its report outlives the plan
+[22m[39mprisma:query - 25ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mthe strength blocks lift as often as the days chosen, and the undo puts their frequency back (story 20)
+[22m[39mprisma:query - 23ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/held-workouts-migration.server.test.ts[2m > [22m[2mthe migration copies a reported row rather than holding it, so its report outlives the plan
+[22m[39mprisma:query - 37ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+ [32m✓[39m app/utils/first-run/draft.test.ts [2m([22m[2m36 tests[22m[2m)[22m[33m 363[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/held-workouts-migration.server.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2448[2mms[22m[39m
+   [33m[2m✓[22m[39m the migration gives every day a row its own plan holds, copying only what something else uses [33m 792[2mms[22m[39m
+   [33m[2m✓[22m[39m after the migration the weeks laid are the weeks laid before, and the sessions are the athlete’s again [33m 626[2mms[22m[39m
+   [33m[2m✓[22m[39m the migration leaves a plan that already holds its rows as it is [33m 404[2mms[22m[39m
+   [33m[2m✓[22m[39m the migration copies a reported row rather than holding it, so its report outlives the plan [33m 619[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mchosen lifting days hold in every Week Pattern that lifts, and the undo puts each back
+[22m[39mprisma:query - 30ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mchosen lifting days hold in every Week Pattern that lifts, and the undo puts each back
+[22m[39mprisma:query - 28ms - INSERT INTO `main`.`Workout` (`id`, `title`, `discipline`, `intent`, `authorship`, `visibility`, `createdAt`, `updatedAt`, `ownerId`) VALUES (?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+ [32m✓[39m app/utils/first-run/start-simple-activities.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 160[2mms[22m[39m
+[90mstdout[2m | app/utils/first-run/simple-activities-plan.server.test.ts[2m > [22m[2mthe plan made is the card shown, minute for minute, Simple Activities included, and nothing is marked done
+[22m[39mprisma:query - 20ms - COMMIT
+
+[90mstdout[2m | app/utils/first-run/simple-activities-plan.server.test.ts[2m > [22m[2mthe plan’s Simple Activities track asks for the same hours every week, through every phase
+[22m[39mprisma:query - 21ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mundoing puts back exactly the rows the write replaced, whatever sessions they lifted
+[22m[39mprisma:query - 29ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/first-run/simple-activities-plan.server.test.ts[2m > [22m[2mthe hard runs laid step around a middels Simple Activity, as the card shows
+[22m[39mprisma:query - 28ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mundoing puts back exactly the rows the write replaced, whatever sessions they lifted
+[22m[39mprisma:query - 40ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/first-run/simple-activities-plan.server.test.ts[2m > [22m[2man athlete who picked only Simple Activities gets one simple week, made as shown
+[22m[39mprisma:query - 23ms - COMMIT
+
+ [32m✓[39m app/utils/first-run/simple-activities-plan.server.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 2759[2mms[22m[39m
+   [33m[2m✓[22m[39m the plan made is the card shown, minute for minute, Simple Activities included, and nothing is marked done [33m 565[2mms[22m[39m
+   [33m[2m✓[22m[39m the plan’s Simple Activities track asks for the same hours every week, through every phase [33m 457[2mms[22m[39m
+   [33m[2m✓[22m[39m the horizon fill lays the Simple Activities in the weeks after the first two [33m 405[2mms[22m[39m
+   [33m[2m✓[22m[39m the hard runs laid step around a middels Simple Activity, as the card shows [33m 559[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete who picked only Simple Activities gets one simple week, made as shown [33m 459[2mms[22m[39m
+   [33m[2m✓[22m[39m a Simple Activity’s fixed day holds the plan’s own Workout, which goes with the plan (ADR 0113) [33m 306[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2man undo cannot put an orphaned athlete's Workout into the week (#639 H26)
+[22m[39mprisma:query - 21ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mundoing from the toast restores the previous days
+[22m[39mprisma:query - 21ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/first-run/start-strength.server.test.ts[2m > [22m[2mevery laid week lifts away from that week’s hard days
+[22m[39mprisma:query - 24ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2man existing plan’s fixed strength days appear as the chosen days, and La appen velge hands them back
+[22m[39mprisma:query - 20ms - COMMIT
+
+ [32m✓[39m app/utils/plan-outline/strength-offer.server.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1034[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete who lifts twice a week is offered a strength track; accepting it gives the plan lifting targets and lifting sessions [33m 442[2mms[22m[39m
+   [33m[2m✓[22m[39m accepting the offer adds lifting slots, laid away from the intervals rather than on the first days of the week [33m 387[2mms[22m[39m
+ [32m✓[39m app/utils/first-run/start-strength.server.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 3387[2mms[22m[39m
+   [33m[2m✓[22m[39m with no lifting of their own, the lifting days copy the full-body Stock Workout the card named [33m 560[2mms[22m[39m
+   [33m[2m✓[22m[39m without styrke there is no strength track and no answer is stored [33m 346[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete who lifts copies their own most recent strength session [33m 588[2mms[22m[39m
+   [33m[2m✓[22m[39m the start writes lifting slots, one per lift, on no weekday [33m 547[2mms[22m[39m
+   [33m[2m✓[22m[39m every laid week lifts away from that week’s hard days [33m 522[2mms[22m[39m
+   [33m[2m✓[22m[39m a beginner’s lifts still count inside the session cap, week after week [33m 371[2mms[22m[39m
+   [33m[2m✓[22m[39m with several endurance sports, week 1 lifts on the card’s days [33m 440[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2ma choice made against a plan that changed since is refused
+[22m[39mprisma:query - 20ms - INSERT INTO `main`.`Workout` (`id`, `title`, `discipline`, `intent`, `authorship`, `visibility`, `createdAt`, `updatedAt`, `ownerId`, `heldByOutlineId`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+ [32m✓[39m app/utils/first-run/first-run.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m app/utils/first-run/start-strength.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 113[2mms[22m[39m
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mWeek Replan is told a missed lift’s track’s chosen days, so a make-up goes on one of them
+[22m[39mprisma:query - 23ms - COMMIT
+
+[90mstdout[2m | app/utils/plan-outline/lifting-days.server.test.ts[2m > [22m[2mWeek Replan is told a missed lift’s track’s chosen days, so a make-up goes on one of them
+[22m[39mprisma:query - 21ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+ [32m✓[39m app/utils/plan-outline/lifting-days.server.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 13067[2mms[22m[39m
+   [33m[2m✓[22m[39m a plan whose lifting the app lays reads as La appen velge [33m 719[2mms[22m[39m
+   [33m[2m✓[22m[39m choosing Tuesday and Thursday lifts on Tuesday and Thursday in every week, and the run’s intervals are laid away from them [33m 1358[2mms[22m[39m
+   [33m[2m✓[22m[39m the Strength Frequency is the number of days chosen [33m 1049[2mms[22m[39m
+   [33m[2m✓[22m[39m the strength blocks lift as often as the days chosen, and the undo puts their frequency back (story 20) [33m 1222[2mms[22m[39m
+   [33m[2m✓[22m[39m chosen lifting days hold in every Week Pattern that lifts, and the undo puts each back [33m 1353[2mms[22m[39m
+   [33m[2m✓[22m[39m undoing puts back exactly the rows the write replaced, whatever sessions they lifted [33m 1934[2mms[22m[39m
+   [33m[2m✓[22m[39m an undo cannot put an orphaned athlete's Workout into the week (#639 H26) [33m 1078[2mms[22m[39m
+   [33m[2m✓[22m[39m undoing from the toast restores the previous days [33m 1305[2mms[22m[39m
+   [33m[2m✓[22m[39m an existing plan’s fixed strength days appear as the chosen days, and La appen velge hands them back [33m 772[2mms[22m[39m
+   [33m[2m✓[22m[39m a day the athlete does not train on cannot be chosen [33m 517[2mms[22m[39m
+   [33m[2m✓[22m[39m a choice made against a plan that changed since is refused [33m 817[2mms[22m[39m
+   [33m[2m✓[22m[39m Week Replan is told a missed lift’s track’s chosen days, so a make-up goes on one of them [33m 935[2mms[22m[39m
+ [32m✓[39m app/utils/first-run/plan-start-options.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m app/utils/account-deletion.server.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 932[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m17 passed[39m[22m[90m (17)[39m
+[2m      Tests [22m [1m[32m450 passed[39m[22m[90m (450)[39m
+[2m   Start at [22m 13:58:32
+[2m   Duration [22m 46.32s[2m (transform 4.77s, setup 15.95s, import 6.96s, tests 102.74s, environment 2ms)[22m
+
