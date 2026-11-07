@@ -35,9 +35,10 @@ export type PreviewWeekVolumes = {
 	 */
 	hasSessions: boolean
 	/**
-	 * How many of the week's sessions the athlete already had: approval deletes
-	 * none of them, so the planned figure counts them (ADR 0112 §4), and the card
-	 * says so, or the figure would be larger than the rows under it.
+	 * How many of the week's sessions the athlete already had that a track's
+	 * planned figure counts: approval deletes none of them (ADR 0112 §4), and the
+	 * card says so, or the figure would be larger than the rows under it. A
+	 * session in Annet, on no season track, or with no prescription is not one.
 	 */
 	existingSessions: number
 }
@@ -98,6 +99,14 @@ export function previewWeekVolumes({
 	}
 	const placedByWeek = byWeek(placed)
 	const existingByWeek = byWeek(existing)
+	// The sessions a track's planned figure reads, by the week model's own rule:
+	// on a season track, not put in Annet, and with a prescription. Only those
+	// are what the card's "already in this week" line says `planlagt` counts.
+	const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
+	const countsInPlanned = (session: VolumeSession) =>
+		!session.countsInNoTrack &&
+		trackDisciplines.has(session.discipline) &&
+		session.prescribed != null
 	return season.weeks.map((week) => {
 		const theirs = existingByWeek.get(week.weekKey) ?? []
 		const sessions = [...(placedByWeek.get(week.weekKey) ?? []), ...theirs]
@@ -111,7 +120,7 @@ export function previewWeekVolumes({
 				sessions,
 			}),
 			hasSessions: sessions.length > 0,
-			existingSessions: theirs.length,
+			existingSessions: theirs.filter(countsInPlanned).length,
 		}
 	})
 }
