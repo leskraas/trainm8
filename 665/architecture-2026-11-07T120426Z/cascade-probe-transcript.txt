@@ -1,0 +1,6 @@
+held => athlete AND owner not null | order User,PlanOutline,Workout,WeekPattern,WeekPatternDay | delete user: FAILS: CHECK constraint failed: held
+held => athlete AND owner not null | order User,Workout,PlanOutline,WeekPattern,WeekPatternDay | delete user: ok (Workout rows left: 0)
+held => athlete AND owner not null | order User,PlanOutline,WeekPattern,WeekPatternDay,Workout | delete user: FAILS: CHECK constraint failed: held
+held => athlete (implication only) | order User,PlanOutline,Workout,WeekPattern,WeekPatternDay | delete user: ok (Workout rows left: 0)
+held => athlete (implication only) | order User,Workout,PlanOutline,WeekPattern,WeekPatternDay | delete user: ok (Workout rows left: 0)
+held => athlete (implication only) | order User,PlanOutline,WeekPattern,WeekPatternDay,Workout | delete user: ok (Workout rows left: 0)
