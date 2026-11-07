@@ -8,6 +8,15 @@ check, a standard or a change to the factory. The queue starts it every
 Read-only on the repo: guard files and agent rules belong to a human, so
 everything you find becomes a proposal.
 
+0. **Earlier proposals.** List this scan's open proposals: the open issues
+   whose body holds `<!-- agent:proposal-from retro -->`
+   (`python3 <base>/scripts/conductor.py list 'repos/<o>/<r>/issues?state=open&labels=agent:proposal'`).
+   For each, check whether it still holds at the default branch's head. One
+   that merged work made true, or that no longer holds, goes in `resolved`
+   with the reason, and the conductor closes it. One that still holds you
+   don't propose again; name it in your comment, with how long it has waited.
+   Done when every open proposal of this scan is resolved or named.
+
 1. **Gather.** For each PR labelled `agent` that merged since the brief's
    `since`, read its run comments and its issue's:
    - the review's **Rules this review wanted and could not find**;
@@ -46,6 +55,9 @@ everything you find becomes a proposal.
 ## Result
 
 - **outcome**: `done`.
-- **proposals**: at most three, `{title, body}`.
+- **proposals**: at most three, `{title, body, door, size, paths}`. A rule
+  for the factory itself names the task files and `conductor.py` it changes
+  in `paths`, so it waits for a human like every guard file.
+- **resolved**: from step 0, `{number, reason}`.
 - **comment**: the PRs read, every cause with its count, and which you
   proposed.

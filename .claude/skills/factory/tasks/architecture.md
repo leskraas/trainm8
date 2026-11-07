@@ -33,7 +33,9 @@ and the ADRs live, and the format of each.
 4. **Write it down.** For each decision that warrants one (hard to reverse,
    surprising without context, a real trade-off), write a new ADR file or the
    glossary change, as `bredvid-engineering:domain-modeling` describes, and
-   commit it on the issue's branch. Write the `Architecture` section: what
+   commit it on the issue's branch. Other issues write ADRs in parallel, so
+   name a new ADR file after the highest number on the default branch plus
+   one, and expect `update-branch` to renumber it when another lands first. Write the `Architecture` section: what
    the build must follow, each ADR by path. Done when every settled door has
    its ADR, its glossary line, or a line in your comment on why it needs
    neither.
@@ -43,7 +45,9 @@ and the ADRs live, and the format of each.
 - **outcome**: `forward` (next `implement`); `back` with `next` `spec` when
   the issue itself is wrong, saying what spec must change; or `blocked`.
 - **decisions**: every door and meaning change, each with its `door` and
-  `owner`.
+  `owner`. A decision that changes what an acceptance criterion asks names
+  the criterion's number in `criterion`; the conductor then sends the issue
+  to spec to rewrite it first.
 - **sections**: `{"Architecture": ...}`.
 - **branch**: the issue's branch, when you committed.
 - **comment**: the doors and how each was settled, the drift fixed, the

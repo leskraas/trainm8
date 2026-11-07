@@ -52,7 +52,11 @@ branch.
   run, **pr_body** again when what you built leaves the PR body wrong: the
   whole body, as it should read now.
 - **decisions**: any you made while building; a one-way door here waits like
-  any other.
+  any other. A decision that narrows an acceptance criterion, moves part of it
+  to another issue, or accepts behaviour that contradicts it names the
+  criterion's number in `criterion` and puts its proposed new text in
+  `answer`: the conductor then sends the issue to spec, which rewrites the
+  criterion before QA judges the old text.
 - **evidence**: the evidence folder, when you put screenshots there.
 - **comment**: what this run built or fixed, each reason from step 1 with the
   commit that answers it, and the checks with their results.
