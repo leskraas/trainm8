@@ -30,11 +30,11 @@ Repeat until a step sends you to **Report**.
    - When `batch` is empty, or `--max` tasks have run, go to **Report**.
 
    Done when you hold a batch with no stale item in it.
-2. **Merge.** An entry with `deterministic: true` is a merge: `$D merge <o>/<r> <n> --me <me> --label <label>` claims, checks and merges by itself. Note what it prints.
+2. **Merge and update.** An entry with `deterministic: true` is a merge: `$D merge <o>/<r> <n> --me <me> --label <label>` claims, checks and merges by itself. Note what it prints. An entry with `try_update: true` is a PR that is only behind the default branch: run `$D update <o>/<r> <n> --me <me> --label <label> --resume <resume>` first. `updated: true` means it is done without a run: drop the entry. `agent: true` means a run must do it: keep the entry for step 3.
 3. **Claim** each other entry: `$D claim <o>/<r> <n> --label <label> --me <me>`. A scan has no number and no label, and needs no claim. `claimed: false` means another run took it: drop the entry. Done when every remaining entry is yours.
-4. **Run.** For each claimed entry, start one subagent with the brief in [references/brief.md](references/brief.md), all in one message so they run side by side. A task file with a **Parts** section runs as several subagents: send its first part with the batch, and each next part once the one before has returned. Done when every subagent has returned.
+4. **Run.** For each claimed entry, start one subagent with the brief in [references/brief.md](references/brief.md), all in one message so they run side by side. Give the Agent tool the entry's `model` and `effort` when the entry has them: the project chose them per task in `models` and `effort`, to spend less where a task needs less. A task file with a **Parts** section runs as several subagents: send its first part with the batch, and each next part once the one before has returned, each with the model and effort its part names in the entry's `parts`. Done when every subagent has returned.
 5. **Apply** each result:
-   1. Set its `tokens` to the total the Agent tool reported for the task's subagents. When it reported none, put your estimate and `"tokens_estimated": true`.
+   1. Set its `tokens` to the sum, over the task's subagents, of the `total_tokens` (or `subagent_tokens`) in the `<usage>` the Agent tool reported when each returned, in its result or its task notification. Read it there for every subagent; the budget per issue counts on it. Only when no usage came back at all, put your estimate and `"tokens_estimated": true`. `apply` marks a count that is a whole multiple of 10,000 as estimated, since a real count almost never is.
    2. `$D apply <o>/<r> <result file> --me <me> --from <label> --repo-dir <the task's worktree, or .>`. It checks the whole result before it writes anything.
    3. When `apply` refuses the result, or the subagent returned none, write a result yourself: `outcome` `blocked`, the task, the item, and a `comment` quoting the error. Apply that.
 
@@ -49,7 +49,7 @@ In the human's language, readable in thirty seconds:
 
 1. One line per item this run touched: its number and title, the tasks it ran (`spec → architecture → implement`), and where it stands.
 2. **What waits on a human**: each `agent:needs-human` and `agent:blocked` item from this run or from `waiting`, with its link (under `tracker: local`, the path of the issue's or PR's `comments.md`), what the wait asks, and who it waits for when the config names one. "Nothing" when nothing waits.
-3. **Proposals** any scan filed, with links.
+3. **Proposals** any scan filed, with links: those `apply` printed under `started` go to `spec` on their own; the rest wait for a human to choose, and belong in the handoff's **You**.
 4. The **handoff**, as [references/handoff.md](references/handoff.md) writes it: what the next run takes on its own, and the one action that is the human's, from item 2 or "type `/factory`" when work remained past `--max`.
 
 Interactive: give the report to the human. Unattended, without a number or `--scan`: when the run did something, write it to `$S/report.md` and post it with `$D note <o>/<r> $S/report.md`. Unattended with a number or `--scan`, the run comments on the item and the scan report on the log issue already say what it did: end with the report in the session.
