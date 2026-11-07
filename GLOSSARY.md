@@ -2332,8 +2332,18 @@ non-vouch says it does not. What it cannot do it **names**: no preset carries a
 **strength** segment, so a strength track is an **Unavailable Metric** stated on
 the payload, and a slot the corpus has nothing for is left empty and said out
 loud rather than backfilled. First surface: `/training/plan/generate/:eventId`,
-reached from the shape step; the review surface proper is still fog. _Avoid_: AI
-plan, auto-plan.
+reached from the shape step; the review surface proper is still fog. The plan it
+writes keeps a **Generation Record**, and its weeks are laid again by the
+generator until the athlete gives it a **Week Pattern** with days (ADR 0113).
+_Avoid_: AI plan, auto-plan.
+
+**Generation Record**: What a **Plan Outline** made by **Plan Generation** keeps
+of its approval: the generator that made it, the **Periodization Preset** and
+the intent it was approved with, and the weekdays it placed each **Discipline**
+on. Its existence is what makes a plan a generated one. The weekdays are frozen
+at approval, so laying a week again uses them even after the athlete's
+**Training Availability** changed (ADR 0113). _Avoid_: generation metadata,
+batch.
 
 **Model-Client Seam**: The one boundary a generated season comes through — a
 request type, the typed payload, and a function between them (`SeasonGenerator`,
@@ -2466,10 +2476,10 @@ already models authored nested structure as rows while reserving JSON for value
 objects, so the invariants (one track per **Discipline**, one endurance segment
 per phase, zones 3–5 in a mix) are enforced by the database rather than by a
 validator (ADR 0044). The single authored periodization structure (ADR 0039);
-manual authoring is its only producer in V1, since **Plan Generation** is
-retired. Its phases are the mesocycles of periodization theory. _Avoid_:
-Periodization blob (what it was until ADR 0044), schedule template, mesocycle
-(as a UI/code term — recognized synonym for a phase only).
+written by manual authoring and by **Plan Generation** (ADR 0053), whose plans
+keep a **Generation Record**. Its phases are the mesocycles of periodization
+theory. _Avoid_: Periodization blob (what it was until ADR 0044), schedule
+template, mesocycle (as a UI/code term — recognized synonym for a phase only).
 
 **Plan Start Week**: The **Plan Outline**'s first **Training Week** — that
 week's Monday, stored as a `weekKey` (`YYYY-MM-DD` in the **Athlete Timezone**,
