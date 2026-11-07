@@ -54,6 +54,10 @@ import {
 	WEEK_CHANGE_JOB_KIND,
 } from '#app/utils/load/week-change.server.ts'
 import {
+	ORPHANED_WORKOUT_PURGE_JOB_KIND,
+	runOrphanedWorkoutPurge,
+} from '#app/utils/orphaned-workout-purge.server.ts'
+import {
 	runStructureDetectionBackfill,
 	STRUCTURE_DETECTION_BACKFILL_JOB_KIND,
 } from '#app/utils/structure-detection/detect-backfill.server.ts'
@@ -200,5 +204,11 @@ export const jobHandlers: JobHandlers = {
 		// One-shot (#548): encrypt the Account Connection tokens stored in
 		// plaintext before credentials were encrypted at rest.
 		await encryptPlaintextCredentials()
+	},
+	[ORPHANED_WORKOUT_PURGE_JOB_KIND]: async () => {
+		// One-shot (#468, ADR 0112): erase the Orphaned Workouts accounts deleted
+		// before #641 left stored, with the rules `deleteAccount` applies. One
+		// transaction, so a failure rolls back whole and the attempts retry it.
+		await runOrphanedWorkoutPurge()
 	},
 }

@@ -27,18 +27,20 @@ future `prisma.user.delete` from making new ones.
 2. **The purge is a one-time job enqueued at boot**, on the `ensure*Enqueued`
    pattern (any job row of its kind, in any state, means boot does not enqueue
    another). The job runs `eraseOrphanedWorkouts` in one transaction and writes
-   the counts it erased, kept and spliced onto its own `Job.payload` inside that
-   same transaction, and logs them. It never records a title, description or
-   name. The job queue's attempts are its retries.
+   the counts it erased, kept and spliced onto its own `Job.payload` (`purged`)
+   inside that same transaction, and logs them. A run after one that committed
+   keeps that first record rather than writing zeros over it. It never records a
+   title, description, name or Workout id. The job queue's attempts are its
+   retries.
 3. **Not a migration.** The rules exist once, in tested TypeScript. A SQL copy
    would be a recursive CTE for the splice that nothing typechecks or runs
    against `deleteAccount`'s fixtures, and it would drift from them: ADR 0051
    §9's reason, applied to logic rather than content.
 4. **No recurring sweep. Lint pins the one deletion path instead.**
    `no-restricted-syntax` rejects a `.user.delete` / `.user.deleteMany` call in
-   `app/` and `server/`, except in `account-deletion.server.ts` and test files,
-   and its message names `deleteAccount`. A sweep would quietly clean up after
-   the regression lint reports at the line that causes it.
+   `app/` and `server/`, except in `account-deletion.server.ts`, test files and
+   test fixtures, and its message names `deleteAccount`. A sweep would quietly
+   clean up after the regression lint reports at the line that causes it.
 5. **Restrictions share one rule, so they are composed.** ESLint's flat config
    replaces a rule's options per matching block; it does not merge them. Each
    restriction is a named entry in `eslint.config.js`, and a block that covers
