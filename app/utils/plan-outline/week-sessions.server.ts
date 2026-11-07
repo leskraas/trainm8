@@ -27,11 +27,14 @@
 
 import { type Prisma } from '@prisma/client'
 import {
+	localDate,
 	weekBoundsFromMondayUTC,
+	weekdayIndex,
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
+import { slotKey } from './kept-slots.ts'
 
 /**
  * What makes a session the plan's to replace. Kept as a `where` fragment rather than
@@ -188,4 +191,41 @@ export async function countWeeksWithSessions(
 		sessions.map((session) => weekMonday(session.scheduledAt, timezone)),
 	)
 	return weeks.size
+}
+
+/**
+ * The one kept-slot query (ADR 0109 §7): the slots the plan's own sessions
+ * that a re-lay keeps — adopted, or trained, so outside
+ * {@link REPLACEABLE_SESSION} — fill in one week, counted per weekday and
+ * Discipline for `fillKeptSlots`. A session the athlete wrote fills no slot.
+ * Read inside the re-lay's transaction.
+ */
+export async function readKeptSlots(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	planOutlineId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<Map<string, number>> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	const kept = await tx.workoutSession.findMany({
+		where: {
+			userId,
+			planOutlineId,
+			scheduledAt: { gte: start, lte: end },
+			source: { not: 'authored' },
+			NOT: REPLACEABLE_SESSION,
+		},
+		select: { scheduledAt: true, workout: { select: { discipline: true } } },
+	})
+	const filled = new Map<string, number>()
+	for (const session of kept) {
+		if (!session.workout) continue
+		const slot = slotKey(
+			weekdayIndex(localDate(session.scheduledAt, timezone)),
+			session.workout.discipline,
+		)
+		filled.set(slot, (filled.get(slot) ?? 0) + 1)
+	}
+	return filled
 }
