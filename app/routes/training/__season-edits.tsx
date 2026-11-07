@@ -148,7 +148,7 @@ function targetsLabel(targets: TargetView[]): string {
  * running text the margin does nothing.
  */
 const SEASON_EDIT_LINK_CLASS =
-	'relative my-2.5 w-fit text-sm underline touch-manipulation after:absolute after:inset-x-0 after:-inset-y-3'
+	'relative my-2.5 w-fit text-footnote underline touch-manipulation after:absolute after:inset-x-0 after:-inset-y-3'
 
 /**
  * A link from a read-only reading (Blocks, Weeks) to the edit that changes
@@ -344,7 +344,7 @@ function WeekTargetEdit({
 				meta={fields.weekKey}
 				labelProps={{
 					children: SEASON_EDIT_LABELS.week,
-					className: 'text-sm font-medium',
+					className: 'text-callout',
 				}}
 				items={weeks.map((week) => ({
 					value: week.weekKey,
@@ -352,7 +352,10 @@ function WeekTargetEdit({
 				}))}
 			/>
 			{chosen ? (
-				<p className="text-muted-foreground text-sm" data-season-edit-current>
+				<p
+					className="text-muted-foreground text-footnote"
+					data-season-edit-current
+				>
 					{SEASON_EDIT_LABELS.now}: {targetsLabel(chosen.targets)}
 				</p>
 			) : null}
@@ -367,7 +370,7 @@ function WeekTargetEdit({
 					meta={fields.trackId}
 					labelProps={{
 						children: SEASON_EDIT_LABELS.track,
-						className: 'text-sm font-medium',
+						className: 'text-callout',
 					}}
 					items={tracks.map((track) => ({
 						value: track.trackId,
@@ -385,7 +388,7 @@ function WeekTargetEdit({
 					...getInputProps(fields.value, { type: 'text' }),
 					inputMode: 'decimal',
 					autoComplete: 'off',
-					className: 'text-base',
+					className: 'text-body',
 				}}
 				errors={fields.value.errors}
 			/>
@@ -429,7 +432,7 @@ function PhaseEdit({
 				meta={fields.phaseId}
 				labelProps={{
 					children: SEASON_EDIT_LABELS.phase,
-					className: 'text-sm font-medium',
+					className: 'text-callout',
 				}}
 				items={phases.map((phase) => ({
 					value: phase.id,
@@ -444,7 +447,7 @@ function PhaseEdit({
 				inputProps={{
 					...getInputProps(fields.name, { type: 'text' }),
 					autoComplete: 'off',
-					className: 'text-base',
+					className: 'text-body',
 				}}
 				errors={fields.name.errors}
 			/>
@@ -454,7 +457,7 @@ function PhaseEdit({
 					...getInputProps(fields.weeks, { type: 'text' }),
 					inputMode: 'numeric',
 					autoComplete: 'off',
-					className: 'text-base',
+					className: 'text-body',
 				}}
 				errors={fields.weeks.errors}
 			/>
@@ -462,7 +465,7 @@ function PhaseEdit({
 				meta={fields.rhythm}
 				labelProps={{
 					children: SEASON_EDIT_LABELS.phaseRhythm,
-					className: 'text-sm font-medium',
+					className: 'text-callout',
 				}}
 				placeholder={SEASON_EDIT_LABELS.keep}
 				items={[
@@ -477,7 +480,7 @@ function PhaseEdit({
 				meta={fields.tapers}
 				labelProps={{
 					children: SEASON_EDIT_LABELS.phaseTapers,
-					className: 'text-sm font-medium',
+					className: 'text-callout',
 				}}
 				placeholder={SEASON_EDIT_LABELS.keep}
 				items={[
@@ -529,7 +532,7 @@ function EasyWeekEdit({
 				meta={fields.weekKey}
 				labelProps={{
 					children: SEASON_EDIT_LABELS.easyWeek,
-					className: 'text-sm font-medium',
+					className: 'text-callout',
 				}}
 				items={weeks.map((week) => ({
 					value: week.weekKey,
@@ -537,7 +540,10 @@ function EasyWeekEdit({
 				}))}
 			/>
 			{chosen ? (
-				<p className="text-muted-foreground text-sm" data-season-edit-current>
+				<p
+					className="text-muted-foreground text-footnote"
+					data-season-edit-current
+				>
 					{weekLabel(chosen.weekKey)} ·{' '}
 					{nbPhaseName(phases[chosen.phaseIndex]?.name ?? '')}
 				</p>

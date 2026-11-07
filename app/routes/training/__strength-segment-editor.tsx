@@ -484,7 +484,7 @@ function StrengthSegmentCard({
 	return (
 		<Card>
 			<CardHeader className="gap-1">
-				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
+				<CardTitle className="text-heading flex flex-wrap items-center gap-2">
 					{segment.startWeekInPlan == null
 						? SESONG_LIFTING_LABELS.outside
 						: span}
@@ -773,7 +773,7 @@ function StrengthSegmentFields({
 					// sentence.
 					<>
 						<CarriedRate meta={fields.boundaryStep} />
-						<p className="text-muted-foreground self-end text-sm">
+						<p className="text-muted-foreground text-footnote self-end">
 							{NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS[standing.reason]}
 						</p>
 					</>
@@ -797,7 +797,7 @@ function StrengthSegmentFields({
 					errors={fields.deloadWeeks.errors as string[] | undefined}
 				/>
 			</div>
-			<p className="text-muted-foreground text-sm">
+			<p className="text-muted-foreground text-footnote">
 				{deloadWeeksMeaning(fields.deloadWeeks.value)}
 			</p>
 		</div>
@@ -855,7 +855,7 @@ export function DerivedPrescription({ goal }: { goal?: StrengthGoal }) {
 
 	return (
 		<div className="space-y-1">
-			<dl className="text-sm">
+			<dl className="text-footnote">
 				<div className="flex flex-wrap gap-x-2">
 					<dt className="text-muted-foreground">
 						{SESONG_LIFTING_LABELS.band}
@@ -916,7 +916,7 @@ function RateField({
 				}}
 				errors={meta.errors as string[] | undefined}
 			/>
-			<p className="text-muted-foreground mt-1 text-sm">{meaning}</p>
+			<p className="text-muted-foreground text-footnote mt-1">{meaning}</p>
 		</div>
 	)
 }

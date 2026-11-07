@@ -350,7 +350,7 @@ function SessionCard({
 						data-today-cta
 						className={cn(
 							buttonVariants({ size: 'default' }),
-							'h-12 w-full text-base font-semibold',
+							'text-body h-12 w-full font-semibold',
 						)}
 					>
 						{card.logTo.label}
@@ -426,7 +426,7 @@ function DoneCard({
 					onClick={() => composer.undo(landed.id)}
 					className={cn(
 						buttonVariants({ variant: 'outline' }),
-						'mt-1 h-12 w-full rounded-full text-base',
+						'text-body mt-1 h-12 w-full rounded-full',
 					)}
 				>
 					{undoingSessionId === landed.id
@@ -482,7 +482,7 @@ function NoPlanCard({
 				data-calm-start
 				className={cn(
 					buttonVariants({ size: 'default' }),
-					'mt-1 h-12 w-full text-base font-semibold',
+					'text-body mt-1 h-12 w-full font-semibold',
 				)}
 			>
 				{L.noPlanAction}

@@ -283,7 +283,7 @@ export function MarkDoneAction({
 					data-today-done
 					className={cn(
 						buttonVariants({ size: 'default' }),
-						'h-12 w-full gap-2 text-base font-semibold disabled:opacity-70',
+						'text-body h-12 w-full gap-2 font-semibold disabled:opacity-70',
 					)}
 				>
 					<Icon name="check" size="sm" />

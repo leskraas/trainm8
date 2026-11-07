@@ -440,7 +440,7 @@ export function ChartFigure({
 			    promise a reading that tapping never produces. */}
 			{inspect && renderInspect ? (
 				<figcaption
-					className="bg-muted/40 text-foreground mt-3 min-h-16 rounded-xl p-3 text-sm"
+					className="bg-muted/40 text-foreground text-footnote mt-3 min-h-16 rounded-3xl p-3"
 					aria-live="polite"
 				>
 					{renderInspect(inspect.index)}

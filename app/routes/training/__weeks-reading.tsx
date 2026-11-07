@@ -56,11 +56,11 @@ function WeekTargetLine({
 	const discipline = nbTrackName(target.discipline)
 	return (
 		<div className="space-y-1">
-			<p className="text-sm font-medium">
+			<p className="text-callout">
 				{discipline}, {NB_WEEKLY_UNITS[target.currency]}
 			</p>
 			{target.overridden ? (
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-footnote">
 					{target.derivedValue == null
 						? SESONG_PAGE_LABELS.handSetNoRule
 						: SESONG_PAGE_LABELS.handSetRule(
@@ -104,7 +104,7 @@ function WeekTargetsReading({
 	tracks: number
 }) {
 	return (
-		<span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+		<span className="text-footnote flex flex-wrap items-center gap-x-3 gap-y-1">
 			{week.targets.map((target) => (
 				<span
 					key={target.trackId}
@@ -213,7 +213,7 @@ export function WeeksReading({
 		// and by no margins of their own (§1.7).
 		<div className="space-y-8">
 			{error ? (
-				<p role="alert" className="text-destructive text-sm">
+				<p role="alert" className="text-foreground-destructive text-footnote">
 					{error}
 				</p>
 			) : null}
@@ -311,7 +311,7 @@ export function WeeksReading({
 				    meaning of blank on this page**, and the one number an athlete is most
 				    likely to doubt — `0` — is spelled out beside it. */}
 				<div className="border-border/70 space-y-3 border-t pt-4">
-					<p className="text-muted-foreground text-sm">
+					<p className="text-muted-foreground text-footnote">
 						{SESONG_PAGE_LABELS.weeksFootnote}
 					</p>
 					{/* Since ADR 0047 §1 **both** walks price their weeks — a strength track
@@ -320,12 +320,15 @@ export function WeeksReading({
 					    covers the plan. The old reason, that a strength track's weekly sets
 					    were not derived yet, is false and gone with it. */}
 					{unpricedTracks.map((track) => (
-						<p key={track.discipline} className="text-muted-foreground text-sm">
+						<p
+							key={track.discipline}
+							className="text-muted-foreground text-footnote"
+						>
 							{SESONG_PAGE_LABELS.unpricedTrack(nbTrackName(track.discipline))}
 						</p>
 					))}
 					{anyDeload ? (
-						<p className="text-muted-foreground text-sm">
+						<p className="text-muted-foreground text-footnote">
 							{SESONG_PAGE_LABELS.deloadFootnote}
 						</p>
 					) : null}

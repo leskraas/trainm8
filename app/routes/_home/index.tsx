@@ -108,6 +108,7 @@ function MarketingLanding() {
 					</h1>
 					<p
 						data-paragraph
+						// eslint-disable-next-line trainm8/luma-steps -- the logged-out Epic landing keeps the marketing scale
 						className="animate-slide-top text-muted-foreground xl:animate-slide-left mt-6 text-xl/7 [animation-delay:0.8s] [animation-fill-mode:backwards] xl:mt-8 xl:text-xl/6 xl:leading-10 xl:[animation-delay:1s] xl:[animation-fill-mode:backwards]"
 					>
 						Check the{' '}

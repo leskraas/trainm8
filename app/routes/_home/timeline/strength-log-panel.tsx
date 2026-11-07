@@ -420,7 +420,7 @@ function WeightStepper({
 					onClick={() =>
 						setText(formatNbKg(stepKilo(kg ?? planned, stepKg, -1)))
 					}
-					className="size-11 shrink-0 rounded-full text-lg"
+					className="text-heading size-11 shrink-0 rounded-full"
 				>
 					−
 				</Button>
@@ -457,7 +457,7 @@ function WeightStepper({
 					onClick={() =>
 						setText(formatNbKg(stepKilo(kg ?? planned, stepKg, 1)))
 					}
-					className="size-11 shrink-0 rounded-full text-lg"
+					className="text-heading size-11 shrink-0 rounded-full"
 				>
 					+
 				</Button>

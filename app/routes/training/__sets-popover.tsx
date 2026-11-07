@@ -76,7 +76,7 @@ import {
  * share — ≥44 px tall, ink-muted until hovered (§2.3's quiet end). Exported
  * for the §6.1 neighbour add-links, which speak in the same register. */
 export const QUIET_TEXT_BUTTON_CLASS =
-	'text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-sm px-1 text-sm outline-none focus-visible:ring-2'
+	'text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-2xl px-1 text-footnote outline-none focus-visible:ring-2'
 
 // ——— Uniform-control codecs —————————————————————————————————————————————
 
@@ -258,14 +258,14 @@ function UniformSetsControls({
 						className="flex min-w-0 flex-1 items-center gap-1"
 					/>
 				) : (
-					<span className="text-foreground flex-1 text-center text-base font-semibold">
+					<span className="text-foreground text-body flex-1 text-center font-semibold">
 						AMRAP
 					</span>
 				)}
 			</div>
 
 			<div className="flex items-center gap-2">
-				<span className="text-muted-foreground text-xs">{S.of}</span>
+				<span className="text-muted-foreground text-caption">{S.of}</span>
 				<Select
 					value={template.kind}
 					onValueChange={(kind) =>
@@ -369,10 +369,10 @@ function UniformLoadField({
 				<span aria-hidden className="text-muted-foreground shrink-0 px-0.5">
 					@
 				</span>
-				<span className="text-foreground text-base font-medium">
+				<span className="text-foreground text-body font-medium">
 					{authoredLoadLabel(authored!)}
 				</span>
-				<span className="text-muted-foreground text-xs">
+				<span className="text-muted-foreground text-caption">
 					{S.keptAsAuthored}
 				</span>
 			</div>
@@ -426,7 +426,7 @@ function UniformLoadField({
 				onClick={() =>
 					parsed != null && nudgeTo(Math.max(nudges.step, parsed - nudges.step))
 				}
-				className="size-11 shrink-0 rounded-lg text-lg"
+				className="text-heading size-11 shrink-0 rounded-3xl"
 			>
 				−
 			</Button>
@@ -437,7 +437,7 @@ function UniformLoadField({
 				placeholder="—"
 				value={text}
 				onChange={(event) => handleTyped(event.target.value)}
-				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-2 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
+				className="bg-input/50 focus-visible:ring-ring/30 text-body h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-2 text-center font-medium tabular-nums outline-none focus-visible:ring-3"
 			/>
 			<Button
 				type="button"
@@ -453,7 +453,7 @@ function UniformLoadField({
 								: parsed + nudges.step,
 					)
 				}
-				className="size-11 shrink-0 rounded-lg text-lg"
+				className="text-heading size-11 shrink-0 rounded-3xl"
 			>
 				+
 			</Button>
@@ -575,7 +575,7 @@ function SetGridRow({
 		typeof load.value === 'string' ? load.value : undefined,
 	)
 	const inputClass =
-		'border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 rounded-lg border px-2 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2'
+		'bg-input/50 border-transparent focus-visible:ring-ring/30 h-11 w-full min-w-0 rounded-3xl border px-2 text-center text-body font-medium tabular-nums outline-none focus-visible:ring-3'
 
 	// kg and %1RM are mutually exclusive per set (schema `weightXorPct`): the UI
 	// enforces it by clearing the other field the moment one is given a value,
@@ -600,7 +600,7 @@ function SetGridRow({
 	return (
 		<div
 			data-slot="set-grid-row"
-			className="border-border/70 flex flex-col gap-1.5 rounded-lg border p-2"
+			className="bg-muted/50 flex flex-col gap-1.5 rounded-3xl p-2"
 		>
 			<div className="flex items-center gap-1.5">
 				<span className="text-body-2xs text-muted-foreground w-4 shrink-0 font-mono font-semibold tabular-nums">
@@ -671,7 +671,7 @@ function SetGridRow({
 						className={cn(inputClass, 'flex-1')}
 					/>
 				) : (
-					<span className="text-muted-foreground flex-1 text-center text-sm">
+					<span className="text-muted-foreground text-footnote flex-1 text-center">
 						AMRAP
 					</span>
 				)}
@@ -708,7 +708,7 @@ function SetGridRow({
 					// `loadIsExpressible`) — the row keeps what its author wrote.
 					<span
 						data-slot="authored-load"
-						className="text-foreground flex-1 text-center text-sm font-medium"
+						className="text-foreground text-callout flex-1 text-center"
 					>
 						{authoredLoadLabel(authored!)}
 					</span>
@@ -744,7 +744,9 @@ function RestBetweenSetsFooter({
 		>
 			{isSet ? (
 				<div className="flex flex-col gap-1">
-					<span className="text-muted-foreground text-xs">{S.restBetween}</span>
+					<span className="text-muted-foreground text-caption">
+						{S.restBetween}
+					</span>
 					<div className="flex items-center gap-1.5">
 						<TypeToEditStepper
 							// The line's `· … rest` token and this footer edit the same

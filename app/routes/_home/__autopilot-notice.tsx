@@ -320,7 +320,7 @@ function UndoAll({ weekKey, count }: { weekKey: string; count: number }) {
 				aria-label={L.undoAllFor(count)}
 				className={cn(
 					buttonVariants({ variant: 'outline' }),
-					'pressable h-12 w-full rounded-full text-base',
+					'pressable text-body h-12 w-full rounded-full',
 				)}
 			>
 				{busy ? L.undoing : L.undoAll}

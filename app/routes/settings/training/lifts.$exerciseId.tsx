@@ -314,7 +314,7 @@ export default function ExerciseAnchorsRoute({
 				{prescriptions.length === 0 ? (
 					<MegNote>{L.notPrescribed}</MegNote>
 				) : (
-					<ul className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/70 divide-y rounded-4xl px-4 shadow-xs ring-1">
+					<ul className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/60 divide-y rounded-4xl px-4 shadow-md ring-1">
 						{prescriptions.map((prescription) => (
 							<li key={prescription.sessionId}>
 								<Link
@@ -450,7 +450,7 @@ function AddAnchorForm({
 								setConstruct(value as 'oneRm' | 'repMax')
 							}
 						>
-							<SelectTrigger id="construct" className="w-full md:text-base">
+							<SelectTrigger id="construct" className="md:text-body w-full">
 								{/* Base UI's `Select.Value` renders the *value* unless it is
 								    told how to read a label off it — so a bare
 								    `<SelectValue />` showed the athlete `oneRm`. */}

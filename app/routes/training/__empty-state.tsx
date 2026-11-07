@@ -51,7 +51,7 @@ export function KindChooserItems({
 				<DropdownMenuItem key={kind} onClick={() => onChoose(kind)}>
 					<span className="flex flex-col">
 						<span className="font-medium">{NB_STEP_KIND_LABELS[kind]}</span>
-						<span className="text-muted-foreground text-xs">
+						<span className="text-muted-foreground text-caption">
 							{STEP_KIND_HINTS[kind]}
 						</span>
 					</span>
@@ -159,7 +159,7 @@ export const ARCHETYPE_SEEDS: ArchetypeSeed[] = [
 // ——— The composition —————————————————————————————————————————————————————
 
 const SCRATCH_TRIGGER_CLASS =
-	'text-muted-foreground hover:bg-accent hover:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring inline-flex min-h-11 cursor-pointer items-center rounded-2xl px-2 text-sm outline-none focus-visible:ring-2'
+	'text-muted-foreground hover:bg-accent hover:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring inline-flex min-h-11 cursor-pointer items-center rounded-2xl px-2 text-footnote outline-none focus-visible:ring-2'
 
 /**
  * The zero-step composition (§11.2): three seed buttons — native tab stops
@@ -184,7 +184,7 @@ export function WorkoutEmptyState({
 					onClick={() => onSeed(seed)}
 					className="hover:bg-accent/40 focus-visible:ring-ring group flex min-h-11 w-full cursor-pointer flex-col items-start gap-0.5 rounded-2xl px-2 py-1.5 text-left outline-none focus-visible:ring-2"
 				>
-					<span className="text-muted-foreground group-hover:text-foreground text-xs font-medium">
+					<span className="text-muted-foreground group-hover:text-foreground text-caption font-medium">
 						{seed.name}
 					</span>
 					{seed.lines.map((line, index) => (
@@ -213,7 +213,7 @@ function GhostNotationLine({ line }: { line: GhostLine }): ReactNode {
 	return (
 		<span className="text-muted-foreground/70 flex items-baseline gap-1.5 font-medium tabular-nums">
 			{line.badge ? (
-				<span className="bg-muted rounded-sm px-1.5 py-0.5 font-mono text-xs font-bold tabular-nums">
+				<span className="bg-muted text-caption rounded-full px-1.5 py-0.5 font-mono font-bold tabular-nums">
 					{line.badge}
 				</span>
 			) : null}

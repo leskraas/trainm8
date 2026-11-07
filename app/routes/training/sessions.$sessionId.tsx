@@ -1259,7 +1259,7 @@ function ArchetypeToken({ view }: { view: SessionArchetypeView }) {
 	return (
 		<Popover>
 			<PopoverTrigger
-				className="focus-visible:ring-ring decoration-muted-foreground text-foreground relative rounded-sm font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:top-1/2 after:left-1/2 after:size-11 after:min-w-full after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:ring-2"
+				className="focus-visible:ring-ring decoration-muted-foreground text-foreground relative rounded-2xl font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:top-1/2 after:left-1/2 after:size-11 after:min-w-full after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:ring-2"
 				data-archetype={view.kind}
 			>
 				{word}
@@ -1478,7 +1478,7 @@ function SimpleActivityFacts({
 				>
 					{S.notMeasuredHeading}
 				</h3>
-				<dl className="divide-border mt-1 divide-y" data-not-measured>
+				<dl className="divide-border/60 mt-1 divide-y" data-not-measured>
 					{withheld.map((label) => (
 						<div
 							key={label}

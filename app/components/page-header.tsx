@@ -52,9 +52,7 @@ export function PageHeader({
 					<Icon name="arrow-left" size="md" />
 				</Link>
 			) : null}
-			<h1 className="min-w-0 flex-1 basis-40 truncate text-lg font-semibold">
-				{title}
-			</h1>
+			<h1 className="text-heading min-w-0 flex-1 basis-40 truncate">{title}</h1>
 			{actions ? (
 				// At large text on a phone the actions take a row of their own and
 				// wrap there, rather than pushing the page wider than the screen.

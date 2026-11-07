@@ -213,7 +213,7 @@ export function TypeToEditStepper({
 				aria-label={C.decrease(label)}
 				disabled={fieldValue == null || fieldValue <= config.min}
 				onClick={decrease}
-				className="size-11 shrink-0 rounded-lg text-lg"
+				className="text-heading size-11 shrink-0 rounded-3xl"
 			>
 				−
 			</Button>
@@ -223,7 +223,7 @@ export function TypeToEditStepper({
 				aria-label={C.value(label)}
 				value={text}
 				onChange={(event) => handleTyped(event.target.value)}
-				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-3 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
+				className="bg-input/50 focus-visible:ring-ring/30 text-body h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-3 text-center font-medium tabular-nums outline-none focus-visible:ring-3"
 			/>
 			<Button
 				type="button"
@@ -233,7 +233,7 @@ export function TypeToEditStepper({
 					config.max != null && fieldValue != null && fieldValue >= config.max
 				}
 				onClick={increase}
-				className="size-11 shrink-0 rounded-lg text-lg"
+				className="text-heading size-11 shrink-0 rounded-3xl"
 			>
 				+
 			</Button>

@@ -237,7 +237,7 @@ export function IntensityPopoverEditor({
 							aria-pressed={group === activeGroup}
 							onClick={() => selectGroup(group)}
 							className={cn(
-								'hover:text-foreground focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-lg px-1.5 text-sm outline-none focus-visible:ring-2',
+								'hover:text-foreground focus-visible:ring-ring pressable text-footnote min-h-11 cursor-pointer rounded-2xl px-1.5 outline-none focus-visible:ring-2',
 								group === activeGroup && 'text-foreground font-medium',
 							)}
 						>
@@ -339,7 +339,7 @@ function ZoneChips({
 						aria-pressed={active}
 						onClick={() => onSelect(label)}
 						className={cn(
-							'pressable min-h-11 min-w-11 flex-1 cursor-pointer rounded-2xl px-2 text-sm font-semibold outline-none [font-variant-caps:small-caps]',
+							'pressable text-footnote min-h-11 min-w-11 flex-1 cursor-pointer rounded-2xl px-2 font-semibold outline-none [font-variant-caps:small-caps]',
 							ZONE_CHIP_TINT[chipStep(index)],
 							'focus-visible:ring-ring text-foreground focus-visible:ring-2',
 							// The pressed chip carries a ring; the others keep full ink.
@@ -650,7 +650,7 @@ export function UnitToggle({
 					aria-pressed={option.id === active}
 					onClick={() => onSelect(option.id)}
 					className={cn(
-						'focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-full px-3 text-sm outline-none focus-visible:ring-2',
+						'focus-visible:ring-ring pressable text-footnote min-h-11 cursor-pointer rounded-full px-3 outline-none focus-visible:ring-2',
 						option.id === active
 							? 'bg-background text-foreground font-medium shadow-sm'
 							: 'text-muted-foreground hover:text-foreground',
@@ -779,7 +779,7 @@ function NudgeField({
 					aria-label={L.decrease(label)}
 					disabled={parsed == null || parsed <= nudge.min}
 					onClick={decrease}
-					className="size-11 shrink-0 rounded-3xl text-lg"
+					className="text-heading size-11 shrink-0 rounded-3xl"
 				>
 					−
 				</Button>
@@ -790,7 +790,7 @@ function NudgeField({
 					placeholder={placeholder ?? '—'}
 					value={value}
 					onChange={(event) => onChange(event.target.value)}
-					className="bg-input/50 focus-visible:ring-ring/30 duration-press h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-1 text-center text-base font-medium tabular-nums transition-[box-shadow] ease-out outline-none focus-visible:ring-3"
+					className="bg-input/50 focus-visible:ring-ring/30 duration-press text-body h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-1 text-center font-medium tabular-nums transition-[box-shadow] ease-out outline-none focus-visible:ring-3"
 				/>
 				<Button
 					type="button"
@@ -798,7 +798,7 @@ function NudgeField({
 					aria-label={L.increase(label)}
 					disabled={nudge.max != null && parsed != null && parsed >= nudge.max}
 					onClick={increase}
-					className="size-11 shrink-0 rounded-3xl text-lg"
+					className="text-heading size-11 shrink-0 rounded-3xl"
 				>
 					+
 				</Button>
