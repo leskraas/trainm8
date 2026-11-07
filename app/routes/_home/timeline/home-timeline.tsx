@@ -85,7 +85,7 @@ import {
 	type TimelineTopLine,
 } from './presenter.ts'
 import { SeasonPane, useLargeScreen, useWideScreen } from './season-pane.tsx'
-import { EndCap, StartCap, type TodayRowExtras, WeekBlock } from './stream.tsx'
+import { EndCap, StartCap, StreamWeek, type TodayRowExtras } from './stream.tsx'
 import { useDaySelection } from './use-day-selection.ts'
 import {
 	AHEAD_SENTINEL_ATTR,
@@ -516,7 +516,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 									reachWeeks={season.reachWeeks}
 								/>
 								{visibleWeeks.map((week) => (
-									<WeekBlock
+									<StreamWeek
 										key={week.key}
 										week={week}
 										anchorDayKey={season.todayKey}

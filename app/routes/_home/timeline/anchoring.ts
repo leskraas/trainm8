@@ -193,7 +193,8 @@ export type WeekHeightInput = {
 	summary: string | null
 	planStart: boolean
 	opensHorizon: boolean
-	rows: ReadonlyArray<{
+	/** The week's days (`weekDays`), as far as they change its height. */
+	days: ReadonlyArray<{
 		sessions: ReadonlyArray<{
 			title: string
 			markDone?: unknown
@@ -214,7 +215,7 @@ export function weekHeightEstimate(week: WeekHeightInput): number {
 		h.note * shownTracks.reduce((n, t) => n + (t.noteCount ?? 0), 0) +
 		(week.planStart ? h.banner : 0) +
 		(week.opensHorizon ? h.banner : 0)
-	for (const day of week.rows) {
+	for (const day of week.days) {
 		if (day.sessions.length === 0) {
 			total += h.emptyDay
 			continue

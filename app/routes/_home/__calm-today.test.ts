@@ -9,7 +9,7 @@ import {
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import { buildCalmToday, type CalmCard } from './__calm-today.ts'
-import { buildTimelineSeason } from './timeline/presenter.ts'
+import { buildTimelineSeason, weekDays } from './timeline/presenter.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 const TZ = 'UTC'
@@ -307,7 +307,7 @@ function calmWithSteps(steps: Step[]) {
 		activePlan: plan(),
 		thresholds: DANIELS_RUN,
 	})
-	const row = season.weeks[season.todayWeekIndex]!.rows.find(
+	const row = weekDays(season.weeks[season.todayWeekIndex]!).find(
 		(day) => day.key === '2030-01-02',
 	)!.sessions[0]!
 	return { card: cardOf(view.card, 'session'), row }

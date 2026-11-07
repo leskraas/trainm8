@@ -306,7 +306,7 @@ describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
 		summary: '2 av 5 gjort',
 		planStart: false,
 		opensHorizon: false,
-		rows: Array.from({ length: 7 }, () => day()),
+		days: Array.from({ length: 7 }, () => day()),
 		...overrides,
 	})
 
@@ -318,10 +318,10 @@ describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
 	})
 
 	test('sessions, a wrapping sentence and an action line each add their height', () => {
-		const one = weekHeightEstimate(week({ rows: [day(['6 km rolig'])] }))
+		const one = weekHeightEstimate(week({ days: [day(['6 km rolig'])] }))
 		const long = weekHeightEstimate(
 			week({
-				rows: [
+				days: [
 					day([
 						'Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg · Roing 3×8 · Markløft 3×5',
 					]),
@@ -329,17 +329,17 @@ describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
 			}),
 		)
 		const two = weekHeightEstimate(
-			week({ rows: [day(['6 km rolig', 'Styrke A'])] }),
+			week({ days: [day(['6 km rolig', 'Styrke A'])] }),
 		)
 		expect(long).toBeGreaterThan(one)
 		expect(two).toBe(one + WEEK_HEIGHTS.extraSession)
 	})
 
 	test('a Garmin credit under a title adds its line, and a long one its wraps (#557)', () => {
-		const plain = weekHeightEstimate(week({ rows: [day(['6 km rolig'])] }))
+		const plain = weekHeightEstimate(week({ days: [day(['6 km rolig'])] }))
 		const credited = weekHeightEstimate(
 			week({
-				rows: [
+				days: [
 					{
 						sessions: [
 							{ title: '6 km rolig', sourceCredit: 'Garmin Forerunner 965' },
@@ -350,7 +350,7 @@ describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
 		)
 		const longCredit = weekHeightEstimate(
 			week({
-				rows: [
+				days: [
 					{
 						sessions: [
 							{

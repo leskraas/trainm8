@@ -54,7 +54,11 @@ import {
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import { isRecordingOnly } from '#app/utils/training.ts'
-import { type TimelineTrackWeek, type TimelineWeek } from './presenter.ts'
+import {
+	type TimelineTrackWeek,
+	type TimelineWeek,
+	weekDays,
+} from './presenter.ts'
 import { leadTrack } from './week-words.ts'
 
 /** Where a proposal stands, from the card's side. */
@@ -268,7 +272,7 @@ function buildReview(
 	const missed: WeekChangeReview['missed'] = []
 	const extras: WeekChangeReview['extras'] = []
 	let plannedCount = 0
-	for (const day of week.rows) {
+	for (const day of weekDays(week)) {
 		const dayLabel = day.dayLabel
 		for (const session of day.sessions) {
 			if (!recordingOnly.has(session.id)) plannedCount += 1

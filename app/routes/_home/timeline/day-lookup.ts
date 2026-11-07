@@ -2,23 +2,28 @@
  * A day of the season by its key, and its name — read by the day pane, the
  * Sheet and the composer, so the three name a day the same way.
  */
-import { weekdayIndex } from '#app/utils/athlete-calendar.ts'
+import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { dayPaneTitle } from '#app/utils/labels.ts'
 import {
 	type TimelineDay,
 	type TimelineSession,
 	type TimelineWeek,
+	weekDays,
 } from './presenter.ts'
 
-/** The day `key` and the week it sits in, or null where the season has none. */
+/**
+ * The day `key` and the week it sits in, or null where the season has none.
+ * Only the week whose Monday-to-Sunday holds `key` has its days read, so a
+ * lookup builds one week's days at most (ADR 0112 §2).
+ */
 export function findDay(
 	weeks: readonly TimelineWeek[],
 	key: string,
 ): { week: TimelineWeek; day: TimelineDay } | null {
 	for (const week of weeks) {
-		if (key < week.key) continue
-		const day = week.rows.find((row) => row.key === key)
-		if (day) return { week, day }
+		if (key < week.key || key > addDays(week.key, 6)) continue
+		const day = weekDays(week).find((row) => row.key === key)
+		return day ? { week, day } : null
 	}
 	return null
 }
