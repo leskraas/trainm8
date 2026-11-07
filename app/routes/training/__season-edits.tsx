@@ -68,6 +68,7 @@ import {
 	type TargetView,
 	type WeekView,
 } from '#app/utils/plan-outline/outline-preview.ts'
+import { anchorInForceAt } from '#app/utils/plan-outline/season-anchors.ts'
 import {
 	EasyWeekEditFormSchema,
 	PhaseEditFormSchema,
@@ -1000,14 +1001,9 @@ function weekPickLabel(
 	return `${prefix} ${isoWeekNumber(weekKey)} · ${day}${year} · ${figure}`
 }
 
-/** The segments a remove may take: not the earliest, and not begun. */
-function removableSegments(
-	track: SeasonAnchorChoice,
-	firstUnbegunWeekKey: string,
-) {
-	return track.anchors.filter(
-		(anchor) => !anchor.earliest && anchor.fromWeekKey >= firstUnbegunWeekKey,
-	)
+/** The segments a remove may take, as the domain marks them. */
+function removableSegments(track: SeasonAnchorChoice) {
+	return track.anchors.filter((anchor) => anchor.removable)
 }
 
 /**
@@ -1021,8 +1017,7 @@ function anchorDefaults(
 	firstUnbegunWeekKey: string,
 ): Record<string, string> {
 	const first = track.weeks[0]!
-	const inForce =
-		track.anchors.filter((a) => a.fromWeekKey <= first.weekKey).at(-1) ?? null
+	const inForce = anchorInForceAt(track.anchors, first.weekKey)
 	const settable = track.anchors.filter((anchor) => anchor.inPlan)
 	const setOn =
 		inForce && inForce.fromWeekKey >= first.weekKey
@@ -1038,8 +1033,7 @@ function anchorDefaults(
 		addValue: levelFigure(first.level),
 		setWeekKey: setOn?.fromWeekKey ?? '',
 		setValue: setOn ? fieldFigure(setOn.value, track.currency) : '',
-		removeWeekKey:
-			removableSegments(track, firstUnbegunWeekKey)[0]?.fromWeekKey ?? '',
+		removeWeekKey: removableSegments(track)[0]?.fromWeekKey ?? '',
 	}
 }
 
@@ -1160,7 +1154,7 @@ function SeasonAnchorEdit({
 					SEASON_ANCHOR_EDIT_LABELS.fromWeek,
 				)
 			: `${SEASON_EDIT_LABELS.ended} · ${figureOf(anchor.value, track.currency)}`
-	const removable = removableSegments(track, firstUnbegunWeekKey)
+	const removable = removableSegments(track)
 	const earliest = track.anchors.find((anchor) => anchor.earliest)
 	const atWeek = track.anchors.find((a) => a.fromWeekKey === addWeekKey)
 	const pickedWeek = track.weeks.find((w) => w.weekKey === addWeekKey)

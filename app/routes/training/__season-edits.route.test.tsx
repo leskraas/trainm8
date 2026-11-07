@@ -179,6 +179,7 @@ function anchorChoice(
 			...anchor,
 			earliest: index === 0,
 			inPlan: true,
+			removable: index > 0 && anchor.fromWeekKey >= '2030-01-07',
 		})),
 		weeks: [
 			{

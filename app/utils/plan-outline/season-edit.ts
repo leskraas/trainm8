@@ -565,6 +565,12 @@ export type SeasonAnchorChoice = {
 		value: number
 		earliest: boolean
 		inPlan: boolean
+		/**
+		 * Whether _Fjern_ may offer it: the list lets it go (never the
+		 * earliest) and it starts on or after the first unbegun week, so taking
+		 * it back moves no week already begun.
+		 */
+		removable: boolean
 	}>
 	/** From the first unbegun week to the plan's end. */
 	weeks: Array<{
@@ -610,6 +616,12 @@ export function seasonAnchorChoices(
 						value: anchor.value,
 						earliest: anchor === earliest,
 						inPlan: index >= 0 && index < season,
+						removable:
+							anchor.fromWeekKey >= firstUnbegunWeekKey &&
+							editAnchorList(track.anchors, {
+								action: 'remove',
+								fromWeekKey: anchor.fromWeekKey,
+							}).ok,
 					}
 				}),
 				weeks: Array.from({ length: Math.max(0, season - from) }, (_, i) => {

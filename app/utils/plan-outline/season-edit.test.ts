@@ -884,4 +884,25 @@ describe('a Season Anchor (#673, ADR 0112)', () => {
 			),
 		).toEqual([])
 	})
+
+	test('the choices say which segments a remove may take: never the first, never one begun', () => {
+		const { rows } = withTrack({
+			anchors: [
+				{ fromWeekKey: START, value: 40 },
+				{ fromWeekKey: '2026-10-19', value: 42 },
+				{ fromWeekKey: '2026-11-16', value: 45 },
+			],
+		})
+		const [choice] = seasonAnchorChoices(rows, '2026-11-09')
+		expect(
+			choice!.anchors.map(({ fromWeekKey, removable }) => ({
+				fromWeekKey,
+				removable,
+			})),
+		).toEqual([
+			{ fromWeekKey: START, removable: false },
+			{ fromWeekKey: '2026-10-19', removable: false },
+			{ fromWeekKey: '2026-11-16', removable: true },
+		])
+	})
 })

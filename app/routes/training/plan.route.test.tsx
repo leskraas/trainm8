@@ -848,6 +848,7 @@ test('the lead’s Ukevolum shows each endurance track’s next week and links i
 						value: 40,
 						earliest: true,
 						inPlan: true,
+						removable: false,
 					},
 				],
 				weeks: [
