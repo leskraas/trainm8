@@ -13,6 +13,7 @@ import {
 } from './catalogue.server.ts'
 import { publishWorkout, reportWorkout } from './community.server.ts'
 import { prisma } from './db.server.ts'
+import { getSessionByIdForUser } from './training.server.ts'
 
 async function createAthlete() {
 	const userData = createUser()
@@ -434,6 +435,9 @@ async function expectErased(world: ErasureWorld) {
 			select: { workoutId: true },
 		}),
 	).toEqual({ workoutId: world.heldBySession.id })
+	// …and the session still opens with that Workout, as its page loads it.
+	const opened = await getSessionByIdForUser(world.reader.id, world.session.id)
+	expect(opened?.workout).toMatchObject({ id: world.heldBySession.id })
 	expect(
 		await prisma.weekPatternDay.findUniqueOrThrow({
 			where: { id: world.slot.id },
