@@ -1,5 +1,10 @@
 # Three tabs, and a calm I dag that shows today and this week
 
+> **Amended by
+> [ADR 0112](./0112-weather-on-i-dag-comes-from-met-norway-for-a-home-place-fetched-and-cached-on-the-server.md)
+> (#433)** in §3: with a **Home Place** set, the today card and this week's rows
+> carry the **Day Forecast**, and MET Norway is credited under the week.
+
 Status: Accepted · Owner decision 2 of spec #558 (_Levende start_, 2026-10-17) ·
 Recorded in ticket #559; built in #558 S4 (I dag) and S9 (_Plan_ and the tabs)
 
