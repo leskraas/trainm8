@@ -17,7 +17,7 @@ const SERVER_FILE = 'server/index.ts'
 const ROUTE_FILE = 'app/routes/settings/profile/index.tsx'
 const TEST_FILE = 'app/utils/catalogue.server.test.ts'
 const ROUTE_TEST_FILE = 'app/routes/me.test.tsx'
-// Test fixtures live under `tests/`, outside the rule's files.
+// Fixtures under `tests/` sit outside the rule's files (ADR 0114 §4).
 const FIXTURE_FILE = 'tests/playwright-utils.ts'
 
 const USER_DELETE = `

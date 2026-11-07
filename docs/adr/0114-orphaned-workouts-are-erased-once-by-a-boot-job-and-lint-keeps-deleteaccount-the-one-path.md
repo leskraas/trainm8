@@ -44,8 +44,11 @@ future `prisma.user.delete` from making new ones.
    object (called, optionally called, in a batch `$transaction`, bound, dotted
    or computed), the `user` delegate taken off a client (`prisma`, `tx`, `db`,
    `client`) into a variable or a destructuring, and a raw `DELETE FROM "User"`
-   in any string. Only `account-deletion.server.ts` and test files are exempt;
-   test fixtures live in `tests/`, outside the rule's files. Its message names
+   in any string. Only `account-deletion.server.ts` and test files
+   (`*.test.ts(x)`) are exempt. Fixtures under `tests/` sit outside the rule's
+   files; a fixture inside `app/` (such as `app/utils/load/elevate-fixtures.ts`)
+   is linted like any other module. None deletes a User today, and one that must
+   is moved to `tests/` or exempted by a human. Its message names
    `deleteAccount`. A sweep would quietly clean up after the regression lint
    reports at the line that causes it.
 5. **Restrictions share one rule, so they are composed.** ESLint's flat config

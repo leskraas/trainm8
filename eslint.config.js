@@ -63,7 +63,8 @@ const NATIVE_SELECT_IGNORES = [
 ]
 const USER_DELETE_FILES = ['app/**/*.{ts,tsx}', 'server/**/*.ts']
 // Account Erasure itself, and test files, which set up and tear down users
-// directly. Test fixtures live in `tests/`, outside `USER_DELETE_FILES`.
+// directly. Fixtures under `tests/` sit outside `USER_DELETE_FILES`; one inside
+// `app/` is linted like any module (ADR 0114 §4).
 const USER_DELETE_IGNORES = [
 	'app/utils/account-deletion.server.ts',
 	'**/*.test.{ts,tsx}',
