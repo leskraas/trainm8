@@ -1,0 +1,6 @@
+# PR #690 review: Design (codebase-design)
+
+- Deep module, good: `event-result.server.ts` keeps one small interface (`keepEventResultsInStep(scope, change)`, `reconcileEventResult`, `readEventResultView`) over the snapshot/reconcile/recompute logic; callers pass only the scope. The pure rule `eventResultFrom` is one seam read by both writer and page. The resolver choice (`raceAnchorChoicesFrom`) is now the single place the tie-break lives and Planned TSS reads through it (`getProfiles`), removing the duplicate query. No finding.
+- D1 (low): `readEventResultView` re-derives *why* a row is not in use (`typed-same-day` vs `newer`) by comparing the chosen row's day (event-result.server.ts:289-305), and `resultater.tsx` loader re-derives the "contested" same-day pair. Both read the resolver's chosen id, so they cannot disagree on which row is used, only on the explanation. Acceptable; leave.
+- D2 (low): the binding-set rule for a planned figure is now spread: `workoutBindingSet`, `plannedTssBindingSet`, `racePaceBindingSet`, and week tracks' `detected`. Security F1/F2 add to it; a single "planned figure binding set" function would be deeper. Not required to fix; note for the retro.
+- D3 (low): the wrapper reads every reachable Event's row one query at a time (N+1 over Events per session); Events per session is ~1. Leave.

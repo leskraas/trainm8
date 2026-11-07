@@ -1,0 +1,9 @@
+# PR #690 review: Security (by hand; security-review skill not run as its base resolution needs the PR branch remote-only flow)
+
+Authz/ownership: every new write is owner-scoped. `setEventDistance` checks `athleteId` (event.server.ts:691); `set-distance` intent sits behind `requireUserId`; `readEventResultView` uses `findFirst({id, athleteId})`; `listPerformanceResults` and `raceAnchorChoicesForUser` are userId-scoped; `deletePerformanceResult` keeps the owner filter and adds `eventId: null`. `ownSessionIdOrNull` still guards the result session. Event names render as React text. No IDOR found.
+Injection: Prisma only; km parsed by regex then Number. None.
+Migration: SQLite table redefine copies every column, recreates indexes; additive nullable columns. No seed. OK.
+Data exposure (ADR 0098 / 0112 §4, Polar/Garmin to the MCP):
+- F1 (high): Planned TSS week totals in `get_season` and `get_today` (`toWeekTrack`, week-tracks.server.ts:66-70) bind the Planned Volume only to `detected`. In the `tss` currency that number is the sum of Planned TSS, which this PR makes Polar- or Garmin-derived; a Polar-derived total reaches a model without the opt-in and a Garmin one without credit. Newly reached by this PR.
+- F2 (medium): planned duration. A distance step at racePace is timed through the resolved pace (`stepDistanceDurationSec` -> `resolvedPaceMid`), so `planned.durationS` in session summaries (`get_today`, `list_sessions`, `get_session`) and `get_session_vs_plan` is computed from the Event result's pace, yet binds only to `prescribed` (session-summary.server.ts:241-243, get-session-vs-plan.server.ts:200). Newly reached: before #670 every result was typed.
+- F3 (low, left): week-track `hours` volume derived from a racePace pace when the session's Planned TSS did not resolve (no threshold for TSS) has no stored binding set. Edge case; follow-up.
