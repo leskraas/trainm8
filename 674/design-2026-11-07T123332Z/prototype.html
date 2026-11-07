@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Race pace provenance prototype</title>
+<!-- PROTOTYPE for leskraas/trainm8#674, throwaway. Tokens copied from app/styles/tailwind.css; credit and Løpsresultater words from #670's design. -->
+<style>
+:root {
+  --background: oklch(0.975 0.003 197);
+  --foreground: oklch(0.148 0.004 228.8);
+  --card: oklch(1 0 0);
+  --popover: oklch(1 0 0);
+  --primary: #0d7a68;
+  --primary-foreground: #ffffff;
+  --secondary: oklch(0.955 0.004 197);
+  --muted: oklch(0.948 0.004 197);
+  --muted-foreground: oklch(0.52 0.016 213.5);
+  --border: oklch(0.915 0.005 214.3);
+  --input: oklch(0.915 0.005 214.3);
+  --ring: color-mix(in oklab, var(--primary) 55%, transparent);
+  --status-under: oklch(0.55 0.13 65);
+  --zone-1: #5f9fe0; --zone-2: #3fae7d; --zone-3: #d9b13b; --zone-4: #e08a3c; --zone-5: #d95757;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  color-scheme: light;
+}
+.dark {
+  --background: oklch(0.148 0.004 228.8);
+  --foreground: oklch(0.987 0.002 197.1);
+  --card: oklch(0.205 0.007 223.9);
+  --popover: oklch(0.205 0.007 223.9);
+  --primary: #35b89c;
+  --primary-foreground: #0c1512;
+  --secondary: oklch(0.275 0.011 216.9);
+  --muted: oklch(0.255 0.01 216.9);
+  --muted-foreground: oklch(0.723 0.014 214.4);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: color-mix(in oklab, var(--primary) 60%, transparent);
+  --status-under: oklch(0.82 0.12 65);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: "Public Sans", system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+button, a, label { touch-action: manipulation; }
+button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+p, h1, h2, h3 { margin: 0; }
+
+.t-title { font-size: 24px; line-height: 30px; font-weight: 650; letter-spacing: -0.02em; }
+.t-heading { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.012em; }
+.t-callout { font-size: 15px; line-height: 21px; font-weight: 500; letter-spacing: -0.004em; }
+.t-footnote { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: 0.002em; }
+.t-caption { font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.01em; }
+.muted { color: var(--muted-foreground); }
+.num { font-variant-numeric: tabular-nums; }
+.fg { color: var(--foreground); }
+.medium { font-weight: 500; }
+
+/* Page */
+.page { max-width: 672px; margin: 0 auto; padding: 24px 16px 160px; }
+@media (min-width: 768px) { .page { padding: 32px 32px 160px; } }
+.page-header { display: flex; align-items: center; gap: 4px; margin-bottom: 16px; }
+.page-header h1 { font-size: 18px; line-height: 24px; font-weight: 600; }
+.back { position: relative; display: inline-flex; align-items: center; gap: 2px; color: var(--foreground); text-decoration: none; font-size: 15px; height: 32px; padding-right: 8px; }
+.back::after { content: ""; position: absolute; inset: -6px; }
+.card { background: var(--card); border-radius: 15.6px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / .06), 0 2px 4px -2px rgb(0 0 0 / .06); }
+.dark .card { box-shadow: 0 0 0 1px oklch(1 0 0 / 10%); }
+.card-header { padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 6px; }
+.card-content { padding: 4px 16px 16px; }
+@media (min-width: 768px) { .card-header { padding: 24px 24px 12px; } .card-content { padding: 4px 24px 24px; } }
+.title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.title-row h2 { overflow-wrap: anywhere; min-width: 0; }
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; flex: none; background: var(--secondary); color: var(--foreground); margin-top: 4px; }
+.badge.primary { background: color-mix(in oklab, var(--primary) 14%, transparent); color: var(--primary); }
+.figures { display: flex; gap: 16px; }
+.figures b { font-size: 20px; line-height: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.meta { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; row-gap: 2px; }
+.meta .dot::before { content: "·"; }
+
+/* The facet trigger: the ≈ number itself, dotted underline (a definition, not a link) */
+.facet { position: relative; display: inline; padding: 0; border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: color-mix(in oklab, currentColor 55%, transparent); white-space: nowrap; border-radius: 4px; transition: background-color 160ms var(--ease-out); }
+.facet::after { content: ""; position: absolute; inset: -12px -4px; }
+.facet[aria-expanded="true"] { background: var(--muted); }
+@media (hover: hover) and (pointer: fine) { .facet:hover { background: var(--muted); } }
+.facet:focus-visible, .chip:focus-visible, .link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* Score stanza */
+.stanza { font-size: 15px; line-height: 21px; }
+.line { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.line:first-child { border-top: 0; }
+.gutter { padding-top: 1px; }
+.rep { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--foreground); color: var(--background); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.words { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; row-gap: 6px; min-width: 0; }
+.q { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.at { color: var(--muted-foreground); }
+.rest { color: var(--muted-foreground); white-space: nowrap; }
+.rest b { color: var(--foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
+.chip { position: relative; display: inline-flex; align-items: baseline; white-space: nowrap; border-radius: 4.8px; padding: 1px 8px; font-family: inherit; font-size: 0.8em; line-height: 1.5; font-weight: 600; font-variant-caps: small-caps; font-variant-numeric: tabular-nums; color: var(--foreground); border: 0; cursor: default; }
+button.chip { cursor: pointer; transition: transform 160ms var(--ease-out); }
+button.chip:active { transform: scale(0.97); }
+button.chip::after { content: ""; position: absolute; inset: -12px -2px; }
+.chip[data-unresolved] { background: transparent !important; color: var(--muted-foreground); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--muted-foreground) 50%, transparent); border-style: dashed; }
+.chip[data-unresolved] { outline: 1px dashed color-mix(in oklab, var(--muted-foreground) 50%, transparent); outline-offset: -1px; box-shadow: none; }
+.chip[aria-expanded="true"] { box-shadow: 0 0 0 2px color-mix(in oklab, var(--foreground) 22%, transparent); }
+.z1 { background: color-mix(in srgb, var(--zone-1) 22%, var(--card)); }
+.z2 { background: color-mix(in srgb, var(--zone-2) 22%, var(--card)); }
+.z3 { background: color-mix(in srgb, var(--zone-3) 26%, var(--card)); }
+.z4 { background: color-mix(in srgb, var(--zone-4) 24%, var(--card)); }
+.z5 { background: color-mix(in srgb, var(--zone-5) 22%, var(--card)); }
+.credits { margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
+.credits p { text-wrap: pretty; overflow-wrap: anywhere; }
+
+/* The provenance popover (motion-popup: from scale .96 + opacity, origin-aware, 200 in / 150 out) */
+.pop { position: fixed; z-index: 40; overflow-y: auto; overscroll-behavior: contain; width: max-content; max-width: min(340px, calc(100vw - 32px)); background: var(--popover); color: var(--foreground); border-radius: 13.2px; padding: 12px 14px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1), 0 0 0 1px color-mix(in oklab, var(--foreground) 8%, transparent); opacity: 0; transform: scale(0.96); transform-origin: var(--transform-origin, top center); transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out); pointer-events: none; visibility: hidden; }
+.pop[data-open] { opacity: 1; transform: none; transition-duration: 200ms; pointer-events: auto; visibility: visible; }
+.pop:not([data-open]) { transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out), visibility 0s 150ms; }
+.pop.tip { padding: 6px 10px; border-radius: 10.8px; max-width: min(300px, calc(100vw - 32px)); transform: scale(0.97); transition-duration: 100ms; }
+.pop.tip[data-open] { transform: none; transition-duration: 150ms; }
+.pop.tip[data-instant] { transition: none; }
+.pop.editor { width: min(340px, calc(100vw - 32px)); padding: 14px; }
+.prov { display: flex; flex-direction: column; gap: 6px; }
+.prov .target { font-size: 15px; line-height: 21px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.prov .target .val { white-space: nowrap; }
+.prov .how { font-size: 13px; line-height: 18px; }
+.prov .src { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; line-height: 18px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.prov .src svg { flex: none; margin-top: 2px; }
+.prov .conf { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 18px; }
+.prov .conf .bars { flex: none; display: inline-flex; gap: 2px; margin-top: 5px; }
+.prov .conf .bars i { width: 4px; height: 9px; border-radius: 1px; background: color-mix(in oklab, var(--foreground) 18%, transparent); }
+.prov .conf .bars i[data-on] { background: var(--foreground); }
+.prov .credit { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--muted-foreground); text-wrap: pretty; overflow-wrap: anywhere; }
+.prov .sep { height: 1px; background: color-mix(in oklab, var(--border) 80%, transparent); margin: 2px 0; }
+.link { position: relative; color: var(--primary); font-weight: 500; font-size: 13px; line-height: 18px; text-decoration: none; display: inline-flex; align-items: center; gap: 2px; align-self: flex-start; }
+.link::after { content: ""; position: absolute; inset: -13px -4px; }
+@media (hover: hover) and (pointer: fine) { .link:hover { text-decoration: underline; text-underline-offset: 3px; } }
+
+/* Editor popover mock (the existing §7.3 body, drawn lightly; only its closing line is this ticket's) */
+.ed-label { font-size: 12px; font-weight: 500; color: var(--muted-foreground); margin-bottom: 6px; }
+.ed-zones { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ed-zones span { display: inline-flex; align-items: center; height: 32px; padding: 0 10px; border-radius: 999px; font-size: 13px; font-weight: 600; font-variant-caps: small-caps; }
+.ed-kinds { font-size: 13px; color: var(--muted-foreground); margin-bottom: 10px; }
+.ed-kinds u { text-decoration: none; color: var(--foreground); font-weight: 500; }
+.ed-line { border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); padding-top: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pop, .pop[data-open], .pop:not([data-open]) { transform: none !important; }
+  button.chip:active { transform: none; }
+}
+
+/* Harness chrome: neutral, not part of the design */
+.harness { position: sticky; top: 0; z-index: 50; background: #f4f4f5; border-bottom: 1px solid #e4e4e7; font: 12px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #3f3f46; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.harness label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.harness select { min-width: 0; width: auto; font: inherit; height: 28px; border-radius: 6px; border: 1px solid #d4d4d8; background: #fff; color: #18181b; padding: 0 6px; max-width: min(100%, calc(100vw - 140px)); }
+.harness .seg { display: inline-flex; background: #e4e4e7; border-radius: 7px; padding: 2px; }
+.harness .seg button { border: 0; background: transparent; height: 24px; padding: 0 8px; border-radius: 5px; font: inherit; color: #3f3f46; cursor: pointer; }
+.harness .seg button[aria-pressed="true"] { background: #fff; color: #18181b; box-shadow: 0 1px 2px rgb(0 0 0 / .1); }
+.harness-results { max-width: 672px; margin: 0 auto 0; padding: 12px 16px 0; font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #52525b; }
+.dark .harness-results { color: #a1a1aa; }
+.datatoggle { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); z-index: 2147483646; display: inline-flex; background: #e4e4e7; border-radius: 8px; padding: 2px; font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; box-shadow: 0 2px 8px rgb(0 0 0 / .12); }
+.datatoggle button { border: 0; background: transparent; height: 26px; padding: 0 10px; border-radius: 6px; font: inherit; color: #3f3f46; cursor: pointer; }
+.datatoggle button[aria-pressed="true"] { background: #fff; color: #18181b; box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+
+/* The picker (PICKER.md, verbatim) */
+.proto-picker { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 2147483647; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: rgba(10, 10, 10, 0.82); -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset, 0 8px 24px rgba(0, 0, 0, 0.24), 0 2px 6px rgba(0, 0, 0, 0.12); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; line-height: 1; -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; }
+.proto-picker-highlight { position: absolute; top: 4px; left: 0; height: 28px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); will-change: transform; }
+.proto-picker[data-ready] .proto-picker-highlight { transition: transform 250ms cubic-bezier(0.23, 1, 0.32, 1), width 250ms cubic-bezier(0.23, 1, 0.32, 1); }
+@media (prefers-reduced-motion: reduce) { .proto-picker[data-ready] .proto-picker-highlight { transition: none; } }
+.proto-picker-item { position: relative; display: flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: rgba(255, 255, 255, 0.55); font: inherit; cursor: pointer; transition: color 150ms ease-out; }
+.proto-picker-item:hover { color: rgba(255, 255, 255, 0.85); }
+.proto-picker-item:active { transform: scale(0.97); }
+.proto-picker-item:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.4); outline-offset: 2px; }
+.proto-picker-item[data-active] { color: #fff; }
+.proto-picker-divider { width: 1px; height: 16px; margin: 0 4px; background: rgba(255, 255, 255, 0.12); }
+.proto-picker-replay { padding: 0 10px; font-size: 14px; }
+.proto-picker[data-position="top"] { bottom: auto; top: 24px; }
+</style>
+</head>
+<body>
+<div class="harness" role="region" aria-label="Prototype controls">
+  <strong>PROTOTYPE #674</strong>
+  <label>Resultatene dine <select id="preset"></select></label>
+  <label>Dagen du ser på <select id="day">
+    <option value="2026-11-07">lør 7. nov 2026 (i dag)</option>
+    <option value="2027-02-10">10. feb 2027</option>
+    <option value="2027-11-20">20. nov 2027</option>
+  </select></label>
+  <span class="seg" id="status"><button data-v="scheduled" aria-pressed="true">Planlagt</button><button data-v="completed">Gjort</button></span>
+  <span class="seg" id="theme"><button data-v="light" aria-pressed="true">Lys</button><button data-v="dark">Mørk</button></span>
+</div>
+<div class="harness-results" id="harness-results" aria-label="Prototype data"></div>
+<div id="stage"></div>
+<div class="pop" id="pop" role="dialog" aria-label="Hvor farten kommer fra"></div>
+<div class="pop tip" id="tip" role="tooltip"></div>
+
+<div class="datatoggle" role="group" aria-label="Data"><button data-v="demo" aria-pressed="true">Demo data</button><button data-v="worst">Worst case</button></div>
+<nav class="proto-picker" aria-label="Prototype variants">
+  <span class="proto-picker-highlight" aria-hidden="true"></span>
+  <button class="proto-picker-item" data-active aria-current="true">Fasett</button>
+</nav>
+
+<script>
+// ——— Domain: the ladder, as #674 states it ————————————————————————————————
+const ANCHORS = { '1500m': 1500, '3k': 3000, '5k': 5000, '10k': 10000, hm: 21097.5, marathon: 42195 };
+const PACE_NAME = { '1500m': '1500 m-fart', '3k': '3 km-fart', '5k': '5 km-fart', '10k': '10 km-fart', hm: 'halvmaratonfart', marathon: 'maratonfart' };
+const RACE_NAME = { '1500m': '1500 m', '3k': '3 km', '5k': '5 km', '10k': '10 km', hm: 'halvmaraton', marathon: 'maraton' };
+// "the 5 km result": `5 km-resultatet`, `halvmaratonresultatet`
+const RESULT_NOUN = { '1500m': '1500 m-resultatet', '3k': '3 km-resultatet', '5k': '5 km-resultatet', '10k': '10 km-resultatet', hm: 'halvmaratonresultatet', marathon: 'maratonresultatet' };
+const ZONE = { '1500m': 5, '3k': 5, '5k': 5, '10k': 4, hm: 4, marathon: 3 };
+const MODEL = { id: 'riegel-1.06', b: 1.06, recreationalB: 1.15 };
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
+const DERIVED = { garmin: 'Insights derived in part from Garmin device-sourced data.', polar: 'Bygger delvis på data fra Polar.' };
+const CONF_WORD = { high: 'Høy sikkerhet', medium: 'Middels sikkerhet', low: 'Lav sikkerhet' };
+const RANK = { high: 2, medium: 1, low: 0 };
+
+const anchorOf = (m) => Object.keys(ANCHORS).find((k) => Math.abs(ANCHORS[k] - m) < 1);
+const kmWord = (m) => anchorOf(m) ? RACE_NAME[anchorOf(m)] : `${String(+(m / 1000).toFixed(2)).replace('.', ',')} km`;
+const resultNoun = (m) => anchorOf(m) ? RESULT_NOUN[anchorOf(m)] : `${kmWord(m)}-resultatet`;
+const clock = (s) => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`; };
+const pace = (s) => { s = Math.round(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const day = (iso) => new Date(iso + 'T12:00:00Z');
+function nbDate(iso, viewIso) { const d = day(iso); const sameYear = d.getUTCFullYear() === day(viewIso).getUTCFullYear(); return `${d.getUTCDate()}. ${MONTHS[d.getUTCMonth()]}${sameYear ? '' : ' ' + d.getUTCFullYear()}`; }
+const ageDays = (iso, viewIso) => Math.round((day(viewIso) - day(iso)) / 86400000);
+const ageGrade = (days) => days < 90 ? 'high' : days <= 365 ? 'medium' : 'low';
+const ratioOf = (a, b) => Math.max(a, b) / Math.min(a, b);
+const ratioGrade = (r) => r <= 2 ? 'high' : r <= 4 ? 'medium' : 'low';
+const weakest = (...g) => g.reduce((a, b) => RANK[b] < RANK[a] ? b : a);
+
+// Rung 1's pick at one distance: newest; on the same day a typed result wins (#670).
+function pickAt(results, m) {
+  return results.filter((r) => Math.abs(r.m - m) < 1)
+    .sort((a, b) => b.date.localeCompare(a.date) || (a.origin === 'typed' ? -1 : 1))[0] ?? null;
+}
+// Which rung and which result: from the stored results only, never the day viewed.
+function sourceFor(results, anchor) {
+  const at = pickAt(results, ANCHORS[anchor]);
+  if (at) return { via: 'actual-result', result: at, ratio: 1 };
+  const dists = [...new Set(results.map((r) => r.m))];
+  if (!dists.length) return null;
+  const candidates = dists.map((m) => ({ m, ratio: ratioOf(m, ANCHORS[anchor]), result: pickAt(results, m) }));
+  // Nearest by ratio; a tie goes to the newer result, then the longer distance.
+  candidates.sort((a, b) => (a.ratio - b.ratio) || b.result.date.localeCompare(a.result.date) || (b.m - a.m));
+  const c = candidates[0];
+  return { via: 'race-equivalence', result: c.result, ratio: c.ratio };
+}
+const riegel = (t, d1, d2, b) => t * Math.pow(d2 / d1, b);
+
+function resolve(results, target, viewIso) {
+  const src = sourceFor(results, target.event);
+  const name = target.minPct == null ? PACE_NAME[target.event]
+    : target.maxPct != null ? `${target.minPct}–${target.maxPct} % ${PACE_NAME[target.event]}` : `${target.minPct} % ${PACE_NAME[target.event]}`;
+  if (!src) return { name, unavailable: true };
+  const d2 = ANCHORS[target.event];
+  const r = src.result;
+  const age = ageGrade(ageDays(r.date, viewIso));
+  const dist = src.via === 'race-equivalence' ? ratioGrade(src.ratio) : 'high';
+  const confidence = weakest(dist, age);
+  const pct = (p) => (p ?? 100) / 100;
+  const fastPct = pct(target.maxPct ?? target.minPct), slowPct = pct(target.minPct);
+  let fast, slow;
+  if (src.via === 'actual-result') {
+    const p = r.sec / (d2 / 1000);
+    fast = p / fastPct; slow = p / slowPct;
+  } else {
+    const p106 = riegel(r.sec, r.m, d2, MODEL.b) / (d2 / 1000);
+    if (confidence === 'low') {
+      const p115 = riegel(r.sec, r.m, d2, MODEL.recreationalB) / (d2 / 1000);
+      fast = p106 / fastPct; slow = p115 / slowPct;
+    } else { fast = p106 / fastPct; slow = p106 / slowPct; }
+  }
+  const range = pace(fast) === pace(slow) ? `${pace(fast)} /km` : `${pace(fast)}–${pace(slow)} /km`;
+  return { name, range, via: src.via, result: r, ratio: src.ratio, confidence, dist, age, ageDays: ageDays(r.date, viewIso), anchor: target.event, modelId: src.via === 'race-equivalence' ? MODEL.id : null };
+}
+
+// ——— Words ————————————————————————————————————————————————————————————
+function confReason(res) {
+  const parts = [];
+  if (res.via === 'race-equivalence' && res.dist === res.confidence && res.confidence !== 'high') {
+    const longer = Math.max(res.result.m, ANCHORS[res.anchor]) === res.result.m ? kmWord(res.result.m) : RACE_NAME[res.anchor];
+    const shorter = longer === kmWord(res.result.m) ? RACE_NAME[res.anchor] : kmWord(res.result.m);
+    parts.push(res.dist === 'low' ? `${longer} er over fire ganger så langt som ${shorter}` : `${longer} er over dobbelt så langt som ${shorter}`);
+  }
+  if (res.age === res.confidence && res.confidence !== 'high') {
+    parts.push(res.age === 'low' ? 'resultatet er over ett år gammelt' : 'resultatet er over tre måneder gammelt');
+  }
+  if (!parts.length) return res.via === 'race-equivalence' ? 'nylig, og fra en distanse nær denne' : 'nylig resultat på denne distansen';
+  let s = parts.join(', og ');
+  if (res.via === 'race-equivalence' && res.confidence === 'low') s += '. Derfor et spenn, ikke én fart';
+  return s;
+}
+const watchIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3z"/><path d="M9 18v3h6v-3"/><path d="M9 6v-3h6v3"/></svg>`;
+const penIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l10.5-10.5a2.83 2.83 0 0 0-4-4L4 16v4"/><path d="M13.5 6.5l4 4"/></svg>`;
+const chevron = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6l-6 6"/></svg>`;
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function howLine(res, viewIso) {
+  const when = nbDate(res.result.date, viewIso);
+  return res.via === 'race-equivalence'
+    ? `Omregnet fra ${resultNoun(res.result.m)} ditt ${when}`
+    : `Fra ${resultNoun(res.result.m)} ditt ${when}`;
+}
+function srcLine(r) {
+  if (r.origin === 'typed') return `${penIcon}<span><span class="num fg">${clock(r.sec)}</span> · skrevet inn av deg</span>`;
+  const credit = r.origin === 'garmin' ? (r.device ? brand('Garmin', r.device) : 'Garmin') : r.origin === 'polar' ? (r.device ? brand('Polar', r.device) : 'Polar') : r.device;
+  return `${watchIcon}<span><span class="num fg">${clock(r.sec)}</span> · målt av klokka${credit ? ' · ' + esc(credit) : ''}</span>`;
+}
+function brand(b, device) { const m = device.replace(new RegExp(`^${b}[\\s_-]*`, 'i'), ''); return m ? `${b} ${m}` : b; }
+function bars(grade) { const n = RANK[grade] + 1; return `<span class="bars" aria-hidden="true">${[0, 1, 2].map((i) => `<i${i < n ? ' data-on' : ''}></i>`).join('')}</span>`; }
+
+// The one provenance body: the popover on a facet or a done chip, and the editor popover's closing line.
+function provBody(res, viewIso) {
+  const credit = DERIVED[res.result.origin];
+  return `<div class="prov" data-via="${res.via}" data-confidence="${res.confidence}" data-model="${res.modelId ?? ''}">
+    <p class="target">${esc(res.name)} <span class="val">≈ ${res.range}</span></p>
+    <p class="how">${howLine(res, viewIso)}</p>
+    <p class="src">${srcLine(res.result)}</p>
+    <p class="conf">${bars(res.confidence)}<span><span class="medium">${CONF_WORD[res.confidence]}</span>: ${confReason(res)}.</span></p>
+    ${credit ? `<p class="credit" data-source-credit>${credit}</p>` : ''}
+    <a class="link" href="#lopsresultater">Løpsresultater ${chevron}</a>
+  </div>`;
+}
+const tipText = (res, viewIso) => `${howLine(res, viewIso)} · ${CONF_WORD[res.confidence].toLowerCase()}`;
+
+// ——— Fixtures ————————————————————————————————————————————————————————————
+const PRESETS = {
+  demo: [
+    { id: 'five', label: '5 km 20:00, skrevet inn 3. mai', results: [ { m: 5000, sec: 1200, date: '2026-05-03', origin: 'typed', kind: 'Løp' } ] },
+    { id: 'garmin', label: '10 km 41:30 fra løp (Garmin) + 5 km 20:00', results: [ { m: 10000, sec: 2490, date: '2026-05-03', origin: 'garmin', device: 'Forerunner 265', kind: 'Løp', event: 'Sentrumsløpet' }, { m: 5000, sec: 1200, date: '2026-03-22', origin: 'typed', kind: 'Testløp' } ] },
+    { id: 'polar', label: '15 km 1:03:00 fra løp (Polar), 12. sep', results: [ { m: 15000, sec: 3780, date: '2026-09-12', origin: 'polar', device: 'Vantage V3', kind: 'Løp', event: 'Kystløpet 15' } ] },
+    { id: 'old', label: 'Bare gammelt: 10 km 43:10, 14. sep 2025', results: [ { m: 10000, sec: 2590, date: '2025-09-14', origin: 'typed', kind: 'Løp' } ] },
+    { id: 'none', label: 'Ingen resultater', results: [] },
+  ],
+  worst: [
+    { id: 'worst', label: 'Worst: 1500 m (Garmin, lang enhet, 29. feb 2024) + 15 km (Polar) + 7,5 km samme dag', results: [
+      { m: 1500, sec: 405, date: '2024-02-29', origin: 'garmin', device: 'Garmin Forerunner 965 Solar Sapphire Edition (Asia)', kind: 'Testløp' },
+      { m: 15000, sec: 5340, date: '2026-08-09', origin: 'polar', device: 'Polar Grit X2 Pro Titan', kind: 'Løp' },
+      { m: 7500, sec: 2700, date: '2026-10-31', origin: 'typed', kind: 'Del av en økt' },
+      { m: 7500, sec: 2650, date: '2026-10-31', origin: 'garmin', device: null, kind: 'Løp' },
+    ] },
+    { id: 'tie', label: 'Likt forhold: 5 km og 20 km (10 km-fart)', results: [
+      { m: 5000, sec: 1500, date: '2026-06-01', origin: 'typed', kind: 'Løp' },
+      { m: 20000, sec: 6600, date: '2026-06-01', origin: 'typed', kind: 'Løp' },
+    ] },
+  ],
+};
+const SESSIONS = {
+  demo: { title: 'Intervaller 4 × 2 km', figures: [['1 t 12 min', 'tid'], ['14,5 km', 'distanse']], headline: 1, blocks: [
+    { rep: null, steps: [{ q: '15 min', chip: { kind: 'zone', text: 'Rolig', z: 2 } }] },
+    { rep: '4×', steps: [{ q: '2 km', chip: { kind: 'race', event: '10k' }, rest: ['pause ', '2 min', ' jogg'] }] },
+    { rep: '2×', steps: [{ q: '3 km', chip: { kind: 'race', event: 'hm' }, rest: ['pause ', '90 s', ''] }] },
+    { rep: null, steps: [{ q: '10 min', chip: { kind: 'zone', text: 'Rolig', z: 2 } }] },
+  ] },
+  worst: { title: 'Langtur med fartsskifter mot Bergen City Marathon og Sentrumsløpet i Oslo', figures: [['2 t 48 min', 'tid'], ['36,2 km', 'distanse']], headline: 1, blocks: [
+    { rep: null, steps: [{ q: '20 min', chip: { kind: 'zone', text: 'Rolig', z: 2 } }] },
+    { rep: '3×', steps: [{ q: '5 km', chip: { kind: 'race', event: 'marathon', minPct: 95, maxPct: 105 }, rest: ['pause ', '3 min', ' jogg'] }] },
+    { rep: null, steps: [{ q: '8 km', chip: { kind: 'race', event: 'marathon', minPct: 105 } }] },
+    { rep: '6×', steps: [{ q: '400 m', chip: { kind: 'race', event: '1500m' }, rest: ['pause ', '200 m', ' rolig'] }] },
+    { rep: '2×', steps: [{ q: '3 km', chip: { kind: 'race', event: 'hm' } }] },
+    { rep: null, steps: [{ q: '2 km', chip: { kind: 'race', event: '10k' } }, { q: '1 km', chip: { kind: 'race', event: '3k' } }] },
+    { rep: null, steps: [{ q: '10 min', chip: { kind: 'zone', text: 'Rolig', z: 1 } }] },
+  ] },
+};
+
+// ——— State ——————————————————————————————————————————————————————————————
+const params = new URLSearchParams(location.search);
+const state = {
+  data: params.get('data') === 'worst' ? 'worst' : 'demo',
+  preset: params.get('preset') || null,
+  day: params.get('day') || '2026-11-07',
+  status: params.get('status') === 'completed' ? 'completed' : 'scheduled',
+  theme: params.get('theme') === 'dark' ? 'dark' : 'light',
+};
+function syncUrl() {
+  const u = new URL(location);
+  for (const k of ['data', 'preset', 'day', 'status', 'theme']) u.searchParams.set(k, state[k]);
+  try { history.replaceState(null, '', u); } catch {}
+}
+function presetList() { return PRESETS[state.data]; }
+function currentPreset() { return presetList().find((p) => p.id === state.preset) ?? presetList()[0]; }
+
+// ——— Render ————————————————————————————————————————————————————————————
+let resolutions = [];
+function render() {
+  document.documentElement.classList.toggle('dark', state.theme === 'dark');
+  const preset = currentPreset(); state.preset = preset.id;
+  const sel = document.getElementById('preset');
+  sel.innerHTML = presetList().map((p) => `<option value="${p.id}"${p.id === preset.id ? ' selected' : ''}>${esc(p.label)}</option>`).join('');
+  document.getElementById('day').value = state.day;
+  for (const [id, key] of [['status', 'status'], ['theme', 'theme']]) document.querySelectorAll(`#${id} button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === state[key])));
+  document.querySelectorAll('.datatoggle button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === state.data)));
+  document.getElementById('harness-results').innerHTML = preset.results.length
+    ? 'Lagret: ' + preset.results.map((r) => `${kmWord(r.m)} ${clock(r.sec)} (${r.origin === 'typed' ? 'skrevet inn' : r.origin}, ${nbDate(r.date, '2000-01-01')})`).join(' · ')
+    : 'Lagret: ingen løpsresultater';
+
+  const session = SESSIONS[state.data];
+  resolutions = [];
+  const editable = state.status === 'scheduled';
+  let headline = null;
+  const owed = new Set();
+  const lines = session.blocks.map((block, bi) => {
+    const steps = block.steps.map((step, si) => {
+      let chip;
+      if (step.chip.kind === 'zone') {
+        chip = `<span class="chip z${step.chip.z}" data-token-type="intensity">${step.chip.text}</span>`;
+      } else {
+        const res = resolve(preset.results, step.chip, state.day);
+        const i = resolutions.push(res) - 1;
+        if (bi === session.headline && si === 0) headline = i;
+        if (!res.unavailable && DERIVED[res.result.origin]) owed.add(res.result.origin);
+        const z = ZONE[step.chip.event];
+        if (res.unavailable) {
+          chip = editable
+            ? `<button class="chip" data-unresolved data-token-type="intensity" data-edit="${i}" aria-haspopup="dialog" aria-expanded="false">${esc(res.name)}</button>`
+            : `<span class="chip" data-unresolved data-token-type="intensity">${esc(res.name)}</span>`;
+        } else {
+          const label = `${res.name} ≈ ${res.range}`;
+          chip = editable
+            ? `<button class="chip z${z}" data-token-type="intensity" data-edit="${i}" data-tip="${i}" aria-haspopup="dialog" aria-expanded="false" aria-label="${esc(label)}, endre">${esc(res.name)}</button>`
+            : `<button class="chip z${z}" data-token-type="intensity" data-prov="${i}" aria-haspopup="dialog" aria-expanded="false" aria-label="${esc(label)}, hvor farten kommer fra">${esc(res.name)}</button>`;
+        }
+      }
+      const rest = step.rest ? `<span class="rest">${step.rest[0]}<b>${step.rest[1]}</b>${step.rest[2]}</span>` : '';
+      return `<span class="q">${step.q}</span><span class="at">@</span>${chip}${rest}`;
+    }).join('<span class="at">→</span>');
+    return `<div class="line"><div class="gutter">${block.rep ? `<span class="rep">${block.rep}</span>` : ''}</div><div class="words">${steps}</div></div>`;
+  }).join('');
+
+  const h = headline != null ? resolutions[headline] : null;
+  const headlineHtml = !h ? '' : h.unavailable
+    ? `<span class="dot muted" aria-hidden="true"></span><span class="muted">Mål ${esc(h.name)}</span>`
+    : `<span class="dot muted" aria-hidden="true"></span><span class="muted num">Mål ${esc(h.name)} <button class="facet" data-prov="${headline}" aria-haspopup="dialog" aria-expanded="false" aria-label="≈ ${h.range}, hvor farten kommer fra">≈ ${h.range}</button></span>`;
+
+  document.getElementById('stage').innerHTML = `
+  <main class="page" data-variant="fasett">
+    <div class="page-header"><a class="back" href="#">${chevron.replace('M9 6l6 6l-6 6', 'M15 6l-6 6l6 6')}<span>I dag</span></a></div>
+    <article class="card">
+      <header class="card-header">
+        <div class="title-row"><h2 class="t-title">${esc(session.title)}</h2><span class="badge ${editable ? '' : 'primary'}">${editable ? 'Planlagt' : 'Gjort'}</span></div>
+        <div class="figures">${session.figures.map(([v, l]) => `<span><b>${v}</b> <span class="t-caption muted">${l}</span></span>`).join('')}</div>
+        <p class="t-footnote muted meta"><span class="fg medium">Løping</span><span class="dot" aria-hidden="true"></span><span class="fg medium">Terskel</span><span class="dot" aria-hidden="true"></span><span class="num">søn 8. nov, 07:30</span>${headlineHtml}</p>
+      </header>
+      <div class="card-content">
+        <div class="stanza" data-score-stanza>${lines}</div>
+        ${owed.size ? `<div class="credits" data-source-credit>${[...owed].map((o) => `<p class="t-caption muted">${DERIVED[o]}</p>`).join('')}</div>` : ''}
+      </div>
+    </article>
+  </main>`;
+  closeAll(true);
+  syncUrl();
+}
+
+// ——— Popover and tooltip behaviour ——————————————————————————————————————
+const pop = document.getElementById('pop');
+const tip = document.getElementById('tip');
+const finePointer = matchMedia('(hover: hover) and (pointer: fine)');
+let openTrigger = null, hoverTimer = null, leaveTimer = null, tipTrigger = null, tipTimer = null, tipWasOpen = 0;
+
+function place(el, trigger) {
+  const r = trigger.getBoundingClientRect();
+  el.style.left = '0px'; el.style.top = '0px'; el.style.maxHeight = '';
+  const w = el.offsetWidth, gap = 8, vw = innerWidth, vh = innerHeight;
+  let hgt = el.offsetHeight;
+  let left = Math.min(Math.max(16, r.left + r.width / 2 - w / 2), vw - 16 - w);
+  // Collision: the side that fits, else the roomier side, scrolling inside (Base UI's collisionAvoidance).
+  const spaceBelow = vh - 8 - (r.bottom + gap), spaceAbove = r.top - gap - 8;
+  const below = hgt <= spaceBelow || (hgt > spaceAbove && spaceBelow >= spaceAbove);
+  const room = below ? spaceBelow : spaceAbove;
+  if (hgt > room) { el.style.maxHeight = Math.max(room, 120) + 'px'; hgt = el.offsetHeight; }
+  const top = below ? r.bottom + gap : r.top - gap - hgt;
+  const ox = Math.min(Math.max(r.left + r.width / 2 - left, 12), w - 12);
+  el.style.left = left + 'px'; el.style.top = top + 'px';
+  el.style.setProperty('--transform-origin', `${ox}px ${below ? '0px' : hgt + 'px'}`);
+}
+function openPop(trigger, html, cls) {
+  if (openTrigger && openTrigger !== trigger) openTrigger.setAttribute('aria-expanded', 'false');
+  hideTip(true);
+  pop.className = 'pop' + (cls ? ' ' + cls : '');
+  pop.innerHTML = html;
+  openTrigger = trigger;
+  trigger.setAttribute('aria-expanded', 'true');
+  place(pop, trigger);
+  pop.setAttribute('data-open', '');
+}
+function closePop(instant) {
+  if (!openTrigger) return;
+  openTrigger.setAttribute('aria-expanded', 'false');
+  openTrigger = null;
+  if (instant) { pop.style.transition = 'none'; pop.removeAttribute('data-open'); pop.offsetHeight; pop.style.transition = ''; }
+  else pop.removeAttribute('data-open');
+}
+function showTip(trigger, text) {
+  if (openTrigger) return;
+  tipTrigger = trigger;
+  tip.textContent = text;
+  // Neighbours open instantly once one tooltip has been seen (design-system D13).
+  if (Date.now() - tipWasOpen < 400) tip.setAttribute('data-instant', ''); else tip.removeAttribute('data-instant');
+  place(tip, trigger);
+  tip.setAttribute('data-open', '');
+}
+function hideTip(instant) {
+  clearTimeout(tipTimer);
+  if (!tip.hasAttribute('data-open')) return;
+  tipWasOpen = Date.now();
+  if (instant) tip.setAttribute('data-instant', '');
+  tip.removeAttribute('data-open');
+  tipTrigger = null;
+}
+function closeAll(instant) { closePop(instant); hideTip(true); }
+
+function provHtml(i) { return provBody(resolutions[+i], state.day); }
+function editorHtml(i) {
+  const res = resolutions[+i];
+  const line = res.unavailable
+    ? `<p class="t-footnote muted">${esc(res.name)}: ingen løpsresultater å regne fra.</p>`
+    : provBody(res, state.day);
+  return `<div class="ed" data-slot="token-popover">
+    <p class="ed-label">Sone</p>
+    <div class="ed-zones">${[1, 2, 3, 4, 5].map((z) => `<span class="z${z}">Z${z}</span>`).join('')}</div>
+    <p class="ed-kinds">eller sett: <u>fart</u> · watt · puls · laktat · RPE</p>
+    <div class="ed-line" data-slot="intensity-provenance">${line}</div>
+  </div>`;
+}
+
+document.addEventListener('click', (e) => {
+  const prov = e.target.closest('[data-prov]');
+  const edit = e.target.closest('[data-edit]');
+  const trigger = prov || edit;
+  if (trigger) {
+    e.preventDefault();
+    clearTimeout(hoverTimer);
+    if (openTrigger === trigger && !trigger.dataset.hoverOpened) { closePop(); return; }
+    delete trigger.dataset.hoverOpened;
+    openPop(trigger, prov ? provHtml(prov.dataset.prov) : editorHtml(edit.dataset.edit), edit ? 'editor' : '');
+    if (edit) pop.focus?.();
+    return;
+  }
+  if (!e.target.closest('.pop') && !e.target.closest('.harness') && !e.target.closest('.datatoggle') && !e.target.closest('.proto-picker')) closePop();
+});
+// Hover with a fine pointer opens the provenance (300 ms), and leaving closes it unless the pointer moved into it.
+document.addEventListener('pointerover', (e) => {
+  if (!finePointer.matches || e.pointerType !== 'mouse') return;
+  const prov = e.target.closest('[data-prov]');
+  if (prov) {
+    clearTimeout(leaveTimer);
+    if (openTrigger === prov) return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => { prov.dataset.hoverOpened = '1'; openPop(prov, provHtml(prov.dataset.prov)); }, 300);
+    return;
+  }
+  const t = e.target.closest('[data-tip]');
+  if (t && !openTrigger) {
+    clearTimeout(tipTimer);
+    const delay = Date.now() - tipWasOpen < 400 ? 0 : 500;
+    tipTimer = setTimeout(() => showTip(t, tipText(resolutions[+t.dataset.tip], state.day)), delay);
+    return;
+  }
+  if (e.target.closest('.pop')) clearTimeout(leaveTimer);
+});
+document.addEventListener('pointerout', (e) => {
+  if (!finePointer.matches || e.pointerType !== 'mouse') return;
+  const from = e.target.closest('[data-prov], .pop:not(.editor)');
+  const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('[data-prov], .pop') : null;
+  if (from && !to) {
+    clearTimeout(hoverTimer);
+    if (openTrigger && openTrigger.dataset.hoverOpened) leaveTimer = setTimeout(() => { delete openTrigger?.dataset.hoverOpened; closePop(); }, 150);
+  }
+  if (e.target.closest('[data-tip]')) hideTip();
+});
+// Keyboard focus opens what hover opens: the provenance on a facet or a done chip, the tooltip on an editable chip.
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el.matches || !el.matches(':focus-visible')) return;
+  if (el.matches('[data-prov]') && openTrigger !== el) { el.dataset.hoverOpened = '1'; openPop(el, provHtml(el.dataset.prov)); }
+  else if (el.matches('[data-tip]')) showTip(el, tipText(resolutions[+el.dataset.tip], state.day));
+});
+document.addEventListener('focusout', (e) => {
+  if (e.target.matches?.('[data-tip]')) hideTip();
+  const to = e.relatedTarget;
+  if (openTrigger && e.target === openTrigger && openTrigger.dataset.hoverOpened && !(to && to.closest && to.closest('.pop'))) closePop();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { const t = openTrigger; closePop(); hideTip(); t?.focus(); }
+});
+addEventListener('resize', () => { if (openTrigger) place(pop, openTrigger); if (tipTrigger) place(tip, tipTrigger); });
+addEventListener('scroll', () => { if (openTrigger) place(pop, openTrigger); if (tipTrigger) place(tip, tipTrigger); }, { passive: true });
+
+// ——— Harness wiring ——————————————————————————————————————————————————————
+document.getElementById('preset').addEventListener('change', (e) => { state.preset = e.target.value; render(); });
+document.getElementById('day').addEventListener('change', (e) => { state.day = e.target.value; render(); });
+document.querySelectorAll('#status button').forEach((b) => b.addEventListener('click', () => { state.status = b.dataset.v; render(); }));
+document.querySelectorAll('#theme button').forEach((b) => b.addEventListener('click', () => { state.theme = b.dataset.v; render(); }));
+document.querySelectorAll('.datatoggle button').forEach((b) => b.addEventListener('click', () => { state.data = b.dataset.v; state.preset = null; render(); }));
+
+// The picker (PICKER.md reference wiring; one variant)
+const variants = [render];
+const picker = document.querySelector('.proto-picker');
+const highlight = picker.querySelector('.proto-picker-highlight');
+const items = [...picker.querySelectorAll('.proto-picker-item:not(.proto-picker-replay)')];
+let current = 0;
+function moveHighlight() { const el = items[current]; highlight.style.width = el.offsetWidth + 'px'; highlight.style.transform = `translateX(${el.offsetLeft}px)`; }
+function setActive(i) {
+  if (i < 0 || i >= variants.length) return;
+  current = i;
+  items.forEach((el, j) => { el.toggleAttribute('data-active', j === i); if (j === i) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current'); });
+  moveHighlight();
+  variants[i]();
+}
+items.forEach((el, i) => el.addEventListener('click', () => setActive(i)));
+addEventListener('resize', moveHighlight);
+document.addEventListener('keydown', (e) => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const num = parseInt(e.key, 10);
+  if (num >= 1 && num <= variants.length) setActive(num - 1);
+});
+setActive(0);
+requestAnimationFrame(() => requestAnimationFrame(() => picker.setAttribute('data-ready', '')));
+// Exposed for the probe script.
+window.__proto = { resolve, PRESETS, state, render, MODEL };
+</script>
+</body>
+</html>
