@@ -29,9 +29,10 @@ With `r` as `usage-reserve` (default 10%):
 - a window reports `rejected`: until it resets;
 - the account is spending extra usage: until the window resets.
 
-A hold stops new work only: merges still run, and the next run or dispatch
-reads the usage again. Without a usage file, or when the events carry no
-`rate_limit_info`, nothing holds: `unifiedWindows` is what Claude Code reports
+A window past its reset counts for nothing. A hold stops new work only: merges
+still run, and the next run or dispatch reads the usage again. Without a usage
+file, when the events carry no `rate_limit_info`, or when the conductor can't
+read it (`usage.error` says why), nothing holds: `unifiedWindows` is what Claude Code reports
 today, not a public API, and the factory falls back to stopping when a limit
 stops a subagent. The Admin API's usage and cost reports cover API keys billed
 per token, after the fact, and know nothing of a subscription's limits.
@@ -42,6 +43,7 @@ The factory spends only what the subscription's limits include, never extra
 usage. A hold keeps it from starting near a limit, but a batch already running
 can cross the limit before the next read, so only the account rules extra usage
 out: an owner sets its extra usage limit to zero (claude.ai, Settings, Usage).
-`usage.overage` is `off` when the account refuses extra usage. When it is `on`,
+`usage.overage` is `off` when the account refuses extra usage, and `unknown`
+when the events don't say. When it is `on`,
 the report carries one line: extra usage is on for this account, and only
 turning it off guarantees the factory never spends it.

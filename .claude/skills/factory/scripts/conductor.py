@@ -287,7 +287,9 @@ WEEK = timedelta(days=7)
 
 def rate_limit_info(data):
     """The newest `rate_limit_info` anywhere in `data`, as `list_events` or
-    `get_session` returns it (oldest first), or None."""
+    `get_session` returns it (oldest first), or None. When the newest carries
+    no windows, it takes the windows of the newest one that does, so a bare
+    `rejected` or overage still counts alongside the numbers."""
     found = []
 
     def walk(node):
@@ -302,11 +304,23 @@ def rate_limit_info(data):
                 walk(value)
 
     walk(data)
-    with_windows = [n for n in found if n.get("unifiedWindows")]
-    return (with_windows or found or [None])[-1]
+    if not found:
+        return None
+    newest = dict(found[-1])
+    if not newest.get("unifiedWindows"):
+        with_windows = [n for n in found if n.get("unifiedWindows")]
+        if with_windows:
+            newest["unifiedWindows"] = with_windows[-1]["unifiedWindows"]
+    return newest
 
 
-def epoch(value):
+def reset_time(node):
+    """When a window resets: `resetsAt` in epoch seconds or ISO 8601, or None."""
+    value = node.get("resetsAt")
+    if value is None or value == "":
+        return None
+    if isinstance(value, str) and not value.replace(".", "", 1).isdigit():
+        return parse_time(value)
     return datetime.fromtimestamp(float(value), timezone.utc)
 
 
@@ -315,11 +329,11 @@ def usage_gate(info, config, now):
     It holds when the five-hour window is used past `1 - usage-reserve`, when
     the seven-day window is used faster than the week passes (its share of
     the week so far, at least one day's, less the reserve), when a window is
-    refused, or when the account has gone into paid overage. `until` says
-    when the hold lifts on its own."""
+    refused, or when the account has gone into extra usage. A window past its
+    reset counts for nothing. `until` says when the hold lifts on its own."""
+    reserve = fraction_setting(config, "usage-reserve", DEFAULT_USAGE_RESERVE)
     if not info:
         return {"known": False, "hold": False}
-    reserve = fraction_setting(config, "usage-reserve", DEFAULT_USAGE_RESERVE)
     gate = {"known": True, "hold": False, "reserve": reserve, "why": [], "until": None}
 
     def hold(why, until):
@@ -328,38 +342,52 @@ def usage_gate(info, config, now):
         if until and (gate["until"] is None or until > gate["until"]):
             gate["until"] = until
 
-    windows = info.get("unifiedWindows") or {}
+    def live(node):
+        resets = reset_time(node)
+        return resets is None or resets > now
+
+    windows = {name: w for name, w in (info.get("unifiedWindows") or {}).items()
+               if isinstance(w, dict) and live(w)}
     for name, window in windows.items():
         if window.get("status") == "rejected":
-            hold(f"the {name} limit is spent", epoch(window["resetsAt"]))
+            hold(f"the {name} limit is spent", reset_time(window))
     five = windows.get("five_hour")
     if five and five.get("utilization") is not None:
         used = float(five["utilization"])
         gate["five_hour"] = used
         if used >= 1 - reserve:
             hold(f"{used:.0%} of the five-hour limit is used, the factory stops at "
-                 f"{1 - reserve:.0%}", epoch(five["resetsAt"]))
+                 f"{1 - reserve:.0%}", reset_time(five))
     week = windows.get("seven_day")
     if week and week.get("utilization") is not None:
-        used, resets = float(week["utilization"]), epoch(week["resetsAt"])
-        elapsed = min(1.0, max(1 / 7, 1 - (resets - now) / WEEK))
-        pace = (1 - reserve) * elapsed
-        gate["seven_day"], gate["weekly_pace"] = used, round(pace, 3)
-        if used >= pace:
-            # The pace reaches `used` when (1 - reserve) * elapsed = used.
-            catch_up = resets - WEEK * (1 - used / (1 - reserve)) if used < 1 - reserve else resets
-            hold(f"{used:.0%} of the weekly limit is used, ahead of the {pace:.0%} the week "
-                 f"so far allows", max(catch_up, now))
-    if not windows and info.get("status") in ("rejected", "allowed_warning"):
+        used, resets = float(week["utilization"]), reset_time(week)
+        gate["seven_day"] = used
+        if resets is None:
+            if used >= 1 - reserve:
+                hold(f"{used:.0%} of the weekly limit is used", None)
+        else:
+            elapsed = min(1.0, max(1 / 7, 1 - (resets - now) / WEEK))
+            pace = (1 - reserve) * elapsed
+            gate["weekly_pace"] = round(pace, 3)
+            if used >= pace:
+                # The pace reaches `used` when (1 - reserve) * elapsed = used.
+                catch_up = (resets - WEEK * (1 - used / (1 - reserve))
+                            if used < 1 - reserve else resets)
+                hold(f"{used:.0%} of the weekly limit is used, ahead of the {pace:.0%} the "
+                     f"week so far allows", max(catch_up, now))
+    top_live = live(info)
+    if not info.get("unifiedWindows") and top_live and \
+            info.get("status") in ("rejected", "allowed_warning"):
         hold(f"the {info.get('rateLimitType', 'usage')} limit reports {info['status']}",
-             epoch(info["resetsAt"]) if info.get("resetsAt") else None)
+             reset_time(info))
     # Extra usage is paid past the limits: the factory never spends it. `overage`
     # says whether the account could, so a report can warn that only the hold
     # stands between a long batch and the bill.
-    gate["overage"] = "off" if info.get("overageStatus") == "rejected" else "on"
-    if info.get("isUsingOverage"):
+    status = info.get("overageStatus")
+    gate["overage"] = "unknown" if status is None else "off" if status == "rejected" else "on"
+    if info.get("isUsingOverage") and top_live:
         hold("the account is spending extra usage, which the factory never does",
-             epoch(info["resetsAt"]) if info.get("resetsAt") else None)
+             reset_time(info))
     gate["why"] = "; ".join(gate["why"]) or None
     gate["until"] = stamp(gate["until"]) if gate["until"] else None
     return gate
@@ -367,11 +395,16 @@ def usage_gate(info, config, now):
 
 def read_usage(path, config, now):
     """The usage gate from a file holding what `list_events` or `get_session`
-    returned, or None without a file."""
+    returned, or None without a file. A file it can't read leaves the gate
+    open, with the reason in `error`, so the run still plans and merges."""
     if not path:
         return None
-    with open(path) as fh:
-        return usage_gate(rate_limit_info(json.load(fh)), config, now)
+    fraction_setting(config, "usage-reserve", DEFAULT_USAGE_RESERVE)
+    try:
+        with open(path) as fh:
+            return usage_gate(rate_limit_info(json.load(fh)), config, now)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+        return {"known": False, "hold": False, "error": f"{error.__class__.__name__}: {error}"}
 
 
 def scans_enabled(config):
@@ -2113,8 +2146,13 @@ def cmd_queue(gh, config, me, limit, skip, now, only=None, scan=None, usage=None
         entry = {"number": None, "task": scan, "label": None, "since": since[scan],
                  "why": "Asked for with --scan."}
         settle(entry, config)
-        return {"run": [entry], "batch": [entry], "waiting": [], "running": [],
-                "logs": [], "stale": []}
+        out = {"run": [entry], "batch": [entry], "waiting": [], "running": [],
+               "logs": [], "stale": []}
+        if usage is not None:
+            out["usage"] = usage
+            if usage["hold"]:
+                out["batch"] = []
+        return out
     open_items = {}
     for name in [PREFIX + t for t in TASKS] + [NEEDS_HUMAN, BLOCKED, IN_PROGRESS, ENTRY]:
         for raw in gh.list(gh.r(f"issues?state=open&labels={quote(name)}")):
