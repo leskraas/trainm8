@@ -1,0 +1,19 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/2 200 
+server: nginx/1.18.0 (Ubuntu)
+date: Sat, 07 Nov 2026 11:21:33 GMT
+content-type: application/json
+content-length: 37511
+expires: Sat, 07 Nov 2026 11:21:40 GMT
+last-modified: Sat, 07 Nov 2026 10:50:39 GMT
+x-backend-host: b_157_249_73_153_loc
+access-control-allow-origin: *
+access-control-allow-methods: GET
+access-control-allow-headers: Origin
+vary: Accept, Accept-Encoding
+x-varnish: 14093034384 14069102697
+age: 1853
+via: 1.1 dalton-a (Varnish/7.7)
+accept-ranges: bytes
+
