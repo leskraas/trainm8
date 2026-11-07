@@ -1,0 +1,11 @@
+
+ RUN  v4.0.18 /tmp/claude-0/-home-user-trainm8/67130cda-91c9-5646-94b8-57170f2f1fb7/scratchpad/f/wt/678-review
+
+ ✓ app/utils/plan-outline/track-days.server.test.ts (19 tests | 18 skipped) 358ms
+   ✓ a Simple Activity picked again for another day stays one unit (ADR 0112 §2)  352ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 18 skipped (19)
+   Start at  13:16:20
+   Duration  2.51s (transform 1.08s, setup 819ms, import 872ms, tests 358ms, environment 0ms)
+

@@ -1,0 +1,64 @@
+
+ RUN  v4.0.18 /tmp/claude-0/-home-user-trainm8/67130cda-91c9-5646-94b8-57170f2f1fb7/scratchpad/f/wt/678-review
+
+ ❯ app/utils/plan-outline/track-days.server.test.ts (19 tests | 1 failed | 18 skipped) 428ms
+   ↓ every endurance track and Simple Activity can have its days chosen, La appen velge by default
+   × a Simple Activity picked again for another day stays one unit (ADR 0112 §2) 418ms
+   ↓ a Langrenn day moved to Saturday stays on Saturday, and the run’s hard session is laid around it
+   ↓ an endurance track pinned to two days trains only on them, its week spread over them
+   ↓ La appen velge deals the track’s days again around the others
+   ↓ undoing from the toast puts back exactly what the change replaced
+   ↓ undoing the first days chosen for a track with none puts back none
+   ↓ a pinned track trains only on its days in every Week Pattern, and the undo puts each back
+   ↓ undoing puts back a day shaped by a Stock Workout exactly as it was
+   ↓ a shape a choice drops waits for its undo, then goes with the next write (ADR 0112 §4)
+   ↓ an undo cannot put an orphaned athlete's Workout into the week (#639 H26)
+   ↓ a choice made against a plan that changed since is refused
+   ↓ a day the athlete does not train on cannot be chosen
+   ↓ a Simple Activity always has a day: it cannot be handed to the app
+   ↓ Week Replan is told a missed ride’s track’s chosen days
+   ↓ taking a day out of Training Availability drops it from the tracks that pinned it, and says so
+   ↓ a track that loses every pinned day goes back to La appen velge
+   ↓ clearing every day of Training Availability drops every pinned day, not none
+   ↓ Sesong’s starter week keeps a pinned track on its days and deals the others around it
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  app/utils/plan-outline/track-days.server.test.ts > a Simple Activity picked again for another day stays one unit (ADR 0112 §2)
+AssertionError: expected [ { …(2) }, { …(2) } ] to deeply equal [ { …(2) } ]
+
+- Expected
++ Received
+
+  [
+    {
+      "days": [
+        2,
++     ],
++     "key": "activity:cmw6etwbh000e7dawfv2r9ebm:cmw6etwdy00197dawgo3w6owt",
++   },
++   {
++     "days": [
+        4,
+      ],
+-     "key": "activity:cmw6etwbh000e7dawfv2r9ebm:cmw6etwdy00197dawgo3w6owt",
++     "key": "activity:cmw6etwbh000e7dawfv2r9ebm:cmw6etwjl004j7dawdelzovvo",
+    },
+  ]
+
+ ❯ app/utils/plan-outline/track-days.server.test.ts:285:62
+    283|  const state = await readTrackDays(userId, outlineId)
+    284|  const activities = state?.units.filter((each) => each.kind === 'activ…
+    285|  expect(activities?.map(({ key, days }) => ({ key, days }))).toEqual([
+       |                                                              ^
+    286|   { key: ski.key, days: [WED, FRI] },
+    287|  ])
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  12:59:09
+   Duration  2.55s (transform 1.08s, setup 789ms, import 874ms, tests 428ms, environment 0ms)
+
