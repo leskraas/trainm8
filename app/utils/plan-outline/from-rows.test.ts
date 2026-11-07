@@ -3,6 +3,7 @@ import {
 	phaseReadings,
 	phaseSpecs,
 	resolvedTracks,
+	trackRetiredAt,
 	type OutlineRows,
 	type SegmentRow,
 	type TrackRow,
@@ -421,5 +422,29 @@ describe('the two halves the commensurability grouping reads (#414)', () => {
 		expect(lift.span).toBeNull()
 		// Every week Unavailable, and Unavailable is null and never a zero.
 		expect(lift.loadingTargets.every((target) => target == null)).toBe(true)
+	})
+})
+
+describe('trackRetiredAt', () => {
+	const anchors = [
+		{ fromWeekKey: '2030-01-07', value: 5 },
+		{ fromWeekKey: '2030-02-04', value: 0 },
+	]
+
+	test('a track is retired from the week its anchor in force is 0', () => {
+		expect(trackRetiredAt({ anchors }, '2030-01-28')).toBe(false)
+		expect(trackRetiredAt({ anchors }, '2030-02-04')).toBe(true)
+		expect(trackRetiredAt({ anchors }, '2030-06-03')).toBe(true)
+	})
+
+	test('taken up again, a later anchor is in force and it is not', () => {
+		const back = [...anchors, { fromWeekKey: '2030-03-04', value: 3 }]
+		expect(trackRetiredAt({ anchors: back }, '2030-02-11')).toBe(true)
+		expect(trackRetiredAt({ anchors: back }, '2030-03-04')).toBe(false)
+	})
+
+	test('before its first anchor, and with none, a track is not retired', () => {
+		expect(trackRetiredAt({ anchors }, '2029-12-31')).toBe(false)
+		expect(trackRetiredAt({ anchors: [] }, '2030-01-07')).toBe(false)
 	})
 })

@@ -5,6 +5,7 @@
 // tracks and hours — and handed to `draftStart`, the very draft the start's
 // cards are. Pure, so the reading is tested without a database.
 
+import { trackRetiredAt } from '../plan-outline/from-rows.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { type ActivityKind } from '../simple-activity.ts'
 import { CARDIO_DISCIPLINES, type CardioDiscipline } from '../workout-schema.ts'
@@ -77,8 +78,15 @@ export type PlanStartInputs = {
 	/** Null where the athlete never said one. */
 	level: TrainingLevel | null
 	preferences: readonly SessionPreference[]
-	/** The plan's tracks, in the order they were written: the main sport first. */
-	tracks: ReadonlyArray<{ discipline: string; currency: string }>
+	/**
+	 * The plan's tracks, in the order they were written: the main sport
+	 * first. A track retired at `fromWeekKey` (`trackRetiredAt`) is skipped.
+	 */
+	tracks: ReadonlyArray<{
+		discipline: string
+		currency: string
+		anchors: ReadonlyArray<{ fromWeekKey: string; value: number }>
+	}>
 	weeks: readonly PlanHoursWeek[]
 	/** The first week not yet begun: where a switch begins (ADR 0079). */
 	fromWeekKey: string
@@ -106,17 +114,27 @@ export type PlanStartInputs = {
  * start. Held to the start's own range and to a tenth.
  */
 export function planStartAnswers(input: PlanStartInputs): StartAnswers | null {
+	// A sport the athlete removed is not one of the plan's activities, so a
+	// switch never lays it again (ADR 0109 §3).
+	const live = input.tracks.filter(
+		(track) => !trackRetiredAt(track, input.fromWeekKey),
+	)
 	const sports = [
 		...new Set(
-			input.tracks
+			live
 				.filter((track) => track.currency === 'hours')
 				.map((track) => track.discipline)
 				.filter(isCardio),
 		),
 	]
-	const activities = [
-		...new Map(input.activities.map((one) => [one.kind, one])).values(),
-	]
+	// Every Simple Activity removed retires their track, and they go with it.
+	const activitiesRetired = input.tracks.some(
+		(track) =>
+			track.discipline === 'other' && trackRetiredAt(track, input.fromWeekKey),
+	)
+	const activities = activitiesRetired
+		? []
+		: [...new Map(input.activities.map((one) => [one.kind, one])).values()]
 	if (sports.length === 0 && activities.length === 0) return null
 	const days = input.days.length > 0 ? input.days : input.patternDays
 	if (days.length === 0) return null
