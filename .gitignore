@@ -38,3 +38,5 @@ node_modules
 /.claude/worktrees/
 # The owner's FIT files carry GPS tracks: they live in leskraas/trainm8-private (#625).
 /tests/fixtures/detection/fit/
+
+__pycache__/
