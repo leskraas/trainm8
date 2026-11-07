@@ -4,23 +4,23 @@
  * rest of the app's icons (24×24, stroke 2, round caps), so the weather reads
  * as part of the one icon system and not as MET's colour icons.
  *
- * Drawn inline rather than from the sprite: the sprite is built from
- * `other/svg-icons`, which agents do not change on their own (CLAUDE.md), so
- * the glyphs move there once a human adds them; the paths are the libraries'
- * own, unchanged. Always decorative here: the word beside it, or the visually
- * hidden sentence, carries the meaning.
+ * `sun` and `moon` are the sprite's own (`Icon`), as everywhere else. The
+ * rest are drawn inline for now: the sprite is built from `other/svg-icons`,
+ * which agents do not change on their own (CLAUDE.md), so each glyph moves to
+ * the sprite once a human adds it, and this file is the only one that
+ * changes. The inline paths are the libraries' own, unchanged. Always
+ * decorative here: the word beside it, or the visually hidden sentence,
+ * carries the meaning.
  */
+import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc.tsx'
 import { type WeatherGlyph as Glyph } from '#app/utils/weather/day-forecast.ts'
 
-const PATHS: Record<Glyph | 'map-pin', readonly string[]> = {
-	sun: [
-		'M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0',
-		'M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7',
-	],
-	moon: [
-		'M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008',
-	],
+/** The rest, until a human adds them to `other/svg-icons`. */
+const PATHS: Record<
+	Exclude<Glyph | 'map-pin', 'sun' | 'moon'>,
+	readonly string[]
+> = {
 	// Hugeicons `sun-cloud-01`: Tabler has no partly-cloudy glyph.
 	'partly-cloudy': [
 		'M17.478 11h.022a4.5 4.5 0 1 1 0 9H7a5 5 0 0 1-.48-9.977M17.478 11q.021-.247.022-.5a5.5 5.5 0 0 0-10.98-.477M17.478 11a5.5 5.5 0 0 1-1.235 3M6.52 10.023Q6.757 10 7 10c1.126 0 2.165.372 3 1',
@@ -58,6 +58,18 @@ export function WeatherGlyph({
 	glyph: Glyph | 'map-pin'
 	className?: string
 }) {
+	const classes = cn('inline size-4 shrink-0 self-center', className)
+	if (glyph === 'sun' || glyph === 'moon') {
+		return (
+			<Icon
+				name={glyph}
+				aria-hidden="true"
+				focusable="false"
+				data-weather-glyph={glyph}
+				className={classes}
+			/>
+		)
+	}
 	return (
 		<svg
 			viewBox="0 0 24 24"
@@ -69,7 +81,7 @@ export function WeatherGlyph({
 			aria-hidden="true"
 			focusable="false"
 			data-weather-glyph={glyph}
-			className={cn('inline size-4 shrink-0 self-center', className)}
+			className={classes}
 		>
 			{PATHS[glyph].map((d) => (
 				<path key={d} d={d} />
