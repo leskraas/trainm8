@@ -51,8 +51,10 @@ effort: update-branch=medium, qa=medium, implement=medium, review-fix=medium, *=
 - **The guard hook** (`.claude/hooks/factory-guard.py`, run from
   `.claude/settings.json`) makes the agent rules a check in every phase: no
   `.env*`, no `--no-verify`, no force push, no `npx` fetch without an exact
-  version (an installed `npx vitest` runs), and nothing against `prod-urls`.
-  Update it with the skills.
+  version (an installed `npx vitest` runs), and nothing against `prod-urls`. It
+  reads a whole Bash line, so a commit message or PR body naming `.env` or a
+  production host is blocked too: pass it with `-F`/`--body-file`. It does not
+  cover the `fly` CLI. Update it with the skills.
 - **Capacity**: above the Team premium row (3/2), raised to `parallel: 10`,
   `build-parallel: 6` on 2026-11-07 at the owner's request to spend the week's
   remaining quota before it resets. Runs are started by hand or by
