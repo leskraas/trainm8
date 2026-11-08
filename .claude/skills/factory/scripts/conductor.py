@@ -2363,22 +2363,26 @@ def cmd_dispatch(gh, config, me, live, now, usage=None):
     no `hold_new`. `live` holds the `for` keys of sessions still working.
     Merges need no session: the dispatcher runs them itself. While `usage`
     holds, nothing starts. `stuck` names the issues a run holds without a
-    live session: the dispatcher wakes their session before it starts more."""
+    live session: the dispatcher wakes their session before it starts more,
+    so each takes a seat of `parallel`; under `hold`, none is woken."""
     chosen = cmd_queue(gh, config, me, 0, set(), now)
     parents = chosen["parents"]
-    capacity = max(0, number_setting(config, "parallel", 3) - len(live))
     wip = number_setting(config, "wip", number_setting(config, "parallel", 3))
-    if usage and usage["hold"]:
-        capacity = 0
     hold_new = bool(usage and usage.get("hold_new", usage["hold"]))
     # An item a run still holds keeps its whole issue out of a new session,
     # and a live session's lock is never stale, however long it runs.
     stale = [n for n in chosen["stale"] if session_key(n, parents) not in live]
     held = {session_key(n, parents) for n in chosen["running"]}
     stuck = sorted(held - set(live) - {session_key(n, parents) for n in stale}, key=key_order)
+    # A stuck session takes a seat too: the dispatcher wakes it.
+    capacity = max(0, number_setting(config, "parallel", 3) - len(set(live) | set(stuck)))
+    if usage and usage["hold"]:
+        capacity = 0
+        stuck = []  # a woken session would spend what the hold keeps
     start, merges = [], []
     taken = set(live) | held
-    in_flight = set(live) | held | {
+    # `wip` counts issues: a scan holds a session, never an issue's place.
+    in_flight = {k for k in set(live) | held if k not in SCANS} | {
         session_key(e["number"], parents) for e in chosen["run"]
         if e["number"] is not None and not e.get("new") and not e.get("deterministic")}
     for entry in chosen["run"]:
@@ -2392,9 +2396,10 @@ def cmd_dispatch(gh, config, me, live, now, usage=None):
         if len(start) >= capacity:
             continue
         if entry.get("new"):
-            if hold_new or len(in_flight) >= wip:
+            if hold_new or (entry["number"] is not None and len(in_flight) >= wip):
                 continue
-            in_flight.add(key)
+            if entry["number"] is not None:
+                in_flight.add(key)
         taken.add(key)
         start.append({"for": key, "task": entry["task"], "number": entry["number"],
                       "why": entry["why"]})
