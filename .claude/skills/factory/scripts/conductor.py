@@ -1499,24 +1499,28 @@ def doors_in(changed, config):
     """The one-way doors a PR's files open in the project's phase, as
     `{"file", "kind", "loses_data"}`: the kinds the phase counts, and in a
     phase that keeps users' data, every migration that drops, truncates,
-    deletes, renames or retypes, or that edits or removes an existing one."""
+    deletes, renames or retypes, or that edits, moves or removes an existing
+    one. A rename counts at its old path too, and a file GitHub sends without
+    its patch counts as the door its kind can be."""
     level, stage = autonomy(config), phase(config)
     kinds = door_paths(config)
     found = []
     for f in changed:
         name, status = f["filename"], f.get("status", "modified")
+        paths = [name] + ([f["previous_filename"]] if f.get("previous_filename") else [])
+        unseen = "patch" not in f
         for kind, globs in kinds.items():
-            if not touched([name], globs):
+            if not touched(paths, globs):
                 continue
             if kind == "adr" and status == "added":
                 continue
-            if kind == "dependency" and name.endswith("package.json") \
+            if kind == "dependency" and name.endswith("package.json") and not unseen \
                     and not new_dependencies(f.get("patch")):
                 continue
             added = "\n".join(l[1:] for l in (f.get("patch") or "").splitlines()
                               if l.startswith("+"))
             loses = kind == "migration" and stage in KEEPS_DATA \
-                and (status != "added" or bool(LOSES_DATA.search(added)))
+                and (status != "added" or unseen or bool(LOSES_DATA.search(added)))
             if loses or (kind in PHASE_DOORS[stage] and doors_wait(level)):
                 found.append({"file": name, "kind": kind, "loses_data": loses})
             break
@@ -2994,7 +2998,9 @@ def merge_now(gh, config, me, n, now):
             return {"merged": False, "pending": True,
                     "why": f"CI never ran on the head: {reason} The merge waits until CI runs."}
     changed = gh.list(gh.r(f"pulls/{n}/files"))
-    files = [f["filename"] for f in changed]
+    # A rename counts at its old path too, so moving a guarded file away waits.
+    files = [f["filename"] for f in changed] \
+        + [f["previous_filename"] for f in changed if f.get("previous_filename")]
     # A rename counts as a change to the old path too.
     edited = [f["filename"] for f in changed if f.get("status", "modified") != "added"] \
         + [f["previous_filename"] for f in changed if f.get("previous_filename")]
