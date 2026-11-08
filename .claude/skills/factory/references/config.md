@@ -47,6 +47,7 @@ session-model: claude-sonnet-5-5
 | `budget` | tokens | 6000000 | Tokens per issue, its PR included, before it stops for a human. |
 | `usage-reserve` | a share, `0.1` or `10%` | `10%` | The share of the subscription's limits the factory leaves to its owner: it holds new work as [usage.md](usage.md) says. |
 | `parallel` | number | 3 | Sessions `/factory-dispatch` keeps working at once, and tasks one `/factory` batch runs at once. |
+| `wip` | number | `parallel` | Issues in flight at once: started and not waiting on a human. `/factory-dispatch` starts new work only below it, so free sessions go to finishing what is started. Lower it to finish features one by one. |
 | `build-parallel` | number | 2 | Of those, tasks that write code (`implement`, `update-branch`). |
 | `serial` | task names | – | Tasks that run one at a time, because they share one running app or one set of ports (QA, the design scan). |
 | `human-paths` | globs, a directory ending in `/` | – | Paths a human reads before a merge, beside the factory's own rules, which always wait (`docs/agents/factory.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/**`, `.mcp.json`): a PR that changes one waits for a human's answer at the merge, at every autonomy level. Keep it to the files whose change reaches past the repo (CI workflows, infrastructure, database roles, registry config) or rewrites the agents' rules. Guard tests and lint config go in `human-edits` instead. |

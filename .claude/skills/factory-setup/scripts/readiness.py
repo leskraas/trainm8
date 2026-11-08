@@ -387,14 +387,16 @@ def check_guard(repo):
     except (OSError, ValueError):
         settings = {}
     hooks = (settings.get("hooks") or {}).get("PreToolUse") or []
-    runs = any("factory-guard.py" in h.get("command", "")
-               for entry in hooks for h in entry.get("hooks", []))
+    # The entry setup writes, unchanged: a hook that matches fewer tools, or a
+    # command that only names the file, leaves those calls unguarded.
+    runs = GUARD_HOOK in hooks
     if copy is None:
         detail = f"{GUARD} is missing"
     elif copy != shipped:
         detail = f"{GUARD} differs from the version factory-setup ships"
     elif not runs:
-        detail = f"{GUARD_SETTINGS} does not run {GUARD} before tool calls"
+        detail = (f"{GUARD_SETTINGS} does not run {GUARD} before every tool call it "
+                  f"covers: add GUARD_HOOK from readiness.py unchanged")
     else:
         detail = f"{GUARD}, run from {GUARD_SETTINGS}"
     ok = copy == shipped and runs

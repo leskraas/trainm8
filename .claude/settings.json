@@ -51,5 +51,11 @@
 	},
 	"enabledPlugins": {
 		"bredvid-engineering@bredvid": true
+	},
+	"permissions": {
+		"deny": [
+			"Bash(fly *)",
+			"Bash(flyctl *)"
+		]
 	}
 }

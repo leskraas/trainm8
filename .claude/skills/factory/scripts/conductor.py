@@ -337,19 +337,24 @@ def reset_time(node):
 
 
 def usage_gate(info, config, now):
-    """Whether the factory may start new work, given the subscription's usage.
-    It holds when the five-hour window is used past `1 - usage-reserve`, when
-    the seven-day window is used faster than the week passes (its share of
-    the week so far, at least one day's, less the reserve), when a window is
-    refused, or when the account has gone into extra usage. A window past its
-    reset counts for nothing. `until` says when the hold lifts on its own."""
+    """Whether the factory may run, given the subscription's usage. Finishing
+    comes before starting, so the gate has two levels. `hold` stops all work
+    but merges: the five-hour window used past `1 - usage-reserve`, the
+    seven-day window used that far, a refused window, or extra usage.
+    `hold_new` also stops new work (an issue no run has touched yet, and the
+    scans) while the seven-day window is used faster than the week passes:
+    its share of the week so far, at least one day's, less the reserve. A
+    window past its reset counts for nothing. `until` says when every hold
+    lifts on its own."""
     reserve = fraction_setting(config, "usage-reserve", DEFAULT_USAGE_RESERVE)
     if not info:
-        return {"known": False, "hold": False}
-    gate = {"known": True, "hold": False, "reserve": reserve, "why": [], "until": None}
+        return {"known": False, "hold": False, "hold_new": False}
+    gate = {"known": True, "hold": False, "hold_new": False, "reserve": reserve,
+            "why": [], "until": None}
 
-    def hold(why, until):
-        gate["hold"] = True
+    def hold(why, until, everything=True):
+        gate["hold"] = gate["hold"] or everything
+        gate["hold_new"] = True
         gate["why"].append(why)
         if until and (gate["until"] is None or until > gate["until"]):
             gate["until"] = until
@@ -386,7 +391,7 @@ def usage_gate(info, config, now):
                 catch_up = (resets - WEEK * (1 - used / (1 - reserve))
                             if used < 1 - reserve else resets)
                 hold(f"{used:.0%} of the weekly limit is used, ahead of the {pace:.0%} the "
-                     f"week so far allows", max(catch_up, now))
+                     f"week so far allows", max(catch_up, now), everything=used >= 1 - reserve)
     top_live = live(info)
     if not info.get("unifiedWindows") and top_live and \
             info.get("status") in ("rejected", "allowed_warning"):
@@ -416,7 +421,8 @@ def read_usage(path, config, now):
         with open(path) as fh:
             return usage_gate(rate_limit_info(json.load(fh)), config, now)
     except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
-        return {"known": False, "hold": False, "error": f"{error.__class__.__name__}: {error}"}
+        return {"known": False, "hold": False, "hold_new": False,
+                "error": f"{error.__class__.__name__}: {error}"}
 
 
 def scans_enabled(config):
@@ -1238,13 +1244,15 @@ def comment_body(decision, result, comments, config, n=None, steps=None, proposa
 # ── Queue ───────────────────────────────────────────────────────────────────
 
 def choose(items, issues, prs, me, config, now, deps_open, scans_due=(), skip=frozenset()):
-    """What can run now, in order: work on PRs first, the furthest along
-    first, then issues, then new issues and due scans. `items` are the open
-    items with an agent label; `deps_open` holds issue numbers with an open
-    dependency. A PR counts only when it carries the factory's `agent` label:
-    `review-pr` puts `agent:review` on other people's PRs for a moment while
-    it claims them."""
+    """What can run now, in order: finishing before starting. Started work
+    first, the furthest along first (PRs before issues), then `new` work: an
+    issue no run has touched, and due scans. `items` are the open items with
+    an agent label; `deps_open` holds issue numbers with an open dependency.
+    A PR counts only when it carries the factory's `agent` label: `review-pr`
+    puts `agent:review` on other people's PRs for a moment while it claims
+    them."""
     entries, waiting, running = [], [], []
+    with_pr = {pr.get("issue") for pr in prs.values()}
     for item in items:
         n = item["number"]
         names = labels_of(item)
@@ -1283,14 +1291,19 @@ def choose(items, issues, prs, me, config, now, deps_open, scans_due=(), skip=fr
         if item["kind"] == "pr" and item.get("issue"):
             entry["issue"] = item["issue"]
         entries.append(entry)
+    for entry in entries:
+        item = issues.get(entry["number"])
+        if item and entry["number"] not in with_pr and not history(item, None):
+            entry["new"] = True
 
     def rank(entry):
         resumed = entry["label"] in (NEEDS_HUMAN, BLOCKED)
-        return (-CHAIN.index(entry["task"]), not resumed, order(entry["number"]))
+        return (entry.get("new", False), -CHAIN.index(entry["task"]), not resumed,
+                order(entry["number"]))
 
     entries.sort(key=rank)
-    entries += [{"number": None, "task": s, "label": None, "why": "Due after enough merges."}
-                for s in scans_due]
+    entries += [{"number": None, "task": s, "label": None, "new": True,
+                 "why": "Due after enough merges."} for s in scans_due]
     return {"run": entries, "waiting": sorted(waiting, key=order),
             "running": sorted(running, key=order)}
 
@@ -1486,24 +1499,28 @@ def doors_in(changed, config):
     """The one-way doors a PR's files open in the project's phase, as
     `{"file", "kind", "loses_data"}`: the kinds the phase counts, and in a
     phase that keeps users' data, every migration that drops, truncates,
-    deletes, renames or retypes, or that edits or removes an existing one."""
+    deletes, renames or retypes, or that edits, moves or removes an existing
+    one. A rename counts at its old path too, and a file GitHub sends without
+    its patch counts as the door its kind can be."""
     level, stage = autonomy(config), phase(config)
     kinds = door_paths(config)
     found = []
     for f in changed:
         name, status = f["filename"], f.get("status", "modified")
+        paths = [name] + ([f["previous_filename"]] if f.get("previous_filename") else [])
+        unseen = "patch" not in f
         for kind, globs in kinds.items():
-            if not touched([name], globs):
+            if not touched(paths, globs):
                 continue
             if kind == "adr" and status == "added":
                 continue
-            if kind == "dependency" and name.endswith("package.json") \
+            if kind == "dependency" and name.endswith("package.json") and not unseen \
                     and not new_dependencies(f.get("patch")):
                 continue
             added = "\n".join(l[1:] for l in (f.get("patch") or "").splitlines()
                               if l.startswith("+"))
             loses = kind == "migration" and stage in KEEPS_DATA \
-                and (status != "added" or bool(LOSES_DATA.search(added)))
+                and (status != "added" or unseen or bool(LOSES_DATA.search(added)))
             if loses or (kind in PHASE_DOORS[stage] and doors_wait(level)):
                 found.append({"file": name, "kind": kind, "loses_data": loses})
             break
@@ -2267,7 +2284,7 @@ def cmd_queue(gh, config, me, limit, skip, now, only=None, scan=None, usage=None
                "logs": [], "stale": []}
         if usage is not None:
             out["usage"] = usage
-            if usage["hold"]:
+            if usage.get("hold_new", usage["hold"]):
                 out["batch"] = []
         return out
     open_items = {}
@@ -2312,12 +2329,16 @@ def cmd_queue(gh, config, me, limit, skip, now, only=None, scan=None, usage=None
     chosen["logs"] = missing_logs(gh, now)
     for entry in chosen["run"]:
         settle(entry, config)
-    chosen["batch"] = batch(chosen["run"], config)
+    runnable = chosen["run"]
     if usage is not None:
         chosen["usage"] = usage
         if usage["hold"]:
             # A merge spends no tokens; everything else waits for the limit.
-            chosen["batch"] = [e for e in chosen["batch"] if e.get("deterministic")]
+            runnable = [e for e in runnable if e.get("deterministic")]
+        elif usage.get("hold_new"):
+            # Started work may finish; new work waits for the pace.
+            runnable = [e for e in runnable if not e.get("new")]
+    chosen["batch"] = batch(runnable, config)
     if limit:
         chosen["run"] = chosen["run"][:limit]
         chosen["batch"] = chosen["batch"][:limit]
@@ -2332,37 +2353,62 @@ def session_key(number, parents):
     return str(parents.get(number) or number)
 
 
+def key_order(key):
+    """Sorts session keys: issue numbers by number, then local keys and scans."""
+    return (0, int(key), "") if key.isdigit() else (1, 0, key)
+
+
 def cmd_dispatch(gh, config, me, live, now, usage=None):
     """What /factory-dispatch starts: one session per issue (with its PRs) and
-    per due scan, up to `parallel` sessions alive at once. `live` holds the
-    `for` keys of sessions still working. Merges need no session: the
-    dispatcher runs them itself. While `usage` holds, nothing new starts."""
+    per due scan, up to `parallel` sessions alive at once, finishing before
+    starting. Started work takes the free sessions first; `new` work starts
+    only while fewer than `wip` issues are in flight (a live session, a run
+    holding a lock, or started work waiting for a session) and `usage` has
+    no `hold_new`. `live` holds the `for` keys of sessions still working.
+    Merges need no session: the dispatcher runs them itself. While `usage`
+    holds, nothing starts. `stuck` names the issues a run holds without a
+    live session: the dispatcher wakes their session before it starts more."""
     chosen = cmd_queue(gh, config, me, 0, set(), now)
     parents = chosen["parents"]
     capacity = max(0, number_setting(config, "parallel", 3) - len(live))
+    wip = number_setting(config, "wip", number_setting(config, "parallel", 3))
     if usage and usage["hold"]:
         capacity = 0
+    hold_new = bool(usage and usage.get("hold_new", usage["hold"]))
     # An item a run still holds keeps its whole issue out of a new session,
     # and a live session's lock is never stale, however long it runs.
     stale = [n for n in chosen["stale"] if session_key(n, parents) not in live]
+    held = {session_key(n, parents) for n in chosen["running"]}
+    stuck = sorted(held - set(live) - {session_key(n, parents) for n in stale}, key=key_order)
     start, merges = [], []
-    taken = set(live) | {session_key(n, parents) for n in chosen["running"]}
+    taken = set(live) | held
+    in_flight = set(live) | held | {
+        session_key(e["number"], parents) for e in chosen["run"]
+        if e["number"] is not None and not e.get("new") and not e.get("deterministic")}
     for entry in chosen["run"]:
         key = entry["task"] if entry["number"] is None else session_key(entry["number"], parents)
         if key in taken:
             continue
-        taken.add(key)
         if entry.get("deterministic"):
+            taken.add(key)
             merges.append({"number": entry["number"], "label": entry["label"]})
-        elif len(start) < capacity:
-            start.append({"for": key, "task": entry["task"], "number": entry["number"],
-                          "why": entry["why"]})
+            continue
+        if len(start) >= capacity:
+            continue
+        if entry.get("new"):
+            if hold_new or len(in_flight) >= wip:
+                continue
+            in_flight.add(key)
+        taken.add(key)
+        start.append({"for": key, "task": entry["task"], "number": entry["number"],
+                      "why": entry["why"]})
     if config.get("session-model"):
         for entry in start:
             entry["model"] = config["session-model"]
-    out = {"start": start, "merges": merges, "capacity": capacity, "live": sorted(live),
+    out = {"start": start, "merges": merges, "capacity": capacity, "wip": wip,
+           "in_flight": sorted(in_flight, key=key_order), "live": sorted(live),
            "waiting": chosen["waiting"], "running": chosen["running"],
-           "stale": stale, "logs": chosen["logs"]}
+           "stuck": stuck, "stale": stale, "logs": chosen["logs"]}
     if usage is not None:
         out["usage"] = usage
     return out
@@ -2947,7 +2993,9 @@ def merge_now(gh, config, me, n, now):
             return {"merged": False, "pending": True,
                     "why": f"CI never ran on the head: {reason} The merge waits until CI runs."}
     changed = gh.list(gh.r(f"pulls/{n}/files"))
-    files = [f["filename"] for f in changed]
+    # A rename counts at its old path too, so moving a guarded file away waits.
+    files = [f["filename"] for f in changed] \
+        + [f["previous_filename"] for f in changed if f.get("previous_filename")]
     # A rename counts as a change to the old path too.
     edited = [f["filename"] for f in changed if f.get("status", "modified") != "added"] \
         + [f["previous_filename"] for f in changed if f.get("previous_filename")]

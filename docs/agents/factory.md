@@ -52,9 +52,16 @@ effort: update-branch=medium, qa=medium, implement=medium, review-fix=medium, *=
   `.claude/settings.json`) makes the agent rules a check in every phase: no
   `.env*`, no `--no-verify`, no force push, no `npx` fetch without an exact
   version (an installed `npx vitest` runs), and nothing against `prod-urls`. It
-  reads a whole Bash line, so a commit message or PR body naming `.env` or a
-  production host is blocked too: pass it with `-F`/`--body-file`. It does not
-  cover the `fly` CLI. Update it with the skills.
+  reads a whole Bash line, so a commit message or PR body naming a production
+  host is blocked too: pass it with `-F`/`--body-file`. Making `.env` from
+  `.env.example` passes; reading it does not. The `fly` and `flyctl` CLIs are
+  denied in `.claude/settings.json` (`permissions.deny`), since they reach
+  production without a URL. Update the guard with the skills.
+- **Migrations in `poc`**: `deploy.yml` deploys `main`, and LiteFS runs
+  `prisma migrate deploy` on production, so in `poc` a migration the factory
+  merges reaches trainm8.no with nobody seeing it, a destructive one included.
+  The owner chose this (yolo). Move to `live` once real users' data is there:
+  then a migration that loses data waits at every autonomy level.
 - **Capacity**: above the Team premium row (3/2), raised to `parallel: 10`,
   `build-parallel: 6` on 2026-11-07 at the owner's request to spend the week's
   remaining quota before it resets. Runs are started by hand or by
