@@ -188,6 +188,18 @@ def autonomy(config):
     return value
 
 
+PHASES = ("poc", "build", "live", "maintain")
+
+
+def phase(config):
+    """Where the project is in its life, which sets the bar every task
+    builds to (questions.md, "The bar")."""
+    value = config.get("phase", "build")
+    if value not in PHASES:
+        raise ValueError(f"phase must be one of {', '.join(PHASES)}, not {value!r}")
+    return value
+
+
 SCHEDULES = ("hourly", "none")
 
 
@@ -519,7 +531,7 @@ SEES_RUNS = {
 COLD = {"review", "qa"}
 REFRESH_BODY = {"implement", "update-branch"}  # tasks that see the PR body and may rewrite it
 
-# The settings each task's brief carries, beside `autonomy`.
+# The settings each task's brief carries, beside `autonomy` and `phase`.
 TASK_SETTINGS = {
     "explore": ["start"],
     "spec": [],
@@ -577,7 +589,7 @@ def view(item, task, me):
 def task_settings(config, task):
     if task not in TASK_SETTINGS:
         raise ValueError(f"no settings for task {task!r}")
-    picked = {"autonomy": autonomy(config)}
+    picked = {"autonomy": autonomy(config), "phase": phase(config)}
     picked.update({k: config[k] for k in TASK_SETTINGS[task] if k in config})
     return picked
 
@@ -1398,11 +1410,104 @@ def glob_to_regex(pattern):
     return re.compile(out + "$")
 
 
+# The files that hold the factory's own rules and the agents' settings. A human
+# reads every change to them before a merge, whatever `human-paths` lists, so
+# no run can loosen what binds the next one.
+ALWAYS_HUMAN = ["docs/agents/factory.md", "**/AGENTS.md", "**/CLAUDE.md", ".claude/**", ".mcp.json"]
+
+
 def human_paths(config):
-    """The globs a human must see change before a merge (`human-paths`): a
-    directory ending in `/` covers everything inside it."""
+    """The globs a human must see change before a merge (`human-paths`, plus
+    `ALWAYS_HUMAN`): a directory ending in `/` covers everything inside it."""
     globs = [g.strip() for g in config.get("human-paths", "").split(",") if g.strip()]
-    return [g.rstrip("/") + "/**" if g.endswith("/") else g for g in globs]
+    globs = [g.rstrip("/") + "/**" if g.endswith("/") else g for g in globs]
+    return globs + [g for g in ALWAYS_HUMAN if g not in globs]
+
+
+# One-way doors the conductor sees in a PR's diff, so a door waits on what the
+# change does and not only on how a run classed it. Each kind has default
+# globs; a project adds its own as `door-paths: <kind>=<glob>, ...`.
+DOOR_KINDS = {
+    "migration": ["**/migrations/**", "drizzle/**/*.sql", "prisma/migrations/**"],
+    "dependency": ["**/package.json", "**/pyproject.toml", "**/requirements*.txt",
+                   "**/go.mod", "**/Cargo.toml", "**/Gemfile"],
+    "adr": ["docs/adr/**"],
+    "api": [],
+}
+# The kinds that are one-way in each phase. Before anyone outside the team
+# relies on the code, a migration and an API are two-way: data can be
+# reseeded and every client is ours (ADR-0014).
+PHASE_DOORS = {
+    "poc": set(),
+    "build": {"dependency", "adr"},
+    "live": {"migration", "dependency", "adr", "api"},
+    "maintain": {"migration", "dependency", "adr", "api"},
+}
+# Phases where a migration that loses data waits for a human at every
+# autonomy level: users' data is the one mistake no later run can fix.
+KEEPS_DATA = {"live", "maintain"}
+LOSES_DATA = re.compile(r"\b(?:DROP|TRUNCATE|DELETE\s+FROM|RENAME|ALTER\s+COLUMN\s+\S+\s+"
+                        r"(?:SET\s+DATA\s+)?TYPE)\b", re.I)
+MANIFEST_KEYS = {"name", "version", "description", "main", "type", "private", "license",
+                 "node", "npm", "pnpm", "packageManager"}
+DEPENDENCY_LINE = re.compile(r'^([+-])\s*"([^"]+)"\s*:\s*"[^"]*"\s*,?\s*$')
+
+
+def door_paths(config):
+    """The globs of each door kind: the defaults and the project's own."""
+    kinds = {k: list(v) for k, v in DOOR_KINDS.items()}
+    for pair in filter(None, (p.strip() for p in config.get("door-paths", "").split(","))):
+        kind, _, glob = pair.partition("=")
+        kind, glob = kind.strip(), glob.strip()
+        if kind not in kinds or not glob:
+            raise ValueError(f"door-paths takes <kind>=<glob> with a kind of "
+                             f"{', '.join(DOOR_KINDS)}, not {pair!r}")
+        kinds[kind].append(glob.rstrip("/") + "/**" if glob.endswith("/") else glob)
+    return kinds
+
+
+def new_dependencies(patch):
+    """The packages a `package.json` patch adds: a `"name": "..."` line added
+    whose name no removed line had, leaving out the manifest's own fields and
+    scripts that look the same."""
+    added, removed = set(), set()
+    for line in (patch or "").splitlines():
+        m = DEPENDENCY_LINE.match(line)
+        if m and m.group(2) not in MANIFEST_KEYS:
+            (added if m.group(1) == "+" else removed).add(m.group(2))
+    # A script is "name": "command"; a dependency's value starts like a version.
+    versions = re.compile(r'^\+\s*"([^"]+)"\s*:\s*"(?:[\^~<>=]*\d|npm:|workspace:|catalog:|'
+                          r'github:|git|https?:|file:|link:|\*|latest)')
+    looks = {versions.match(l).group(1) for l in (patch or "").splitlines() if versions.match(l)}
+    return sorted((added - removed) & looks)
+
+
+def doors_in(changed, config):
+    """The one-way doors a PR's files open in the project's phase, as
+    `{"file", "kind", "loses_data"}`: the kinds the phase counts, and in a
+    phase that keeps users' data, every migration that drops, truncates,
+    deletes, renames or retypes, or that edits or removes an existing one."""
+    level, stage = autonomy(config), phase(config)
+    kinds = door_paths(config)
+    found = []
+    for f in changed:
+        name, status = f["filename"], f.get("status", "modified")
+        for kind, globs in kinds.items():
+            if not touched([name], globs):
+                continue
+            if kind == "adr" and status == "added":
+                continue
+            if kind == "dependency" and name.endswith("package.json") \
+                    and not new_dependencies(f.get("patch")):
+                continue
+            added = "\n".join(l[1:] for l in (f.get("patch") or "").splitlines()
+                              if l.startswith("+"))
+            loses = kind == "migration" and stage in KEEPS_DATA \
+                and (status != "added" or bool(LOSES_DATA.search(added)))
+            if loses or (kind in PHASE_DOORS[stage] and doors_wait(level)):
+                found.append({"file": name, "kind": kind, "loses_data": loses})
+            break
+    return found
 
 
 def human_edits(config):
@@ -1418,12 +1523,13 @@ def touched(files, globs):
     return sorted(f for f in files if any(p.match(f) for p in patterns))
 
 
-def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=(), merged_only=False):
+def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=(), merged_only=False,
+                  doors=()):
     """Whether the factory may merge the PR now: `merge`, `pending` (try
     again later), `update`, or `back`/`human` with the reason. A PR that
     changes a path in `globs`, or changes or removes an existing file in
-    `edit_globs`, merges only once a human has answered the gate that names
-    them."""
+    `edit_globs`, or opens one of `doors` (from `doors_in`), merges only once
+    a human has answered the gate that names them."""
     names = labels_of(pr)
     if pr["state"] != "open":
         return {"verdict": "human", "why": "The PR is no longer open."}
@@ -1451,11 +1557,22 @@ def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=(), 
         return {"verdict": "back", "next": "implement",
                 "why": "A check failed on the head QA verified."}
     guarded = sorted(set(touched(files, globs)) | set(touched(edited, edit_globs)))
-    if guarded and not resumes_gate(None, pr, "merge"):
-        return {"verdict": "gate", "files": guarded,
-                "why": "The PR changes files a human reads before a merge: "
-                       + ", ".join(f"`{f}`" for f in guarded)
-                       + ". Read them, and answer here to let the factory merge."}
+    if (guarded or doors) and not resumes_gate(None, pr, "merge"):
+        why = []
+        if guarded:
+            why.append("The PR changes files a human reads before a merge: "
+                       + ", ".join(f"`{f}`" for f in guarded) + ".")
+        if doors:
+            why.append("It opens one-way doors in this phase: "
+                       + ", ".join(f"`{d['file']}` ({d['kind']}"
+                                   + (", loses data" if d["loses_data"] else "") + ")"
+                                   for d in doors) + ".")
+        if any(d["loses_data"] for d in doors):
+            why.append("A migration that loses data waits for a human at every autonomy "
+                       "level while users rely on the product: check it runs as expand, "
+                       "then contract, or that the data may go.")
+        return {"verdict": "gate", "files": guarded + [d["file"] for d in doors],
+                "why": " ".join(why) + " Read them, and answer here to let the factory merge."}
     return {"verdict": "merge", "why": "QA passed on the head, checks are green."}
 
 
@@ -2829,7 +2946,7 @@ def merge_now(gh, config, me, n, now):
             gh.add_labels(n, [PREFIX + "merge"])
             return {"merged": False, "pending": True,
                     "why": f"CI never ran on the head: {reason} The merge waits until CI runs."}
-    changed = gh.list(gh.r(f"pulls/{n}/files")) if human_paths(config) or human_edits(config) else []
+    changed = gh.list(gh.r(f"pulls/{n}/files"))
     files = [f["filename"] for f in changed]
     # A rename counts as a change to the old path too.
     edited = [f["filename"] for f in changed if f.get("status", "modified") != "added"] \
@@ -2838,7 +2955,9 @@ def merge_now(gh, config, me, n, now):
     merged_only = bool(verified) and verified != pr["head"] and pr.get("mergeable") \
         and only_merges(gh, verified, pr["head"], gh.default_branch())
     verdict = merge_verdict(pr, state, me, files, human_paths(config),
-                            edited, human_edits(config), merged_only)
+                            edited, human_edits(config), merged_only,
+                            [d for d in doors_in(changed, config) if d["file"] not in
+                             touched(files, human_paths(config))])
     if verdict["verdict"] == "pending":
         gh.add_labels(n, [PREFIX + "merge"])
         return {"merged": False, "pending": True, "why": verdict["why"]}
@@ -3044,7 +3163,8 @@ def main():
             per_task(config, "models", MODELS)
             per_task(config, "effort", EFFORTS)
             out({**config, "tracker": tracker(config), "entry": ENTRY,
-                 "autonomy": autonomy(config), "merge": merge_policy(config),
+                 "autonomy": autonomy(config), "phase": phase(config),
+                 "merge": merge_policy(config),
                  "human-paths": human_paths(config),
                  "merge-method": merge_method(config),
                  "budget": number_setting(config, "budget", DEFAULT_BUDGET),

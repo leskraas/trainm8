@@ -18,8 +18,9 @@ Read-only on the repo: your writes are evidence and proposals.
 1. **Scope.** List what merged since the brief's `since`:
    `git log --since=<since> --merges --stat origin/<default>`. The files and
    areas that keep coming up are where to look first; a deep module pays off
-   where the code still changes. Done when you have the areas to walk, most
-   changed first.
+   where the code still changes. After a move from `poc` to `build`, the
+   `Debt:` lines in the PoC's run comments come first. Done when you
+   have the areas to walk, most changed first.
 2. **Explore.** Follow step 1 ("Explore") of
    `bredvid-engineering:improve-codebase-architecture` on that scope: read its
    `SKILL.md` (the `bredvid-engineering` plugin, or `.claude/skills/` in the
@@ -30,7 +31,8 @@ Read-only on the repo: your writes are evidence and proposals.
    still do what it decided? Name each place it doesn't, with file and line,
    and each glossary term the new code uses differently.
 4. **Choose.** Rank the deepening opportunities and the drift by how much
-   friction they cause the next changes, against their size. Keep at most
+   friction they cause the next changes, against their size, by the phase's
+   bar (`questions.md`, "The bar"). Keep at most
    three, only those you would rate `Strong`. Write each as a proposal:
 
    ```markdown

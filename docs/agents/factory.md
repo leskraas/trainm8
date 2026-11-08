@@ -13,6 +13,8 @@ How QA starts and drives the app lives next to this file, in
 ```factory
 tracker: github
 autonomy: full
+phase: poc
+prod-urls: trainm8.no, trainm8-085d.fly.dev
 merge: agent
 merge-method: merge
 budget: 6000000
@@ -39,6 +41,18 @@ effort: update-branch=medium, qa=medium, implement=medium, review-fix=medium, *=
 
 - **Autonomy `full`, merge `agent`**: a solo project; the factory decides,
   merges, and logs its decisions in the `Factory log` issue.
+- **Phase `poc`: quick and bold.** The factory builds the quickest thing that
+  proves each idea, writes every shortcut as a `Debt:` line, and routes around
+  blocks with stand-ins. No door the conductor finds in a diff (a migration, a
+  new dependency, a changed ADR) holds a merge in this phase; the files in
+  `human-paths` and `human-edits` still wait for leskraas. Move to `build`, or
+  `live` once people outside the project use trainm8.no, when the retro proposes
+  it.
+- **The guard hook** (`.claude/hooks/factory-guard.py`, run from
+  `.claude/settings.json`) makes the agent rules a check in every phase: no
+  `.env*`, no `--no-verify`, no force push, no `npx` fetch without an exact
+  version (an installed `npx vitest` runs), and nothing against `prod-urls`.
+  Update it with the skills.
 - **Capacity**: above the Team premium row (3/2), raised to `parallel: 10`,
   `build-parallel: 6` on 2026-11-07 at the owner's request to spend the week's
   remaining quota before it resets. Runs are started by hand or by
@@ -61,11 +75,11 @@ effort: update-branch=medium, qa=medium, implement=medium, review-fix=medium, *=
 - **`models` and `effort`** (factory 3.6): the retro of the factory on
   Bredvid/tavla (7 November 2026) found that a third of the tokens went to
   mechanical work. `update-branch`, `qa` and the design scan run on Sonnet;
-  everything else (explore, spec, design, architecture, implement, both parts
-  of review, and the other scans) on Opus, where a mistake costs the most.
-  Effort is medium for `update-branch`, QA, implement and the review's fix,
-  high elsewhere. `*=opus` stays named, so a `/factory` started on Sonnet
-  still gives the judging tasks Opus. Move QA back to Opus if more bugs reach
-  `main` after its merges.
+  everything else (explore, spec, design, architecture, implement, both parts of
+  review, and the other scans) on Opus, where a mistake costs the most. Effort
+  is medium for `update-branch`, QA, implement and the review's fix, high
+  elsewhere. `*=opus` stays named, so a `/factory` started on Sonnet still gives
+  the judging tasks Opus. Move QA back to Opus if more bugs reach `main` after
+  its merges.
 - **`design: prototype`**: the `/design` probe was not run (cloud session); this
   is the default from `factory-setup`'s runtime findings.
