@@ -46,10 +46,9 @@ Read-only on the repo: everything you write goes in the result.
    Carry over `## Decisions` and every other `##` section the body already
    has. Each criterion describes the product behaviour that solves the
    problem, checkable by someone who didn't write it; the process ("merges
-   cleanly", "CI is green") belongs to other tasks. **Ambition**: solve the
-   problem properly for the user, with the error and empty states they will
-   meet, the data that must survive, and the cases next to the happy path.
-   Done when every criterion passes that test.
+   cleanly", "CI is green") belongs to other tasks. **Ambition** is what the
+   phase's bar asks of spec (`questions.md`, "The bar"). Done when every
+   criterion passes that test.
 5. **A criterion sent back.** When implement, review or architecture sent
    the issue here with a decision on a criterion (its line under
    `## Decisions` says "changes acceptance criterion <n>", and its answer is
@@ -64,7 +63,7 @@ Read-only on the repo: everything you write goes in the result.
    steps below.
 6. **Plan** the tasks before `implement`: `design` when a user sees or touches
    something new, `architecture` when it touches a seam, the schema, an ADR or
-   a dependency. Review and QA always run.
+   a dependency, narrowed by the phase's bar. Review and QA always run.
 7. **Size.** One issue is one PR a reviewer can read: about twelve acceptance
    criteria at most. A bigger one becomes `tickets`, following
    `bredvid-engineering:to-tickets` steps 1–3: vertical slices in the standard

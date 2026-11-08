@@ -25,7 +25,8 @@ Read-only on the repo: your writes are evidence and proposals.
    (the plugin, or `.claude/skills/design-audit/` in the repo). Done when its
    report and screenshots are in the evidence folder.
 3. **Choose.** Keep at most three findings, the ones that cost users the most
-   across the flows, and only those the audit backs with a screenshot or a
+   across the flows, by the phase's bar (`questions.md`, "The bar"), and
+   only those the audit backs with a screenshot or a
    measurement. Write each as a proposal:
 
    ```markdown

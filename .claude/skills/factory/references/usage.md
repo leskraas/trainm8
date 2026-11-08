@@ -21,16 +21,25 @@ Done when `$S/usage.json` holds a `list_events` or `get_session` result.
 
 ## When the factory holds
 
-With `r` as `usage-reserve` (default 10%):
+Finishing comes before starting: a feature that is nearly built may use what
+the five-hour window has left, while a feature no run has touched waits. So
+the gate has two levels. With `r` as `usage-reserve` (default 10%):
+
+`hold` stops all work but merges:
 
 - the five-hour window is used to `1 - r` or more: until it resets;
-- the weekly window is ahead of the week's **pace**, `1 - r` times the share of
-  the week gone (at least one day's share): until the pace catches up;
+- the weekly window is used to `1 - r` or more: until it resets;
 - a window reports `rejected`: until it resets;
 - the account is spending extra usage: until the window resets.
 
-A window past its reset counts for nothing. A hold stops new work only: merges
-still run, and the next run or dispatch reads the usage again. Without a usage
+`hold_new` stops **new work** as well (an issue no run has touched yet, and the
+scans), and lets started work run on:
+
+- the weekly window is ahead of the week's **pace**, `1 - r` times the share of
+  the week gone (at least one day's share): until the pace catches up.
+
+Every `hold` is also a `hold_new`. A window past its reset counts for nothing.
+Merges always run, and the next run or dispatch reads the usage again. Without a usage
 file, when the events carry no `rate_limit_info`, or when the conductor can't
 read it (`usage.error` says why), nothing holds: `unifiedWindows` is what Claude Code reports
 today, not a public API, and the factory falls back to stopping when a limit

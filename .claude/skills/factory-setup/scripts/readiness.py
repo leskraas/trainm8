@@ -271,16 +271,24 @@ def check_roles(repo):
 
 def check_autonomy(repo):
     """The project chose how autonomous the factory is, on purpose: the
-    default is not assumed for a project nobody asked."""
+    default is not assumed for a project nobody asked. Its phase may be left
+    at the default, `build`, but not misspelt."""
     config = conductor.config_at(os.path.join(repo, CONFIG))
     value = config.get("autonomy")
     try:
         level = conductor.autonomy(config) if value is not None else None
     except ValueError:
         level = None
-    valid = level is not None
+    try:
+        phase = conductor.phase(config)
+    except ValueError:
+        phase = None
+    valid = level is not None and phase is not None
     if valid:
-        detail = f"autonomy: {level}, merge: {conductor.merge_policy(config)}"
+        detail = (f"autonomy: {level}, merge: {conductor.merge_policy(config)}, "
+                  f"phase: {phase}")
+    elif level is not None:
+        detail = f"phase: {config['phase']} is not {', '.join(conductor.PHASES)}"
     elif value is None:
         detail = f"no autonomy level in {CONFIG}: ask supervised, doors or full"
     else:
@@ -352,6 +360,45 @@ def check_agent_rules(repo):
         gaps.append("nothing on exact dependency versions")
     return result("agent-rules", "Agent rules", not gaps,
                   "guard files, --no-verify, exact versions" if not gaps else "; ".join(gaps), "wizard")
+
+
+GUARD_SOURCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "guard.py")
+GUARD = ".claude/hooks/factory-guard.py"
+GUARD_SETTINGS = ".claude/settings.json"
+GUARD_HOOK = {"matcher": "Bash|Read|Edit|Write|NotebookEdit|Grep|Glob|WebFetch",
+              "hooks": [{"type": "command",
+                         "command": 'python3 "$CLAUDE_PROJECT_DIR"/' + GUARD}]}
+
+
+def check_guard(repo):
+    """The agent rules hold as a hook, not only as text: the guard is in the
+    repo at the version this skill ships, and `.claude/settings.json` runs it
+    before every tool call it covers."""
+    try:
+        with open(os.path.join(repo, GUARD), encoding="utf-8") as f:
+            copy = f.read()
+    except OSError:
+        copy = None
+    with open(GUARD_SOURCE, encoding="utf-8") as f:
+        shipped = f.read()
+    try:
+        with open(os.path.join(repo, GUARD_SETTINGS), encoding="utf-8") as f:
+            settings = json.load(f)
+    except (OSError, ValueError):
+        settings = {}
+    hooks = (settings.get("hooks") or {}).get("PreToolUse") or []
+    runs = any("factory-guard.py" in h.get("command", "")
+               for entry in hooks for h in entry.get("hooks", []))
+    if copy is None:
+        detail = f"{GUARD} is missing"
+    elif copy != shipped:
+        detail = f"{GUARD} differs from the version factory-setup ships"
+    elif not runs:
+        detail = f"{GUARD_SETTINGS} does not run {GUARD} before tool calls"
+    else:
+        detail = f"{GUARD}, run from {GUARD_SETTINGS}"
+    ok = copy == shipped and runs
+    return result("guard", "Guard hook", ok, detail, "pr", path=GUARD)
 
 
 def check_verify(repo):
@@ -440,6 +487,7 @@ def check(repo, facts):
         check_adrs(repo),
         check_vision(repo),
         check_agent_rules(repo),
+        check_guard(repo),
         check_verify(repo),
         check_tests(repo),
         check_ci_tests(repo),
