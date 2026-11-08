@@ -71,13 +71,13 @@
       "source": "bredvid/skills",
       "sourceType": "github",
       "skillPath": "skills/factory/SKILL.md",
-      "computedHash": "2c7a38f46fac032e85d7f3af35303df9042254d26afcbe2446c96f14391add0c"
+      "computedHash": "998a31881ebc6aa1a1e5bed3bec94d75e8c19f32ab838a8944ee3438474c5de0"
     },
     "factory-dispatch": {
       "source": "bredvid/skills",
       "sourceType": "github",
       "skillPath": "skills/factory-dispatch/SKILL.md",
-      "computedHash": "a84fe83fe19ce463ffd53c0d759f75b473a6f1bedbc16493907d13bc646a9f4e"
+      "computedHash": "33763b0bbf2fa5499f34601aa38dbf627db4ce54449d3564316eb829de588e2d"
     },
     "factory-propose": {
       "source": "bredvid/skills",
