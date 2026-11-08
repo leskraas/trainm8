@@ -46,7 +46,9 @@ A task can't start subagents, so the orchestrator runs `review-pr`'s reviews:
    and shown at the head, or medium and costlier to fix once code builds on
    it (a wrong abstraction, a duplicated rule, a missing test for new
    behaviour). Otherwise `forward` to QA. A problem the base branch already
-   has counts only when the PR copies it or newly reaches it.
+   has counts only when the PR copies it or newly reaches it. Under `poc` and
+   `maintain`, the phase's bar changes this route (`questions.md`, "The
+   bar").
 
 ## Result
 

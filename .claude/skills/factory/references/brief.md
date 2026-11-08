@@ -16,8 +16,8 @@ or a builder's claims steer what it should judge for itself. A task reads:
   (`SEES_RUNS` in `conductor.py`). Review and QA judge **cold**: they see
   neither the PR body nor the earlier runs' comments, only the diff, the
   issue and the app. `hidden` in the output counts what was left out.
-- **Settings**, through `conductor.py config --for <task>`: `autonomy` and the
-  commands the task runs.
+- **Settings**, through `conductor.py config --for <task>`: `autonomy`,
+  `phase` and the commands the task runs.
 - **Docs** from this table, beside the task file:
 
 | Task | Docs | `questions.md` |

@@ -8,6 +8,8 @@ prints it as the factory reads it, with the defaults filled in.
 ```factory
 tracker: github
 autonomy: doors
+phase: build
+door-paths: api=src/routes/api/**
 merge: agent
 budget: 6000000
 usage-reserve: 10%
@@ -38,15 +40,19 @@ session-model: claude-sonnet-5-5
 | `tracker` | `github`, `local` | `github` | Where issues live. `github`: GitHub Issues. `local`: one folder per issue in `tracker-dir`, for a repo whose tickets live elsewhere (Linear, Jira) or whose GitHub Issues are off; GitHub sees only the PR, its pushes, checks and merge: the factory's labels, comments and evidence stay in the folder. A local tracker runs only by `/factory` in the clone that holds the folder. |
 | `tracker-dir` | path | `.scratch` | With `tracker: local`: the folder, from the main clone's root, that holds `<key>-<slug>/factory/` per issue. |
 | `autonomy` | `supervised`, `doors`, `full` | `doors` | When an issue stops for a human. `supervised`: the spec, every one-way door, and the merge. `doors`: every one-way door. `full`: never on purpose. |
+| `phase` | `poc`, `build`, `live`, `maintain` | `build` | Where the project is in its life, which sets the bar every task builds to and the risk it takes ([questions.md](questions.md), "The bar"). `poc`: the quickest build that proves an idea, its shortcuts named as debts. `build`: the durable solution, before anyone outside the team relies on it. `live`: as `build`, with users and their data there, so each change is made reversible. `maintain`: the surgical change that keeps today's behaviour. It also sets which doors the conductor finds in a diff hold the merge (`door-paths`). A human moves it; the retro proposes when. |
+| `door-paths` | `kind=glob` pairs; kinds `migration`, `dependency`, `adr`, `api` | – | Paths the conductor counts as a kind of one-way door, beside its own defaults (`**/migrations/**`, `drizzle/**/*.sql`, `prisma/migrations/**`; the package manifests; `docs/adr/**`). At the merge, the kinds the phase counts wait under `doors` and `supervised`: none under `poc`; a new dependency and a changed ADR under `build`; all four under `live` and `maintain`. Under `live` and `maintain`, a migration that drops, deletes, renames or retypes, or edits an existing one, waits at every autonomy level. |
 | `merge` | `human`, `agent` | `human` under `supervised`, else `agent` | Who merges once QA passes. `agent` merges only on the head QA verified, with every check green. |
 | `merge-method` | `merge`, `squash`, `rebase` | `merge` | How the factory merges. Use one the repo allows: GitHub refuses the others. |
 | `budget` | tokens | 6000000 | Tokens per issue, its PR included, before it stops for a human. |
 | `usage-reserve` | a share, `0.1` or `10%` | `10%` | The share of the subscription's limits the factory leaves to its owner: it holds new work as [usage.md](usage.md) says. |
 | `parallel` | number | 3 | Sessions `/factory-dispatch` keeps working at once, and tasks one `/factory` batch runs at once. |
+| `wip` | number | `parallel` | Issues in flight at once: started and not waiting on a human. `/factory-dispatch` starts new work only below it, so free sessions go to finishing what is started. Lower it to finish features one by one. |
 | `build-parallel` | number | 2 | Of those, tasks that write code (`implement`, `update-branch`). |
 | `serial` | task names | – | Tasks that run one at a time, because they share one running app or one set of ports (QA, the design scan). |
-| `human-paths` | globs, a directory ending in `/` | – | Paths a human reads before a merge: a PR that changes one waits for a human's answer at the merge, at every autonomy level. Keep it to the files whose change reaches past the repo (CI workflows, infrastructure, database roles, registry config) or rewrites the agents' rules. Guard tests and lint config go in `human-edits` instead. |
+| `human-paths` | globs, a directory ending in `/` | – | Paths a human reads before a merge, beside the factory's own rules, which always wait (`docs/agents/factory.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/**`, `.mcp.json`): a PR that changes one waits for a human's answer at the merge, at every autonomy level. Keep it to the files whose change reaches past the repo (CI workflows, infrastructure, database roles, registry config) or rewrites the agents' rules. Guard tests and lint config go in `human-edits` instead. |
 | `human-edits` | globs, a directory ending in `/` | – | Paths where a change to an existing file (an edit, a removal, a rename) waits for a human at the merge, while a new file merges like any other: guard tests and lint config, where adding a test only makes the guard stricter. |
+| `prod-urls` | URLs and hosts | – | Production, which no agent calls: the guard hook `/factory-setup` installs blocks a command or fetch that names one, in every phase. |
 | `scan-every` | merges | 10 | Merges to the default branch between scans. `0` turns scans off. |
 | `scans` | `architecture`, `design`, `retro`, or `none` | all three | Which scans run on their own every `scan-every` merges. `/factory --scan <scan>` runs any of them on demand, listed or not. |
 | `design` | `prototype`, `design`, `off` | `prototype` | The designer's tool in an interactive run; `off` skips the design task. |

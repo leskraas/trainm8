@@ -23,6 +23,8 @@ everything you find becomes a proposal.
    - the findings that sent it back to implement, and the criteria QA failed;
    - what a human asked for or changed at a wait, and every decision a human
      overrode;
+   - every wait where the human only approved the recommendation, by the kind
+     of door or gate it was;
    - commits a human pushed to the PR.
 
    Done when every merged PR since `since` has been read.
@@ -36,7 +38,9 @@ everything you find becomes a proposal.
    - **A standard**: a line in the project's coding standards, which the
      review applies. For a judgement call a check can't make.
    - **A factory change**: a task file, a setting, a limit, when the cause is
-     the process itself.
+     the process itself. A kind of door a human approved unchanged at least
+     twice is a cause too: propose narrowing it, since a wait nobody changes
+     costs a human's time and catches nothing.
 
    Keep at most three, each written as a proposal:
 
@@ -51,6 +55,19 @@ everything you find becomes a proposal.
    ## What it would have caught
    <each occurrence, one line>
    ```
+
+4. **The phase.** Read `phase` in the settings, and check the signs of the
+   next one in what you gathered and in the repo:
+   - `poc` → `build`: issues that ask for real users, new work built on the
+     demo, many `Debt:` lines in recent runs.
+   - `build` → `live`: a production deploy, an issue a user filed, a
+     migration that must keep data.
+   - `live` → `maintain`: merges per week falling across scans, most issues
+     fixes, few new criteria.
+
+   When they hold, make your first proposal a move of the phase, with the signs as
+   evidence, `door` `one-way` and `paths` `["docs/agents/factory.md"]`: the
+   phase sets the bar for every later run, so a human moves it.
 
 ## Result
 
