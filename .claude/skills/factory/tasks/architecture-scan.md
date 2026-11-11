@@ -37,9 +37,12 @@ Read-only on the repo: your writes are evidence and proposals.
    (data loading and its cache, outbound calls and their timeouts, error
    display, authorization, logging, migrations), and ask whether it has one
    home, whether it does what the quality asks, and whether new code goes
-   through it. Measure where the verify guide lets you: start the app, walk
-   the main flow there and back, and count the data requests and the
-   queries. Done when every quality has its home named, or a line saying
+   through it. Measure where the verify guide lets you: start your own
+   instance as its isolation section says (its own port and data
+   directory, never the defaults QA uses, since QA may run beside you),
+   walk the main flow there and back, and count the data requests and the
+   queries. Without a way to isolate the instance, read the code and skip
+   the measurement. Done when every quality has its home named, or a line saying
    it has none, with the measurement where you took one.
 4. **Check the ADRs.** For each ADR in the area you walked, does the code
    still do what it decided? Name each place it doesn't, with file and line,

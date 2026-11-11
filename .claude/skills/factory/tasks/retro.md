@@ -28,10 +28,13 @@ everything you find becomes a proposal.
      of door or gate it was;
    - commits a human pushed to the PR.
 
-   Then the **escapes**: every issue opened since `since` by someone with
-   write access that reports what merged work does (a bug, a slow screen,
-   a regression, a missing state), the factory's own issues and proposals
-   aside. For each, name the merged PR it traces to and the task that
+   Then the **escapes**: every issue by someone with write access that
+   reports what merged work does (a bug, a slow screen, a regression, a
+   missing state), open now or opened since `since`, the factory's own
+   issues and proposals aside. Reading the open ones whatever their date
+   keeps an escape filed while the last retro ran from slipping between two
+   windows; one an earlier retro proposal already names, you name rather
+   than propose again (step 0). For each, name the merged PR it traces to and the task that
    should have caught it: spec (no criterion named it), review (the diff
    showed it), QA (the running app showed it) or a scan (the whole showed
    it).

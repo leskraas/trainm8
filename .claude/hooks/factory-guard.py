@@ -7,9 +7,11 @@ and registers it in `.claude/settings.json`; both are guard files.
 It holds in every phase: these rules protect the keys, the hooks and the
 supply chain, not the users, so no phase loosens them.
 
-- Reading `.env*` (but `.env.example` and the like). Making one passes:
-  `cp .env.example .env`, `[ -f .env ]`, `ls`, `touch`, `rm`, a redirect
-  into it, and the Write tool.
+- Reading `.env*` (but `.env.example` and the like), judged on the whole
+  line, so a read inside `bash -c`, `python -c`, `git show`, a pipe or `&`
+  stops too. Making one passes, in these shapes only: `cp .env.example
+  .env`, `[ -f .env ]`, `ls`, `touch`, `rm`, `echo X=1 >> .env`, and the
+  Write tool.
 - `--no-verify` on a git command, and `git commit -n`.
 - `git push --force` or `-f` (`--force-with-lease` is fine).
 - `npx`, `npm exec`, `npm x`, `npm create`/`init <pkg>`, `pnpm dlx`,
@@ -22,7 +24,8 @@ supply chain, not the users, so no phase loosens them.
   none, outside a text search (`grep`, `rg`, `git grep`, `git log`).
 
 Exit 2 blocks the call, and stderr tells the agent what to do instead.
-Anything the guard can't parse passes: it is a fence, not a sandbox.
+A call the guard fails on is blocked too: a fence that can't judge a call
+must not wave it through. It is still a fence, not a sandbox.
 """
 
 import json
@@ -71,8 +74,6 @@ def segments(command):
 
 LOCAL_RUNNERS = {("npx",), ("bunx",), ("pnpx",)}  # these run an installed bin first
 ENV_NAME = re.compile(r"\.env(?:[.*][\w.*-]*)?")
-# Commands that look at an env file's name, never its contents.
-ENV_HARMLESS = {"[", "[[", "test", "ls", "touch", "rm", "stat", "echo", "printf"}
 ENV_READING = "Leave `.env*` files unread: take settings from the docs, the example file or the code that reads them."
 
 
@@ -81,20 +82,30 @@ def is_env(word):
     return bool(ENV_NAME.fullmatch(name)) and not ENV_SAFE.search(name)
 
 
-def reads_env(words):
-    """Whether a simple command reads an env file: it names one anywhere but as
-    the target of a redirect (`> .env`), the destination of `cp`/`mv`/
-    `install` (the last word), or under a command that only looks at the name."""
-    if words[0] in ENV_HARMLESS and not any("$(" in w or "`" in w for w in words):
-        return any(w.startswith("<") and is_env(w) or w == "<" and i + 1 < len(words)
-                   and is_env(words[i + 1]) for i, w in enumerate(words))
-    last = len(words) - 1 if words[0] in ("cp", "mv", "install") else None
-    for i, w in enumerate(words):
-        if i == last or not is_env(w):
-            continue
-        if re.match(r"\d?>{1,2}", w) or (i and re.fullmatch(r"\d?>{1,2}", words[i - 1])):
-            continue
-        return True
+# The whole line decides whether `.env*` is read: any mention of an env file
+# outside the few shapes that only make, test or remove one is a read, so a
+# read hidden in `bash -c`, `python -c`, `git show`, a pipe or `&` still stops.
+ENV_FILE = re.compile(r"(?:^|[\s/'\"=<>:(`])\.env(?:\.[\w.*-]+)?(?=$|[\s'\";|&)>`])")
+_PATH = r"(?:\.?/?[\w.-]*/)*"
+_ENV = _PATH + r"\.env(?:\.[\w.-]+)?"
+_EXAMPLE = _PATH + r"\.env\.(?:example|sample|template|dist|schema)"
+ENV_ALLOWED = re.compile("|".join([
+    rf"(?:\[\[?|test) +-[efsr] +{_ENV}(?: +\]\]?)?",  # [ -f .env ]
+    rf"ls(?: +-\w+)* +{_ENV}",                        # ls -la .env
+    rf"touch +{_ENV}(?: +{_ENV})*",                    # touch .env
+    rf"rm(?: +-f)? +{_ENV}(?: +{_ENV})*",              # rm -f .env.local
+    rf"cp(?: +-n)? +{_EXAMPLE} +{_ENV}",               # cp .env.example .env
+    rf"(?:echo|printf) +[^<>$`|&;()]* *>{{1,2}} *{_ENV}",  # echo X=1 >> .env
+]))
+
+
+def reads_env(command):
+    """Whether a shell line reads an env file: each part between `&&`, `||`,
+    `;` and newlines that names one must be one of the shapes above."""
+    for part in re.split(r"&&|\|\||[;\n]", command):
+        part = part.strip()
+        if ENV_FILE.search(ENV_SAFE.sub("", part)) and not ENV_ALLOWED.fullmatch(part):
+            return True
     return False
 
 
@@ -176,6 +187,8 @@ def host_pattern(url):
 
 
 def check_bash(command, urls, root="."):
+    if reads_env(command):
+        return ENV_READING
     moved = False
     for words, assigns in segments(command):
         sub, args = subcommand(words, GIT_VALUED) if words[0] == "git" else (None, [])
@@ -194,8 +207,6 @@ def check_bash(command, urls, root="."):
             return (f"Run `{package}` at an exact version that has passed the quarantine "
                     "(name@1.2.3, a week old or more), or `pnpm exec <bin>` for a tool the "
                     "project already installs.")
-        if reads_env(words):
-            return ENV_READING
         searching = words[0] in SEARCHES or (words[0] == "git" and sub in GIT_SEARCHES)
         if not searching:
             why = check_urls(" ".join(assigns + words), urls)
@@ -241,8 +252,10 @@ def main():
     root = os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
     try:
         why = check(event, root)
-    except Exception:  # a fence that can't parse the call lets it pass
-        return 0
+    except Exception as error:  # a fence that can't judge the call stops it
+        print(f"factory-guard: could not check this call ({error}); "
+              "rephrase it, or ask a human to run it.", file=sys.stderr)
+        return 2
     if why:
         print(f"factory-guard: {why}", file=sys.stderr)
         return 2
