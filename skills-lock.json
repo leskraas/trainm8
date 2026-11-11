@@ -68,28 +68,32 @@
       "computedHash": "51f2537e04d15911b41d78e2de24c36a0e26d41beae15e82a954fe5496a5eda9"
     },
     "factory": {
-      "source": "bredvid/skills",
+      "source": "Bredvid/skills",
+      "ref": "072442803f7b2869de7176ea3c968f5013e5ce47",
       "sourceType": "github",
       "skillPath": "skills/factory/SKILL.md",
-      "computedHash": "2b687ba02a6201490a67034ea71b395dd4adf777820a17ec5a807d8df27395f0"
+      "computedHash": "62c64f1a33e6ef06c62b2e1a612019d2cca5a3b6eb65aefdf2d370f2b5d447e3"
     },
     "factory-dispatch": {
-      "source": "bredvid/skills",
+      "source": "Bredvid/skills",
+      "ref": "072442803f7b2869de7176ea3c968f5013e5ce47",
       "sourceType": "github",
       "skillPath": "skills/factory-dispatch/SKILL.md",
       "computedHash": "33763b0bbf2fa5499f34601aa38dbf627db4ce54449d3564316eb829de588e2d"
     },
     "factory-propose": {
-      "source": "bredvid/skills",
+      "source": "Bredvid/skills",
+      "ref": "072442803f7b2869de7176ea3c968f5013e5ce47",
       "sourceType": "github",
       "skillPath": "skills/factory-propose/SKILL.md",
       "computedHash": "f6c2744b492bcd6d2ae758a9963d11adf1389b1b498737df16f79b242cc554e2"
     },
     "factory-setup": {
-      "source": "bredvid/skills",
+      "source": "Bredvid/skills",
+      "ref": "072442803f7b2869de7176ea3c968f5013e5ce47",
       "sourceType": "github",
       "skillPath": "skills/factory-setup/SKILL.md",
-      "computedHash": "fcb7da681a2b268ad29cef2da1d64d6a60c9345e7cf8a10708583f680346f80f"
+      "computedHash": "91c86fd88028063aca4a2be47a3cdec7bc6a2b00e0e8724f6408601efd65be95"
     },
     "find-animation-opportunities": {
       "source": "emilkowalski/skills",

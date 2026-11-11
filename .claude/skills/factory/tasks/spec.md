@@ -46,9 +46,14 @@ Read-only on the repo: everything you write goes in the result.
    Carry over `## Decisions` and every other `##` section the body already
    has. Each criterion describes the product behaviour that solves the
    problem, checkable by someone who didn't write it; the process ("merges
-   cleanly", "CI is green") belongs to other tasks. **Ambition** is what the
-   phase's bar asks of spec (`questions.md`, "The bar"). Done when every
-   criterion passes that test.
+   cleanly", "CI is green") belongs to other tasks. Walk the table in
+   `references/qualities.md`: each quality the change touches becomes a
+   criterion starting **Quality:**, with its measure (for a list users come
+   back to: "Quality: returning to the list within 30 s sends no data
+   request"). **Ambition** is what the phase's bar asks of spec
+   (`questions.md`, "The bar", and `qualities.md`, "The bar"). Done when
+   every criterion passes that test and every quality in the table is
+   either a criterion or untouched by the change.
 5. **A criterion sent back.** When implement, review or architecture sent
    the issue here with a decision on a criterion (its line under
    `## Decisions` says "changes acceptance criterion <n>", and its answer is
