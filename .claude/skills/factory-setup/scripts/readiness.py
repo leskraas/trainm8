@@ -410,13 +410,18 @@ def check_verify(repo):
     except (FileNotFoundError, NotADirectoryError):
         pass
     readme = exists(repo, f"{VERIFY}/README.md")
+    # QA measures the budgets on every run (factory's references/qualities.md).
+    budgets = readme and re.search(r"^## Budgets\s*$", read(repo, f"{VERIFY}/README.md") or "", re.M)
     if not readme:
         detail = f"{VERIFY}/README.md is missing"
     elif not features:
         detail = f"no feature in {VERIFY}/features/"
+    elif not budgets:
+        detail = f"no ## Budgets in {VERIFY}/README.md"
     else:
-        detail = f"{VERIFY}/, {len(features)} features"
-    return result("verify", "Verification guide", readme and bool(features), detail, "pr", path=f"{VERIFY}/")
+        detail = f"{VERIFY}/, {len(features)} features, budgets"
+    ok = readme and bool(features) and bool(budgets)
+    return result("verify", "Verification guide", ok, detail, "pr", path=f"{VERIFY}/")
 
 
 def check_tests(repo):

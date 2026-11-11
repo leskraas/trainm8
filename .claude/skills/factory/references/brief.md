@@ -23,19 +23,20 @@ or a builder's claims steer what it should judge for itself. A task reads:
 | Task | Docs | `questions.md` |
 |---|---|---|
 | explore | domain; verify when it runs the app | yes |
-| spec | domain | yes |
+| spec | domain, qualities | yes |
 | design | domain, stack | yes |
-| architecture | domain | yes |
-| implement | domain, stack, verify's feature files | yes |
-| review | domain, stack | yes |
-| qa | verify | no: QA judges, it decides nothing |
+| architecture | domain, qualities | yes |
+| implement | domain, stack, verify's feature files, qualities | yes |
+| review | domain, stack, qualities | yes |
+| qa | verify, qualities | no: QA judges, it decides nothing |
 | update-branch | domain | yes |
-| architecture-scan | domain | yes |
+| architecture-scan | domain, verify, qualities | yes |
 | design-scan | verify, stack | yes |
 | retro | none beyond the factory's comments | yes |
 
 **domain** is `docs/agents/domain.md` and the glossary and ADRs it points
-at. **verify** is `docs/agents/verify/`. **stack** is the `docs/agents/`
+at. **verify** is `docs/agents/verify/`. **qualities** is
+`<base>/references/qualities.md`. **stack** is the `docs/agents/`
 files on the libraries the work touches, such as a UI kit's. The other
 `docs/agents/` files are the orchestrator's: `factory.md` reaches the task as
 settings, and the issue-tracker and label docs cover GitHub writes, which

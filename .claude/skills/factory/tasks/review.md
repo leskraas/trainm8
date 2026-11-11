@@ -13,8 +13,10 @@ A task can't start subagents, so the orchestrator runs `review-pr`'s reviews:
 
 1. **Reviews**: one read-only subagent per review in `review-pr`'s step 1
    ("Collect findings"), for this PR, all in one message, each given the
-   issue the PR closes as the spec and writing its own report file. Each
-   takes the model and effort in the queue entry's `parts.review-read`.
+   issue the PR closes as the spec and writing its own report file, plus
+   one **qualities** review that reads the diff against every quality in
+   `references/qualities.md`, named in the issue or not. Each takes the
+   model and effort in the queue entry's `parts.review-read`.
 2. **Fix and route**: one subagent with every report, running steps 1–4,
    with the model and effort in `parts.review-fix`.
 
