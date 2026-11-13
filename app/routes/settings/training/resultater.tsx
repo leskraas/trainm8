@@ -87,6 +87,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 		row.anchor ? `${row.anchor}|${row.occurredAt.toISOString()}` : null
 	const typedDays = new Set(rows.filter((row) => !row.event).map(sameDayKey))
 	const eventDays = new Set(rows.filter((row) => row.event).map(sameDayKey))
+	// "The typed time you wrote the same day is used" is only true when the
+	// resolver actually chose that row: with a newer result at the anchor,
+	// neither same-day row is in use, and the Event page says `newer`.
+	const typedInUseDays = new Set(
+		rows.filter((row) => !row.event && row.inUse).map(sameDayKey),
+	)
 	return {
 		results: rows.map((row) => {
 			const pace = paceSecPerKm(row.timeSec, row.distanceM)
@@ -107,7 +113,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 				credit: credit?.text ?? null,
 				creditOwed: credit?.owed ?? false,
 				inUse: contested && row.inUse,
-				shadowed: contested && !row.inUse && row.event != null,
+				shadowed:
+					contested &&
+					!row.inUse &&
+					row.event != null &&
+					day != null &&
+					typedInUseDays.has(day),
 			}
 		}),
 		today,
