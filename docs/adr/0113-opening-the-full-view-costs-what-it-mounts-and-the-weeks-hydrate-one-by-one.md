@@ -168,3 +168,19 @@ these, in order, re-measuring after each:
   Ledger's own rule) when the row is built.
 - **In-app navigation is measured** by `scripts/measure-home-stream.ts --nav`,
   beside the load by URL; both take several servers and interleave them.
+- **Each stored intensity's zone is read once** (found on QA's return, #503).
+  On a quiet machine, after 1–3, the biggest piece left was `stepToZone`:
+  every rep of every step parsed its intensity again (`JSON.parse`, a zod
+  `safeParse`, and a thrown `SyntaxError` for a legacy plain word), for the
+  week's zone split in the skeleton and again for each row's bars.
+  `session-profile.ts` keeps each intensity's zone in a map bounded at 512
+  entries, and parses only what starts with `{`.
+- **The fallback is built**: the server renders this week and the next
+  (`AHEAD_LANDING`), and an effect appends the rest of `AHEAD_INITIAL` in a
+  transition once the frame has hydrated, below the reader.
+- **What is left is not the presenter or hydration.** After both, pooled over
+  19 interleaved runs at 4×, the longest task by URL is level with the seed
+  season and by navigation 8% shorter, but "hydrated" is still 17–23% later.
+  The profile has the presenter at 59ms against 40ms; the rest is the parse and
+  layout of the denser past's markup and the ledger's decode, the remainder this
+  ADR leaves to the spec rather than change what the loader ships.
