@@ -1,0 +1,17 @@
+# Probe at origin/agent/528-rounder-look-luma-feel c987d65
+
+## Raw text-xs…9xl and off-step corners in linted page code (outside ADR 0117's ignores)
+app/routes/_home/index.tsx:113:						className="animate-slide-top text-muted-foreground xl:animate-slide-left mt-6 text-xl/7 [animation-delay:0.8s] [animation-fill-mode:backwards] xl:mt-8 xl:text-xl/6 xl:leading-10 xl:[animation-delay:1s] xl:[animation-fill-mode:backwards]"
+app/routes/start/__first-run-frame.tsx:94: * on a phone (it was a hand-made `rounded-xl` copy beside the real pill).
+app/routes/training/__exercise-combobox.tsx:78:	// eslint-disable-next-line trainm8/luma-steps -- mirrors the ui/select trigger beside it (`text-base md:text-sm`)
+app/routes/training/plan.tsx:1131:						{/* `text-xl`, not the page title's size: two spans sit side by side on
+
+## List groups on Meg, the lift page and Bibliotek (shadow-md, dark ring /10)
+app/routes/settings/__meg-ui.tsx:65:			className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/60 divide-y rounded-4xl px-4 shadow-md ring-1"
+app/routes/settings/training/lifts.$exerciseId.tsx:315:					<ul className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/60 divide-y rounded-4xl px-4 shadow-md ring-1">
+app/routes/training/__library-section.tsx:104:					<ul className="bg-card divide-border/60 ring-foreground/5 dark:ring-foreground/10 divide-y overflow-hidden rounded-4xl shadow-md ring-1">
+app/routes/training/catalogue.tsx:691:					<ul className="bg-card divide-border/60 ring-foreground/5 dark:ring-foreground/10 mt-2 divide-y rounded-4xl px-4 shadow-md ring-1">
+app/routes/training/exercises.$exerciseId.tsx:167:				<section className="bg-card ring-foreground/5 dark:ring-foreground/10 mb-6 rounded-4xl p-5 shadow-md ring-1">
+
+## Row dividers without /60 (none expected)
+(end)
