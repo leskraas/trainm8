@@ -140,15 +140,16 @@ function targetsLabel(targets: TargetView[]): string {
 }
 
 /**
- * A text link into an edit is a line of text (20 px) and the only way into its
- * edit, so it carries an invisible `after:` box 12 px above and below: 44 px of
+ * A text link into an edit is a line of text (20 px: the footnote step's own
+ * 18 px line is lifted to `leading-5`) and the only way into its edit, so it
+ * carries an invisible `after:` box 12 px above and below: 44 px of
  * target with no change to the reading's rhythm (ADR 0028 §2). `my-2.5` is what keeps two of
  * them stacked in a flex column (a phase card's pair) from reaching into each
  * other's text: 24 px between lines is exactly the two extensions. On a link in
  * running text the margin does nothing.
  */
 const SEASON_EDIT_LINK_CLASS =
-	'relative my-2.5 w-fit text-footnote underline touch-manipulation after:absolute after:inset-x-0 after:-inset-y-3'
+	'relative my-2.5 w-fit text-footnote leading-5 underline touch-manipulation after:absolute after:inset-x-0 after:-inset-y-3'
 
 /**
  * A link from a read-only reading (Blocks, Weeks) to the edit that changes
