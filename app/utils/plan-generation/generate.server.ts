@@ -178,7 +178,7 @@ export type SeasonPreview = {
 	weeklyCapacityHours: number | null
 	/**
 	 * Per season week, the three numbers per track over the week as approval
-	 * would leave it (ADR 0113): the Week Target beside the **Planned Volume** of
+	 * would leave it (ADR 0119): the Week Target beside the **Planned Volume** of
 	 * the sessions placed and the athlete's sessions already there, read through
 	 * the week model _Sesong_ reads. Numbers and codes; the route words them.
 	 */
@@ -489,7 +489,7 @@ export async function previewSeason(
 
 /**
  * Read a generated season's weeks as _Sesong_ will read them once it is
- * approved unchanged (ADR 0113). **Reads only.**
+ * approved unchanged (ADR 0119). **Reads only.**
  *
  * Each placed session is read off the **Stock Workout** approval copies
  * ({@link readStockWorkouts}, the one reader `writeSessions` uses too), on the
@@ -721,7 +721,7 @@ async function writeSessions(
  * `copyWorkout` writes (`workoutCopySelect`), plus the block and step ids the
  * Workout Shape keys its bars by, which a copy never writes. One reader for the
  * preview and the approval, so the figure the athlete reviews is read off the
- * very rows the approval copies (ADR 0113 §2).
+ * very rows the approval copies (ADR 0119 §2).
  */
 async function readStockWorkouts(
 	workoutIds: readonly string[],

@@ -269,7 +269,7 @@ export type VolumeSession = {
  * stored block and step rows. Any select that carries what the four readings
  * need fits: the ledger's (`ledgerSessionSelect`) and a Stock Workout's
  * (`workoutCopySelect` plus its row ids), so a session that is only previewed
- * reads as it will once it is written (ADR 0113 §3).
+ * reads as it will once it is written (ADR 0119 §3).
  */
 export type PrescriptionWorkout = ShapeWorkout &
 	SimpleActivityWorkout & {

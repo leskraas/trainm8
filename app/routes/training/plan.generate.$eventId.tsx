@@ -711,7 +711,7 @@ type WeekFigures = {
 /**
  * A preview week's numbers, worded by the same call _Sesong_ words its weeks
  * with (`wordTrackWeek`), so the drift rule, the unmeasured counts and the
- * empty-week rule are _Sesong_'s and not a copy of them (ADR 0113 §5).
+ * empty-week rule are _Sesong_'s and not a copy of them (ADR 0119 §5).
  */
 function weekFigures(
 	entry: PreviewWeekVolumes,

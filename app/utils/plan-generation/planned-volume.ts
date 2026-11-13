@@ -1,6 +1,6 @@
 /**
  * **A generated week's Planned Volume, read as _Sesong_ will read it** (#472,
- * ADR 0113).
+ * ADR 0119).
  *
  * A placed session is placed as its source published it (ADR 0053 §6), so a
  * generated week's **Week Target** and the sum of its sessions are two numbers.
@@ -36,7 +36,7 @@ export type PreviewWeekVolumes = {
 	hasSessions: boolean
 	/**
 	 * How many of the week's sessions the athlete already had that a track's
-	 * planned figure counts: approval deletes none of them (ADR 0113 §4), and the
+	 * planned figure counts: approval deletes none of them (ADR 0119 §4), and the
 	 * card says so, or the figure would be larger than the rows under it. A
 	 * session in Annet, on no season track, or with no prescription is not one.
 	 */
