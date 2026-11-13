@@ -1,0 +1,24 @@
+ [32m✓[39m app/utils/plan-outline/season-edit.server.test.ts[2m > [22ma new week target lays that week again at it, keeps the athlete’s session, and leaves the other weeks alone[33m 419[2mms
+ [32m✓[39m app/utils/plan-outline/season-edit.server.test.ts[2m > [22ma stale preview is refused and nothing is written[32m 274[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/season-edit.server.test.ts[2m > [22manother athlete’s plan reads as not found[33m 321[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/season-edit.server.test.ts[2m > [22ma chosen easy week is stored, read by home and the season, and its weeks laid again[33m 439[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/season-edit.server.test.ts[2m > [22ma phase renamed and lengthened lands as previewed; a rename alone lays nothing again[33m 303[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma week target: the preview warns on a rise over 10 %, says what stays, and writes nothing; the confirm applies it[32m 236[2mms
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma confirm that no longer matches its preview is refused under a fresh preview, and writes nothing[32m 139[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/season-edit.server.test.ts[2m > [22mback to the plan’s target removes the override and lays the week again at the plan’s number[33m 384[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma confirm with no preview behind it is refused[32m 123[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma blank week target is refused on the field[32m 126[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/season-edit.server.test.ts[2m > [22ma new rhythm lands behind its preview and clears the easy week chosen under the old one[32m 270[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma phase: renamed and lengthened behind a preview, with what stays named[32m 165[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22mthe easy week: moved within its block behind a preview[32m 162[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/season-edit.server.test.ts[2m > [22ma Season Anchor fresh start lays only the changed weeks again: the machine’s untrained sessions, never the athlete’s, an
+ [32m✓[39m app/utils/plan-outline/season-edit.server.test.ts[2m > [22ma Season Anchor confirm gone stale is refused and writes nothing[32m 238[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22man easy week the plan already has is refused in the form[32m 143[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22mback to the plan’s target: previewed, then applied, and the week follows the plan again[32m 166[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22mback to the plan’s target on a week that already follows it is refused in the form[32m 117[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma phase’s rhythm changes behind its preview[32m 147[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma Season Anchor: a fresh start previews every week it moves with how each was worked out, writes nothing, and the confirm lands 
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma Season Anchor value change on the season’s start, already begun, is refused with the fresh start to offer[32m 113[2mms[22
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma stale Season Anchor confirm says nothing was saved and shows no new numbers[32m 123[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.season-edits.test.ts[2m > [22ma Season Anchor fresh start on a day that is not a Monday is refused and writes nothing[32m 120[2mms[22m[39m
+[2m      Tests [22m [1m[32m23 passed[39m[22m[90m (23)[39m

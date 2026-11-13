@@ -1,0 +1,40 @@
+   [33m[2m✓[22m[39m a week with no derived target reads Unavailable with its reason, never 0 [33m 459[2mms[22m[39m
+   [33m[2m✓[22m[39m a prescribed session the currency cannot read costs the shares their number [33m 437[2mms[22m[39m
+   [33m[2m✓[22m[39m fixed days over the week’s target warn, and nothing claims to correct them [33m 492[2mms[22m[39m
+   [33m[2m✓[22m[39m a pattern at either end of the order has nothing to swap with [33m 663[2mms[22m[39m
+   [33m[2m✓[22m[39m two sessions on one weekday are orderable, and the ends are disabled [33m 555[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting a pattern is confirmed, and the confirmation says what stays [33m 711[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting a pattern with no days yet reads as a sentence, never “its 0 days” [33m 691[2mms[22m[39m
+   [33m[2m✓[22m[39m a day is added by weekday, track and kind — and by no volume or zone [33m 467[2mms[22m[39m
+   [33m[2m✓[22m[39m choosing a share day asks for its weight, and a fixed one for its workout [33m 1133[2mms[22m[39m
+   [33m[2m✓[22m[39m a share day opens with no shape, and never inherits the fixed day’s workout [33m 978[2mms[22m[39m
+   [33m[2m✓[22m[39m the kind selector names the kind, and the rule is said under the field [33m 917[2mms[22m[39m
+   [33m[2m✓[22m[39m the workout picker offers only the chosen track’s own discipline [33m 730[2mms[22m[39m
+   [33m[2m✓[22m[39m a track with no workout of its own discipline offers no fixed day, and says why [33m 1116[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete with no workouts is told why, and pointed at authoring one [33m 663[2mms[22m[39m
+   [33m[2m✓[22m[39m the chosen week is URL state, and travels with the season being read [33m 981[2mms[22m[39m
+   [33m[2m✓[22m[39m the plan’s first week needs no param, exactly like the default reading [33m 546[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete with no pattern reads that, and is offered one [33m 615[2mms[22m[39m
+   [33m[2m✓[22m[39m the starter week names the athlete’s own days, or says it is a convention [33m 632[2mms[22m[39m
+   [33m[2m✓[22m[39m a refused pattern edit is said at the top of the reading that asked for it [33m 742[2mms[22m[39m
+   [33m[2m✓[22m[39m a lifting block is laid out along the plan’s weeks, not on a phase [33m 769[2mms[22m[39m
+   [33m[2m✓[22m[39m the section says what `sets` means and attaches no citable range to it [33m 876[2mms[22m[39m
+   [33m[2m✓[22m[39m the derived band moves with the goal, and there is no input for it [33m 872[2mms[22m[39m
+   [33m[2m✓[22m[39m nothing on a lifting block derives sets a week from the goal [33m 848[2mms[22m[39m
+   [33m[2m✓[22m[39m an unset deload cut reads as the convention, and an authored one as theirs [33m 758[2mms[22m[39m
+   [33m[2m✓[22m[39m a dismissed band note comes back when the goal moves the band [33m 1498[2mms[22m[39m
+   [33m[2m✓[22m[39m each Unavailable reading gets its own sentence and its own reason [33m 397[2mms[22m[39m
+   [33m[2m✓[22m[39m the lifter reads what the plan cannot tell them while authoring blocks [33m 1120[2mms[22m[39m
+   [33m[2m✓[22m[39m a block whose window fell out of the plan is shown rather than hidden [33m 797[2mms[22m[39m
+   [33m[2m✓[22m[39m a strength track with no blocks says every week is no lifting [33m 996[2mms[22m[39m
+   [33m[2m✓[22m[39m the anchor list says the athlete re-anchored, from when and to what [33m 817[2mms[22m[39m
+   [33m[2m✓[22m[39m the earliest anchor cannot be removed, and the row says why [33m 805[2mms[22m[39m
+   [33m[2m✓[22m[39m an anchor row edits its value, and offers no unit anywhere [33m 918[2mms[22m[39m
+   [33m[2m✓[22m[39m the re-anchor form offers only weeks that carry no anchor yet [33m 1014[2mms[22m[39m
+   [33m[2m✓[22m[39m weeks before the first anchor are named as Unavailable, never guessed [33m 622[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m47 passed[39m[22m[90m (47)[39m
+[2m      Tests [22m [1m[32m1211 passed[39m[22m[90m (1211)[39m
+[2m   Start at [22m 16:10:52
+[2m   Duration [22m 87.13s[2m (transform 11.15s, setup 39.74s, import 15.62s, tests 180.87s, environment 1.19s)[22m
+
