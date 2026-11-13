@@ -452,3 +452,16 @@ test('when the boundary week will not stamp, the old activities\' sessions are c
 		'nothing-to-stamp',
 	)
 })
+
+test('the preview counts only the own sessions that stay: a skipped one is not counted', async () => {
+	const { userId } = await startPlan()
+	await authoredHardSession(userId, '2030-01-22')
+	const skipped = await authoredHardSession(userId, '2030-01-24')
+	await prisma.workoutSession.update({
+		where: { id: skipped.id },
+		data: { status: 'skipped' },
+	})
+	const preview = await readActivitiesEdit(userId, SWIM_AND_YOGA, NOW)
+	if (!preview.ok) throw new Error(preview.reason)
+	expect(preview.preview.keptFromBoundary).toEqual({ count: 1, onRemoved: 0 })
+})

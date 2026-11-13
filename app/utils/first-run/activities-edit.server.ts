@@ -285,7 +285,10 @@ async function readKeptSessions(
 	})
 }
 
-/** The Discipline of every own or adopted session from the boundary on. */
+/**
+ * The Discipline of every own or adopted session from the boundary on that
+ * is still to do or done: a skipped or missed one is not counted as staying.
+ */
 async function readKeptAhead(
 	db: Prisma.TransactionClient,
 	{ userId, timezone }: EditContext,
@@ -297,6 +300,7 @@ async function readKeptAhead(
 		where: {
 			userId,
 			scheduledAt: { gte: start },
+			status: { in: ['scheduled', 'completed'] },
 			OR: [
 				{ source: 'authored' },
 				{
