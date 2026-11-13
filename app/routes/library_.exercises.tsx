@@ -146,7 +146,7 @@ export default function LibraryExercisesRoute({
 			    rows are anchors, so the handler only upgrades a plain click, and the
 			    keyboard's Enter on a focused anchor is a click like any other. */}
 			<ul
-				className="bg-card divide-border/60 divide-y overflow-hidden rounded-4xl shadow-xs"
+				className="bg-card divide-border/60 ring-foreground/5 dark:ring-foreground/10 divide-y overflow-hidden rounded-4xl shadow-md ring-1"
 				onClick={onRowClick}
 			>
 				{exercises.map((exercise) => (

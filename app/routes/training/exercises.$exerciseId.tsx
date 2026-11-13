@@ -164,7 +164,7 @@ export default function ExerciseHistoryRoute({
 			    it is worth as a single, and whether the lift is moving. It is absent
 			    for a lift with no history at all — an empty frame is not a reading. */}
 			{model.empty ? null : (
-				<section className="bg-card mb-6 rounded-4xl p-5">
+				<section className="bg-card ring-foreground/5 dark:ring-foreground/10 mb-6 rounded-4xl p-5 shadow-md ring-1">
 					{/* **No program, no header.** A lift the program never priced has no
 					    working weight, and a zero would claim one. */}
 					{model.header ? (
