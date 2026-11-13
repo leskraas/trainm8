@@ -22,6 +22,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
+import { ProvenanceSlot } from '#app/components/provenance-slot.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
 import { ScoreStanza } from '#app/components/score-stanza.tsx'
 import { ShapeStrip } from '#app/components/shape-strip.tsx'
@@ -78,6 +79,7 @@ import {
 import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { readPlacedProvenance } from '#app/utils/catalogue.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	formatLoad,
@@ -277,6 +279,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		exercises,
 		recentExerciseIds,
 		activeOutline,
+		placedProvenance,
 	] = await Promise.all([
 		getDisciplineThresholds(userId),
 		session.status === 'completed' && session.workout
@@ -305,6 +308,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		// the way I dag's row reads it (`trackCurrencies`, the first track per
 		// sport), so the page and the row it was opened from agree.
 		findActiveOutline(userId, new Date()),
+		// Where a session placed from the Catalogue came from (ADR 0117 §5): the
+		// placed copy's Catalogue Entry, one hop further past an adoption fork.
+		readPlacedProvenance(session.workout?.id, session.adoptedAt),
 	])
 
 	// A Simple Activity has no archetype to state or read (ADR 0015 §A): it is
@@ -392,6 +398,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		simpleActivity,
 		loggedSetCount,
 		loggedSetsByStep,
+		placedProvenance,
 		// Arket M: the session in its own numbers, the track's unit first. Built
 		// here, from the rows the page already loaded — the presenter is pure.
 		summary: buildSessionSummary({
@@ -834,6 +841,7 @@ export default function SessionDetailRoute({
 		simpleActivity,
 		loggedSetCount,
 		loggedSetsByStep,
+		placedProvenance,
 		summary,
 	} = loaderData
 	const timeZone = useAthleteTimezone()
@@ -986,6 +994,7 @@ export default function SessionDetailRoute({
 						    athlete adopts the structure — read off `adoptedAt` now that
 						    the origin survives the takeover (#460). */}
 						{session.workout?.description ||
+						placedProvenance ||
 						isUnadoptedDetected(session) ||
 						archetype?.kind === 'read' ? (
 							<CardContent className="flex flex-col gap-2">
@@ -993,6 +1002,19 @@ export default function SessionDetailRoute({
 									<p className="text-footnote text-muted-foreground">
 										{session.workout.description}
 									</p>
+								) : null}
+								{/* Session Provenance, last in the prose block, after the
+								    numbers (ADR 0117 §2): the session page is the tap from
+								    the row, so it is stated here, not behind a disclosure.
+								    "Endret av deg" reads `adoptedAt`. Nothing renders where
+								    the session came from no Catalogue row. */}
+								{placedProvenance ? (
+									<ProvenanceSlot
+										data-provenance
+										provenance={placedProvenance.provenance}
+										adopted={session.adoptedAt != null}
+										takenDown={placedProvenance.takenDown}
+									/>
 								) : null}
 								{isUnadoptedDetected(session) || archetype?.kind === 'read' ? (
 									<div className="flex flex-wrap gap-1.5">

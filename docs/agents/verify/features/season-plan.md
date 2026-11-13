@@ -9,9 +9,9 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 ## Sub-features
 
 - The season plan at `/training/plan`, with its closed _Avansert_ section
-  holding the season editors (ADR 0101 §2). Its Week Pattern editor: a day
-  picks the Workout of one of the athlete's own sessions (fixed) or a shape for
-  a share day (_formet etter <tittel>_).
+  holding the season editors (ADR 0101 §2). Its Week Pattern editor: a day picks
+  the Workout of one of the athlete's own sessions (fixed) or a shape for a
+  share day (_formet etter <tittel>_).
 - Plan creation at `/training/plan/new`: a dated goal (_Mål_, _Dato_, _Lag målet
   og gå videre_), then _Legg opp sesongen_ (base, units, start volume).
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
@@ -27,6 +27,14 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
   kody's `weeklyCapacityHours` a little under a week's placed hours (a 20-week
   10 km run season with a 4:30/km threshold reads about 3,9 t a week, so 3,8
   shows a mix) and open the preview.
+- The preview's placed rows (ADR 0117, #475): each is one button
+  (`[data-session-row] > button`, `aria-expanded`) that carries the plan and no
+  source line. Tapping it opens its **Session Provenance** in a panel below it
+  (`[data-provenance-panel]`): _Kilde: …_ with a locator link for a corpus row,
+  or the convention or hand-written notice. One panel is open across the season;
+  a second tap, Escape or opening another row closes it. Unfilled rows are not
+  buttons. Needs the corpus: `prisma db seed` on a fresh local database, or
+  every slot reads as unfilled.
 - Bibliotek, the region _Bibliotek_: catalogue (`/training/catalogue`), programs
   (`/training/programs`), exercises (`/library/exercises`).
 

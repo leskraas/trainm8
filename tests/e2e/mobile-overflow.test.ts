@@ -10,7 +10,12 @@ import {
 	createPlanOutline,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
-import { expect, openPlanAdvanced, test } from '#tests/playwright-utils.ts'
+import {
+	expect,
+	openPlanAdvanced,
+	test,
+	untilHydrated,
+} from '#tests/playwright-utils.ts'
 
 // Mirrors `onboardingEmailSessionKey` in
 // `app/routes/_auth/onboarding/index.tsx`. Inlined rather than imported: that
@@ -179,6 +184,102 @@ test('the season plan does not overflow at 390px', async ({
 	// gets the gate too rather than riding on the Blocks pass.
 	await page.goto('/training/plan?tab=weeks')
 	await expect(page.getByRole('heading', { name: 'Uke for uke' })).toBeVisible()
+	await expectNoHorizontalOverflow(page)
+})
+
+test('the Plan Preview with a provenance panel open does not overflow at 390px (#475)', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(150_000)
+	const user = await login()
+	const event = await prisma.event.create({
+		data: {
+			athleteId: user.id,
+			name: `Race ${faker.string.alphanumeric(8)}`,
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date(Date.now() + 17 * 7 * 24 * 60 * 60 * 1000),
+			disciplines: JSON.stringify(['run']),
+		},
+	})
+	await page.goto(`/training/plan/generate/${event.id}?anchor-run=40`)
+	// A placed row is one button; its provenance waits behind the tap (ADR 0117).
+	const row = page.locator('[data-session-row] > button').first()
+	await expect(row).toHaveAttribute('aria-expanded', 'false')
+	await expect(page.locator('[data-provenance-panel]')).toHaveCount(0)
+	await untilHydrated(row)
+	await row.click()
+	await expect(row).toHaveAttribute('aria-expanded', 'true')
+	await expect(page.locator('[data-provenance-panel]')).toBeVisible()
+	expect(
+		(await row.boundingBox())?.height,
+		'a row is a 44px target (ADR 0028)',
+	).toBeGreaterThanOrEqual(44)
+	await expectNoHorizontalOverflow(page)
+})
+
+test('a session page carrying the longest Citation and a URL locator does not overflow at 390px (#475)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	// Denadai 2017 is the corpus's longest work; a URL is the locator that
+	// cannot break at a space.
+	const stock = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Eksplosiv styrke for løpsøkonomi',
+			discipline: 'run',
+			intent: 'threshold',
+			archetype: 'threshold',
+			authorship: 'system',
+		},
+	})
+	await prisma.catalogueEntry.create({
+		data: {
+			workoutId: stock.id,
+			workoutAuthorship: 'system',
+			archetype: 'threshold',
+			citationAuthor:
+				'Denadai BS, de Aguiar RA, de Lima LC, Greco CC, Caputo F',
+			citationWork:
+				'Explosive training and heavy weight training are effective for improving running economy in endurance athletes: a systematic review and meta-analysis. Sports Med 47(3):545–554',
+			citationYear: 2017,
+			citationLocator:
+				'https://runningwritings.com/2023/12/percentage-based-training-for-distance-runners-a-very-long-address.html',
+		},
+	})
+	const placed = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Eksplosiv styrke for løpsøkonomi',
+			discipline: 'run',
+			intent: 'threshold',
+			ownerId: user.id,
+			copiedFromId: stock.id,
+		},
+	})
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: user.id,
+			workoutId: placed.id,
+			scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+			status: 'scheduled',
+			source: 'generated',
+			adoptedAt: new Date(),
+		},
+	})
+	await navigate('/training/sessions/:sessionId', { sessionId: session.id })
+	const line = page.locator('[data-provenance]')
+	await expect(line).toContainText('Endret av deg · Kilde: Denadai BS')
+	await expect(line.getByRole('link')).toHaveAttribute(
+		'href',
+		/^https:\/\/runningwritings\.com\//,
+	)
 	await expectNoHorizontalOverflow(page)
 })
 
