@@ -6,6 +6,7 @@ import {
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { keepEventResultsInStep } from '#app/utils/event-result.server.ts'
 
 /**
  * How a candidate matched an activity the athlete already holds (ADR 0096 §4):
@@ -198,18 +199,30 @@ async function recordAlias(
 	importId: string,
 	matchedBy: MatchedBy,
 ): Promise<FileImportResult> {
+	const held = await prisma.activityImport.findUnique({
+		where: { id: importId },
+		select: { promotedSessionId: true },
+	})
 	try {
-		await prisma.activityImportAlias.create({
-			data: {
-				activityImportId: importId,
-				athleteId,
-				externalProvider: input.externalProvider,
-				externalId: input.externalId,
-				// The newcomer's own provenance, by the same rules as an import's.
-				...provenanceOf(input),
-				matchedBy,
-			},
-		})
+		// The Recording may be an Event's result: the alias adds its source to the
+		// result's binding set, and every value computed from that result binds to
+		// it too (ADR 0098 §1, ADR 0117 §4). The reconcile recomputes the stored
+		// Planned TSS so the set it carries is the whole one.
+		await keepEventResultsInStep(
+			{ sessionIds: [held?.promotedSessionId] },
+			() =>
+				prisma.activityImportAlias.create({
+					data: {
+						activityImportId: importId,
+						athleteId,
+						externalProvider: input.externalProvider,
+						externalId: input.externalId,
+						// The newcomer's own provenance, by the same rules as an import's.
+						...provenanceOf(input),
+						matchedBy,
+					},
+				}),
+		)
 	} catch (err) {
 		// The same duplicate delivered twice at once: the alias is already there.
 		if (!isUniqueViolation(err)) throw err

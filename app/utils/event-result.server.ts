@@ -65,6 +65,16 @@ const resultRowSelect = {
 	source: true,
 	verified: true,
 	activityImportId: true,
+	// The row's binding set (ADR 0098 §1, ADR 0117 §4): the Recording's Origin
+	// Platform and those of its aliases. A duplicate filed from another source
+	// moves it without moving a column of this row, and the Planned TSS read
+	// from the row binds to it, so it is part of what "the row changed" means.
+	activityImport: {
+		select: {
+			originPlatform: true,
+			aliases: { select: { originPlatform: true } },
+		},
+	},
 } satisfies Prisma.PerformanceResultSelect
 
 type StoredRow = Prisma.PerformanceResultGetPayload<{
@@ -74,6 +84,14 @@ type StoredRow = Prisma.PerformanceResultGetPayload<{
 /** What a stored row says, so "did the row change" is one comparison. */
 function fingerprint(row: StoredRow | null): string | null {
 	if (!row) return null
+	const origins = row.activityImport
+		? [
+				row.activityImport.originPlatform,
+				...row.activityImport.aliases.map((alias) => alias.originPlatform),
+			]
+				.sort()
+				.join(',')
+		: ''
 	return [
 		row.distanceM,
 		row.timeSec,
@@ -81,6 +99,7 @@ function fingerprint(row: StoredRow | null): string | null {
 		row.source,
 		row.verified,
 		row.activityImportId,
+		origins,
 	].join('|')
 }
 
