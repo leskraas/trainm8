@@ -29,6 +29,7 @@ import {
 	type CatalogueLevel,
 	type SessionArchetype,
 } from '../catalogue.ts'
+import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import {
 	type PhaseSpec,
 	type Rhythm,
@@ -42,8 +43,10 @@ import {
 } from '../plan-outline/quality-mix.ts'
 import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
+import { type PrescribedDuration } from '../prescribed-duration.ts'
 import { type CardioDiscipline, type Discipline } from '../workout-schema.ts'
 import { type CapacityFit } from './capacity.ts'
+import { type PlacedFit } from './placed-hours.ts'
 import { type SessionProvenance } from './provenance.ts'
 
 /**
@@ -141,6 +144,13 @@ export type SeasonRequest = {
 	 * capacity check then says it did not run (ADR 0110).
 	 */
 	conversionContexts: Partial<Record<Discipline, ConversionContext>>
+	/**
+	 * The athlete's thresholds as a session row reads them
+	 * (`getDisciplineThresholds`, with Race Anchor paces), read on every preview
+	 * and approval. What a placed session's distance steps are timed through
+	 * (ADR 0116 §1). Never the Volume Conversion's contexts.
+	 */
+	thresholds: DisciplineThresholdMap
 }
 
 /** One block of the generated season, and the corpus facet it retrieves under. */
@@ -199,6 +209,12 @@ export type GeneratedSession = {
 	workoutId: string
 	title: string
 	provenance: SessionProvenance
+	/**
+	 * How long the Stock Workout takes as placed, through the athlete's
+	 * thresholds (`prescribedDuration`), or null when no step could be timed.
+	 * Never rescaled to fit anything (ADR 0053 §6).
+	 */
+	prescribed: PrescribedDuration | null
 }
 
 /**
@@ -257,13 +273,18 @@ export type GeneratedSeason = {
 	tracks: GenerationTrack[]
 	/** What the **Weekly Capacity** check did to the season (ADR 0110). */
 	capacity: CapacityFit
+	/**
+	 * Each week's **Placed Hours** against the **Weekly Capacity** (ADR 0110
+	 * §4, ADR 0116): stated where over, never fixed.
+	 */
+	placed: PlacedFit
 	weeks: GeneratedWeek[]
 	/** Every placed session, in season order: week, then weekday, then discipline. */
 	sessions: GeneratedSession[]
 	unfilled: UnfilledSlot[]
 	/**
 	 * The days the season was placed on, per Discipline with their role: what
-	 * approval keeps on the plan's **Generation Record** (ADR 0113 §1).
+	 * approval keeps on the plan's **Generation Record** (ADR 0117 §1).
 	 */
 	days: GeneratedDay[]
 	unavailable: GeneratedUnavailable[]
@@ -282,7 +303,7 @@ export type GeneratedDay = {
 }
 
 /**
- * What placing weeks needs (ADR 0113 §2): the plan's phases, each track's
+ * What placing weeks needs (ADR 0117 §2): the plan's phases, each track's
  * **Quality Session Mix** per phase and its days, the goal event, the level
  * floor, and which weeks. Built from a preset at approval, and from the stored
  * plan and its **Generation Record** on a re-lay (`generation-request.ts`).
@@ -300,6 +321,12 @@ export type PlaceWeeksRequest = {
 	level: CatalogueLevel
 	/** 0-based from the plan's first week; one outside the plan places nothing. */
 	weekIndices: readonly number[]
+	/**
+	 * The athlete's thresholds, to time each placed session (ADR 0116 §1).
+	 * Left out where Placed Hours are not read, as on a re-lay: `prescribed` is
+	 * then null.
+	 */
+	thresholds?: DisciplineThresholdMap
 }
 
 /**

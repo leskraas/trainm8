@@ -7,6 +7,7 @@ import { storedPlaceWeeksRequest } from '../plan-outline/generation-request.ts'
 import { relayPlanFrom } from '../plan-outline/open-ended.server.ts'
 import { outlinePreviewSelect } from '../plan-outline/outline-preview.ts'
 import { readPlanWeekSource } from '../plan-outline/week-source.server.ts'
+import { getDisciplineThresholds } from '../training.server.ts'
 import { placedSessions } from './deterministic.ts'
 import {
 	approveSeason,
@@ -17,7 +18,7 @@ import {
 import { DETERMINISTIC_SEASON_GENERATOR } from './generator.ts'
 
 // A generated plan keeps its sessions when its weeks are laid again (#686,
-// ADR 0113). Against the database: approval, the stored record, and
+// ADR 0117). Against the database: approval, the stored record, and
 // `relayPlanFrom` routed to the generator.
 
 const NOW = new Date('2026-01-07T09:00:00Z')
@@ -215,12 +216,16 @@ test('placing an unedited stored plan places exactly what approval placed (AC 10
 		},
 	})
 	const placed = DETERMINISTIC_SEASON_GENERATOR.placeWeeks(
-		storedPlaceWeeksRequest(
-			outline,
-			outline.generationRecord!,
-			outline.event!.target,
-			season.weeks.map((week) => week.weekIndex),
-		),
+		{
+			...storedPlaceWeeksRequest(
+				outline,
+				outline.generationRecord!,
+				outline.event!.target,
+				season.weeks.map((week) => week.weekIndex),
+			),
+			// A season's sessions carry their timing (ADR 0116); a re-lay reads none.
+			thresholds: await getDisciplineThresholds(athleteId),
+		},
 		await readGenerationCorpus(),
 	)
 	expect(placedSessions(placed)).toEqual(season.sessions)

@@ -19,6 +19,7 @@ import {
 	createPlanOutlineInTx,
 	createStarterWeekPatternInTx,
 } from '../plan-outline/authoring.server.ts'
+import { heldWorkouts } from '../plan-outline/held-workouts.server.ts'
 import { type PresetFamily } from '../plan-outline/presets.ts'
 import { PROPOSED_STRENGTH_GOAL } from '../plan-outline/strength-offer.server.ts'
 import { weekKeyAt } from '../plan-outline/week-keys.ts'
@@ -241,11 +242,17 @@ export async function createFirstRunPlan(
 			workoutId: string
 		}> = []
 		for (const activity of draft.simpleActivities) {
-			const workout = await createSimpleActivityWorkout(tx, userId, {
-				kind: activity.kind,
-				effortWord: activity.effortWord,
-				durationMin: activity.minutes,
-			})
+			const workout = await createSimpleActivityWorkout(
+				tx,
+				userId,
+				{
+					kind: activity.kind,
+					effortWord: activity.effortWord,
+					durationMin: activity.minutes,
+				},
+				// The plan's own, held for its fixed days (ADR 0113).
+				{ heldByOutlineId: outlineId },
+			)
 			fixedDays.push({
 				weekday: activity.weekday,
 				discipline: SIMPLE_ACTIVITY_DISCIPLINE,
@@ -276,6 +283,7 @@ export async function createFirstRunPlan(
 		if (!pattern.ok) throw new Error(`starter pattern: ${pattern.reason}`)
 		if (plan.strength) {
 			await createStartStrengthInTx(tx, {
+				userId,
 				outlineId,
 				startWeekKey: plan.startWeekKey,
 				weeks: draft.phases.reduce((sum, phase) => sum + phase.weeks, 0),
@@ -332,11 +340,13 @@ export async function createFirstRunPlan(
 async function createStartStrengthInTx(
 	tx: Prisma.TransactionClient,
 	{
+		userId,
 		outlineId,
 		startWeekKey,
 		weeks,
 		strength,
 	}: {
+		userId: string
 		outlineId: string
 		startWeekKey: string
 		weeks: number
@@ -376,7 +386,15 @@ async function createStartStrengthInTx(
 	})
 	// One lifting slot per lift (ADR 0104 §3), on no weekday: the stamp lays
 	// each week's against that week's hard days, so week 1 lifts on the days
-	// the card showed and a later phase moves the lifting with its mix.
+	// the card showed and a later phase moves the lifting with its mix. The
+	// slots share one copy of the session the card named, which the plan
+	// holds (ADR 0113): the athlete's own session stays theirs to edit or
+	// delete.
+	const held = await heldWorkouts(tx, { outlineId, athleteId: userId }).hold(
+		strength.workoutId,
+		'strength',
+	)
+	if (!held.ok) throw new Error(`start strength: ${held.reason}`)
 	for (const [orderInDay] of strength.days.entries()) {
 		await tx.weekPatternDay.create({
 			data: {
@@ -385,7 +403,7 @@ async function createStartStrengthInTx(
 				orderInDay,
 				kind: 'lifting',
 				trackId: track.id,
-				workoutId: strength.workoutId,
+				workoutId: held.workoutId,
 			},
 		})
 	}

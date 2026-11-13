@@ -15,10 +15,10 @@ import {
 } from '#app/integrations/shared/origin-platform.ts'
 import { localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { nbDisciplineLabel } from '#app/utils/labels.ts'
 import { type PlannedMetric } from '#app/utils/planned-discipline.ts'
 import { SESSION_OWNERS, sessionOwner } from '#app/utils/session-ownership.ts'
-import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import {
 	getDisciplineThresholds,

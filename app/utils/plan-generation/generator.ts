@@ -54,7 +54,7 @@ export type SeasonGenerator = {
 		corpus: readonly RetrievableEntry[],
 	): GeneratedSeason
 	/**
-	 * Place some weeks of a stored plan (ADR 0113 §2): the same placement rule
+	 * Place some weeks of a stored plan (ADR 0117 §2): the same placement rule
 	 * `generate` lays a season by, over the plan as it now stands. What a re-lay
 	 * of a generated plan's weeks calls, so a plan is laid again by the
 	 * implementation that made it.
@@ -76,7 +76,7 @@ const GENERATORS: readonly SeasonGenerator[] = [DETERMINISTIC_SEASON_GENERATOR]
 
 /**
  * The implementation a plan's **Generation Record** names, so a plan is laid
- * again by the generator that made it (ADR 0113 §2). Null for an id no
+ * again by the generator that made it (ADR 0117 §2). Null for an id no
  * implementation in this build answers to.
  */
 export function generatorFor(generatorId: string): SeasonGenerator | null {

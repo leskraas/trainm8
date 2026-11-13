@@ -1,5 +1,5 @@
 /**
- * **The one writer of generated sessions** (ADR 0113, restructuring 4): approval
+ * **The one writer of generated sessions** (ADR 0117, restructuring 4): approval
  * and a re-lay of a generated plan's weeks write identical rows through it.
  *
  * Every placed session gets a **fresh** copy of its **Stock Workout** (never a
@@ -11,7 +11,7 @@
  */
 import { type Prisma } from '@prisma/client'
 import { addDays, localTimeUTC } from '../athlete-calendar.ts'
-import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
+import { trainingTimeOf } from '../athlete-schema.ts'
 import { prisma } from '../db.server.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import {
@@ -36,7 +36,7 @@ export async function defaultTrainingTime(athleteId: string): Promise<string> {
 		where: { userId: athleteId },
 		select: { defaultTrainingTime: true },
 	})
-	return profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+	return trainingTimeOf(profile)
 }
 
 /**

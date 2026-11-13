@@ -663,7 +663,7 @@ export async function relayPlanFrom(
  * session in it rather than falling below it. Chosen over leaving the old
  * machine sessions in such a week, which would keep that week at the old
  * plan's numbers beside a new plan. A plan Plan Generation made, with no
- * Week Pattern, is laid again by its generator instead (ADR 0113 §3, §4).
+ * Week Pattern, is laid again by its generator instead (ADR 0117 §3, §4).
  * A week the plan no longer reaches (or a
  * plan with no pattern) has its machine sessions cleared and nothing laid.
  * Returns how many weeks were touched.
@@ -678,7 +678,7 @@ async function relayFutureWeeks(
 ): Promise<number> {
 	const source = await readPlanWeekSource(outlineId)
 	// A generated plan is laid again by its generator, over its weeks to its end
-	// (ADR 0113 §3).
+	// (ADR 0117 §3).
 	if (source.kind === 'generated') {
 		const laid = await relayGeneratedPlan(
 			userId,

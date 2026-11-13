@@ -11,7 +11,9 @@ cleanup. The feature map is in [`features/`](features/).
   [`../mcp-dev.md`](../mcp-dev.md)) and webhooks (`/webhook/strava`). This guide
   drives the web UI.
 - **Run:** `npm run dev` (`MOCKS=true`, so Strava, GitHub, Resend and
-  Intervals.icu calls are mocked by MSW in `tests/mocks/`).
+  Intervals.icu calls are mocked by MSW in `tests/mocks/`). Add
+  `MOCK_WEATHER=true` to mock MET Norway's forecast and Kartverket's place
+  search too (#433).
 - **Drive:** Playwright, the repo's own `@playwright/test` (pinned 1.56.1).
 - **Observe:** screenshots, the server log, and rows in the SQLite database.
 

@@ -1,5 +1,5 @@
 /**
- * **A stored generated plan, as the generator's request** (ADR 0113 §2).
+ * **A stored generated plan, as the generator's request** (ADR 0117 §2).
  *
  * The bridge between a Plan Outline's rows (`from-rows.ts`) plus its
  * **Generation Record**, and what `SeasonGenerator.placeWeeks` takes. Pure: the
@@ -21,7 +21,7 @@ import { isCardioDiscipline } from '../workout-schema.ts'
 import { phaseSpecs, resolvedTracks, type OutlineRows } from './from-rows.ts'
 import { isPatternWeekday } from './week-pattern.ts'
 
-/** The intent a record without one is read as (ADR 0113 §5). */
+/** The intent a record without one is read as (ADR 0117 §5). */
 export const DEFAULT_GENERATION_INTENT: GenerationIntent =
 	'deliberately-building'
 
@@ -41,7 +41,7 @@ export function recordedIntent(intent: string | null): GenerationIntent {
 /**
  * The request that places `weekIndices` of a stored generated plan. A track
  * with no stored days places nothing (a track added after approval, or
- * strength: ADR 0113's consequences), so it is left out.
+ * strength: ADR 0117's consequences), so it is left out.
  */
 export function storedPlaceWeeksRequest(
 	rows: OutlineRows,

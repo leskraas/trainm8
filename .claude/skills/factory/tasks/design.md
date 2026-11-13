@@ -55,8 +55,10 @@ canvas follows [../references/canvas.md](../references/canvas.md).
      the state model), and make three variants on it, each a direction you
      could defend shipping, with a name, its place on the axis, and one line
      each on gain and cost.
-   - **Unattended run**: one variant, the direction you would ship, with its
-     gain, its cost, and the worst case beside it.
+   - **Unattended run**, and any run under `poc`: one variant, the direction
+     you would ship, with its gain, its cost, and the worst case beside it.
+
+   Draw to the phase's bar (`questions.md`, "The bar").
 
    Done when each variant works in the browser with the issue's real content.
 4. **Canvas.** Write `canvas.html` in the evidence folder as canvas.md

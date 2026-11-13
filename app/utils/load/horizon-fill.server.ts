@@ -74,7 +74,7 @@ export async function layPlanWeek(
 	if (occupancy.replacing > 0 || laid > 0) return nothing()
 
 	// A generated plan's unlaid week is laid by its generator, on the days
-	// stored at approval (ADR 0113 §3).
+	// stored at approval (ADR 0117 §3).
 	if (source.kind === 'generated') {
 		if (weekKey < active.outline.startWeekKey) return nothing()
 		const generated = await layGeneratedWeek(

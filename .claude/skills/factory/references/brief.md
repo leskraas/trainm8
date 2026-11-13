@@ -16,26 +16,27 @@ or a builder's claims steer what it should judge for itself. A task reads:
   (`SEES_RUNS` in `conductor.py`). Review and QA judge **cold**: they see
   neither the PR body nor the earlier runs' comments, only the diff, the
   issue and the app. `hidden` in the output counts what was left out.
-- **Settings**, through `conductor.py config --for <task>`: `autonomy` and the
-  commands the task runs.
+- **Settings**, through `conductor.py config --for <task>`: `autonomy`,
+  `phase` and the commands the task runs.
 - **Docs** from this table, beside the task file:
 
 | Task | Docs | `questions.md` |
 |---|---|---|
 | explore | domain; verify when it runs the app | yes |
-| spec | domain | yes |
+| spec | domain, qualities | yes |
 | design | domain, stack | yes |
-| architecture | domain | yes |
-| implement | domain, stack, verify's feature files | yes |
-| review | domain, stack | yes |
-| qa | verify | no: QA judges, it decides nothing |
+| architecture | domain, qualities | yes |
+| implement | domain, stack, verify's feature files, qualities | yes |
+| review | domain, stack, qualities | yes |
+| qa | verify, qualities | no: QA judges, it decides nothing |
 | update-branch | domain | yes |
-| architecture-scan | domain | yes |
+| architecture-scan | domain, verify, qualities | yes |
 | design-scan | verify, stack | yes |
 | retro | none beyond the factory's comments | yes |
 
 **domain** is `docs/agents/domain.md` and the glossary and ADRs it points
-at. **verify** is `docs/agents/verify/`. **stack** is the `docs/agents/`
+at. **verify** is `docs/agents/verify/`. **qualities** is
+`<base>/references/qualities.md`. **stack** is the `docs/agents/`
 files on the libraries the work touches, such as a UI kit's. The other
 `docs/agents/` files are the orchestrator's: `factory.md` reaches the task as
 settings, and the issue-tracker and label docs cover GitHub writes, which

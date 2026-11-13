@@ -1,5 +1,5 @@
 /**
- * **Laying a generated plan's weeks again** (ADR 0113 §3–§5).
+ * **Laying a generated plan's weeks again** (ADR 0117 §3–§5).
  *
  * A plan **Plan Generation** made has no **Week Pattern**; its weeks are laid by
  * the generator its **Generation Record** names, through the seam
@@ -81,7 +81,7 @@ const generatedOutlineSelect = {
  * Lay a generated plan's weeks again from `fromWeekKey` to the plan's end
  * (narrowed by `onlyWeekKeys`), including weeks holding none of its sessions
  * yet; a week past a shortened plan's end that still holds its sessions has
- * the machine's untrained ones cleared (ADR 0113 §3). The caller passes the
+ * the machine's untrained ones cleared (ADR 0117 §3). The caller passes the
  * first unbegun week or later: a lived week is never laid again.
  */
 export async function relayGeneratedPlan(
@@ -291,7 +291,7 @@ function stillAsksFor(
 }
 
 /**
- * The days of a plan generated before its record kept them (ADR 0113 §5), read
+ * The days of a plan generated before its record kept them (ADR 0117 §5), read
  * off its own laid sessions in the athlete's timezone and written to the
  * record: per Discipline, the weekday set most of its weeks hold, the long day
  * the one its long-archetype sessions sat on most, else the last.

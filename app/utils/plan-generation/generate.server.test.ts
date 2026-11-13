@@ -13,6 +13,11 @@ import {
 	readGenerationCorpus,
 	type GenerationAnswers,
 } from './generate.server.ts'
+import {
+	DETERMINISTIC_SEASON_GENERATOR,
+	type SeasonGenerator,
+} from './generator.ts'
+import { type GeneratedSeason, type SeasonRequest } from './season.ts'
 
 async function createAthlete() {
 	const userData = createUser()
@@ -341,6 +346,27 @@ test('the corpus read serves stock rows only, and no retired one', async () => {
 		'stockentry_tempo1',
 	)
 	expect(corpus.map((entry) => entry.entryId)).toContain('stockentry_easy1')
+	// Each row carries its Stock Workout's blocks as stored, so the generator
+	// can time a placed session without querying (ADR 0116).
+	expect(
+		corpus.find((entry) => entry.entryId === 'stockentry_easy1')?.blocks,
+	).toEqual([
+		{
+			repeatCount: 1,
+			seriesRepeatCount: 1,
+			betweenSeriesRestSec: null,
+			sendOff: null,
+			steps: [
+				{
+					kind: 'cardio',
+					discipline: 'run',
+					intensity: JSON.stringify({ kind: 'zoneLabel', label: 'easy' }),
+					durationSec: 3600,
+					distanceM: null,
+				},
+			],
+		},
+	])
 })
 
 test('a goal event is read off an exact race distance and nothing else', () => {
@@ -398,4 +424,71 @@ test('approving under a Weekly Capacity writes the lowered season, and the planâ
 	const season = await getSeasonForEvent(athlete.id, event.id, NOW)
 	expect(season?.weeklyCapacityHours).toBe(3)
 	expect(season?.hoursWarnings).toEqual([])
+})
+
+/** The shipped generator, with every request and season it saw. */
+function recordingGenerator() {
+	const seen: Array<{ request: SeasonRequest; season: GeneratedSeason }> = []
+	const generator: SeasonGenerator = {
+		id: DETERMINISTIC_SEASON_GENERATOR.id,
+		generate(request, corpus) {
+			const season = DETERMINISTIC_SEASON_GENERATOR.generate(request, corpus)
+			seen.push({ request, season })
+			return season
+		},
+		placeWeeks: DETERMINISTIC_SEASON_GENERATOR.placeWeeks,
+	}
+	return { generator, seen }
+}
+
+test('the preview states the weeks whose placed sessions outrun the Weekly Capacity, and approval reads them again on the server (#473)', async () => {
+	const athlete = await createAthlete()
+	await seedCorpus()
+	const profile = await prisma.athleteProfile.update({
+		where: { userId: athlete.id },
+		// Every seeded session is an hour, and a week holds several: over 1 t.
+		data: { weeklyCapacityHours: 1 },
+		select: { id: true },
+	})
+	await prisma.disciplineProfile.create({
+		data: {
+			athleteProfileId: profile.id,
+			discipline: 'run',
+			thresholdPaceSecPerKm: 300,
+		},
+	})
+	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
+
+	const preview = await previewSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
+	if (!preview.ok) throw new Error(preview.reason)
+	const { placed, sessions } = preview.preview.season
+	expect(placed.kind).toBe('read')
+	if (placed.kind !== 'read') return
+	expect(placed.breaches.length).toBeGreaterThan(0)
+	// An hour-long session read as the session row reads it: whole, no â‰ˆ.
+	expect(sessions[0]!.prescribed).toEqual({
+		seconds: 3600,
+		complete: true,
+		estimated: false,
+	})
+
+	// The threshold moves between the preview and the approval. Approval reads
+	// the athlete again and regenerates; nothing the preview showed is posted.
+	await prisma.disciplineProfile.updateMany({
+		where: { athleteProfileId: profile.id, discipline: 'run' },
+		data: { thresholdPaceSecPerKm: 280 },
+	})
+	const { generator, seen } = recordingGenerator()
+	const approved = await approveSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+		generator,
+	})
+	if (!approved.ok) throw new Error(approved.reason)
+	expect(seen).toHaveLength(1)
+	expect(seen[0]!.request.thresholds.run?.thresholdPaceSecPerKm).toBe(280)
+	expect(seen[0]!.season.placed).toEqual(placed)
+	// What was written is the placed sessions, unchanged by the reading.
+	expect(approved.sessions).toBe(sessions.length)
 })

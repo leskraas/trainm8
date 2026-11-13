@@ -39,7 +39,7 @@ import {
 	weekdayIndex,
 	weekMonday,
 } from '../athlete-calendar.ts'
-import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
+import { trainingTimeOf } from '../athlete-schema.ts'
 import {
 	getAthleteTimezone,
 	readAvailablePatternDays,
@@ -807,6 +807,7 @@ function pricingBlocks(workout: CopyableWorkout) {
 		repeatCount: block.repeatCount,
 		seriesRepeatCount: block.seriesRepeatCount,
 		betweenSeriesRestSec: block.betweenSeriesRestSec,
+		sendOff: block.sendOff,
 		steps: block.steps.map((step) => ({
 			kind: step.kind,
 			discipline: step.discipline,
@@ -839,7 +840,7 @@ async function readStampProfile(
 		readAvailablePatternDays(userId),
 	])
 	return {
-		at: profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME,
+		at: trainingTimeOf(profile),
 		liftingDays: available ?? undefined,
 	}
 }

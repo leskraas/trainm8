@@ -77,6 +77,7 @@ import { proposeStarterPattern } from '../plan-outline/starter-pattern.ts'
 import { weekKeyAt } from '../plan-outline/week-keys.ts'
 import { type Discipline } from '../workout-schema.ts'
 import { fitToCapacity } from './capacity.ts'
+import { readPlacedDuration, readPlacedHours } from './placed-hours.ts'
 import { readSessionProvenance } from './provenance.ts'
 import {
 	archetypesForSlot,
@@ -217,7 +218,7 @@ export function mixZones(
 
 /**
  * Place the weeks a request asks for: the one placement rule behind both the
- * whole season at approval and a stored plan's weeks laid again (ADR 0113 §2).
+ * whole season at approval and a stored plan's weeks laid again (ADR 0117 §2).
  *
  * Catalogue phase from the block's position (`race-week` in the plan's last
  * week), quality only in loading weeks, the long day last, and the
@@ -293,6 +294,9 @@ export function placeDeterministicWeeks(
 									workoutId: entry.workoutId,
 									title: entry.title,
 									provenance: readSessionProvenance(entry),
+									prescribed: request.thresholds
+										? readPlacedDuration(entry, request.thresholds)
+										: null,
 								},
 				})
 			})
@@ -409,14 +413,14 @@ export function generateDeterministicSeason(
 	)
 
 	// The days the season is placed on, per Discipline with their role: what the
-	// Generation Record keeps, so a re-lay places on the same days (ADR 0113 §1).
+	// Generation Record keeps, so a re-lay places on the same days (ADR 0117 §1).
 	const days: GeneratedDay[] = (starter?.days ?? []).map((day) => ({
 		discipline: day.trackId as GenerationTrack['discipline'],
 		weekday: day.weekday,
 		role: day.role,
 	}))
 
-	// Every week of the season through the one placement rule (ADR 0113 §2),
+	// Every week of the season through the one placement rule (ADR 0117 §2),
 	// each track taking the preset's mix for the phase.
 	const placed = placeDeterministicWeeks(
 		{
@@ -430,9 +434,20 @@ export function generateDeterministicSeason(
 			goalEvent: request.goalEvent,
 			level,
 			weekIndices: weeks.map((week) => week.weekIndex),
+			thresholds: request.thresholds,
 		},
 		corpus,
 	)
+
+	// Placed Hours: how long the placed sessions take at least, against the
+	// capacity. Stated, never fixed: nothing above changes because of it (ADR
+	// 0110 §4, ADR 0116). It runs whatever the Week Target reading did.
+	const placedFit = readPlacedHours({
+		weekCount,
+		sessions: placedSessions(placed),
+		unfilled: unfilledSlots(placed),
+		weeklyCapacityHours: request.weeklyCapacityHours,
+	})
 
 	return {
 		generatorId: DETERMINISTIC_GENERATOR_ID,
@@ -442,6 +457,7 @@ export function generateDeterministicSeason(
 		phases,
 		tracks,
 		capacity,
+		placed: placedFit,
 		weeks,
 		sessions: placedSessions(placed),
 		unfilled: unfilledSlots(placed),

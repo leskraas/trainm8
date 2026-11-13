@@ -44,6 +44,7 @@ import {
 	type ClashReason,
 	type PlacedSession,
 } from './day-rule.ts'
+import { heldWorkouts, type HeldWorkouts } from './held-workouts.server.ts'
 import { relayPlanFromFirstUnbegunWeek } from './open-ended.server.ts'
 import {
 	DAY_CHOICE_PREVIEW_WEEKS,
@@ -602,8 +603,9 @@ export async function setTrackDays(
 				const refusal = choiceRefusal(plan, unit, days)
 				if (refusal) return { ok: false, reason: refusal }
 			}
+			const held = heldWorkouts(tx, { outlineId, athleteId: userId })
 			const rows = restore
-				? await checkedRestore(tx, userId, unit, restore.rows)
+				? await checkedRestore(held, unit, restore.rows)
 				: await rowsWithChoice(tx, plan, unit, days)
 			if (!rows) return { ok: false, reason: 'bad-restore' }
 
@@ -621,7 +623,7 @@ export async function setTrackDays(
 					(entry) => entry.patternId === other.id,
 				)
 				const otherRows = back
-					? await checkedRestore(tx, userId, unit, back.rows)
+					? await checkedRestore(held, unit, back.rows)
 					: await rowsWithChoice(
 							tx,
 							{ ...plan, pattern: other },
@@ -658,6 +660,13 @@ export async function setTrackDays(
 					),
 				})
 			}
+			// A fixed day this choice dropped leaves its Held Workout unused; it
+			// waits only while this write's undo still names it (ADR 0113 §4).
+			await held.sweep({
+				spare: [previous, ...elsewhere.map((entry) => entry.rows)].flatMap(
+					(replaced) => replaced.map((row) => row.workoutId),
+				),
+			})
 			const pinned = unit.kind === 'track' ? (restore?.pinned ?? days) : null
 			if (unit.kind === 'track') {
 				await tx.trainingTrack.update({
@@ -727,13 +736,12 @@ async function replaceUnitRows(
 
 /**
  * Rows an undo sends back, held to what the unit could hold: real weekdays,
- * a share's weight, and only Workouts of the track's Discipline the athlete
- * owns or the Catalogue does — a Simple Activity's own one. `null` where any
- * is not.
+ * a share's weight, and only Workouts of the track's Discipline this plan
+ * holds (ADR 0113 §3) — a Simple Activity's own one. `null` where any is not,
+ * so a payload naming a session's own Workout can never tie a day to it.
  */
 async function checkedRestore(
-	tx: Prisma.TransactionClient,
-	userId: string,
+	held: HeldWorkouts,
 	unit: TrackDaysUnit,
 	rows: readonly TrackPatternRow[],
 ): Promise<TrackPatternRow[] | null> {
@@ -751,19 +759,11 @@ async function checkedRestore(
 			return null
 		}
 	}
-	const workoutIds = [
-		...new Set(rows.flatMap((row) => (row.workoutId ? [row.workoutId] : []))),
-	]
-	// The athlete's own Workouts, or a Stock Workout no one owns: a day the
-	// Catalogue shaped is put back as it was.
-	const owned = await tx.workout.count({
-		where: {
-			id: { in: workoutIds },
-			discipline: unit.discipline,
-			OR: [{ ownerId: userId }, { authorship: 'system' }],
-		},
-	})
-	return owned === workoutIds.length ? [...rows] : null
+	const accepted = await held.acceptsOnly(
+		rows.map((row) => row.workoutId),
+		unit.discipline,
+	)
+	return accepted ? [...rows] : null
 }
 
 /**

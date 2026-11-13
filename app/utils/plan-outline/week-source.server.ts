@@ -1,7 +1,7 @@
 import { prisma } from '../db.server.ts'
 
 /**
- * **How a plan's week is laid** (ADR 0113 §3): from its first **Week Pattern**
+ * **How a plan's week is laid** (ADR 0117 §3): from its first **Week Pattern**
  * with days when it has one; else by the generator, from its **Generation
  * Record**, when it has one; else it has nothing to lay. The pattern wins, so
  * once the athlete gives a generated plan days of their own, its weeks are laid
