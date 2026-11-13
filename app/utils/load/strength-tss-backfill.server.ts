@@ -40,8 +40,8 @@ import { recomputeLoadFrom } from './snapshot.server.ts'
 export const STRENGTH_TSS_BACKFILL_JOB_KIND = 'strength-tss-backfill'
 
 /** The `LoadRecomputeNotice.kind` this backfill writes. */
-export const STRENGTH_LEFT_THE_TRIAD_NOTICE: LoadRecomputeKind =
-	'strength-left-the-triad'
+export const STRENGTH_LEFT_THE_TRIAD_NOTICE =
+	'strength-left-the-triad' satisfies LoadRecomputeKind
 
 /**
  * The day the recompute moved CTL furthest down, or null when nothing moved
@@ -125,7 +125,7 @@ export async function runStrengthTssBackfill(): Promise<void> {
 		await recordLoadRecomputeNotice({
 			athleteId,
 			kind: STRENGTH_LEFT_THE_TRIAD_NOTICE,
-			...movement,
+			ctl: movement,
 		})
 	}
 }
