@@ -1,4 +1,8 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { expect, test } from 'vitest'
+import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
+import { ingestFit } from '#app/integrations/shared/ingest-fit.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import {
@@ -19,6 +23,7 @@ import {
 	unlinkEventResult,
 	updateEvent,
 } from './event.server.ts'
+import { parseFit } from './fit-parser.server.ts'
 import { answerImportQuestion, undoImportAnswer } from './import-link.server.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import {
@@ -27,7 +32,14 @@ import {
 	listPerformanceResults,
 } from './performance-result-writer.server.ts'
 import { getDisciplineThresholds } from './training.server.ts'
-import { deleteWorkoutSession } from './workout.server.ts'
+import {
+	deleteWorkoutSession,
+	updateWorkoutSession,
+} from './workout.server.ts'
+
+const FIT_FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'fit')
+const fixture = (name: string) =>
+	new Uint8Array(fs.readFileSync(path.join(FIT_FIXTURES, name)))
 
 // An Event's result (#670, ADR 0117) at the server seam: every path that
 // changes the Event, its result session or its Recording goes through the one
@@ -496,4 +508,111 @@ test("taking back the answer that linked the Recording to the result session (An
 	expect(undone).toMatchObject({ ok: true, undone: true })
 	expect(await eventRow(event.id)).toBeNull()
 	expect((await planned(ahead)).tss).toBeNull()
+})
+
+test('a FIT duplicate refreshing the race Recording rewrites the Event result', async () => {
+	// ADR 0096 §6: the original FIT refreshes an auto-save mirror's start, end
+	// and distance. When that mirror is an Event's result session, the race
+	// clock it was read from moved, so the result moves with it.
+	const bytes = fixture('run-with-hr.fit')
+	const leg = parseFit(bytes).sessions[0]!.activity
+	const userId = await athlete()
+	const distanceM = Math.round(leg.distanceM!)
+	// The provider's summary of the same activity, a minute longer than the FIT.
+	const imported = await createActivityImport(userId, {
+		externalProvider: 'intervalsicu',
+		externalId: 'fit-refresh',
+		originPlatform: 'garmin',
+		startedAt: leg.startedAt,
+		endedAt: new Date(leg.endedAt.getTime() + 60_000),
+		durationSec: leg.durationSec,
+		distanceM,
+		discipline: 'run',
+		rawJson: '{}',
+	})
+	const saved = await autoSaveImport(userId, imported.id, 'UTC')
+	const event = await createEvent(userId, {
+		name: 'Sentrumsløpet',
+		kind: 'race',
+		priority: 'A',
+		startDate: new Date(`${leg.startedAt.toISOString().slice(0, 10)}T00:00:00Z`),
+		disciplines: ['run'],
+		status: 'planned',
+		distanceM,
+	})
+	await setEventResult(userId, event.id, saved!.sessionId)
+	const fitElapsed = Math.round(
+		(leg.endedAt.getTime() - leg.startedAt.getTime()) / 1000,
+	)
+	expect(await eventRow(event.id)).toMatchObject({ timeSec: fitElapsed + 60 })
+
+	await ingestFit(userId, bytes, {
+		externalProvider: 'manual',
+		fetchedVia: 'upload',
+		timezone: 'UTC',
+	})
+
+	expect(await eventRow(event.id)).toMatchObject({ timeSec: fitElapsed })
+})
+
+test("moving the result session to another day moves the Event's result with it", async () => {
+	const { userId, eventId, sessionId } = await linkedRace()
+	await setEventResult(userId, eventId, sessionId)
+	expect(await eventRow(eventId)).toMatchObject({
+		occurredAt: new Date(`${RACE_DAY}T00:00:00Z`),
+	})
+
+	await updateWorkoutSession(userId, sessionId, {
+		title: 'Sentrumsløpet',
+		discipline: 'run',
+		intent: 'threshold',
+		scheduledAt: new Date(`${LATER_DAY}T08:00:00Z`),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [{ kind: 'cardio', discipline: 'run', durationSec: 1800 }],
+			},
+		],
+	})
+
+	expect(await eventRow(eventId)).toMatchObject({
+		occurredAt: new Date(`${LATER_DAY}T00:00:00Z`),
+	})
+})
+
+test('an alias filed onto the race Recording moves the stored Planned TSS binding set', async () => {
+	// ADR 0117 §4: the Planned TSS a reader sends to the model binds to the
+	// origins of the results it was computed from. A Polar duplicate aliased
+	// onto the race Recording adds Polar to those origins.
+	const { userId, ahead, eventId, sessionId } = await linkedRace()
+	await setEventResult(userId, eventId, sessionId)
+	expect(await planned(ahead)).toMatchObject({ origins: '["garmin"]' })
+
+	const filed = await fileActivityImport(userId, {
+		externalProvider: 'manual',
+		externalId: 'polar-duplicate',
+		originPlatform: 'polar',
+		startedAt: new Date(RACE_START.getTime() + 5000),
+		endedAt: new Date(RACE_START.getTime() + 2475_000),
+		durationSec: 2442,
+		distanceM: 10200,
+		discipline: 'run',
+		rawJson: '{}',
+	})
+
+	expect(filed).toMatchObject({ kind: 'duplicate' })
+	expect((await planned(ahead)).origins).toBe('["garmin","polar"]')
+})
+
+test('a session already done keeps the Planned TSS it was planned with', async () => {
+	const { userId, ahead, eventId, sessionId } = await linkedRace()
+	await prisma.workoutSession.update({
+		where: { id: ahead },
+		data: { status: 'completed' },
+	})
+	const before = await planned(ahead)
+
+	await setEventResult(userId, eventId, sessionId)
+
+	expect(await planned(ahead)).toEqual(before)
 })

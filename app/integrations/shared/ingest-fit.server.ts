@@ -10,6 +10,7 @@ import {
 	persistActivityLaps,
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { keepEventResultsInStep } from '#app/utils/event-result.server.ts'
 import {
 	parseFit,
 	type ParsedActivity,
@@ -235,6 +236,7 @@ async function refreshMirrorFromOriginalFit(
 			select: {
 				discipline: true,
 				startedAt: true,
+				promotedSessionId: true,
 				originalFile: { select: { id: true } },
 			},
 		})
@@ -242,38 +244,42 @@ async function refreshMirrorFromOriginalFit(
 		if (!(await isAutoSaveMirror(importId))) return
 
 		const a = leg.activity
-		await prisma.$transaction([
-			prisma.activityImport.update({
-				where: { id: importId },
-				data: {
-					startedAt: a.startedAt,
-					endedAt: a.endedAt,
-					durationSec: a.durationSec,
-					distanceM: a.distanceM ?? null,
-					hrAvg: a.hrAvg ?? null,
-					hrMax: a.hrMax ?? null,
-					powerAvg: a.powerAvg ?? null,
-					powerMax: a.powerMax ?? null,
-					powerWeightedAvg: a.powerWeightedAvg ?? null,
-					cadenceAvg: a.cadenceAvg ?? null,
-					paceAvgSecPerKm: a.paceAvgSecPerKm ?? null,
-					speedMaxMps: a.speedMaxMps ?? null,
-					elevationGainM: a.elevationGainM ?? null,
-					kilojoules: a.kilojoules ?? null,
-					lapsJson: leg.laps.length > 0 ? JSON.stringify(leg.laps) : null,
-					...(parsed.deviceName ? { deviceName: parsed.deviceName } : {}),
-					fitFileKey: parsed.fitFileKey,
-				},
-			}),
-			prisma.activityFile.create({
-				data: {
-					activityImportId: importId,
-					format: 'fit',
-					fetchedVia: options.fetchedVia,
-					bytes: new Uint8Array(bytes),
-				},
-			}),
-		])
+		// The mirror may be an Event's result session: the file's start, end and
+		// distance are the race clock the result was read from (ADR 0117 §2).
+		await keepEventResultsInStep({ sessionIds: [held.promotedSessionId] }, () =>
+			prisma.$transaction([
+				prisma.activityImport.update({
+					where: { id: importId },
+					data: {
+						startedAt: a.startedAt,
+						endedAt: a.endedAt,
+						durationSec: a.durationSec,
+						distanceM: a.distanceM ?? null,
+						hrAvg: a.hrAvg ?? null,
+						hrMax: a.hrMax ?? null,
+						powerAvg: a.powerAvg ?? null,
+						powerMax: a.powerMax ?? null,
+						powerWeightedAvg: a.powerWeightedAvg ?? null,
+						cadenceAvg: a.cadenceAvg ?? null,
+						paceAvgSecPerKm: a.paceAvgSecPerKm ?? null,
+						speedMaxMps: a.speedMaxMps ?? null,
+						elevationGainM: a.elevationGainM ?? null,
+						kilojoules: a.kilojoules ?? null,
+						lapsJson: leg.laps.length > 0 ? JSON.stringify(leg.laps) : null,
+						...(parsed.deviceName ? { deviceName: parsed.deviceName } : {}),
+						fitFileKey: parsed.fitFileKey,
+					},
+				}),
+				prisma.activityFile.create({
+					data: {
+						activityImportId: importId,
+						format: 'fit',
+						fetchedVia: options.fetchedVia,
+						bytes: new Uint8Array(bytes),
+					},
+				}),
+			]),
+		)
 		if (leg.stream) {
 			await enrichImportTelemetry(
 				athleteId,
