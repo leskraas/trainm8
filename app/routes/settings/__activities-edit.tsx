@@ -296,7 +296,7 @@ function ActivitiesPreview({
 				</p>
 			) : null}
 			<div className="space-y-1">
-				<p className="text-caption text-muted-foreground tracking-wide uppercase tabular-nums">
+				<p className="text-overline text-muted-foreground uppercase tabular-nums">
 					{preview.overline}
 				</p>
 				<h3 id="activities-preview-title" className="text-heading">
@@ -317,7 +317,7 @@ function ActivitiesPreview({
 			) : null}
 			{also.length > 0 ? (
 				<div className="space-y-3">
-					<h4 className="text-caption text-muted-foreground tracking-wide uppercase">
+					<h4 className="text-overline text-muted-foreground uppercase">
 						{W.alsoTitle}
 					</h4>
 					<ul className="space-y-3">
