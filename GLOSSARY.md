@@ -2420,7 +2420,8 @@ reviewed before anything is written — live again with generation (ADR 0053 §8
 after being retired alongside it (ADR 0044). **Nothing reaches the calendar
 unapproved**, and that is now a property of the payload's _type_: it carries no
 id the app minted, so it cannot be mistaken for a written plan. There is still
-no draft session state. _Avoid_: Draft (no draft session state exists).
+no draft session state. _Avoid_: Draft (no draft session state exists), generate
+preview (the route's nickname, not a second concept).
 
 **Generated Session**: A **Workout Session** whose **Session Source** is
 generation rather than manual authoring or recording — **produced again since
@@ -2914,8 +2915,8 @@ Planned TSS, per session), week sum.
 sessions take **at least**, in hours: every step the **Workout Reading** can
 time through the athlete's own thresholds, a **Send-Off** rep at its cycle time,
 summed. Exact only when every placed session was timed end to end and no slot
-went unfilled; otherwise a floor, and it reads _minst_. Read in the generate
-preview against the **Weekly Capacity** and stated, never fixed, where it is
+went unfilled; otherwise a floor, and it reads _minst_. Read in the **Plan
+Preview** against the **Weekly Capacity** and stated, never fixed, where it is
 over (ADR 0110 §4, ADR 0116). Not **Planned Volume**, which drops a whole
 session for one untimed step, so the two may differ on the same week. _Avoid_:
 Planned hours, session hours, week duration.
