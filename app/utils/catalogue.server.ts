@@ -20,6 +20,10 @@ import { PUBLISHED_WORKOUT_WHERE } from './community.ts'
 import { prisma } from './db.server.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import {
+	readSessionProvenance,
+	type SessionProvenance,
+} from './plan-generation/provenance.ts'
+import {
 	MAX_LINEAGE_HOPS,
 	copyWorkout,
 	workoutCopySelect,
@@ -394,6 +398,79 @@ export async function resolveCatalogueOrigin(
 	}
 
 	return null
+}
+
+/**
+ * What the provenance slot shows of one lineage row, and nothing else. This
+ * reader runs over rows the viewer does not own, so `takedownReason` is never
+ * selected: it is the author's to read (ADR 0052 §2).
+ */
+const placedProvenanceRowSelect = {
+	authorship: true,
+	description: true,
+	catalogueEntry: {
+		select: {
+			citationAuthor: true,
+			citationWork: true,
+			citationYear: true,
+			citationLocator: true,
+		},
+	},
+	attribution: {
+		select: { displayName: true, publishedAt: true, takenDownAt: true },
+	},
+} satisfies Prisma.WorkoutSelect
+
+type PlacedProvenanceRow = Prisma.WorkoutGetPayload<{
+	select: typeof placedProvenanceRowSelect
+}>
+
+/**
+ * A placed session's **Session Provenance**, as the session page shows it
+ * (ADR 0117 §5), or `null` where it has none to state.
+ *
+ * The source is the **Catalogue Entry** of the Workout the placing act copied
+ * from: the session Workout's `copiedFrom` — never the Workout's own entry
+ * (ADR 0052 §4) — and, only for an adopted session where that misses, one hop
+ * further, past the adoption fork (#460). It does **not** walk the whole chain:
+ * that would cite a Stock Workout on a session the athlete built from their own
+ * fork of it. `resolveCatalogueOrigin` keeps the full walk for the Catalogue's
+ * "adapted from" line. A retired entry still counts.
+ *
+ * One query, two levels of nested select.
+ */
+export async function readPlacedProvenance(
+	workoutId: string | null | undefined,
+	adoptedAt: Date | string | null,
+): Promise<{ provenance: SessionProvenance; takenDown: boolean } | null> {
+	if (!workoutId) return null
+	const workout = await prisma.workout.findUnique({
+		where: { id: workoutId },
+		select: {
+			copiedFrom: {
+				select: {
+					...placedProvenanceRowSelect,
+					copiedFrom: { select: placedProvenanceRowSelect },
+				},
+			},
+		},
+	})
+	const placed = workout?.copiedFrom ?? null
+	const candidates: Array<PlacedProvenanceRow | null> = [placed]
+	if (adoptedAt != null) candidates.push(placed?.copiedFrom ?? null)
+	const row = candidates.find((candidate) => candidate?.catalogueEntry != null)
+	if (!row?.catalogueEntry) return null
+	const provenance = readSessionProvenance({
+		authorship: row.authorship,
+		description: row.description,
+		...row.catalogueEntry,
+		attribution: row.attribution,
+	})
+	if (provenance.kind === 'unsourced') return null
+	return {
+		provenance,
+		takenDown: row.attribution?.takenDownAt != null,
+	}
 }
 
 /**

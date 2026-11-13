@@ -8,6 +8,7 @@ import {
 	isInCatalogueList,
 	listCatalogue,
 	placeCatalogueSession,
+	readPlacedProvenance,
 	readRetrievableEntry,
 	removeFromCatalogueList,
 	resolveCatalogueOrigin,
@@ -632,4 +633,151 @@ test('a published row whose author deleted their account is readable by nobody (
 			date: '2026-09-01',
 		}),
 	).toEqual({ ok: false, reason: 'not-retrievable' })
+})
+
+/** A cited **Stock Workout** with its entry, as the corpus seeds one. */
+async function createCitedStock(locator: string | null = null) {
+	const stock = await createStockWorkout()
+	await createCatalogueEntry(stock.id, {
+		archetype: 'threshold',
+		citationAuthor: 'Daniels',
+		citationWork: "Daniels' Running Formula",
+		citationYear: 2013,
+		citationLocator: locator,
+	})
+	return stock
+}
+
+/** The Workout a placing act writes for a session: a copy pointing back. */
+async function placedCopy(sourceId: string, ownerId: string) {
+	const copy = await prisma.$transaction((tx) =>
+		forkCatalogueWorkout(tx, sourceId, ownerId),
+	)
+	return copy!.id
+}
+
+test('a placed session reads its Citation from the row it was copied from (ADR 0117 §5)', async () => {
+	const athlete = await createAthlete()
+	const stock = await createCitedStock('doi:10.1/x')
+	const placed = await placedCopy(stock.id, athlete.id)
+
+	expect(await readPlacedProvenance(placed, null)).toEqual({
+		provenance: {
+			kind: 'corpus',
+			citation: {
+				author: 'Daniels',
+				work: "Daniels' Running Formula",
+				year: 2013,
+				locator: 'doi:10.1/x',
+			},
+		},
+		takenDown: false,
+	})
+})
+
+test('an adopted session keeps its source through the adoption fork, two hops', async () => {
+	const athlete = await createAthlete()
+	const stock = await createCitedStock()
+	const placed = await placedCopy(stock.id, athlete.id)
+	// An adopting edit forks the placed copy (`workout.server.ts`).
+	const adopted = await placedCopy(placed, athlete.id)
+
+	expect(
+		(await readPlacedProvenance(adopted, new Date()))?.provenance.kind,
+	).toBe('corpus')
+	// Without adoption the second hop is not taken: the Workout is the
+	// athlete's own fork, and the fork's content is theirs.
+	expect(await readPlacedProvenance(adopted, null)).toBeNull()
+})
+
+test('a session placed from the Catalogue reads the same provenance', async () => {
+	const athlete = await createAthlete()
+	await prisma.athleteProfile.create({
+		data: { userId: athlete.id, timezone: 'UTC', defaultTrainingTime: '06:30' },
+	})
+	const stock = await createCitedStock()
+	const result = await placeCatalogueSession({
+		athleteId: athlete.id,
+		workoutId: stock.id,
+		date: '2026-09-01',
+	})
+	if (!result.ok) throw new Error('not placed')
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: result.sessionId },
+		select: { workoutId: true, adoptedAt: true },
+	})
+	expect(
+		(await readPlacedProvenance(session.workoutId, session.adoptedAt))
+			?.provenance.kind,
+	).toBe('corpus')
+})
+
+test('a community session reads its Attribution, never a Citation, and says when it was taken down', async () => {
+	const athlete = await createAthlete()
+	const author = await createAthlete()
+	const shared = await createSharedWorkout(author.id)
+	await createCatalogueEntry(shared.id, { archetype: 'threshold' })
+	const publishedAt = new Date('2026-08-01T10:00:00Z')
+	await prisma.attribution.create({
+		data: { workoutId: shared.id, displayName: 'Jo Kraas', publishedAt },
+	})
+	const placed = await placedCopy(shared.id, athlete.id)
+
+	expect(await readPlacedProvenance(placed, null)).toEqual({
+		provenance: {
+			kind: 'community',
+			attribution: { displayName: 'Jo Kraas', publishedAt },
+		},
+		takenDown: false,
+	})
+
+	await prisma.attribution.update({
+		where: { workoutId: shared.id },
+		data: { takenDownAt: new Date(), takedownReason: 'Unsafe to train' },
+	})
+	const takenDown = await readPlacedProvenance(placed, null)
+	expect(takenDown?.provenance.kind).toBe('community')
+	expect(takenDown?.takenDown).toBe(true)
+	// The moderator's reason is the author's to read, never this reader's.
+	expect(JSON.stringify(takenDown)).not.toContain('Unsafe')
+})
+
+test('a retired entry still gives a placed session its Citation', async () => {
+	const athlete = await createAthlete()
+	const stock = await createCitedStock()
+	const placed = await placedCopy(stock.id, athlete.id)
+	await prisma.catalogueEntry.update({
+		where: { workoutId: stock.id },
+		data: { retiredAt: new Date() },
+	})
+	expect((await readPlacedProvenance(placed, null))?.provenance.kind).toBe(
+		'corpus',
+	)
+})
+
+test('an athlete’s own fork of a Stock Workout, a deleted source and an own session have no provenance', async () => {
+	const athlete = await createAthlete()
+	const stock = await createCitedStock()
+	// Their own fork of a stock row, then a session written from that fork.
+	const ownFork = await placedCopy(stock.id, athlete.id)
+	const fromOwnFork = await placedCopy(ownFork, athlete.id)
+	expect(await readPlacedProvenance(fromOwnFork, null)).toBeNull()
+
+	// The source Workout no longer exists: `copiedFromId` is `SetNull`.
+	const other = await createCitedStock()
+	const orphan = await placedCopy(other.id, athlete.id)
+	await prisma.workout.delete({ where: { id: other.id } })
+	expect(await readPlacedProvenance(orphan, null)).toBeNull()
+
+	const own = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'my own tempo run',
+			discipline: 'run',
+			intent: 'tempo',
+			ownerId: athlete.id,
+		},
+	})
+	expect(await readPlacedProvenance(own.id, null)).toBeNull()
+	expect(await readPlacedProvenance(null, null)).toBeNull()
 })
