@@ -369,6 +369,7 @@ const activeOutlineSelect = {
 									repeatCount: true,
 									seriesRepeatCount: true,
 									betweenSeriesRestSec: true,
+									sendOff: true,
 									steps: {
 										orderBy: { orderIndex: 'asc' },
 										select: {

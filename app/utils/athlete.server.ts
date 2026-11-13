@@ -147,16 +147,28 @@ async function ensureCardioDisciplineProfiles(
 	})
 }
 
-export async function getOrCreateAthleteProfile(userId: string) {
-	const profile = await prisma.athleteProfile.upsert({
+/**
+ * The athlete's profile id, creating the profile (with its cardio Discipline
+ * Profiles) when there is none: the one way a profile comes to exist.
+ */
+export async function ensureAthleteProfile(
+	userId: string,
+	db: Prisma.TransactionClient = prisma,
+): Promise<string> {
+	const profile = await db.athleteProfile.upsert({
 		where: { userId },
 		create: { userId },
 		update: {},
 		select: { id: true },
 	})
-	await ensureCardioDisciplineProfiles(profile.id)
+	await ensureCardioDisciplineProfiles(profile.id, db)
+	return profile.id
+}
+
+export async function getOrCreateAthleteProfile(userId: string) {
+	const id = await ensureAthleteProfile(userId)
 	return prisma.athleteProfile.findUniqueOrThrow({
-		where: { id: profile.id },
+		where: { id },
 		include: { disciplineProfiles: true },
 	})
 }

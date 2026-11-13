@@ -6,7 +6,7 @@ import { Field, SelectField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
-import { DEFAULT_TRAINING_TIME } from '#app/utils/athlete-schema.ts'
+import { trainingTimeOf } from '#app/utils/athlete-schema.ts'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
@@ -63,8 +63,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			readMostTrainedDiscipline(userId, now),
 		])
 
-	const trainingTime =
-		athleteProfile.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+	const trainingTime = trainingTimeOf(athleteProfile)
 
 	/**
 	 * **The day the caller named** (ADR 0065's consequence: "the authoring route

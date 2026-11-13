@@ -1,7 +1,16 @@
 # Three tabs, and a calm I dag that shows today and this week
 
+> **Amended by
+> [ADR 0115](./0115-weather-on-i-dag-comes-from-met-norway-for-a-home-place-fetched-and-cached-on-the-server.md)
+> (#433)** in §3: with a **Home Place** set, the today card and this week's rows
+> carry the **Day Forecast**, and MET Norway is credited under the week.
+
 Status: Accepted · Owner decision 2 of spec #558 (_Levende start_, 2026-10-17) ·
-Recorded in ticket #559; built in #558 S4 (I dag) and S9 (_Plan_ and the tabs)
+Recorded in ticket #559; built in #558 S4 (I dag) and S9 (_Plan_ and the tabs) ·
+**§2's order amended by
+[ADR 0118](./0118-plans-lead-carries-the-plans-guard-notices-under-the-card.md)**:
+the **Guard Notices** follow the lead card and the resting line, before
+_Bibliotek_, and leave _Avansert_.
 
 **Amends
 [ADR 0083](./0083-four-tabs-are-the-persistent-chrome-and-old-urls-keep-working.md)

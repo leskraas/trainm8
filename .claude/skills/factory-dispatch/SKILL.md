@@ -14,7 +14,7 @@ Below, `$D` means `python3 <this skill's base directory>/../factory/scripts/cond
 1. Read `AGENTS.md` and `CLAUDE.md`. Their rules bind you.
 2. Run `$D config`. Without `docs/agents/factory.md` and its `factory` block, stop: tell the human to run `/factory-setup <o>/<r>`. Under `tracker: local`, stop too: the issues live in a folder of the human's clone that no cloud session sees, so tell the human to run `/factory` there.
 3. Run `$D labels <o>/<r>`.
-4. Load `create_session`, `get_session` and `archive_session` from the `claude-code-remote` MCP server (ToolSearch, `select:` the three names). When they are missing, this session cannot start sessions: invoke the `factory` skill here with `--max <parallel × 2> --unattended`, and stop after its report. Done when the three tools are callable.
+4. Load `create_session`, `get_session`, `archive_session`, `list_events` and `send_message` from the `claude-code-remote` MCP server (ToolSearch, `select:` the five names). When they are missing, this session cannot start sessions: invoke the `factory` skill here with `--max <parallel × 2> --unattended`, and stop after its report. Done when the five tools are callable.
 
 ## Steps
 
@@ -23,7 +23,8 @@ Below, `$D` means `python3 <this skill's base directory>/../factory/scripts/cond
    - Any other status, or `get_session` finds no session: it has finished. When its `at` is more than 24 hours ago, archive it with `archive_session`, so finished sessions stay a day for a human to read and then leave the list.
 
    Done when every listed session is live, archived, or finished less than a day ago.
-2. **Plan.** `$D dispatch <o>/<r> --me <me> --live <for>,<for>,...` prints `start` (the sessions to start, within `capacity`), `merges`, `stale`, `logs`, `waiting` and `running`.
+2. **Plan.** Read the subscription's usage into `$S/usage.json`, as `/factory`'s [references/usage.md](../factory/references/usage.md) says. `$D dispatch <o>/<r> --me <me> --live <for>,<for>,... --usage $S/usage.json` prints `start` (the sessions to start, within `capacity` and `wip`), `usage` (`hold`, `hold_new`, `why`, `until`), `merges`, `stuck`, `stale`, `logs`, `in_flight`, `waiting` and `running`. The plan finishes before it starts: started work takes the free sessions, and new work starts only below `wip` and without `usage.hold_new`.
+   - For each issue in `stuck` (a run holds it, and its session went idle before the lock went stale), wake the newest session step 1 lists for it: `send_message` with the text `Continue the factory run where it stopped: finish the step in progress, apply its result, and go on with the loop.` Then plan once more with its `for` in `--live`. A stuck issue without a session from step 1 stays in `running` until its lock goes stale. Each stuck session takes a seat of `parallel`, and under `usage.hold` the plan lists none, since a woken session would spend what the hold keeps.
    - For each number in `stale`, run `$D release <o>/<r> <n> --me <me>` (a run died holding it, and its label goes back), then plan once more.
    - For each issue in `logs`, run `$D log <o>/<r> <n> --me <me>`.
    - For each entry in `merges`, run `$D merge <o>/<r> <number> --me <me> --label <label>`. A merge needs no session: it checks and merges by itself. Note what it prints.
@@ -39,10 +40,11 @@ Below, `$D` means `python3 <this skill's base directory>/../factory/scripts/cond
 
    Keep each session id `create_session` returns. When a start fails, start no more, and put the error in the report. Done when every `start` entry has a session id or the error that stopped it.
 4. **Report.** Write `$S/report.md` in the human's language:
-   1. One line per session started: the item or scan, the task it starts at, and its link.
+   1. One line per session started or woken: the item or scan, the task it starts at, and its link.
    2. One line per merge, from what `$D merge` printed.
    3. The live sessions, each with its link, and any blocked one with what it waits on.
-   4. **What waits on a human**: each item in `waiting`, with its link. "Nothing" when nothing waits.
-   5. The **handoff**, as `/factory`'s [references/handoff.md](../factory/references/handoff.md) writes it. **Automatic** names the sessions now running and says each takes its issue as far as it goes; the next dispatch, at the next scheduled run, starts the rest. **You** is the one action a wait asks for, or "nothing".
+   4. **Usage**, when `usage.hold` or `usage.hold_new` is true: `usage.why`, whether it holds all work or only new work, and `usage.until`, when the next dispatch can start every session again. When `usage.overage` is `on`, the line `/factory`'s [references/usage.md](../factory/references/usage.md) gives under "Extra usage".
+   5. **What waits on a human**: each item in `waiting`, with its link. "Nothing" when nothing waits.
+   6. The **handoff**, as `/factory`'s [references/handoff.md](../factory/references/handoff.md) writes it. **Automatic** names the sessions now running and says each takes its issue as far as it goes; the next dispatch, at the next scheduled run, starts the rest. **You** is the one action a wait asks for, or "nothing".
 
    When this run started, merged or archived something, post the report with `$D note <o>/<r> $S/report.md --session <for>=<id>`, one `--session` per session started. The markers it appends are how the next dispatch finds them. In an interactive run, also give the report to the human. Done when every started session's marker is on the log issue.

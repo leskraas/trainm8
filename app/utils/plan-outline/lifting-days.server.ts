@@ -33,6 +33,7 @@ import {
 	type ClashReason,
 	type PlacedSession,
 } from './day-rule.ts'
+import { heldWorkouts, type HeldWorkouts } from './held-workouts.server.ts'
 import { relayPlanFromFirstUnbegunWeek } from './open-ended.server.ts'
 import {
 	DAY_CHOICE_PREVIEW_WEEKS,
@@ -357,13 +358,29 @@ function strengthRowOf(row: {
 }
 
 /**
+ * The Workout another pattern's strength rows lift: the one they hold, or
+ * else the one this write lifts. `null` where they name one this plan can
+ * neither hold nor copy in.
+ */
+async function liftedIn(
+	held: HeldWorkouts,
+	rows: ReadonlyArray<{ workoutId: string | null }>,
+	fallback: string,
+): Promise<string | null> {
+	const own = rows.find((row) => row.workoutId != null)?.workoutId
+	if (!own) return fallback
+	const holding = await held.hold(own, 'strength')
+	return holding.ok ? holding.workoutId : null
+}
+
+/**
  * Rows an undo sends back, held to what a strength track could hold: a
  * fixed row or a share on a real weekday, a lifting slot on none, and only
- * strength sessions the athlete owns or a Stock Workout. `null` where any is not.
+ * strength Workouts this plan holds (ADR 0113 §3). `null` where any is not, so
+ * a payload naming a session's own Workout can never tie a day to it.
  */
 async function checkedLiftingRestore(
-	tx: Prisma.TransactionClient,
-	userId: string,
+	held: HeldWorkouts,
 	rows: readonly StrengthRow[],
 ): Promise<StrengthRow[] | null> {
 	for (const row of rows) {
@@ -380,19 +397,11 @@ async function checkedLiftingRestore(
 			return null
 		}
 	}
-	const workoutIds = [
-		...new Set(rows.flatMap((row) => (row.workoutId ? [row.workoutId] : []))),
-	]
-	// The athlete's own sessions, or a Stock Workout no one owns: what a
-	// track with none of its own lifts (`readStartStrength`).
-	const owned = await tx.workout.count({
-		where: {
-			id: { in: workoutIds },
-			discipline: 'strength',
-			OR: [{ ownerId: userId }, { authorship: 'system' }],
-		},
-	})
-	return owned === workoutIds.length ? [...rows] : null
+	const accepted = await held.acceptsOnly(
+		rows.map((row) => row.workoutId),
+		'strength',
+	)
+	return accepted ? [...rows] : null
 }
 
 /**
@@ -500,9 +509,18 @@ export async function setLiftingDays(
 				const refusal = pinnedDaysRefusal(days, state.available)
 				if (refusal) return { ok: false, reason: refusal }
 			}
-			const workoutId =
+			// What the track lifts is a Workout the plan holds (ADR 0113): the
+			// one its rows already hold, or one copy of what a track with none
+			// would lift, which every row this write lays shares.
+			const held = heldWorkouts(tx, {
+				outlineId: state.outlineId,
+				athleteId: userId,
+			})
+			const lifted =
 				rows.find((row) => row.workoutId != null)?.workoutId ?? startWorkoutId
-			if (!workoutId) return { ok: false, reason: 'no-session' }
+			const holding = lifted ? await held.hold(lifted, 'strength') : null
+			if (!holding?.ok) return { ok: false, reason: 'no-session' }
+			const workoutId = holding.workoutId
 			const count = days
 				? days.length
 				: (restore?.count ?? Math.max(state.count, 1))
@@ -516,14 +534,18 @@ export async function setLiftingDays(
 				const back = restore?.elsewhere?.find(
 					(entry) => entry.patternId === other.id,
 				)
+				const otherLifted = back
+					? null
+					: await liftedIn(held, other.days, workoutId)
 				const rows = back
-					? await checkedLiftingRestore(tx, userId, back.rows)
-					: strengthPatternRows(
-							days,
-							days ? days.length : other.days.length,
-							other.days.find((row) => row.workoutId != null)?.workoutId ??
-								workoutId,
-						)
+					? await checkedLiftingRestore(held, back.rows)
+					: otherLifted
+						? strengthPatternRows(
+								days,
+								days ? days.length : other.days.length,
+								otherLifted,
+							)
+						: null
 				if (!rows) return { ok: false, reason: 'stale' }
 				others.push({ patternId: other.id, rows })
 			}
@@ -531,7 +553,7 @@ export async function setLiftingDays(
 			// An undo puts back the rows it carries exactly, whatever they lifted
 			// and however they were authored; a choice writes them from the days.
 			const written = restore?.rows
-				? await checkedLiftingRestore(tx, userId, restore.rows)
+				? await checkedLiftingRestore(held, restore.rows)
 				: strengthPatternRows(days, count, workoutId)
 			if (!written) return { ok: false, reason: 'stale' }
 			const pinnedDays =
@@ -546,6 +568,14 @@ export async function setLiftingDays(
 			for (const other of others) {
 				await writeStrengthRows(tx, other.patternId, state.trackId, other.rows)
 			}
+			// A row this write replaced may leave a Held Workout unused; it waits
+			// only while this write's undo still names it (ADR 0113 §4).
+			await held.sweep({
+				spare: [
+					read.rows,
+					...read.elsewhere.map((other) => other.days),
+				].flatMap((replaced) => replaced.map((row) => row.workoutId)),
+			})
 			await tx.trainingTrack.update({
 				where: { id: state.trackId },
 				data: { pinnedDays },

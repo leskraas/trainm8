@@ -13,8 +13,10 @@ A task can't start subagents, so the orchestrator runs `review-pr`'s reviews:
 
 1. **Reviews**: one read-only subagent per review in `review-pr`'s step 1
    ("Collect findings"), for this PR, all in one message, each given the
-   issue the PR closes as the spec and writing its own report file. Each
-   takes the model and effort in the queue entry's `parts.review-read`.
+   issue the PR closes as the spec and writing its own report file, plus
+   one **qualities** review that reads the diff against every quality in
+   `references/qualities.md`, named in the issue or not. Each takes the
+   model and effort in the queue entry's `parts.review-read`.
 2. **Fix and route**: one subagent with every report, running steps 1–4,
    with the model and effort in `parts.review-fix`.
 
@@ -46,7 +48,9 @@ A task can't start subagents, so the orchestrator runs `review-pr`'s reviews:
    and shown at the head, or medium and costlier to fix once code builds on
    it (a wrong abstraction, a duplicated rule, a missing test for new
    behaviour). Otherwise `forward` to QA. A problem the base branch already
-   has counts only when the PR copies it or newly reaches it.
+   has counts only when the PR copies it or newly reaches it. Under `poc` and
+   `maintain`, the phase's bar changes this route (`questions.md`, "The
+   bar").
 
 ## Result
 

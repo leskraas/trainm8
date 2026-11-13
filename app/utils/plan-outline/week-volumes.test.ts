@@ -868,6 +868,7 @@ describe('a prescription read on its own', () => {
 					repeatCount: 1,
 					seriesRepeatCount: null,
 					betweenSeriesRestSec: null,
+					sendOff: null,
 					steps: steps.map((step, index) => ({
 						id: `s${index}`,
 						orderIndex: index,

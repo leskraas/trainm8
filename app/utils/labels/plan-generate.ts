@@ -102,6 +102,32 @@ export const PLAN_GENERATE_LABELS = {
 	) =>
 		`${spans} ber om ${single ? '' : 'opptil '}${peak} utholdenhetstrening, og kapasiteten din er ${capacity}. Kvalitetsøktene alene krever mer enn det, så et lavere startvolum hjelper ikke – startvolumet står som det er.`,
 
+	/**
+	 * **Placed Hours** against the **Weekly Capacity** (ADR 0110 §4, ADR 0116):
+	 * the placed sessions alone take longer than the athlete has. Stated, never
+	 * fixed. Figures arrive formatted: `minst ≈ 7,5 t`, `7,5 t`, `6 t/uke`.
+	 *
+	 * On the week card: the lead (bold) and the rest of the sentence.
+	 */
+	placedWeek: (figure: string, capacity: string) =>
+		[
+			`Øktene alene tar ${figure}`,
+			`, kapasiteten din er ${capacity}.`,
+		] as const,
+	/** `minst ≈ 7,5 t`: a floor, where a step was untimed or a slot is empty. */
+	placedAtLeast: (figure: string) => `minst ${figure}`,
+	/** The season line's lead, beside `lowered` and `over`. */
+	placedOverLead: 'Øktene alene tar mer tid enn du har.',
+	/** `Uke 4–6 og uke 9 har økter som til sammen tar lengre tid enn …`. */
+	placedOver: (spans: string, single: boolean, capacity: string) =>
+		`${spans} har økter som til sammen tar lengre tid enn kapasiteten din på ${capacity}. Ingen økt er kortet ned eller byttet ut – ${single ? 'uka viser' : 'hver av ukene viser'} hvor mye.`,
+	/** On the «N uker til» row, naming the breaching weeks behind it. */
+	remainingBreach: (spans: string) =>
+		`${spans} ligger her, og øktene der tar mer tid enn du har.`,
+	/** Past three hidden spans, a count instead of a list. */
+	remainingBreachCount: (count: number) =>
+		`${count} av ukene her tar mer tid enn du har`,
+
 	seasonTitle: 'Sesongen',
 	/**
 	 * Said once under «Sesongen», never on a card (#472): why a week's target and

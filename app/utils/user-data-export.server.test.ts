@@ -1,9 +1,11 @@
+import { getAuthTables } from '@better-auth/core/db'
 import { Prisma } from '@prisma/client'
 import { expect, test } from 'vitest'
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { createPlanOutline } from '#app/utils/plan-outline/authoring.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { connectAccountConnection } from './account-connection.server.ts'
+import { authOptions } from './auth/options.server.ts'
 import { prisma } from './db.server.ts'
 import {
 	USER_DATA_EXPORT_EXCLUSIONS,
@@ -12,13 +14,16 @@ import {
 
 /**
  * Every model that holds a row about a user: `User` itself and, transitively,
- * every model with a foreign key into one that does. Read from the Prisma
- * schema, so a new table joins this list the moment it is added and the export
- * test fails until the export carries it or names why it does not.
+ * every model with a foreign key into one that does, plus every table Better
+ * Auth is configured with (ADR 0114 §6), since `AuthVerification` names its
+ * user without a foreign key. Read from the Prisma schema and from
+ * `getAuthTables`, so a new table, or one a Better Auth plugin or upgrade adds,
+ * joins this list the moment it exists and the export test fails until the
+ * export carries it or names why it does not.
  */
 function userOwnedModels(): string[] {
 	const models = Prisma.dmmf.datamodel.models
-	const owned = new Set(['User'])
+	const owned = new Set(['User', ...betterAuthModels()])
 	let grew = true
 	while (grew) {
 		grew = false
@@ -37,6 +42,13 @@ function userOwnedModels(): string[] {
 		}
 	}
 	return [...owned].sort()
+}
+
+/** Better Auth's configured tables, by Prisma model name (`authSession` → `AuthSession`). */
+function betterAuthModels() {
+	return Object.values(getAuthTables(authOptions)).map(
+		({ modelName }) => modelName.charAt(0).toUpperCase() + modelName.slice(1),
+	)
 }
 
 async function createAthleteWithTrainingRecord(label: string) {
@@ -256,4 +268,157 @@ test("a moderator's export carries the reports they resolved, not the reporters'
 	const json = JSON.stringify(tables)
 	expect(json).not.toContain('other wrote this privately')
 	expect(json).not.toContain(other.userId)
+})
+
+test("Better Auth's tables are in the walk, the verification table included", () => {
+	expect(betterAuthModels().sort()).toEqual([
+		'AuthAccount',
+		'AuthPasskey',
+		'AuthSession',
+		'AuthVerification',
+		'TwoFactor',
+		'User',
+	])
+	expect(userOwnedModels()).toEqual(
+		expect.arrayContaining(['AuthVerification', 'TwoFactor']),
+	)
+})
+
+/** One row in every Better Auth table, each holding a secret the export must never carry. */
+async function createSignInMethods(userId: string, label: string) {
+	const secrets = {
+		passwordHash: `$2a$10$${label}PasswordHashThatMustNotLeak`,
+		githubAccessToken: `${label}-github-access-token`,
+		githubRefreshToken: `${label}-github-refresh-token`,
+		githubIdToken: `${label}-github-id-token`,
+		sessionToken: `${label}-session-token-must-not-leak`,
+		totpSecret: `${label}-totp-secret-must-not-leak`,
+		backupCodeOne: `${label}-backup-code-1`,
+		backupCodeTwo: `${label}-backup-code-2`,
+		oneTimeCode: `${label}-hashed-one-time-code`,
+		passkeyPublicKey: `${label}-passkey-public-key`,
+		passkeyCredentialId: `${label}-passkey-credential-id`,
+	}
+	await prisma.user.update({
+		where: { id: userId },
+		data: { twoFactorEnabled: true },
+	})
+	await prisma.authAccount.createMany({
+		data: [
+			{
+				id: `${label}-credential`,
+				userId,
+				providerId: 'credential',
+				accountId: userId,
+				password: secrets.passwordHash,
+				updatedAt: new Date(),
+			},
+			{
+				id: `${label}-github`,
+				userId,
+				providerId: 'github',
+				accountId: `${label}-github-id`,
+				accessToken: secrets.githubAccessToken,
+				refreshToken: secrets.githubRefreshToken,
+				idToken: secrets.githubIdToken,
+				updatedAt: new Date(),
+			},
+		],
+	})
+	await prisma.authPasskey.create({
+		data: {
+			id: `${label}-passkey`,
+			userId,
+			name: `${label} sin iPhone`,
+			publicKey: secrets.passkeyPublicKey,
+			credentialID: secrets.passkeyCredentialId,
+			counter: 0,
+			deviceType: 'multiDevice',
+			backedUp: true,
+			createdAt: new Date('2026-11-01T08:00:00Z'),
+		},
+	})
+	await prisma.authSession.create({
+		data: {
+			id: `${label}-auth-session`,
+			userId,
+			token: secrets.sessionToken,
+			expiresAt: new Date(Date.now() + 86_400_000),
+			updatedAt: new Date(),
+		},
+	})
+	await prisma.twoFactor.create({
+		data: {
+			id: `${label}-two-factor`,
+			userId,
+			secret: secrets.totpSecret,
+			backupCodes: `${secrets.backupCodeOne},${secrets.backupCodeTwo}`,
+		},
+	})
+	await prisma.authVerification.create({
+		data: {
+			id: `${label}-verification`,
+			identifier: `sign-in-otp-${label}@example.test`,
+			value: `${secrets.oneTimeCode}:0`,
+			expiresAt: new Date(Date.now() + 300_000),
+			updatedAt: new Date(),
+		},
+	})
+	return secrets
+}
+
+test('the export lists sign-in methods and never a sign-in secret', async () => {
+	const me = await createAthleteWithTrainingRecord('me')
+	const secrets = await createSignInMethods(me.userId, 'me')
+
+	const exported = await exportUserData({
+		userId: me.userId,
+		domain: 'https://x.test',
+	})
+	const { tables } = exported
+
+	// Password set, GitHub linked.
+	expect(tables.AuthAccount).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ providerId: 'credential' }),
+			expect.objectContaining({
+				providerId: 'github',
+				accountId: 'me-github-id',
+			}),
+		]),
+	)
+	// Passkey names and dates.
+	expect(tables.AuthPasskey).toEqual([
+		{
+			id: 'me-passkey',
+			name: 'me sin iPhone',
+			deviceType: 'multiDevice',
+			backedUp: true,
+			createdAt: new Date('2026-11-01T08:00:00Z'),
+		},
+	])
+	// Two-factor on.
+	expect(tables.User).toEqual([
+		expect.objectContaining({ twoFactorEnabled: true }),
+	])
+	expect(tables.AuthSession).toEqual([
+		expect.objectContaining({ id: 'me-auth-session' }),
+	])
+
+	const json = JSON.stringify(exported)
+	const leaked = Object.entries(secrets).filter(([, secret]) =>
+		json.includes(secret),
+	)
+	expect(leaked).toEqual([])
+	for (const row of tables.AuthAccount ?? []) {
+		expect(Object.keys(row).sort()).toEqual([
+			'accountId',
+			'createdAt',
+			'id',
+			'providerId',
+			'updatedAt',
+		])
+	}
+	expect(json).not.toContain('me-verification')
+	expect(json).not.toContain('me-two-factor')
 })
