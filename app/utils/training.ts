@@ -1,5 +1,4 @@
 import { localDate } from './athlete-calendar.ts'
-import { type PlannedMinutes, plannedMinutes } from './dashboard.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
 // Enum display labels live in the shared label seam (#281); re-exported here so
 // existing importers of these helpers are unchanged.
@@ -10,6 +9,7 @@ import {
 	plannedMetricValue,
 	readPlannedMetric,
 } from './planned-discipline.ts'
+import { type PlannedMinutes, plannedMinutes } from './prescribed-duration.ts'
 import { deriveRecordingTitle } from './session-title.ts'
 
 export type StatusBadgeVariant =

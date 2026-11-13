@@ -86,6 +86,7 @@ import {
 	type GenerationRefusal,
 	type SeasonPreview,
 } from '#app/utils/plan-generation/generate.server.ts'
+import { type PlacedFit } from '#app/utils/plan-generation/placed-hours.ts'
 import {
 	GENERATION_INTENTS,
 	type GeneratedSession,
@@ -346,6 +347,11 @@ export default function GenerateSeasonRoute({
 						startWeekKey={season.startWeekKey}
 						weeks={weeks.length}
 					/>
+					<PlacedNotice
+						placed={season.placed}
+						startWeekKey={season.startWeekKey}
+						weeks={weeks.length}
+					/>
 				</div>
 				<ul className="space-y-3">
 					{weeks.slice(0, WEEKS_SHOWN).map((week) => (
@@ -357,7 +363,13 @@ export default function GenerateSeasonRoute({
 				{weeks.length > WEEKS_SHOWN ? (
 					<CollapsibleSection
 						summary={L.remaining(weeks.length - WEEKS_SHOWN)}
-						detail={L.remainingDetail}
+						detail={
+							<RemainingDetail
+								placed={season.placed}
+								startWeekKey={season.startWeekKey}
+								weeks={weeks.length}
+							/>
+						}
 						contentClassName="space-y-3"
 					>
 						<ul className="space-y-3">
@@ -552,27 +564,10 @@ function CapacityNotice({
 	}
 	if (capacity.kind !== 'over') return null
 	const { warnings } = capacity
-	// A breach in every week is said as one, not as an ISO span that may run
-	// across New Year (`Uke 43–16`).
-	const everyWeek =
-		warnings.length === 1 &&
-		warnings[0]!.fromWeekIndex === 0 &&
-		warnings[0]!.toWeekIndex === weeks - 1
-	const spans = everyWeek
-		? L.capacityEveryWeek
-		: SESONG_NOTICE_LABELS.weekSpans(
-				warnings.map((warning) =>
-					isoWeekSpanLabel(
-						isoWeekNumber(addDays(startWeekKey, 7 * warning.fromWeekIndex)),
-						isoWeekNumber(addDays(startWeekKey, 7 * warning.toWeekIndex)),
-					),
-				),
-			)
+	const spans = seasonSpans(warnings, startWeekKey, weeks)
 	// "opptil" unless the breach is one single week: the figure is the worst week
 	// of all the spans, never what every week in them asks for.
-	const single =
-		warnings.length === 1 &&
-		warnings[0]!.fromWeekIndex === warnings[0]!.toWeekIndex
+	const single = isSingleWeek(warnings)
 	return (
 		<p className="text-footnote tabular-nums" data-capacity="over">
 			<span className="font-semibold">{L.capacityOverLead}</span>{' '}
@@ -587,6 +582,150 @@ function CapacityNotice({
 			)}
 		</p>
 	)
+}
+
+/** A run of weeks of the season, 0-based, as the hours checks state them. */
+type WeekSpan = { fromWeekIndex: number; toWeekIndex: number }
+
+/**
+ * Spans of weeks named as Sesong names them (`Uke 4–6 og uke 9`). A breach in
+ * every week is said as one, not as an ISO span that may run across New Year
+ * (`Uke 43–16`).
+ */
+function seasonSpans(
+	spans: readonly WeekSpan[],
+	startWeekKey: string,
+	weeks: number,
+): string {
+	return isEveryWeek(spans, weeks)
+		? L.capacityEveryWeek
+		: SESONG_NOTICE_LABELS.weekSpans(
+				spans.map((span) =>
+					isoWeekSpanLabel(
+						isoWeekNumber(addDays(startWeekKey, 7 * span.fromWeekIndex)),
+						isoWeekNumber(addDays(startWeekKey, 7 * span.toWeekIndex)),
+					),
+				),
+			)
+}
+
+function isEveryWeek(spans: readonly WeekSpan[], weeks: number): boolean {
+	return (
+		spans.length === 1 &&
+		spans[0]!.fromWeekIndex === 0 &&
+		spans[0]!.toWeekIndex === weeks - 1
+	)
+}
+
+function isSingleWeek(spans: readonly WeekSpan[]): boolean {
+	return spans.length === 1 && spans[0]!.fromWeekIndex === spans[0]!.toWeekIndex
+}
+
+/**
+ * **Placed Hours** over the **Weekly Capacity**, under the season's heading
+ * (ADR 0110 §4, ADR 0116): which weeks hold placed sessions that alone take
+ * longer than the athlete has, so a 20-week season need not be scrolled to
+ * find them. It sits beside `lowered` and `over` and replaces neither.
+ *
+ * No figure: each card states its own week's, and a peak here would stack
+ * `opptil minst ≈`. It says nothing was shortened, which is ADR 0053 §6 in the
+ * athlete's words. No capacity, or no breach, adds nothing: silence is no pass
+ * (ADR 0050). Static, like `CapacityNotice`: it arrives with the page.
+ */
+function PlacedNotice({
+	placed,
+	startWeekKey,
+	weeks,
+}: {
+	placed: PlacedFit
+	startWeekKey: string
+	weeks: number
+}) {
+	if (placed.kind !== 'read' || placed.breaches.length === 0) return null
+	return (
+		<p className="text-footnote tabular-nums" data-placed="season">
+			<span className="font-semibold">{L.placedOverLead}</span>{' '}
+			{L.placedOver(
+				seasonSpans(placed.breaches, startWeekKey, weeks),
+				isSingleWeek(placed.breaches),
+				weeklyHours(placed.weeklyCapacityHours, false),
+			)}
+		</p>
+	)
+}
+
+/** How many hidden spans the «N uker til» row names before it counts instead. */
+const HIDDEN_SPANS_LISTED = 3
+
+/**
+ * The «N uker til» row's line under its name, and — when breaching weeks sit
+ * behind it — which ones, in the foreground (#429): the tap may hide the weeks
+ * but not that a guard is among them. Left out when the season line already
+ * says every week breaches.
+ */
+function RemainingDetail({
+	placed,
+	startWeekKey,
+	weeks,
+}: {
+	placed: PlacedFit
+	startWeekKey: string
+	weeks: number
+}) {
+	const hidden =
+		placed.kind !== 'read' || isEveryWeek(placed.breaches, weeks)
+			? []
+			: placed.breaches.flatMap((span) =>
+					span.toWeekIndex < WEEKS_SHOWN
+						? []
+						: [
+								{
+									fromWeekIndex: Math.max(span.fromWeekIndex, WEEKS_SHOWN),
+									toWeekIndex: span.toWeekIndex,
+								},
+							],
+				)
+	if (hidden.length === 0) return L.remainingDetail
+	const breach =
+		hidden.length > HIDDEN_SPANS_LISTED
+			? L.remainingBreachCount(
+					hidden.reduce(
+						(count, span) => count + span.toWeekIndex - span.fromWeekIndex + 1,
+						0,
+					),
+				)
+			: L.remainingBreach(seasonSpans(hidden, startWeekKey, weeks))
+	return (
+		<>
+			{L.remainingDetail}
+			<span
+				className="text-foreground mt-0.5 block tabular-nums"
+				data-placed="remaining"
+			>
+				{breach}
+			</span>
+		</>
+	)
+}
+
+/**
+ * This week's Placed Hours as the athlete reads them, when they breach: `7,5 t`
+ * timed end to end, `≈` through a pace, `minst` in front where a step was
+ * untimed or a slot is empty. Rounded once, here (#638); the figure never
+ * splits, and `minst` may wrap away from it.
+ */
+function placedWeekFigure(placed: PlacedFit, weekIndex: number): string | null {
+	if (placed.kind !== 'read') return null
+	const breaches = placed.breaches.some(
+		(span) => span.fromWeekIndex <= weekIndex && weekIndex <= span.toWeekIndex,
+	)
+	const week = placed.weeks[weekIndex]
+	if (!breaches || week == null) return null
+	const figure = approxLabel(
+		formatNbVolumeTotal(week.hours, 'hours'),
+		week.estimated,
+	).replaceAll(' ', '\u00a0')
+	return week.exact ? figure : L.placedAtLeast(figure)
 }
 
 /**
@@ -620,6 +759,7 @@ function WeekCard({
 		(slot) => slot.weekIndex === week.weekIndex,
 	)
 	const titleId = `week-${week.weekKey}`
+	const placedFigure = placedWeekFigure(season.placed, week.weekIndex)
 	return (
 		<Card
 			role="article"
@@ -627,10 +767,12 @@ function WeekCard({
 			className="gap-3 [--card-spacing:--spacing(4)] md:[--card-spacing:--spacing(5)]"
 		>
 			<div className="space-y-1 px-(--card-spacing)">
-				<div className="flex items-baseline gap-2">
+				{/* The date wraps under the title rather than squeezing the role badge
+				    out of the card at 320 px with 200 % text. */}
+				<div className="flex flex-wrap items-baseline gap-x-2">
 					<h3
 						id={titleId}
-						className="text-callout flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 font-semibold tabular-nums"
+						className="text-callout flex max-w-full flex-[1_0_auto] flex-wrap items-center gap-x-2 gap-y-1 font-semibold tabular-nums"
 					>
 						{L.week(isoWeekNumber(week.weekKey))}
 						{week.role === 'loading' ? null : (
@@ -648,22 +790,35 @@ function WeekCard({
 					{L.weekOf(week.weekIndex + 1, season.weeks.length)} ·{' '}
 					{nbPhaseName(phase.name)}
 				</p>
-				{/* One figure per track, each kept whole on its line: a sport and its
-				    figure split across a wrap read as two facts (`1 270,5 km`). */}
+				{/* One figure per track. The sport and its figure stay on one line
+				    while they fit; at 320 px with 200 % text the sport yields to its
+				    own line, and the figure never splits (`1 270,5 km`). */}
 				<p className="text-footnote flex flex-wrap gap-x-1.5 tabular-nums">
 					{week.targets.map((target, index) => (
 						<span key={target.discipline} className="contents">
 							{index > 0 ? <span aria-hidden>·</span> : null}
-							<span className="whitespace-nowrap">
-								{`${NB_DISCIPLINE_LABELS[target.discipline]} ${
-									target.value == null
+							<span className="inline-flex min-w-0 flex-wrap gap-x-[0.25em]">
+								<span className="whitespace-nowrap">
+									{NB_DISCIPLINE_LABELS[target.discipline]}
+								</span>{' '}
+								<span className="whitespace-nowrap">
+									{target.value == null
 										? '—'
-										: formatNbVolumeTotal(target.value, target.currency)
-								}`}
+										: formatNbVolumeTotal(target.value, target.currency)}
+								</span>
 							</span>
 						</span>
 					))}
 				</p>
+				{/* Placed Hours over the capacity: the week's own line, in the
+				    foreground, never behind a tap (#429). The amber marks it; the
+				    words carry it (RiseWarningNotice's voice). */}
+				{placedFigure != null && season.placed.kind === 'read' ? (
+					<PlacedWeekLine
+						figure={placedFigure}
+						capacity={weeklyHours(season.placed.weeklyCapacityHours, false)}
+					/>
+				) : null}
 			</div>
 			{sessions.length + unfilled.length > 0 ? (
 				<ul className="divide-border/60 divide-y px-(--card-spacing)">
@@ -689,6 +844,25 @@ function WeekCard({
 	)
 }
 
+function PlacedWeekLine({
+	figure,
+	capacity,
+}: {
+	figure: string
+	capacity: string
+}) {
+	const [lead, rest] = L.placedWeek(figure, capacity)
+	return (
+		<p
+			className="text-footnote bg-status-under/10 ring-status-under/35 mt-1 rounded-3xl px-3.5 py-2.5 tabular-nums ring-1"
+			data-placed="over"
+		>
+			<span className="font-semibold">{lead}</span>
+			{rest}
+		</p>
+	)
+}
+
 /** `Mandag · Løping` — the day and the sport a row sits on. */
 function DayLine({
 	weekday,
@@ -700,7 +874,9 @@ function DayLine({
 	extra?: readonly string[]
 }) {
 	return (
-		<p className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5">
+		// A long archetype («Konkurransesimulering») breaks rather than pushing
+		// the card sideways at 320 px with 200 % text.
+		<p className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 [overflow-wrap:anywhere]">
 			<span className="text-foreground font-semibold">
 				{NB_PATTERN_WEEKDAY_LABELS[weekday]}
 			</span>

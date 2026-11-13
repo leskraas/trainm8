@@ -1,9 +1,5 @@
 import { expect, test } from 'vitest'
-import {
-	CATALOGUE_CORPUS,
-	stockEntryId,
-	stockWorkoutId,
-} from '../catalogue-corpus.all.ts'
+import { GENERATION_CORPUS } from '#tests/fixtures/generation/corpus.ts'
 import { PERIODIZATION_PRESETS, presetFor } from '../plan-outline/presets.ts'
 import {
 	cataloguePhaseFor,
@@ -15,23 +11,7 @@ import {
 import { type RetrievableEntry } from './retrieval.ts'
 import { type SeasonRequest } from './season.ts'
 
-/** The shipped corpus, in the shape retrieval reads — the real rows, no database. */
-const CORPUS: RetrievableEntry[] = CATALOGUE_CORPUS.map((session) => ({
-	entryId: stockEntryId(session.key),
-	workoutId: stockWorkoutId(session.key),
-	title: session.title,
-	description: session.description,
-	discipline: session.discipline,
-	authorship: 'system',
-	archetype: session.archetype,
-	level: session.level,
-	phases: session.phases,
-	goalEvents: session.goalEvents,
-	citationAuthor: session.citation?.author ?? null,
-	citationWork: session.citation?.work ?? null,
-	citationYear: session.citation?.year ?? null,
-	citationLocator: session.citation?.locator ?? null,
-}))
+const CORPUS = GENERATION_CORPUS
 
 function request(overrides: Partial<SeasonRequest> = {}): SeasonRequest {
 	return {
@@ -45,6 +25,7 @@ function request(overrides: Partial<SeasonRequest> = {}): SeasonRequest {
 		intent: 'deliberately-building',
 		weeklyCapacityHours: 6,
 		conversionContexts: {},
+		thresholds: {},
 		...overrides,
 	}
 }

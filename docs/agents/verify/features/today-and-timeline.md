@@ -19,6 +19,11 @@ The athlete's landing page and the whole season as one bi-directional stream
   (_Kondisjonen steg/falt med opptil N — A → B på det meste_), the explanation
   and _Skjønner_, which dismisses that kind only. A notice with no CTL pair
   (ADR 0117) shows no movement line at all.
+- The weather (#433, ADR 0115): with a Home Place set (_Meg_ › _Hjemsted_, see
+  `me-settings-and-imports.md`), one weather line on the today card
+  (`[data-calm-weather]`), a weather column on this week's rows from tomorrow on
+  (`[data-calm-day-weather]`) and _Værvarsel fra MET Norway_ under the week.
+  Without a Home Place none of it renders.
 
 ## How to get to it
 
@@ -44,6 +49,15 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
   (`kind` `swim-rest-left-the-pace` or `strength-left-the-triad`; `ctlBefore`
   and `ctlAfter` both set or both NULL, a CHECK refuses one alone). The newest
   outstanding notice shows; after _Skjønner_ and a reload the next one does.
+- The weather comes from MET Norway, called by the server. Start the server with
+  `MOCK_WEATHER=true` for the mock's fixed pattern
+  (`tests/mocks/ met-norway.ts`, from the current hour); without it the real MET
+  answers. It is cached per rounded point in `$CACHE_DATABASE_PATH`, so a fresh
+  cache database is a fresh forecast.
+- The weather column is hidden below a 20rem row (a 320px phone, or 200% text):
+  the weather then sits in the stacked day line
+  (`[data-calm-day-weather-inline]`). Check both widths.
+
 - The stream scrolls in both directions and loads weeks as it goes: scroll the
   `timeline-stream` element itself to reach a week, or the rows are not rendered
   yet.

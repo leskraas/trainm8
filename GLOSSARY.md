@@ -1133,13 +1133,15 @@ exists; it is an **Unavailable Metric** on that surface only, and the reason
 names the platforms that closed it (ADR 0098). Never used for a value that does
 not exist. _Avoid_: Blocked, redacted, licence error, missing
 
-**Reading**: One number as trainm8 states it to anything outside its own screens
+**Reading**: One value as trainm8 states it to anything outside its own screens
 — an athlete's **Assistant** above all — either _available_ with its value or
 _unavailable_ with its reason and the athlete's words for it, never a zero, a
-blank or an omitted field (ADR 0092). An **Unavailable Metric** is a Reading
-that is unavailable; `source-terms` is one of its reasons. Distinct from a
-**Workout Reading**, which is a whole account of one session whose numbers are
-Readings. _Avoid_: Value, data point, nullable number, metric (alone)
+blank or an omitted field (ADR 0092). The value is one number, one band, or one
+observation whose figures stand or fall together, such as a **Day Forecast**
+(ADR 0115). An **Unavailable Metric** is a Reading that is unavailable;
+`source-terms` is one of its reasons. Distinct from a **Workout Reading**, which
+is a whole account of one session whose numbers are Readings. _Avoid_: Value,
+data point, nullable number, metric (alone)
 
 **Summary Count**: A truthful aggregate derived from existing sessions, such as
 number of sessions or number of days in the horizon. The **Strength Summary
@@ -1650,6 +1652,23 @@ inn ennå_ instead. _Avoid_: Wall, lookahead, sprint window.
 **Discipline Query**: The URL query parameter that preserves the selected
 discipline filter. _Avoid_: Local filter state, tab state
 
+**Forecast Hour**: The hour a day's **Day Forecast** is for: the start of the
+day's first session not yet done (still scheduled; a skipped or missed one does
+not count), else the athlete's default training time (**Training
+Availability**), else 07:00; today, once that hour has passed, the coming hour.
+One rule for every surface that shows weather (ADR 0115). _Avoid_: Weather time,
+training hour
+
+**Day Forecast**: The weather forecast for one day at its **Forecast Hour** at
+the athlete's **Home Place** — a weather symbol, the temperature and the
+precipitation — taken from the one forecast step that covers that hour, so its
+figures stand or fall together. It is a forecast, never a measurement and never
+a **Training Metric**: on I dag a day with no forecast (past, beyond the
+forecast's reach, no Home Place, the source silent) shows nothing at all, not an
+**Unavailable Metric**; to an **Assistant** it is a **Reading** with its reason
+(ADR 0115). _Avoid_: Weather (alone, as a code term), conditions, forecast
+metric
+
 ### People and scope
 
 **Self-Coaching Athlete**: The primary user who plans and reviews their own
@@ -1668,10 +1687,30 @@ access control. _Avoid_: Viewer; _avoid bare_ "account" (use **Authenticated
 User** for internal identity, **Account Connection** for an external service
 account)
 
+**Sign-in Method**: One way an **Authenticated User** proves who they are: a
+password, a passkey, or a linked GitHub identity. Two-factor authentication is
+not a method of its own but a second step on top of one. An emailed code is a
+second step for an athlete who must set up two-factor again, never a method that
+signs anyone in alone (ADR 0094 §3). _Avoid_: Account, login provider,
+connection (an **Account Connection** links a training service, not a way to
+sign in)
+
+**Sign-in Session**: The period an **Authenticated User** stays signed in on one
+browser, ended by signing out, by expiry, or by the one forced sign-out at the
+login cutover (ADR 0094 §1). _Avoid_: bare "session" (that is a **Workout
+Session** in this domain)
+
 **Owner**: The authenticated user who owns workouts and workout sessions.
 _Avoid_: Creator, participant, "the session's owner" for athlete-versus-machine
 (that is **Session Ownership**: every session has one Owner, the athlete, and
 still may be the machine's to change)
+
+**Home Place**: The one named place in Norway the athlete chooses as where they
+train from, kept as its name, where it lies (municipality and county) and a
+point rounded to about a kilometre (UI word: _Hjemsted_, set in _Meg_). It is
+stated by the athlete, never inferred from recordings or the browser, and is
+used only to fetch the **Day Forecast**. At most one; none means no weather
+anywhere (ADR 0115). _Avoid_: Location, position, address, home (alone)
 
 ### App structure
 
@@ -2872,6 +2911,16 @@ Volume rather than a planned zero. Writing, moving or editing a session moves
 this number and never the **Week Target**. _Avoid_: Planned load (that is
 Planned TSS, per session), week sum.
 
+**Placed Hours**: How long one generated **Training Week**'s placed endurance
+sessions take **at least**, in hours: every step the **Workout Reading** can time
+through the athlete's own thresholds, a **Send-Off** rep at its cycle time, summed.
+Exact only when every placed session was timed end to end and no slot went
+unfilled; otherwise a floor, and it reads _minst_. Read in the generate preview
+against the **Weekly Capacity** and stated, never fixed, where it is over (ADR
+0110 §4, ADR 0116). Not **Planned Volume**, which drops a whole session for one
+untimed step, so the two may differ on the same week. _Avoid_: Planned hours,
+session hours, week duration.
+
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the
 session's TSS, the working **Exercise Set Logs**. A **Simple Activity** marked
@@ -3366,6 +3415,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 
 ## Flagged ambiguities
 
+- **"account" and "session" in auth code are not the domain's words.** Better
+  Auth calls each **Sign-in Method** an "account" (`AuthAccount`) and each
+  **Sign-in Session** a "session" (`AuthSession`). Neither is an **Account
+  Connection** or a **Workout Session**; say **Sign-in Method** and **Sign-in
+  Session** outside the auth module, and **Authenticated User** for "the
+  account" as a whole.
 - "workout" has been used to mean both the structural definition and the
   scheduled instance; use **Workout** for the structure and **Workout Session**
   for the scheduled instance. The old advice here said "**Workout Template** for

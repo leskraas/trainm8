@@ -9,8 +9,8 @@ structure (layout, sizing, navigation, wording) stays in
 
 **The backbone is shadcn.** `components.json` uses the `base-luma` style (shadcn
 on Base UI, the "luma" look #505 asks for). Tokens follow shadcn's CSS-variable
-conventions; components come from `npx shadcn@latest add`. Local changes to what
-the CLI generates are kept small, commented where they occur, and listed in
+conventions; components come from `npx shadcn add`. Local changes to what the
+CLI generates are kept small, commented where they occur, and listed in
 [Deviations from shadcn](#deviations-from-shadcn) below, so a future
 `shadcn add --diff` stays reviewable. [coss ui](https://coss.com/ui) (Cal.com's
 library, also on Base UI) was the reference for the docs-page layout and for
@@ -263,9 +263,9 @@ covers what `base-luma` itself would have shipped where that differs.
 
 ## Deviations from shadcn
 
-Every change to what `npx shadcn@latest add` generates for `base-luma`, each
-marked by a comment at the line. **N** are mechanical normalisations applied to
-every file.
+Every change to what `npx shadcn add` generates for `base-luma`, each marked by
+a comment at the line. **N** are mechanical normalisations applied to every
+file.
 
 | ID  | Where                                                         | What and why                                                                                                                                                                                                            |
 | --- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -293,8 +293,8 @@ every file.
 ## Updating from the CLI
 
 ```sh
-npx shadcn@latest add <component> --diff app/components/ui/<component>.tsx   # review first
-npx shadcn@latest add --overwrite --yes <component>
+npx shadcn add <component> --diff app/components/ui/<component>.tsx   # review first
+npx shadcn add --overwrite --yes <component>
 npm uninstall cn                    # N1: the registry re-adds it
 ```
 

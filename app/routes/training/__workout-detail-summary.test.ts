@@ -13,6 +13,7 @@ function run(
 	return {
 		blocks: [
 			{
+				sendOff: null,
 				repeatCount,
 				steps: steps.map((s) => ({
 					kind: s.kind ?? 'cardio',
@@ -33,6 +34,7 @@ function lifts(
 	return {
 		blocks: [
 			{
+				sendOff: null,
 				repeatCount,
 				steps: rows.map((r) => ({
 					kind: 'strength',
