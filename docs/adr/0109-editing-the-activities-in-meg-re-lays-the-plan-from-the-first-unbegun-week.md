@@ -3,7 +3,7 @@
 Status: Accepted · Issue #587 (follow-up to #558 / #571, owner decision
 2026-10-18) · The seven open items were settled on #587 by the factory under
 `autonomy: full` (spec and architecture runs, 2026-11-07); §7 and the amendments
-to §3 and §5 were added when it was accepted · Not yet built (see "State")
+to §3 and §5 were added when it was accepted · Built on #587 (see "State")
 
 **Follows**
 [ADR 0102](./0102-the-first-run-shows-up-to-three-start-options-as-real-weeks-and-stor-base-starts-all-easy.md)
@@ -239,7 +239,7 @@ moves to where both read it rather than being copied:
 
 ## State
 
-Accepted on #587 (2026-11-07); not yet built. The build follows it: the pure
+Accepted on #587 (2026-11-07), and built on #587 (PR #699): the pure
 splice and edit reading (`app/utils/first-run/activities-edit.ts`), the server
 read, preview and apply (`activities-edit.server.ts`) with a "made = shown" test
 against the database that keeps an adopted lift and an authored hard session in
