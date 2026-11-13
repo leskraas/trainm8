@@ -498,7 +498,7 @@ export async function applyActivitiesEdit(
 /** The writes the preview describes, inside the apply's transaction. */
 async function writeActivitiesEdit(
 	tx: Prisma.TransactionClient,
-	{ userId, now }: EditContext,
+	{ userId, now, reading }: EditContext,
 	{ outlineId, preview }: Extract<ActivitiesEditResult, { ok: true }>,
 ) {
 	const { splice, start, choice } = preview
@@ -726,11 +726,14 @@ async function writeActivitiesEdit(
 		})
 	}
 	// The Strength Frequency is the athlete's answer: kept as tapped, and
-	// cleared when they stop lifting.
-	await tx.athleteProfile.updateMany({
-		where: { userId },
-		data: { strengthPerWeek: choice.strength },
-	})
+	// cleared when they stop lifting. Only when the editor offered strength:
+	// with no lifting session to copy it showed none, so nothing was answered.
+	if (reading.lifting) {
+		await tx.athleteProfile.updateMany({
+			where: { userId },
+			data: { strengthPerWeek: choice.strength },
+		})
+	}
 	// A next round proposed on the old activities is not this plan's any more.
 	await closePendingRounds(tx, userId, outlineId, now)
 }

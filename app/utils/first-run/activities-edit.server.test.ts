@@ -39,6 +39,24 @@ vi.mock('#app/utils/plan-outline/stamp.server.ts', async (importOriginal) => {
 	}
 })
 
+/** True while no lifting session can be copied, as when the stock one is gone. */
+const noLiftingSession = vi.hoisted(() => ({ on: false }))
+vi.mock('#app/utils/first-run/start-strength.server.ts', async (importOriginal) => {
+	const actual =
+		await importOriginal<
+			typeof import('#app/utils/first-run/start-strength.server.ts')
+		>()
+	return {
+		...actual,
+		readStartStrength: (
+			...args: Parameters<typeof actual.readStartStrength>
+		) =>
+			noLiftingSession.on
+				? Promise.resolve(null)
+				: actual.readStartStrength(...args),
+	}
+})
+
 // Editing the activities in Meg, against the database (#587, ADR 0109): a
 // plan the start made, lived a week, and the edit previewed, confirmed and
 // laid. What is laid in the boundary week is what the preview showed, the
@@ -464,4 +482,28 @@ test('the preview counts only the own sessions that stay: a skipped one is not c
 	const preview = await readActivitiesEdit(userId, SWIM_AND_YOGA, NOW)
 	if (!preview.ok) throw new Error(preview.reason)
 	expect(preview.preview.keptFromBoundary).toEqual({ count: 1, onRemoved: 0 })
+})
+
+test('an edit that could not offer strength leaves the Strength Frequency as it was', async () => {
+	const { userId } = await startPlan()
+	await prisma.athleteProfile.update({
+		where: { userId },
+		data: { strengthPerWeek: 2 },
+	})
+	noLiftingSession.on = true
+	try {
+		const applied = await applyActivitiesEdit(
+			userId,
+			{ sports: ['run', 'swim'], activities: [], strength: null },
+			NOW,
+		)
+		if (!applied.ok) throw new Error(applied.reason)
+	} finally {
+		noLiftingSession.on = false
+	}
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId },
+		select: { strengthPerWeek: true },
+	})
+	expect(profile.strengthPerWeek).toBe(2)
 })
