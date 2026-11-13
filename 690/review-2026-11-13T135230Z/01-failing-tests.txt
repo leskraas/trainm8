@@ -1,0 +1,91 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user-trainm8/bbc298a6-edc0-55e7-a2c5-2cf0b48e4fc3/scratchpad/wt/690-review[39m
+
+ [31m❯[39m app/utils/event-result.server.test.ts [2m([22m[2m18 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[33m 6611[2mms[22m[39m
+   [33m[2m✓[22m[39m linking the raced session writes one verified result at the Event Distance, and moves Planned TSS with its origin [33m 739[2mms[22m[39m
+   [32m✓[39m Load Confidence plays no part: an athlete with no thresholds for load and no heart rate still gets a verified result[32m 173[2mms[22m[39m
+   [33m[2m✓[22m[39m unlinking, cancelling and deleting each remove the result and move Planned TSS back [33m 507[2mms[22m[39m
+   [32m✓[39m deleting the result session removes the result, though the Event outlives it[32m 209[2mms[22m[39m
+   [33m[2m✓[22m[39m lifting the Recording off the result session removes the result; one linked later writes it then [33m 334[2mms[22m[39m
+   [32m✓[39m a distance set on a done Event writes the result then; a wrong one removes it[32m 210[2mms[22m[39m
+   [32m✓[39m changing the kind or the disciplines rewrites or removes the result, and clears a distance the Event can't take[32m 211[2mms[22m[39m
+   [33m[2m✓[22m[39m a Recording that is not a run, has no distance, or is outside ±5 % writes nothing [33m 359[2mms[22m[39m
+   [32m✓[39m a fitness goal writes no result[32m 143[2mms[22m[39m
+   [32m✓[39m a source refreshing or removing the Recording rewrites or removes the Event's result[32m 230[2mms[22m[39m
+   [32m✓[39m a typed result is untouched by an Event's, and wins on the same day[32m 228[2mms[22m[39m
+   [32m✓[39m a newer result at the anchor takes over, and the Event page says so[32m 189[2mms[22m[39m
+   [32m✓[39m a distance that is no Race Anchor is stored at exact metres and resolves no target[32m 179[2mms[22m[39m
+   [33m[2m✓[22m[39m taking back the answer that linked the Recording to the result session (Angre) removes the Event's result [33m 338[2mms[22m[39m
+[31m   [31m×[31m a FIT duplicate refreshing the race Recording rewrites the Event result[39m[33m 2012[2mms[22m[39m
+[31m   [31m×[31m moving the result session to another day moves the Event's result with it[39m[32m 217[2mms[22m[39m
+[31m   [31m×[31m an alias filed onto the race Recording moves the stored Planned TSS binding set[39m[32m 174[2mms[22m[39m
+   [32m✓[39m a session already done keeps the Planned TSS it was planned with[32m 153[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m app/utils/event-result.server.test.ts[2m > [22ma FIT duplicate refreshing the race Recording rewrites the Event result
+[31m[1mAssertionError[22m: expected { …(12) } to match object { timeSec: 2400 }
+(11 matching properties omitted from actual)[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[32m-   "timeSec": 2400,[39m
+[31m+   "timeSec": 2460,[39m
+[2m  }[22m
+
+[36m [2m❯[22m app/utils/event-result.server.test.ts:[2m555:35[22m[39m
+    [90m553| [39m })
+    [90m554| [39m
+    [90m555| [39m expect(await eventRow(event.id)).toMatchObject({ timeSec: fitElapsed …
+    [90m   | [39m                                  [31m^[39m
+    [90m556| [39m})
+    [90m557| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m app/utils/event-result.server.test.ts[2m > [22mmoving the result session to another day moves the Event's result with it
+[31m[1mAssertionError[22m: expected { …(12) } to match object { Object (occurredAt) }
+(11 matching properties omitted from actual)[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[32m-   "occurredAt": 2026-11-12T00:00:00.000Z,[39m
+[31m+   "occurredAt": 2026-11-11T00:00:00.000Z,[39m
+[2m  }[22m
+
+[36m [2m❯[22m app/utils/event-result.server.test.ts:[2m578:34[22m[39m
+    [90m576| [39m })
+    [90m577| [39m
+    [90m578| [39m [34mexpect[39m([35mawait[39m [34meventRow[39m(eventId))[33m.[39m[34mtoMatchObject[39m({
+    [90m   | [39m                                 [31m^[39m
+    [90m579| [39m  occurredAt[33m:[39m [35mnew[39m [33mDate[39m([32m`[39m[36m${[39m[33mLATER_DAY[39m[36m}[39m[32mT00:00:00Z`[39m)[33m,[39m
+    [90m580| [39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m app/utils/event-result.server.test.ts[2m > [22man alias filed onto the race Recording moves the stored Planned TSS binding set
+[31m[1mAssertionError[22m: expected '["garmin"]' to be '["garmin","polar"]' // Object.is equality[39m
+
+Expected: [32m"["garmin"[7m,"polar"[27m]"[39m
+Received: [31m"["garmin"]"[39m
+
+[36m [2m❯[22m app/utils/event-result.server.test.ts:[2m604:41[22m[39m
+    [90m602| [39m
+    [90m603| [39m [34mexpect[39m(filed)[33m.[39m[34mtoMatchObject[39m({ kind[33m:[39m [32m'duplicate'[39m })
+    [90m604| [39m [34mexpect[39m(([35mawait[39m [34mplanned[39m(ahead))[33m.[39morigins)[33m.[39m[34mtoBe[39m([32m'["garmin","polar"]'[39m)
+    [90m   | [39m                                        [31m^[39m
+    [90m605| [39m})
+    [90m606| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m15 passed[39m[22m[90m (18)[39m
+[2m   Start at [22m 13:25:07
+[2m   Duration [22m 9.53s[2m (transform 1.72s, setup 1.15s, import 956ms, tests 6.61s, environment 0ms)[22m
+

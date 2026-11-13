@@ -1,0 +1,8 @@
+   [33m[2m✓[22m[39m a typed time the same day is marked in use, and the Event row says why it is not [33m 839[2mms[22m[39m
+[31m   [31m×[31m a newer result at the anchor leaves both same-day rows unmarked[39m[32m 273[2mms[22m[39m
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+[32m-     "shadowed": false,[39m
+[31m+     "shadowed": true,[39m
+    [90m126| [39m  expect.objectContaining({ event: null, inUse: false, shadowed: false…
+    [90m127| [39m  expect.objectContaining({ event: null, inUse: false, shadowed: false…
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
