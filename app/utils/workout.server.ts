@@ -1397,67 +1397,73 @@ export async function updateWorkoutSession(
 	// not a takeover here either (#459).
 	const readopting = session.releasedAt != null && rewritesPrescription
 
-	const updated = await prisma.$transaction(async (tx) => {
-		let workoutId = previous?.id ?? null
+	// The session may be an Event's result session, and the result is dated by
+	// the session's day (ADR 0117 §2): a reschedule moves the result with it.
+	const updated = await keepEventResultsInStep(
+		{ sessionIds: [session.id] },
+		() =>
+			prisma.$transaction(async (tx) => {
+				let workoutId = previous?.id ?? null
 
-		if (previous && adopting) {
-			const forked = await tx.workout.create({
-				data: {
-					title: input.title,
-					// The envelope the authoring input has no field for travels across
-					// unchanged: a fork that dropped the description would read as the
-					// athlete having deleted it.
-					description: previous.description,
-					discipline: input.discipline,
-					intent: input.intent,
-					// `visibility` is not carried either, for the reason `copyWorkout`
-					// gives: publishing is an act, and an adopted session is not one
-					// (ADR 0052).
-					// `authorship` is not carried: the fork is the athlete's own writing
-					// and takes the column's `'athlete'` default (ADR 0051 §5).
-					ownerId: userId,
-					copiedFromId: previous.id,
-					blocks: { create: payload },
-				},
-				select: editableSubtreeSelect,
-			})
-			workoutId = forked.id
-			if (subtree) {
-				await repointLoggedSetsToFork(tx, session.id, subtree, forked)
-			}
-		} else if (subtree) {
-			await tx.workout.update({
-				where: { id: subtree.id },
-				data: {
-					title: input.title,
-					discipline: input.discipline,
-					intent: input.intent,
-				},
-			})
-			await reconcileWorkoutSubtree(tx, subtree, payload)
-		}
+				if (previous && adopting) {
+					const forked = await tx.workout.create({
+						data: {
+							title: input.title,
+							// The envelope the authoring input has no field for travels across
+							// unchanged: a fork that dropped the description would read as the
+							// athlete having deleted it.
+							description: previous.description,
+							discipline: input.discipline,
+							intent: input.intent,
+							// `visibility` is not carried either, for the reason `copyWorkout`
+							// gives: publishing is an act, and an adopted session is not one
+							// (ADR 0052).
+							// `authorship` is not carried: the fork is the athlete's own writing
+							// and takes the column's `'athlete'` default (ADR 0051 §5).
+							ownerId: userId,
+							copiedFromId: previous.id,
+							blocks: { create: payload },
+						},
+						select: editableSubtreeSelect,
+					})
+					workoutId = forked.id
+					if (subtree) {
+						await repointLoggedSetsToFork(tx, session.id, subtree, forked)
+					}
+				} else if (subtree) {
+					await tx.workout.update({
+						where: { id: subtree.id },
+						data: {
+							title: input.title,
+							discipline: input.discipline,
+							intent: input.intent,
+						},
+					})
+					await reconcileWorkoutSubtree(tx, subtree, payload)
+				}
 
-		return tx.workoutSession.update({
-			where: { id: session.id },
-			data: {
-				scheduledAt: input.scheduledAt,
-				// The athlete rewrote the prescription, so a Replan Note explaining
-				// the old one is stale — cleared (ADR 0025 §4). The WeekReplan row
-				// stands untouched: at-most-once lives there, not in the notes.
-				replanReason: null,
-				// Session Adoption, and nothing else. `source` keeps its origin value
-				// for the life of the session: a Generated Session stays `generated`
-				// and is protected from regeneration by `adoptedAt` instead (ADR
-				// 0016), and a `detected` session stays `detected` while its retained
-				// Structure Detection keeps feeding Structure Adherence (ADR 0033/0034).
-				...(adopting && workoutId != null
-					? { workoutId, adoptedAt: new Date() }
-					: {}),
-				...(readopting ? { releasedAt: null } : {}),
-			},
-			select: { id: true },
-		})
-	})
+				return tx.workoutSession.update({
+					where: { id: session.id },
+					data: {
+						scheduledAt: input.scheduledAt,
+						// The athlete rewrote the prescription, so a Replan Note explaining
+						// the old one is stale — cleared (ADR 0025 §4). The WeekReplan row
+						// stands untouched: at-most-once lives there, not in the notes.
+						replanReason: null,
+						// Session Adoption, and nothing else. `source` keeps its origin value
+						// for the life of the session: a Generated Session stays `generated`
+						// and is protected from regeneration by `adoptedAt` instead (ADR
+						// 0016), and a `detected` session stays `detected` while its retained
+						// Structure Detection keeps feeding Structure Adherence (ADR 0033/0034).
+						...(adopting && workoutId != null
+							? { workoutId, adoptedAt: new Date() }
+							: {}),
+						...(readopting ? { releasedAt: null } : {}),
+					},
+					select: { id: true },
+				})
+			}),
+	)
 
 	// The prescription changed, so the Planned TSS it implies did too (ADR 0019).
 	await recomputePlannedTssForSession(userId, session.id)
