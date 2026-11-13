@@ -182,6 +182,154 @@ test('the season plan does not overflow at 390px', async ({
 	await expectNoHorizontalOverflow(page)
 })
 
+test('the season plan with all three Guard Notices in its lead does not overflow at 390px', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	// A plan that sets off every guard (ADR 0118), as e2e fixture data only:
+	// a run track that climbs faster than the convention, a lifting block the
+	// one trainable weekday cannot hold, and a session outside the block's band.
+	const goal = await createFitnessGoalEvent(user.id, {
+		name: `Race ${faker.string.alphanumeric(8)}`,
+		startDate: new Date(Date.now() + 140 * 24 * 60 * 60 * 1000),
+		disciplines: ['run'],
+	})
+	const timezone = await getAthleteTimezone(user.id)
+	const startWeekKey = weekMonday(new Date(), timezone)
+	const created = await createPlanOutline(user.id, {
+		eventId: goal.id,
+		startWeekKey,
+		structure: { presetKey: 'classic-linear' },
+		tracks: [{ discipline: 'run', currency: 'km', anchorValue: 55 }],
+	})
+	expect(created.ok, 'the plan fixture failed to author').toBe(true)
+	const outlineId = created.ok ? created.outlineId : ''
+	// The Ramp Guard: +15 % a hard week against the convention's +8 %.
+	await prisma.trainingTrackSegment.updateMany({
+		where: { track: { outlineId }, kind: 'endurance' },
+		data: { ramp: 0.15 },
+	})
+	// The band fit notice's block: maximal strength, 80–100 % 1RM.
+	await prisma.trainingTrack.create({
+		data: {
+			outlineId,
+			discipline: 'strength',
+			currency: 'sets',
+			anchors: { create: [{ fromWeekKey: startWeekKey, value: 18 }] },
+			segments: {
+				create: [
+					{
+						kind: 'strength',
+						startWeekKey,
+						weeks: 4,
+						goal: 'maximal-strength',
+						sessionsPerWeek: 3,
+					},
+				],
+			},
+		},
+	})
+	// The availability fit notice: one trainable weekday for three lifts.
+	await prisma.athleteProfile.upsert({
+		where: { userId: user.id },
+		create: { userId: user.id, trainableWeekdays: JSON.stringify([1]) },
+		update: { trainableWeekdays: JSON.stringify([1]) },
+	})
+	// A session at 60 % 1RM in the plan's first week, outside that band.
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Knebøy',
+			discipline: 'strength',
+			intent: 'strength',
+			ownerId: user.id,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						steps: {
+							create: [
+								{
+									kind: 'strength',
+									orderIndex: 0,
+									sets: {
+										create: [
+											{ orderIndex: 0, kind: 'reps', reps: 5, pct1RM: 60 },
+										],
+									},
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			workoutId: workout.id,
+			scheduledAt: new Date(`${startWeekKey}T17:00:00Z`),
+			status: 'scheduled',
+		},
+	})
+
+	await navigate('/training/plan')
+	const lead = page.locator('[data-plan-lead]')
+	const notes = lead.getByRole('note')
+	await expect(notes).toHaveCount(3)
+	await expect(
+		page.getByRole('button', { name: /^Avansert\s*Filosofi/ }),
+	).toHaveAttribute('aria-expanded', 'false')
+	await expectNoHorizontalOverflow(page)
+
+	// Every tap target in them is at least 44px: each close button, and each
+	// link's invisible hit area (ui-conventions §2.2).
+	const targets = await lead
+		.locator('[data-plan-guards] :is(a, button)')
+		.evaluateAll((elements) =>
+			elements.map((element) => {
+				const box = element.getBoundingClientRect()
+				const after = getComputedStyle(element, '::after')
+				const extend = (side: string) =>
+					after.position === 'absolute'
+						? -parseFloat(after.getPropertyValue(side)) || 0
+						: 0
+				return {
+					name: element.getAttribute('aria-label') ?? element.textContent ?? '',
+					height: box.height + extend('top') + extend('bottom'),
+					width: box.width + extend('left') + extend('right'),
+				}
+			}),
+		)
+	expect(targets.length).toBeGreaterThanOrEqual(5)
+	for (const target of targets) {
+		expect(
+			target.height,
+			`${target.name} is under 44px tall`,
+		).toBeGreaterThanOrEqual(44)
+		expect(
+			target.width,
+			`${target.name} is under 44px wide`,
+		).toBeGreaterThanOrEqual(44)
+	}
+	// Phone-sized text: 16px, never the 14px that is for `md` and up.
+	const fontSizes = await lead
+		.locator('[data-plan-guards] [data-slot=alert-description]')
+		.evaluateAll((elements) =>
+			elements.map((element) => getComputedStyle(element).fontSize),
+		)
+	expect(fontSizes).toEqual(['16px', '16px', '16px'])
+
+	// Avansert open adds no second copy.
+	await openPlanAdvanced(page)
+	await expect(page.getByRole('note')).toHaveCount(3)
+	await expectNoHorizontalOverflow(page)
+})
+
 test('the Bibliotek and Meg tabs do not overflow, and the tab bar covers no content', async ({
 	page,
 	navigate,
