@@ -9,12 +9,14 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 ## Sub-features
 
 - The season plan at `/training/plan`, with its closed _Avansert_ section
-  holding the season editors (ADR 0101 §2).
+  holding the season editors (ADR 0101 §2). Its Week Pattern editor: a day
+  picks the Workout of one of the athlete's own sessions (fixed) or a shape for
+  a share day (_formet etter <tittel>_).
 - Plan creation at `/training/plan/new`: a dated goal (_Mål_, _Dato_, _Lag målet
   og gå videre_), then _Legg opp sesongen_ (base, units, start volume).
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
   `/training/events/new`, `/training/events/:id`.
-- An Event's result (#670, ADR 0113): on a run-only _Løp_ or _Testløp_, the
+- An Event's result (#670, ADR 0117): on a run-only _Løp_ or _Testløp_, the
   form's _Distanse_ pills (`1500 m` … `Maraton`, _Annen_ with _Distanse i km_).
   On a done Event, the _Resultat_ section shows the watch's time, pace and _Målt
   av klokka_ with the platform's credit, or says why there is none (_Hvor langt
@@ -23,7 +25,16 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
   (`/settings/training/resultater`) with the Event's name as a link and no
   _Slett_.
 - Plan generation from an event: `/training/plan/generate/:eventId` (uses the
-  deterministic stub model client when `ANTHROPIC_API_KEY` is empty).
+  deterministic stub model client when `ANTHROPIC_API_KEY` is empty). With a
+  **Weekly Capacity** set on the Athlete Profile, the preview states **Placed
+  Hours** (ADR 0116): a week whose placed sessions alone take longer than the
+  capacity carries an amber line on its card (`[data-placed="over"]`,
+  `Øktene alene tar minst ≈ 7,5 t, kapasiteten din er 6 t/uke.`), a line under
+  _Sesongen_ names the weeks (`[data-placed="season"]`), and the closed _N uker
+  til_ row names the hidden ones (`[data-placed="remaining"]`). To see it, set
+  kody's `weeklyCapacityHours` a little under a week's placed hours (a 20-week
+  10 km run season with a 4:30/km threshold reads about 3,9 t a week, so 3,8
+  shows a mix) and open the preview.
 - Bibliotek, the region _Bibliotek_: catalogue (`/training/catalogue`), programs
   (`/training/programs`), exercises (`/library/exercises`).
 
@@ -76,3 +87,8 @@ await page.getByRole('button', { name: 'Lagre distansen' }).click()
   on its heading (`openPlanAdvanced` in `tests/playwright-utils.ts`).
 - The _Distanse_ row shows only for _Løp_ or _Testløp_ with exactly _Løping_
   ticked; it opens with `motion-collapse`, so wait for the pills before you tap.
+- A Week Pattern day holds the plan's own copy of what it picked, a **Held
+  Workout** (ADR 0113): the row is `Workout.heldByOutlineId = <plan id>`, never
+  the session's own `workoutId`. After picking, deleting or editing that session
+  succeeds and the day keeps its title. The copies never show in the picker or
+  in Bibliotek's "your sessions" list; a crafted publish of one is refused.

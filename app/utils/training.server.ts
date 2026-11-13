@@ -373,6 +373,7 @@ const activeOutlineSelect = {
 									repeatCount: true,
 									seriesRepeatCount: true,
 									betweenSeriesRestSec: true,
+									sendOff: true,
 									steps: {
 										orderBy: { orderIndex: 'asc' },
 										select: {
@@ -1779,7 +1780,7 @@ export async function getRecentWeeklyBuild(
 	return perWeek.map((sessions) => ({
 		...weeklyLoad(sessions),
 		// A week's Planned TSS binds to every result its sessions' race paces
-		// read (ADR 0113 §4): the union, as a model reader passes it on.
+		// read (ADR 0117 §4): the union, as a model reader passes it on.
 		plannedTssOrigins: [
 			...new Set(
 				sessions.flatMap((session) =>

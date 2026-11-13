@@ -39,7 +39,7 @@ export type DisciplineProfileForResolver = {
 	raceAnchorPaces?: RaceAnchorPaces | null
 	/**
 	 * The binding set of the result each Race Anchor's pace was read from
-	 * (ADR 0113 §4): a `racePace` target resolved against a Garmin race is
+	 * (ADR 0117 §4): a `racePace` target resolved against a Garmin race is
 	 * Garmin data. Absent or empty for a typed result, which binds nothing.
 	 * The resolver never reads it; the credit and Planned TSS do.
 	 */

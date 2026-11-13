@@ -5,7 +5,7 @@
 // content without reading a chart. Honesty over guessing (ADR 0008): a side the
 // model can't supply stays `null` (the caller renders "—"), never a fabricated
 // number, and the Adherence Band only resolves when both TSS values exist.
-import { plannedMinutes, sumBlockDistanceM } from './dashboard.ts'
+import { sumBlockDistanceM } from './dashboard.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
 import { type AdherenceBand, sessionAdherence } from './load/adherence.ts'
 import {
@@ -14,6 +14,7 @@ import {
 	plannedMetricValue,
 	readPlannedMetric,
 } from './planned-discipline.ts'
+import { plannedMinutes } from './prescribed-duration.ts'
 
 /** One planned-vs-actual comparison; either side is `null` when unavailable. */
 export type ReviewMetric = {
@@ -54,6 +55,8 @@ export type ReviewSession = {
 			repeatCount: number
 			seriesRepeatCount?: number | null
 			betweenSeriesRestSec?: number | null
+			/** Stored Send-Off JSON: a send-off rep takes its cycle (ADR 0116 §4). */
+			sendOff: string | null
 			steps: Array<{
 				kind?: string
 				discipline?: string | null

@@ -389,7 +389,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		canMarkMissed: missable,
 		thresholds,
 		// A `racePace` target resolved from a Garmin or Polar race is that
-		// platform's data (ADR 0113 §4): the prescription carries its credit.
+		// platform's data (ADR 0117 §4): the prescription carries its credit.
 		racePaceCredits: session.workout
 			? derivedAttributionLines(racePaceBindingSet(session.workout, thresholds))
 			: [],

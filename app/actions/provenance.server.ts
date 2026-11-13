@@ -10,7 +10,7 @@
  * week's Planned Volume binds to them (`workoutBindingSet`).
  *
  * `plannedTss` is the binding set each session's Planned TSS was computed with
- * (ADR 0113 §4), so a week's Planned TSS takes the union.
+ * (ADR 0117 §4), so a week's Planned TSS takes the union.
  */
 
 import {
@@ -29,7 +29,7 @@ export type RecordedPlatforms = {
 	/** Only the detected sessions': what their Planned Volume reads. */
 	detected: PlatformsByDay
 	/** The results each session's Planned TSS read (`plannedTssOrigins`, ADR
-	 * 0113 §4): what a week's Planned TSS reads, as the union. */
+	 * 0117 §4): what a week's Planned TSS reads, as the union. */
 	plannedTss: PlatformsByDay
 }
 

@@ -24,7 +24,7 @@ import { coggan, hrTSS, rTSS, sTSS } from './formulas.ts'
  */
 
 /**
- * The binding set a stored Planned TSS was computed with (ADR 0113 §4): the
+ * The binding set a stored Planned TSS was computed with (ADR 0117 §4): the
  * origins of the results its `racePace` steps resolved against, read back from
  * `WorkoutSession.plannedTssOrigins`. Null, empty or unreadable is empty.
  */

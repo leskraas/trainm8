@@ -33,7 +33,7 @@ export type WeekTrack = z.infer<typeof WeekTrackSchema>
  * week's Recordings, which the Actual Volume is derived from; `detected`, the
  * Recordings of the week's detected sessions, whose measured Workouts count in
  * the Planned Volume (`volumeSessionOf`); `plannedTss`, the results the week's
- * Planned TSS read (ADR 0113 §4), which a TSS track's Planned Volume sums. The
+ * Planned TSS read (ADR 0117 §4), which a TSS track's Planned Volume sums. The
  * target is plan-side and binds to nothing.
  */
 export function toWeekTrack(

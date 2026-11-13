@@ -28,6 +28,17 @@
 					}
 				]
 			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": "Bash|Read|Edit|Write|NotebookEdit|Grep|Glob|WebFetch",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/factory-guard.py"
+					}
+				]
+			}
 		]
 	},
 	"extraKnownMarketplaces": {
@@ -40,5 +51,11 @@
 	},
 	"enabledPlugins": {
 		"bredvid-engineering@bredvid": true
+	},
+	"permissions": {
+		"deny": [
+			"Bash(fly *)",
+			"Bash(flyctl *)"
+		]
 	}
 }

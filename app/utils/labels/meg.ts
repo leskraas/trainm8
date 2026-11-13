@@ -918,3 +918,38 @@ export const MEG_ZOD_ISSUE_LABELS = {
 	invalidDate: 'Skriv en gyldig dato.',
 	invalid: 'Sjekk feltet.',
 } as const
+
+/**
+ * _Hjemsted_ in Meg (#433, ADR 0115 §2): the athlete's **Home Place**, found
+ * by name in Kartverket's place names and used only for the weather on I dag.
+ */
+export const HOME_PLACE_LABELS = {
+	title: 'Hjemsted',
+	/** The Meg row's detail line: the place, or what choosing one gives. */
+	rowDetail: (name: string | null) =>
+		name ?? 'Ikke valgt. Gir værvarsel på I dag.',
+	current: 'Hjemstedet ditt',
+	/** `By · Lillehammer, Innlandet`; a municipality is not named twice. */
+	matchLine: (kind: string, municipality: string, county: string) =>
+		kind === 'Kommune'
+			? `Kommune · ${county}`
+			: `${kind} · ${municipality}, ${county}`,
+	remove: 'Fjern',
+	removeFor: (name: string) => `Fjern ${name} som hjemsted`,
+	removed: 'Hjemstedet er fjernet. I dag viser ikke vær lenger.',
+	searchLabel: 'Søk etter et sted',
+	helper: 'Stedet brukes til å vise værvarselet på I dag.',
+	results: 'Steder',
+	searching: 'Søker …',
+	saved: (name: string) => `Lagret. I dag viser været for ${name}.`,
+	noMatch: (text: string) =>
+		`Fant ingen steder som heter «${text}». Sjekk skrivemåten, eller prøv en by eller kommune i nærheten.`,
+	unavailable: 'Stedssøket svarer ikke akkurat nå. Hjemstedet ditt er uendret.',
+	outsideArea:
+		'Det stedet ligger utenfor Norge. Velg et sted i Norge. Hjemstedet ditt er uendret.',
+	invalid: 'Det stedet kunne ikke lagres. Søk og velg det på nytt.',
+	credit: 'Stedsnavn fra Kartverket',
+	creditHref: 'https://www.kartverket.no/',
+	privacy:
+		'Vi lagrer stedets navn og et punkt avrundet til omtrent én kilometer. Bare det punktet sendes til MET Norway for værvarselet, og bare det du søker på sendes til Kartverket – aldri navnet ditt, kontoen din eller IP-adressen din.',
+} as const

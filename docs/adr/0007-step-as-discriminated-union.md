@@ -25,7 +25,7 @@
 > feature".
 >
 > **Amended, the Event-derived writer (#670):** see
-> [ADR 0113](./0113-an-events-result-is-a-performance-result-kept-in-step-with-its-recording-and-bound-by-its-origin.md).
+> [ADR 0117](./0117-an-events-result-is-a-performance-result-kept-in-step-with-its-recording-and-bound-by-its-origin.md).
 > It narrows "one result per distance and day" below to typed results, lets an
 > Event's result sit at a distance that is no Race Anchor, and drops ADR 0021's
 > Load Confidence gate (named in the consequences below) for Event results.

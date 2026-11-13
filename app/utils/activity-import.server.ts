@@ -716,7 +716,7 @@ function statusWithoutRecording(session: {
  */
 async function linkImportToSession(importId: string, sessionId: string) {
 	// A Recording landing on an Event's result session, after the Event was
-	// marked done, writes its result then (ADR 0113 §2).
+	// marked done, writes its result then (ADR 0117 §2).
 	await keepEventResultsInStep({ sessionIds: [sessionId] }, () =>
 		prisma.$transaction(async (tx) => {
 			const before = await tx.workoutSession.findUniqueOrThrow({

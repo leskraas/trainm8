@@ -11,6 +11,11 @@ import { readWeekChange } from '#app/utils/load/week-change-card.server.ts'
 import { getWeekVolumes } from '#app/utils/plan-outline/week-volumes.server.ts'
 import { readRecordedBindingSet } from '#app/utils/source-terms.server.ts'
 import { ledgerSessionSelect } from '#app/utils/training.server.ts'
+import { readAthleteForecast } from '#app/utils/weather/athlete-forecast.server.ts'
+import {
+	dayForecastReading,
+	DayForecastReadingSchema,
+} from './day-forecast.server.ts'
 import { defineAction } from './define.ts'
 import { waitingCount } from './get-week-change.server.ts'
 import {
@@ -32,6 +37,9 @@ import { toWeekTrack, WeekTrackSchema } from './week-tracks.server.ts'
  * Form (TSB) is `building-baseline` before the 42-day trust gate, exactly as
  * the Coach card withholds it. Load is derived from the whole recorded
  * history, so its binding set is every Recording's platform (ADR 0098 §1).
+ *
+ * `weather` is today's **Day Forecast** at the athlete's **Home Place**, the
+ * one the today card shows (ADR 0115 §5). Additive, so still revision 1.
  */
 export const getTodayAction = defineAction({
 	name: 'get_today',
@@ -40,7 +48,7 @@ export const getTodayAction = defineAction({
 	callers: ['web', 'mcp', 'agent'],
 	title: ACTION_TITLE_LABELS.get_today,
 	description:
-		"The athlete's day: today's planned and recorded sessions, current fitness (CTL), fatigue (ATL) and form (TSB), this training week's target, planned and actual volume per training track in the track's own unit, and how many week-change proposals wait for the athlete's answer. Every number is a Reading: available with a value, or unavailable with a reason; never treat unavailable as zero.",
+		"The athlete's day: today's planned and recorded sessions, current fitness (CTL), fatigue (ATL) and form (TSB), this training week's target, planned and actual volume per training track in the track's own unit, and how many week-change proposals wait for the athlete's answer, and today's weather forecast at the athlete's home place for the hour they train (from MET Norway: symbol, temperature in °C, precipitation in mm per hour, and the hour it is for). Every number is a Reading: available with a value, or unavailable with a reason; never treat unavailable as zero.",
 	input: z.object({}),
 	output: z.object({
 		/** `YYYY-MM-DD` in the Athlete Timezone. */
@@ -53,30 +61,44 @@ export const getTodayAction = defineAction({
 		}),
 		week: z.object({ tracks: z.array(WeekTrackSchema) }),
 		openProposals: NumberReading(),
+		weather: DayForecastReadingSchema(),
 	}),
 	async run(ctx) {
 		const today = localDate(ctx.now, ctx.timezone)
 		const { start, end } = dayBoundsUTC(today, ctx.timezone)
 		const week = weekBoundsUTC(ctx.now, ctx.timezone)
 		const weekKey = localDate(week.start, ctx.timezone)
-		const [rows, current, trust, history, weekVolumes, weekRecorded, card] =
-			await Promise.all([
-				prisma.workoutSession.findMany({
-					where: { userId: ctx.userId, scheduledAt: { gte: start, lte: end } },
-					orderBy: [{ scheduledAt: 'asc' }, { id: 'asc' }],
-					select: ledgerSessionSelect,
-				}),
-				getCurrentLoad(ctx.userId),
-				getTsbTrust(ctx.userId, ctx.now),
-				readRecordedBindingSet(ctx.userId),
-				getWeekVolumes(ctx.userId, { now: ctx.now }),
-				readRecordedPlatformsByDay(
-					ctx.userId,
-					{ from: week.start, to: week.end },
-					ctx.timezone,
-				),
-				readWeekChange(ctx.userId, { now: ctx.now, onlyOpen: true }),
-			])
+		const [
+			rows,
+			current,
+			trust,
+			history,
+			weekVolumes,
+			weekRecorded,
+			card,
+			forecast,
+		] = await Promise.all([
+			prisma.workoutSession.findMany({
+				where: { userId: ctx.userId, scheduledAt: { gte: start, lte: end } },
+				orderBy: [{ scheduledAt: 'asc' }, { id: 'asc' }],
+				select: ledgerSessionSelect,
+			}),
+			getCurrentLoad(ctx.userId),
+			getTsbTrust(ctx.userId, ctx.now),
+			readRecordedBindingSet(ctx.userId),
+			getWeekVolumes(ctx.userId, { now: ctx.now }),
+			readRecordedPlatformsByDay(
+				ctx.userId,
+				{ from: week.start, to: week.end },
+				ctx.timezone,
+			),
+			readWeekChange(ctx.userId, { now: ctx.now, onlyOpen: true }),
+			readAthleteForecast(ctx.userId, {
+				dayKeys: [today],
+				now: ctx.now,
+				timezone: ctx.timezone,
+			}),
+		])
 		const noHistory = unavailable('insufficient-data')
 		return {
 			date: today,
@@ -109,6 +131,7 @@ export const getTodayAction = defineAction({
 			},
 			// A count of the athlete's own questions: plan-side, so it binds to nothing.
 			openProposals: reading(waitingCount(card, today), [], ctx),
+			weather: dayForecastReading(forecast, today, ctx),
 		}
 	},
 })

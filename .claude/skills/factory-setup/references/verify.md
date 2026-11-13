@@ -30,6 +30,15 @@ Every section holds what you found in this repo, with no placeholders left:
 - **Doctor**: one read-only check that the running instance is worth driving: process up, the right build (for a dev server that serves the working tree: the branch, commit and `git status`), the port is ours.
 - **Drive**: the recipe with real selectors and routes from this repo. Prefer stable handles (roles, labels, `data-testid`, routes) over coordinates.
 - **Evidence**: what to capture and where: a directory outside the repo, set by one env var with a default, so the guide has no placeholder. The proof standard: use the real user path, never test-only endpoints or internal setters; capture the action and the state after it, not only the last screen; check side effects (rows written, requests sent) as well as the screen; mock only where production already isolates the external system.
+- **Budgets** (`## Budgets`): the qualities QA measures on every run
+  (`factory`'s `references/qualities.md`, "Budgets"), each with the command
+  that measures it and its limit. For a web UI, start with data requests per
+  navigation (a Playwright walk of the main flow there and back that counts
+  `page.on('request')` to the app's data endpoints, the return within the
+  cache window), axe findings (`serious` and `critical`) and console errors.
+  Add bundle size or queries per request when the repo can measure them.
+  Set each limit from what the app does today, and say which limits that
+  makes, so a bad number is not taken as the target.
 - **Cleanup**: stop what you started, never by process name. A dev command that starts a process tree (pnpm, npm scripts) doesn't pass signals on from `$!`, so record the pid of the process that owns the port's listener, or its launcher, and stop that. Cleanup removes instances and scratch state, never the evidence.
 
 ## 3. Seed the feature map
@@ -43,7 +52,7 @@ Write `docs/agents/verify/features/<feature>.md`, in the language of the repo's 
 
 ## 4. Prove it before the PR
 
-Run the guide end to end once: launch, doctor, drive one mapped feature, capture evidence, clean up. Check the evidence still exists after cleanup. Fix what fails, and run cleanup after each failed try. Put the commands and what they printed in the setup PR body, and publish the screenshots as an artifact the PR links to (Q44). A guide nobody ran is a draft.
+Run the guide end to end once: launch, doctor, drive one mapped feature, measure every budget, capture evidence, clean up. Check the evidence still exists after cleanup. Fix what fails, and run cleanup after each failed try. Put the commands and what they printed in the setup PR body, and publish the screenshots as an artifact the PR links to (Q44). A guide nobody ran is a draft.
 
 In a cloud session, Docker needs two steps first: start the daemon (`nohup dockerd >/tmp/dockerd.log 2>&1 &`), and pull images from a mirror when Docker Hub answers `429 Too Many Requests` (`docker pull mirror.gcr.io/library/<image>` and `docker tag` it to the name the repo uses). Put both in the guide's launch section when the repo needs Docker.
 

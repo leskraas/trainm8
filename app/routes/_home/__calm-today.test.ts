@@ -8,6 +8,7 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
+import { type DayForecast } from '#app/utils/weather/day-forecast.ts'
 import { buildCalmToday, type CalmCard } from './__calm-today.ts'
 import { buildTimelineSeason } from './timeline/presenter.ts'
 
@@ -550,4 +551,111 @@ test('Gjort on a session reaches back a week at most, as the full view offers it
 	})
 
 	expect(view.week.days[0]!.sessions[0]!.markDone).not.toBeNull()
+})
+
+// ── the weather (#433, ADR 0115 §6) ──────────────────────────────────────
+
+function forecast(
+	at: string,
+	overrides: Partial<DayForecast> = {},
+): DayForecast {
+	return {
+		at,
+		symbol: 'light-rain',
+		night: false,
+		temperatureC: 6.4,
+		precipitationMm: 0.6,
+		...overrides,
+	}
+}
+
+function calmWithWeather(
+	ledger: LedgerSession[],
+	weather: Record<string, DayForecast> | null,
+) {
+	const season = buildTimelineSeason({
+		ledger,
+		now: NOW,
+		timezone: TZ,
+		activePlan: plan(),
+	})
+	return buildCalmToday({
+		season,
+		ledger,
+		now: NOW,
+		timezone: TZ,
+		activePlan: plan(),
+		weather,
+	})
+}
+
+test('with a Home Place: the card carries today’s forecast, the rows from tomorrow on theirs', () => {
+	const view = calmWithWeather(
+		[session('today', '2030-01-02T17:00:00Z', { title: 'Løpetur' })],
+		{
+			'2030-01-02': forecast('2030-01-02T17:00:00Z'),
+			'2030-01-03': forecast('2030-01-03T07:00:00Z', {
+				symbol: 'heavy-snow-and-thunder',
+				temperatureC: -23.4,
+				precipitationMm: 12.43,
+			}),
+			'2030-01-05': forecast('2030-01-05T07:00:00Z', {
+				symbol: 'clear-sky',
+				night: true,
+				precipitationMm: 0,
+			}),
+		},
+	)
+	expect(view.weatherShown).toBe(true)
+	expect(view.cardWeather).toEqual({
+		glyph: 'cloud-rain',
+		word: 'Lett regn',
+		hourLabel: 'kl. 17',
+		temperatureLabel: '6°',
+		precipitationLabel: '0,6 mm',
+		spoken: 'Vær kl. 17: Lett regn, 6 grader, 0,6 millimeter nedbør',
+	})
+	const byDay = Object.fromEntries(
+		view.week.days.map((day) => [day.key, day.weather]),
+	)
+	// Today's weather is the card's; past days and a day with no forecast
+	// (Friday here, beyond its reach) carry nothing.
+	expect(byDay['2029-12-31']).toBeNull()
+	expect(byDay['2030-01-02']).toBeNull()
+	expect(byDay['2030-01-04']).toBeNull()
+	expect(byDay['2030-01-03']).toMatchObject({
+		glyph: 'cloud-storm',
+		word: 'Kraftig snø og torden',
+		temperatureLabel: '−23°',
+		precipitationLabel: '12,4 mm',
+		spoken:
+			'Vær kl. 07: Kraftig snø og torden, minus 23 grader, 12,4 millimeter nedbør',
+	})
+	expect(byDay['2030-01-05']).toMatchObject({
+		glyph: 'moon',
+		word: 'Klarvær',
+		precipitationLabel: '0 mm',
+		spoken: 'Vær kl. 07: Klarvær, 6 grader, ingen nedbør',
+	})
+})
+
+test('without a Home Place, or with no forecast at all, I dag is exactly as before', () => {
+	const ledger = [session('today', '2030-01-02T07:00:00Z')]
+	for (const weather of [null, {}]) {
+		const view = calmWithWeather(ledger, weather)
+		expect(view.weatherShown).toBe(false)
+		expect(view.cardWeather).toBeNull()
+		expect(view.week.days.every((day) => day.weather === null)).toBe(true)
+	}
+	// The view with no forecasts is the view built without any, field for field.
+	expect(calmWithWeather(ledger, {})).toEqual(calm(ledger).view)
+})
+
+test('a temperature just below zero reads 0°, never −0°', () => {
+	const view = calmWithWeather([], {
+		'2030-01-03': forecast('2030-01-03T07:00:00Z', { temperatureC: -0.4 }),
+	})
+	const thursday = view.week.days.find((day) => day.key === '2030-01-03')
+	expect(thursday?.weather?.temperatureLabel).toBe('0°')
+	expect(thursday?.weather?.spoken).toContain(', 0 grader,')
 })

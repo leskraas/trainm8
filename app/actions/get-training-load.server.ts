@@ -143,7 +143,7 @@ export const getTrainingLoadAction = defineAction({
 				const recorded = platformsOver(byDay.recorded, weekKey, 7)
 				return {
 					weekKey,
-					// Bound by the results its sessions' race paces read (ADR 0113 §4).
+					// Bound by the results its sessions' race paces read (ADR 0117 §4).
 					plannedTss: reading(
 						week.plannedTss ?? unavailable('not-resolved'),
 						week.plannedTssOrigins,
