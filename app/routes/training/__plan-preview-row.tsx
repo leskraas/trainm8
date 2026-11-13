@@ -1,0 +1,234 @@
+/**
+ * **A placed session's row on the Plan Preview, and its provenance one tap
+ * away** (#475, ADR 0117).
+ *
+ * The row carries the plan and nothing else: the day line (weekday · sport ·
+ * archetype · zone) and the title. The whole row is one button, with a hairline
+ * chevron as its only extra mark, and it opens the session's **Session
+ * Provenance** in a panel directly below it, inside the week card (ADR 0030 rule
+ * 3: a panel below the thing tapped, never a floating tooltip). Only a source
+ * waits behind the tap; an unfilled slot, an absence, the capacity fit and a
+ * week's numbers stay on the page (#429).
+ *
+ * One panel is open across the whole season. Tapping the same row, pressing
+ * Escape (focus goes back to the row) or opening another row closes it. If the
+ * open panel sits above the row being opened, it closes without animation and
+ * the tapped row is held where it was, so it does not slide out from under the
+ * finger. Hovering tints the row and never opens a panel (ADR 0117 §6).
+ *
+ * The panel renders from `GeneratedSession.provenance`, already on the
+ * payload: opening a row makes no request.
+ */
+import { useCallback, useRef, useState, type KeyboardEvent } from 'react'
+import { ProvenanceSlot } from '#app/components/provenance-slot.tsx'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
+import {
+	NB_DISCIPLINE_LABELS,
+	NB_PATTERN_WEEKDAY_LABELS,
+	NB_SESSION_ARCHETYPE_LABELS,
+	PLAN_GENERATE_LABELS as L,
+} from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
+import { prefersReducedMotion } from '#app/utils/motion.ts'
+import { type GeneratedSession } from '#app/utils/plan-generation/season.ts'
+
+/** How long `motion-collapse` takes to open (`--transition-duration-collapse`). */
+const COLLAPSE_OPEN_MS = 200
+/** How many frames the tapped row is held in place while the panel above closes. */
+const HOLD_FRAMES = 12
+
+/** One key per placed session across the season. */
+export function sessionRowKey(session: GeneratedSession): string {
+	return `${session.weekIndex}-${session.weekday}-${session.discipline}-${session.entryId}`
+}
+
+export type OpenSessionRow = {
+	openKey: string | null
+	/** The panel that closes without animation, because it sat above the row
+	 * being opened. */
+	snapKey: string | null
+	toggle: (key: string, row: HTMLElement) => void
+	close: () => void
+}
+
+/**
+ * The season's one open row. Lives at the season, so opening a row in one week
+ * closes the panel in another.
+ */
+export function useOpenSessionRow(): OpenSessionRow {
+	const [state, setState] = useState<{
+		openKey: string | null
+		snapKey: string | null
+	}>({ openKey: null, snapKey: null })
+	const openRef = useRef<{ key: string; row: HTMLElement } | null>(null)
+
+	const toggle = useCallback((key: string, row: HTMLElement) => {
+		const previous = openRef.current
+		if (previous?.key === key) {
+			openRef.current = null
+			setState({ openKey: null, snapKey: null })
+			return
+		}
+		// A panel above the tapped row: close it at once and hold the row still.
+		const above =
+			previous != null &&
+			previous.row.isConnected &&
+			Boolean(
+				previous.row.compareDocumentPosition(row) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+			)
+		openRef.current = { key, row }
+		setState({ openKey: key, snapKey: above ? previous.key : null })
+		if (above) holdInPlace(row)
+		revealWhenOpen(row)
+	}, [])
+
+	const close = useCallback(() => {
+		openRef.current = null
+		setState({ openKey: null, snapKey: null })
+	}, [])
+
+	return { ...state, toggle, close }
+}
+
+/**
+ * Keep `row` at the height it was tapped at while the layout above it
+ * collapses. Measured each frame rather than computed, so a browser that
+ * anchors the scroll itself sees no correction from here.
+ */
+function holdInPlace(row: HTMLElement) {
+	const top = row.getBoundingClientRect().top
+	let frames = 0
+	const tick = () => {
+		const drift = row.getBoundingClientRect().top - top
+		if (drift !== 0) window.scrollBy({ top: drift, behavior: 'instant' })
+		if (++frames < HOLD_FRAMES) requestAnimationFrame(tick)
+	}
+	requestAnimationFrame(tick)
+}
+
+/**
+ * A panel that opens past the fold scrolls into view, `block: 'nearest'`, so a
+ * panel already on screen does not move. Instant under reduced motion.
+ */
+function revealWhenOpen(row: HTMLElement) {
+	window.setTimeout(() => {
+		const panel = row
+			.closest('[data-session-row]')
+			?.querySelector('[data-provenance-panel]')
+		// Optional calls: a browser without them (or a test DOM) just skips it.
+		const reduced =
+			typeof window.matchMedia === 'function' && prefersReducedMotion()
+		panel?.scrollIntoView?.({
+			block: 'nearest',
+			behavior: reduced ? 'instant' : 'smooth',
+		})
+	}, COLLAPSE_OPEN_MS)
+}
+
+/** The hairline chevron: Tabler `chevron-down` at 16 px, stroke 1.25. */
+function Chevron() {
+	return (
+		<svg
+			aria-hidden
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth={1.25}
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			className="text-muted-foreground motion-safe:duration-press size-4 shrink-0 motion-safe:transition-transform motion-safe:ease-out [[data-panel-open]>&]:rotate-180"
+		>
+			<path d="m6 9l6 6l6-6" />
+		</svg>
+	)
+}
+
+export function SessionRow({
+	session,
+	openRow,
+}: {
+	session: GeneratedSession
+	openRow: OpenSessionRow
+}) {
+	const key = sessionRowKey(session)
+	const open = openRow.openKey === key
+	const snap = openRow.snapKey === key
+	const triggerRef = useRef<HTMLButtonElement>(null)
+	const panelId = `provenance-${key}`
+
+	function onKeyDown(event: KeyboardEvent) {
+		if (event.key !== 'Escape' || !open) return
+		event.preventDefault()
+		openRow.close()
+		triggerRef.current?.focus()
+	}
+
+	const extra = [
+		NB_SESSION_ARCHETYPE_LABELS[session.archetype],
+		...(session.zone == null ? [] : [L.zone(session.zone)]),
+	].map((part) => part.replaceAll(' ', '\u00a0'))
+
+	return (
+		<Collapsible open={open} data-session-row onKeyDown={onKeyDown}>
+			<CollapsibleTrigger
+				ref={triggerRef}
+				aria-controls={panelId}
+				onClick={(event) => {
+					// The open state is the season's, not this row's.
+					event.preventDefault()
+					openRow.toggle(key, event.currentTarget)
+				}}
+				className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 w-[calc(100%+1rem)] touch-manipulation items-center gap-3 rounded-2xl px-2 py-2 text-left select-none motion-safe:transition-colors motion-safe:ease-out"
+			>
+				<span className="min-w-0 flex-1 space-y-0.5">
+					{/* The tokens wrap between each other, and a token's own space is
+					    non-breaking, so `sone 4` never splits. A token longer than the
+					    line («Konkurransesimulering» at 320 px with 200 % text) still
+					    breaks rather than pushing the card sideways. A real space between
+					    tokens, so the accessible name reads as words. */}
+					<span className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 [overflow-wrap:anywhere]">
+						<span className="text-foreground min-w-0 font-semibold">
+							{NB_PATTERN_WEEKDAY_LABELS[session.weekday]}
+						</span>{' '}
+						<span aria-hidden>·</span>{' '}
+						<span className="min-w-0">
+							{NB_DISCIPLINE_LABELS[session.discipline]}
+						</span>
+						{extra.map((part) => (
+							<span key={part} className="contents">
+								{' '}
+								<span aria-hidden>·</span>{' '}
+								<span className="min-w-0">{part}</span>
+							</span>
+						))}
+					</span>{' '}
+					<span className="text-callout block [overflow-wrap:anywhere]">
+						{session.title}
+					</span>
+				</span>
+				<Chevron />
+			</CollapsibleTrigger>
+			<CollapsibleContent
+				id={panelId}
+				data-provenance-panel
+				// Reduced motion keeps only the fade; a panel snapping shut above the
+				// tapped row has no transition at all.
+				className={cn(
+					'motion-reduce:[transition-property:opacity]',
+					snap && 'transition-none!',
+				)}
+			>
+				<div className="pt-2">
+					<div className="bg-muted/60 rounded-3xl p-3">
+						<ProvenanceSlot provenance={session.provenance} />
+					</div>
+				</div>
+			</CollapsibleContent>
+		</Collapsible>
+	)
+}

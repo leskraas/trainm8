@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { render, screen, within } from '@testing-library/react'
+import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
 import { NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
@@ -146,18 +147,50 @@ test('nothing reaches the calendar until the athlete says so', async () => {
 	).toBeInTheDocument()
 })
 
-test('a corpus session shows its Citation in the provenance slot', async () => {
+/** A placed session's row: one button, named by its day line and title. */
+function row(title: RegExp | string) {
+	return screen.findByRole('button', {
+		name: typeof title === 'string' ? new RegExp(escape(title)) : title,
+	})
+}
+
+function escape(text: string) {
+	return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+test('a row carries the plan and no source line until it is tapped (ADR 0117)', async () => {
 	renderScreen()
-	const slot = await screen.findByText(
-		/Kilde: Daniels — Daniels' Running Formula \(2013\)/,
+	const button = await row('5 × 1 km @ T')
+	// Day, sport, kind, zone and title name the row.
+	expect(button).toHaveAccessibleName(
+		/Tirsdag.*Løping.*Terskel.*sone\s4.*5 × 1 km @ T/,
 	)
-	expect(slot).toBeInTheDocument()
+	expect(button).toHaveAttribute('aria-expanded', 'false')
+	expect(screen.queryByText(/Kilde:/)).not.toBeInTheDocument()
+	expect(document.querySelector('[data-provenance]')).toBeNull()
+})
+
+test('tapping a corpus row opens its Citation below it; tapping again closes it', async () => {
+	const user = userEvent.setup()
+	renderScreen()
+	const button = await row('5 × 1 km @ T')
+	await user.click(button)
+	expect(button).toHaveAttribute('aria-expanded', 'true')
+	expect(
+		await screen.findByText(
+			/Kilde: Daniels — Daniels' Running Formula \(2013\)/,
+		),
+	).toBeInTheDocument()
 	expect(
 		screen.queryByText(NB_PROVENANCE_LABELS.nonVouch),
 	).not.toBeInTheDocument()
+
+	await user.click(button)
+	expect(button).toHaveAttribute('aria-expanded', 'false')
 })
 
-test('the two uncited stock kinds say so, each in its own words', async () => {
+test('one panel is open across the season, and Escape closes it back onto the row', async () => {
+	const user = userEvent.setup()
 	renderScreen({
 		sessions: [
 			session({ provenance: { kind: 'convention' }, title: 'Easy 60' }),
@@ -168,27 +201,44 @@ test('the two uncited stock kinds say so, each in its own words', async () => {
 			}),
 		],
 	})
+	const easy = await row('Easy 60')
+	const shakeout = await row('Shakeout')
+
+	await user.click(easy)
 	expect(
 		await screen.findByText(
 			/Vanlig trenerpraksis — trainm8 viser ikke til noen publisert/i,
 		),
 	).toBeInTheDocument()
+
+	await user.click(shakeout)
+	expect(easy).toHaveAttribute('aria-expanded', 'false')
+	expect(shakeout).toHaveAttribute('aria-expanded', 'true')
 	expect(
-		screen.getByText(/Skrevet av trainm8 — ingen publisert kilde/i),
+		await screen.findByText(/Skrevet av trainm8 — ingen publisert kilde/i),
 	).toBeInTheDocument()
+
+	await user.keyboard('{Escape}')
+	expect(shakeout).toHaveAttribute('aria-expanded', 'false')
+	expect(shakeout).toHaveFocus()
+
+	// Enter opens it from the keyboard, as a native button does.
+	await user.keyboard('{Enter}')
+	expect(shakeout).toHaveAttribute('aria-expanded', 'true')
 })
 
 test('a community session reads the slot without a Citation, and carries the non-vouch', async () => {
 	// Generation places no community row today, but the slot reads provenance
 	// rather than assuming a Citation — so a forked or adopted session still
 	// renders honestly.
+	const user = userEvent.setup()
 	const attributed: SessionProvenance = {
 		kind: 'community',
 		attribution: { displayName: 'Jo Kraas', publishedAt: new Date(0) },
 	}
 	renderScreen({
 		sessions: [
-			session({ provenance: attributed }),
+			session({ provenance: attributed, title: 'Attributed' }),
 			session({
 				weekday: 3,
 				provenance: { kind: 'community', attribution: null },
@@ -196,11 +246,18 @@ test('a community session reads the slot without a Citation, and carries the non
 			}),
 		],
 	})
-	expect(await screen.findByText('Publisert av Jo Kraas')).toBeInTheDocument()
+	await user.click(await row('Attributed'))
+	expect(await screen.findByText(/Publisert av Jo Kraas/)).toBeInTheDocument()
+	expect(screen.getByText(NB_PROVENANCE_LABELS.nonVouch)).toBeInTheDocument()
+	expect(screen.queryByText(/Kilde:/)).not.toBeInTheDocument()
+
+	await user.click(await row('Unattributed'))
 	expect(
-		screen.getByText('Publisert av en utøver — trainm8 kan ikke si hvem.'),
+		await screen.findByText(
+			'Publisert av en utøver — trainm8 kan ikke si hvem.',
+		),
 	).toBeInTheDocument()
-	expect(screen.getAllByText(NB_PROVENANCE_LABELS.nonVouch)).toHaveLength(2)
+	expect(screen.getAllByText(NB_PROVENANCE_LABELS.nonVouch)).toHaveLength(1)
 })
 
 test('the strength Unavailable is stated before the season, not hidden inside it', async () => {
@@ -238,6 +295,8 @@ test('an empty day is named rather than backfilled', async () => {
 			/ingenting å legge inn – terskel eller under terskel i grunntrening/i,
 		),
 	).toBeInTheDocument()
+	// An absence is never behind a tap: the unfilled row is no control (#429).
+	expect(screen.queryByRole('button', { name: /Onsdag/ })).toBeNull()
 })
 
 test('a week with no Season Anchor reads “—” rather than a number nobody typed', async () => {
