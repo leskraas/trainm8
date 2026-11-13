@@ -155,6 +155,86 @@ async function startPlan(userId: string) {
 	if (!made.ok) throw new Error(made.reason)
 }
 
+/** The outline and tracks of the athlete's plan. */
+async function planOf(userId: string) {
+	return prisma.planOutline.findFirstOrThrow({
+		where: { athleteId: userId },
+		select: {
+			id: true,
+			startWeekKey: true,
+			tracks: { select: { id: true, discipline: true } },
+		},
+	})
+}
+
+test('a plan toward an Event stays read-only in Meg, naming the Event', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const plan = await planOf(userId)
+	const event = await prisma.event.create({
+		select: { id: true },
+		data: {
+			athleteId: userId,
+			name: 'Birken',
+			startDate: new Date(Date.now() + 120 * 24 * 3600 * 1000),
+			kind: 'race',
+			priority: 'A',
+			disciplines: JSON.stringify(['bike']),
+		},
+	})
+	await prisma.planOutline.update({
+		where: { id: plan.id },
+		data: { eventId: event.id },
+	})
+	const loaded = await loader({ request: request(cookie), ...ARGS })
+	expect(loaded.activities).toEqual({
+		kind: 'read-only',
+		names: expect.arrayContaining(['Løping']),
+		why: ACTIVITIES_EDIT_LABELS.readOnly.event('Birken'),
+	})
+})
+
+test('a plan measured in km stays read-only in Meg, saying why', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const plan = await planOf(userId)
+	await prisma.trainingTrack.updateMany({
+		where: { outlineId: plan.id, discipline: 'run' },
+		data: { currency: 'km' },
+	})
+	const loaded = await loader({ request: request(cookie), ...ARGS })
+	expect(loaded.activities).toMatchObject({
+		kind: 'read-only',
+		why: ACTIVITIES_EDIT_LABELS.readOnly.currency,
+	})
+})
+
+test('a plan with only strength left stays read-only in Meg, saying why', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const plan = await planOf(userId)
+	// Run and bike retired from the plan's first week: only lifts are left.
+	const retired = plan.tracks
+		.filter((track) => track.discipline !== 'strength')
+		.map((track) => track.id)
+	await prisma.seasonAnchorSegment.deleteMany({
+		where: { trackId: { in: retired } },
+	})
+	await prisma.seasonAnchorSegment.createMany({
+		data: retired.map((trackId) => ({
+			trackId,
+			fromWeekKey: plan.startWeekKey,
+			value: 0,
+		})),
+	})
+	const loaded = await loader({ request: request(cookie), ...ARGS })
+	expect(loaded.activities).toEqual({
+		kind: 'read-only',
+		names: ['Styrke'],
+		why: ACTIVITIES_EDIT_LABELS.readOnly.liftingOnly,
+	})
+})
+
 test('a plan the start made is edited in place: pre-filled, previewed, refused when unchanged, and laid on Bekreft', async () => {
 	const { userId, cookie } = await setUp()
 	await startPlan(userId)
