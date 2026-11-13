@@ -29,12 +29,12 @@ import {
 	nbDurationLabel,
 	nbHoursWords,
 	nbLongDay,
+	nbTrackName,
 	PHILOSOPHY_LABELS,
 	PLAN_LEAD_LABELS,
 	SESSION_PREFERENCE_LABELS,
 	SIMPLE_START_LABELS,
 	START_OPTION_LABELS,
-	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
 import { trackRetiredAt } from '#app/utils/plan-outline/from-rows.ts'
 import { ACTIVITY_KINDS } from '#app/utils/simple-activity.ts'
@@ -73,15 +73,6 @@ export type ActivitiesView =
 			stands: string
 	  }
 
-/** A Discipline as the activities list names it. */
-function trackName(discipline: string): string {
-	return discipline === 'other'
-		? START_SIMPLE_ACTIVITY_LABELS.track
-		: discipline === 'strength'
-			? SIMPLE_START_LABELS.strength.chip
-			: NB_DISCIPLINE_LABELS[discipline as Discipline]
-}
-
 /**
  * The plan's activities as _Meg_ shows them: the editor, pre-filled with the
  * plan's activities now, where the edit can lay the plan; else the plan's
@@ -100,7 +91,7 @@ export function activitiesViewOf(
 			...new Set(
 				season.tracks
 					.filter((track) => !trackRetiredAt(track, fromWeekKey))
-					.map((track) => trackName(track.discipline)),
+					.map((track) => nbTrackName(track.discipline)),
 			),
 		]
 		const why = reading.ok
@@ -198,7 +189,7 @@ export function previewViewOf(
 	)
 	const { keptFromBoundary } = preview
 	const removedNames = preview.removed.map((discipline) =>
-		trackName(discipline).toLowerCase(),
+		nbTrackName(discipline).toLowerCase(),
 	)
 	return {
 		digest: preview.digest,
@@ -233,13 +224,13 @@ export function previewViewOf(
 				: null,
 		pinned: splice.pinned.map((one) =>
 			W.pinnedRow(
-				trackName(one.discipline),
+				nbTrackName(one.discipline),
 				one.days.map((day) => NB_WEEKDAY_LABELS[day]!),
 			),
 		),
 		overrides: [...new Set(splice.overrides.map((one) => one.discipline))].map(
 			(discipline) =>
-				`${trackName(discipline)}: ${splice.overrides
+				`${nbTrackName(discipline)}: ${splice.overrides
 					.filter((one) => one.discipline === discipline)
 					.map((one) =>
 						W.overrideWeek(
