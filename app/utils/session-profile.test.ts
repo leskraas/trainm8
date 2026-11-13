@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import {
 	deriveRepeatGroups,
 	deriveSessionProfile,
@@ -6,6 +6,7 @@ import {
 	shapeZone,
 } from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
+import { IntensityTargetSchema } from './workout-schema.ts'
 
 type Workout = NonNullable<LedgerSession['workout']>
 type Step = Workout['blocks'][number]['steps'][number]
@@ -392,4 +393,27 @@ test('shapeZone: a cardio step its target, an unstated one the intent', () => {
 		shapeZone(cardioStep({ id: 'w', intensity: watts }), intent),
 	).toBeNull()
 	expect(shapeZone(cardioStep({ id: 'r', kind: 'rest' }), intent)).toBeNull()
+})
+
+test('an intensity is read once, however many steps and reps carry it (#503)', () => {
+	// The 52-week Stream reads the same few intensities thousands of times, for
+	// the week's zone split and again for each row's bars; parsing each one
+	// every time was the biggest piece of opening the full view left.
+	const parse = vi.spyOn(IntensityTargetSchema, 'safeParse')
+	// An RPE no other test uses, so the first read here is the first anywhere.
+	const target = JSON.stringify({ kind: 'rpe', min: 7.5 })
+	try {
+		for (let i = 0; i < 20; i++) {
+			expect(shapeZone(cardioStep({ id: `s${i}`, intensity: target }), 2)).toBe(
+				4,
+			)
+		}
+		expect(parse).toHaveBeenCalledTimes(1)
+		// A legacy plain word, which is not JSON at all, is not parsed as JSON.
+		parse.mockClear()
+		expect(shapeZone(cardioStep({ id: 'w', intensity: 'tempo' }), 2)).toBe(3)
+		expect(parse).not.toHaveBeenCalled()
+	} finally {
+		parse.mockRestore()
+	}
 })

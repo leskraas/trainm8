@@ -183,15 +183,41 @@ export function intensityTargetToZone(
 function stepToZone(step: WorkoutStep): TrainingZone | null {
 	if (step.kind !== 'cardio') return null
 	if (!step.intensity) return null
+	return intensityZone(step.intensity)
+}
 
-	try {
-		const parsed = IntensityTargetSchema.safeParse(JSON.parse(step.intensity))
-		if (parsed.success) return intensityTargetToZone(parsed.data)
-	} catch {
-		// fall through to legacy plain-string matching
+/**
+ * Each stored intensity's zone, read once. A season reads the same few
+ * intensities thousands of times (every rep of every step, for the week's zone
+ * split and again for a row's bars), and parsing one each time was the biggest
+ * piece left of opening the 52-week Stream (#503, ADR 0113). Bounded, because
+ * an intensity is text the athlete may have written: past the cap it starts
+ * over.
+ */
+const intensityZones = new Map<string, TrainingZone | null>()
+const INTENSITY_ZONES_MAX = 512
+
+function intensityZone(intensity: string): TrainingZone | null {
+	const known = intensityZones.get(intensity)
+	if (known !== undefined) return known
+	const zone = readIntensityZone(intensity)
+	if (intensityZones.size >= INTENSITY_ZONES_MAX) intensityZones.clear()
+	intensityZones.set(intensity, zone)
+	return zone
+}
+
+function readIntensityZone(intensity: string): TrainingZone | null {
+	// A structured target is a JSON object; a legacy plain word is not JSON, and
+	// throwing on it costs more than the rest of the read together.
+	if (intensity.trimStart().startsWith('{')) {
+		try {
+			const parsed = IntensityTargetSchema.safeParse(JSON.parse(intensity))
+			if (parsed.success) return intensityTargetToZone(parsed.data)
+		} catch {
+			// fall through to legacy plain-string matching
+		}
 	}
-
-	return zoneLabelToZone(step.intensity)
+	return zoneLabelToZone(intensity)
 }
 
 /**
