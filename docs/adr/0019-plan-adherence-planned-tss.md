@@ -34,7 +34,10 @@ the **same Load Formula** the session uses for actual TSS (Coggan / `rTSS` /
    provenance). Recompute on prescription edits (Step duration / intensity
    changed) and on threshold changes (resolved ranges shifted). On-the-fly
    per-render computation is rejected for the same reason as CTL/ATL/TSB (ADR
-   0008): wasteful and inconsistent across views.
+   0008): wasteful and inconsistent across views. _(Trigger list replaced by
+   [ADR 0117](./0117-a-moved-input-re-derives-a-session-while-it-is-scheduled-and-a-session-that-has-left-scheduled-holds.md):
+   a moved input re-derives only `scheduled` sessions, and a session that has
+   left `scheduled` holds its Planned TSS.)_
 
 3. **Honesty over guessing.** A Step with neither a quantity nor a resolved
    intensity contributes nothing (an open "warm up until ready" Step). A Step

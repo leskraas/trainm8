@@ -348,22 +348,24 @@ Metric, never a fabricated value. **Nothing is baked at write time**: authoring
 stores what the athlete typed — a zone label stays a zone label — and resolution
 happens on every read, against the athlete's _current_ **Discipline Profile**
 and **Zone Recipe**. So a threshold edit or a recipe correction moves numbers
-already read, on four paths none of which is date-aware: display-time resolution
-on the **Workout Detail View**, the cached `intensity*` columns (a cache
-refilled wholesale, not a bake), **Planned TSS** and the past **Adherence
-Bands** it grades, and chip tint. Where that movement corrects a defect, what is
-owed is a **Load Recompute Notice** — explained, never offered (ADR 0006). A
-baking path does exist, `deriveMetricTarget`, which resolves the per-discipline
-default (run → threshold pace, bike → `%FTP`) into a stored metric target and
-falls back to the Training Zone label when no threshold resolves it; its only
-live caller is the seed script, since **Plan Generation**, its other intended
-caller, was deleted (ADR 0044). A zone the app writes for the athlete — the
-writing line's typed zone, the day stamp, an eased session — is stored as its
-canonical Norwegian zone word (_lett_, _rolig_, _moderat_, _terskel_, _hardt_),
-never as a zone code: a code such as `Z2` is a recipe's band label and names a
-different zone on another recipe (Stryd's `Z2` is zone 3). `easy` is zone 2, as
-the Daniels band of that name declares. A stored label is never rewritten (ADR
-0089, amended by #627). _Avoid_: Zone target, effort
+already read, on four paths none of which is date-aware. Two move for every
+session: display-time resolution on the **Workout Detail View**, and chip tint.
+Two move only for a session still `scheduled`: the cached `intensity*` columns
+(a cache, not a bake) and **Planned TSS**; a session that has left `scheduled`
+holds both, so a past **Adherence Band** moves only on its actual side (ADR
+0117). Where that movement corrects a defect, what is owed is a **Load Recompute
+Notice** — explained, never offered (ADR 0006). A baking path does exist,
+`deriveMetricTarget`, which resolves the per-discipline default (run → threshold
+pace, bike → `%FTP`) into a stored metric target and falls back to the Training
+Zone label when no threshold resolves it; its only live caller is the seed
+script, since **Plan Generation**, its other intended caller, was deleted (ADR
+0044). A zone the app writes for the athlete — the writing line's typed zone,
+the day stamp, an eased session — is stored as its canonical Norwegian zone word
+(_lett_, _rolig_, _moderat_, _terskel_, _hardt_), never as a zone code: a code
+such as `Z2` is a recipe's band label and names a different zone on another
+recipe (Stryd's `Z2` is zone 3). `easy` is zone 2, as the Daniels band of that
+name declares. A stored label is never rewritten (ADR 0089, amended by #627).
+_Avoid_: Zone target, effort
 
 **Lactate Anchor**: A prescription in **blood lactate** (mmol·L⁻¹) — the
 Norwegian sub-threshold tradition's defining parameter, and the arm of the
@@ -1242,7 +1244,12 @@ TSS — neither a `recorded` session nor a `detected` one whose **Workout** was
 auto-materialized by a **Structure Detection** — because a plan reconstructed
 from the session's own actuals would grade itself as ~perfect adherence by
 construction; its **Adherence Band** stays unavailable ("—") (ADR 0034).
-_Avoid_: Target load, expected TSS
+Re-derived while its session's **Session Status** is `scheduled`, past-dated
+ones included, whenever an input it reads moves (a **Threshold**, a **Zone
+Recipe**, a **Performance Result**). A session that has left `scheduled` holds
+the value it had then, a session that returns is re-derived at once, and only
+the athlete's own edit of a held session's prescription recomputes it (ADR
+0117). _Avoid_: Target load, expected TSS
 
 **Adherence Band**: The three-state comparison of actual to Planned TSS —
 `under`, `on-target`, or `over` — surfaced on the **Stream** row's compliance

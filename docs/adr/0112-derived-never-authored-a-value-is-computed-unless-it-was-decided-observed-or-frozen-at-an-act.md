@@ -106,7 +106,10 @@ change recomputes it on every session, done ones included, while a **Performance
 Result** recomputes only sessions still scheduled, so a completed session keeps
 the stress it was planned with. Whether a completed session's **Planned TSS**
 freezes at completion, as its **Target Resolution** does (§1.3), is not decided
-here.
+here. _(Decided by
+[ADR 0117](./0117-a-moved-input-re-derives-a-session-while-it-is-scheduled-and-a-session-that-has-left-scheduled-holds.md):
+a session re-derives while it is `scheduled` and holds both Planned TSS and its
+cached ranges once it leaves.)_
 
 ### 4. A moved number the athlete has read is explained, never silent
 

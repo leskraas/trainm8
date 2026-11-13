@@ -252,7 +252,10 @@ Snapshot**, so it owes an explanation nowhere (ADR 0006's own test).
   Intensity Target, and flat columns for the resolved range
   (`intensityHrMin/Max`, `intensityPowerMin/Max`, `intensityPaceMin/Max`).
 - Resolved ranges are recomputed by a background job when athlete thresholds
-  change.
+  change. _(Narrowed by
+  [ADR 0117](./0117-a-moved-input-re-derives-a-session-while-it-is-scheduled-and-a-session-that-has-left-scheduled-holds.md):
+  only on `scheduled` sessions; a session that has left `scheduled` keeps its
+  ranges.)_
 - `WorkoutBlock` carries `repeatCount`, `seriesRepeatCount`,
   `betweenSeriesRestSec` and a JSON `sendOff`. The effective number of passes is
   the **product** of the two counts, read through `blockRepeatTotal()` — every
