@@ -189,7 +189,7 @@ test('the season plan with all three Guard Notices in its lead does not overflow
 }) => {
 	test.setTimeout(120_000)
 	const user = await login()
-	// A plan that sets off every guard (ADR 0113), as e2e fixture data only:
+	// A plan that sets off every guard (ADR 0118), as e2e fixture data only:
 	// a run track that climbs faster than the convention, a lifting block the
 	// one trainable weekday cannot hold, and a session outside the block's band.
 	const goal = await createFitnessGoalEvent(user.id, {

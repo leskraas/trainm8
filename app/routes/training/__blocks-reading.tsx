@@ -1,7 +1,7 @@
 /**
  * The Blocks reading of the plan page (`plan.tsx`, #533): the phases with their
  * segments' progression, and Avansert below. The plan's Guard Notices are not
- * here: they stand in _Plan_'s lead (`PlanGuardNotices`, ADR 0113).
+ * here: they stand in _Plan_'s lead (`PlanGuardNotices`, ADR 0118).
  */
 
 import {

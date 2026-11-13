@@ -12,7 +12,7 @@
  * `children` is the card's last slot, for what changes the plan as a whole:
  * _Bytt treningsform_ (#581) goes there, after _Legg til et løp_. `notices` is
  * the lead's, outside the card and after the resting line: the plan's Guard
- * Notices (ADR 0113), which follow the card they are about rather than sit in
+ * Notices (ADR 0118), which follow the card they are about rather than sit in
  * it.
  *
  * No motion of its own: the lead is the page's resting state, and the morph
@@ -88,7 +88,7 @@ export function PlanLeadCard({
 	/** A line under the card when this plan rests or another one does. */
 	resting?: ReactNode
 	/**
-	 * The plan's **Guard Notices** (`PlanGuardNotices`, ADR 0113): after the
+	 * The plan's **Guard Notices** (`PlanGuardNotices`, ADR 0118): after the
 	 * resting line and outside the card, before Bibliotek. Renders nothing of its
 	 * own when there are none.
 	 */

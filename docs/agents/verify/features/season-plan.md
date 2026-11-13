@@ -13,7 +13,7 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 - The plan's **Guard Notices** (Ramp Guard, availability fit, band fit) in
   _Plan_'s lead, under the card and before _Bibliotek_, as `role="note"`
   notices in `[data-plan-guards]`, each closable by its button _Lukk merknaden
-  om …_ (ADR 0113). None renders inside _Avansert_.
+  om …_ (ADR 0118). None renders inside _Avansert_.
 - Plan creation at `/training/plan/new`: a dated goal (_Mål_, _Dato_, _Lag målet
   og gå videre_), then _Legg opp sesongen_ (base, units, start volume).
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
