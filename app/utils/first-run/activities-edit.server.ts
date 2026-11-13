@@ -52,7 +52,7 @@ import { weekIndexOf, weekKeyAt } from '../plan-outline/week-keys.ts'
 import { isPatternWeekday } from '../plan-outline/week-pattern.ts'
 import {
 	clearPlanWeek,
-	REPLACEABLE_SESSION,
+	KEPT_PLAN_SESSION,
 } from '../plan-outline/week-sessions.server.ts'
 import { createSimpleActivityWorkout } from '../simple-activity.server.ts'
 import { getActiveSeason, getDisciplineThresholds } from '../training.server.ts'
@@ -235,11 +235,7 @@ async function readKeptSessions(
 						{ planOutlineId: { not: outlineId } },
 					],
 				},
-				{
-					planOutlineId: outlineId,
-					source: { not: 'authored' },
-					NOT: REPLACEABLE_SESSION,
-				},
+				{ planOutlineId: outlineId, ...KEPT_PLAN_SESSION },
 			],
 		},
 		orderBy: [{ scheduledAt: 'asc' }, { id: 'asc' }],
@@ -303,11 +299,7 @@ async function readKeptAhead(
 			status: { in: ['scheduled', 'completed'] },
 			OR: [
 				{ source: 'authored' },
-				{
-					planOutlineId: outlineId,
-					source: { not: 'authored' },
-					NOT: REPLACEABLE_SESSION,
-				},
+				{ planOutlineId: outlineId, ...KEPT_PLAN_SESSION },
 			],
 		},
 		select: { workout: { select: { discipline: true } } },

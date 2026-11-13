@@ -104,8 +104,8 @@ import {
 } from './week-pattern.ts'
 import {
 	clearPlanWeek,
+	KEPT_PLAN_SESSION,
 	readWeekOccupancy,
-	REPLACEABLE_SESSION,
 } from './week-sessions.server.ts'
 
 /**
@@ -564,7 +564,7 @@ export async function readHeldSessions(
  * The slots the plan's own sessions fill in one week whatever a re-lay does:
  * the ones its gated clearing keeps (adopted, or trained), counted per
  * weekday and Discipline. One query, the plan's sessions that are neither
- * the athlete's own (`authored`) nor {@link REPLACEABLE_SESSION}, so it reads
+ * the athlete's own (`authored`) nor replaceable, so it reads
  * the same before the clearing (a preview) as after it (the write). Read
  * through `db`, so the stamp reads it inside its transaction.
  */
@@ -592,11 +592,10 @@ export async function readKeptSlots(
 }
 
 /**
- * The plan's own sessions in one week that its gated clearing keeps: neither
- * `authored` nor {@link REPLACEABLE_SESSION}. What {@link readKeptSlots}
- * counts, for a caller that shows them too.
+ * The plan's own sessions in one week that its gated clearing keeps
+ * ({@link KEPT_PLAN_SESSION}). What {@link readKeptSlots} counts.
  */
-export async function readKeptPlanSessions(
+async function readKeptPlanSessions(
 	db: Prisma.TransactionClient,
 	userId: string,
 	planOutlineId: string,
@@ -609,8 +608,7 @@ export async function readKeptPlanSessions(
 			userId,
 			planOutlineId,
 			scheduledAt: { gte: start, lte: end },
-			source: { not: 'authored' },
-			NOT: REPLACEABLE_SESSION,
+			...KEPT_PLAN_SESSION,
 		},
 		orderBy: { scheduledAt: 'asc' },
 		select: {

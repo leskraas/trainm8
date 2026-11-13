@@ -45,6 +45,17 @@ export const REPLACEABLE_SESSION = {
 	sessionLog: { is: null },
 } satisfies Prisma.WorkoutSessionWhereInput
 
+/**
+ * The other side of the rule, for the plan's own sessions: what a rewrite of
+ * a week keeps where it is — adopted, trained, logged or recorded. One
+ * fragment so a query that counts them and a query that shows them cannot
+ * drift apart.
+ */
+export const KEPT_PLAN_SESSION = {
+	source: { not: 'authored' },
+	NOT: REPLACEABLE_SESSION,
+} satisfies Prisma.WorkoutSessionWhereInput
+
 /** What one week of the plan already holds, split by what a rewrite may touch. */
 export type WeekOccupancy = {
 	/** Scheduled, untrained sessions of this plan that a rewrite deletes. */
