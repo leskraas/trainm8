@@ -39,10 +39,7 @@ import {
 import { trackRetiredAt } from '#app/utils/plan-outline/from-rows.ts'
 import { ACTIVITY_KINDS } from '#app/utils/simple-activity.ts'
 import { type AuthoredSeason } from '#app/utils/training.server.ts'
-import {
-	CARDIO_DISCIPLINES,
-	type Discipline,
-} from '#app/utils/workout-schema.ts'
+import { CARDIO_DISCIPLINES } from '#app/utils/workout-schema.ts'
 import {
 	weekCardOf,
 	type StartWeekCard,
