@@ -1099,7 +1099,7 @@ export async function removeSeasonAnchorSegment(
 	})
 	if (!track) return { ok: false, reason: 'track-not-found' }
 
-	// The list's own rule, shared with the Sesong edit's preview (ADR 0117 §1),
+	// The list's own rule, shared with the Sesong edit's preview (ADR 0119 §1),
 	// so the two writers cannot disagree about which segment may go.
 	const edited = editAnchorList(track.anchors, {
 		action: 'remove',

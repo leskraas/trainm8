@@ -158,7 +158,7 @@ const AnchorWeekField = z
 export const SEASON_ANCHOR_ACTIONS = ['add', 'set', 'remove'] as const
 
 /**
- * _Endre startnivået_ (ADR 0117 §1): one form, three acts. Each act has its own
+ * _Endre startnivået_ (ADR 0119 §1): one form, three acts. Each act has its own
  * week picker (and the two that take one, their own number), all posted, so
  * switching between the acts keeps what each one was given; the act chosen
  * decides which are read.
