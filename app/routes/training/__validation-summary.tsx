@@ -178,25 +178,27 @@ export function ValidationSummaryLine({
 			// rejection — §11.6's zero-step floor.
 			tabIndex={-1}
 			className={cn(
-				'text-body-xs mt-2 flex flex-col gap-1 pt-2 outline-none',
+				'text-footnote mt-2 flex flex-col gap-1 pt-2 outline-none',
 				className,
 			)}
 		>
-			<p className="text-destructive font-medium">
+			<p className="text-foreground-destructive font-medium">
 				{describeErrorCount(items.length)}
 			</p>
 			<ul className="flex flex-col gap-0.5">
 				{items.map((item) => (
 					<li key={item.path} data-validation-summary-item>
 						{item.anchor.level === 'floor' ? (
-							<span className="text-destructive/90">{item.message}</span>
+							<span className="text-foreground-destructive">
+								{item.message}
+							</span>
 						) : (
 							<button
 								type="button"
 								onClick={() => onActivate(item)}
 								// A real 44px row (ADR 0028): `after:` hit areas would overlap
 								// their neighbours in a list this tight and steal the tap.
-								className="text-destructive inline-flex min-h-11 cursor-pointer items-center text-left underline-offset-2 hover:underline focus-visible:underline"
+								className="text-foreground-destructive inline-flex min-h-11 cursor-pointer items-center text-left underline-offset-2 hover:underline focus-visible:underline"
 							>
 								{item.message}
 							</button>
