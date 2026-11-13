@@ -162,7 +162,9 @@ content's name (a plan, a session, a lift's exercise), at `text-title`.
 `PageHeader`'s h1, `CardTitle`, the overlay header and sheet titles take
 `text-heading`. Row titles and labels over a figure take `text-callout` (was
 `text-sm font-medium`); row facts, descriptions and field errors `text-footnote`
-(errors in `text-foreground-destructive`); labels and units `text-caption`, with
+(errors in `text-foreground-destructive`; inside a popover or menu,
+`text-foreground-destructive dark:text-destructive`, since the dark
+`foreground-destructive` reads 4.42:1 on `popover`, under AA); labels and units `text-caption`, with
 `font-normal` when muted; inputs, `h-12` calls to action and running text
 `text-body` (`md:text-base` becomes `md:text-body`). Section, row title and row
 fact are three visible steps, so a reader sees what to read first.

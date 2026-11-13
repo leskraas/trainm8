@@ -227,7 +227,7 @@ export function MenuErrorLead({ message }: { message: string | null }) {
 	return (
 		<div
 			data-slot="menu-error"
-			className="text-foreground-destructive text-footnote max-w-64 px-2 py-1.5 font-normal text-wrap"
+			className="text-foreground-destructive dark:text-destructive text-footnote max-w-64 px-2 py-1.5 font-normal text-wrap"
 		>
 			{message}
 		</div>
@@ -250,7 +250,10 @@ export function PopoverErrorLead({
 	return (
 		<div data-slot="popover-error" className="flex flex-col gap-1">
 			{present.map((message) => (
-				<p key={message} className="text-foreground-destructive text-footnote">
+				<p
+					key={message}
+					className="text-foreground-destructive dark:text-destructive text-footnote"
+				>
 					{message}
 				</p>
 			))}
