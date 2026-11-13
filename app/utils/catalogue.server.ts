@@ -7,7 +7,7 @@
  */
 import { type Prisma } from '@prisma/client'
 import { localTimeUTC } from './athlete-calendar.ts'
-import { DEFAULT_TRAINING_TIME } from './athlete-schema.ts'
+import { trainingTimeOf } from './athlete-schema.ts'
 import {
 	CATALOGUE_LEVELS,
 	type CatalogueGoalEvent,
@@ -488,7 +488,7 @@ export async function placeCatalogueSession({
 		select: { timezone: true, defaultTrainingTime: true },
 	})
 	const timezone = profile?.timezone ?? 'UTC'
-	const trainingTime = profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+	const trainingTime = trainingTimeOf(profile)
 
 	const sessionId = await prisma.$transaction(
 		async (tx: Prisma.TransactionClient) => {

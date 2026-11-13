@@ -35,6 +35,14 @@ The repo can cap `parallel` lower than the subscription does: a dev server
 on fixed ports, or one dev stack per machine, lets one QA or design scan run
 at a time (`serial`), and a machine runs only so many builds at once.
 
+## Work in progress
+
+`wip` caps the issues in flight at once, so the free sessions go to finishing
+what is started before new features begin. It defaults to `parallel`.
+Recommend `build-parallel` when the subscription is tight (Max 5x, or the
+owner codes on it), so a five-hour window finishes one or two features instead
+of moving many a step each.
+
 ## Budget
 
 `budget` is a cost stop: how many tokens one issue may spend, its PR
@@ -42,6 +50,13 @@ included, before a human looks at it, which also catches an issue that goes
 in circles. Recommend 6000000 whatever the subscription, since a full slice
 took 1.5–2.5M tokens; more for a design-heavy product, less for one without
 UI.
+
+## Usage reserve
+
+`usage-reserve` is the share of the subscription's limits the factory leaves
+to its owner (`/factory`'s `references/usage.md`). Recommend `30%` when the owner
+codes on the same subscription every day, and the default `10%` when the
+factory has it to itself.
 
 ## After a week
 

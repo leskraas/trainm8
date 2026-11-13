@@ -1,5 +1,7 @@
 import { faker } from '@faker-js/faker/locale/en'
+import { type Page } from '@playwright/test'
 import { prisma } from '#app/utils/db.server.ts'
+import { previewSeason } from '#app/utils/plan-generation/generate.server.ts'
 import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
@@ -187,4 +189,147 @@ test('a season over the athlete’s weekly hours is scaled to fit, and says so',
 			document.documentElement.clientWidth,
 	)
 	expect(overflow).toBeLessThanOrEqual(0)
+})
+
+/**
+ * **Placed Hours** over the Weekly Capacity (#473, ADR 0110 §4, ADR 0116):
+ * where a week's placed sessions alone take longer than the athlete has, its
+ * card says so, a line under the season heading names the weeks, and the
+ * «N uker til» row names the ones behind it — all on load, nothing behind a
+ * tap, and nothing placed changes.
+ */
+async function createAthleteWithThresholds(
+	userId: string,
+	weeklyCapacityHours: number,
+) {
+	await prisma.athleteProfile.create({
+		data: {
+			userId,
+			weeklyCapacityHours,
+			disciplineProfiles: {
+				create: [
+					{ discipline: 'run', thresholdPaceSecPerKm: 270 },
+					{ discipline: 'swim', cssSecPer100m: 105 },
+					{ discipline: 'bike', ftp: 230 },
+				],
+			},
+		},
+	})
+}
+
+async function createRace(
+	athleteId: string,
+	name: string,
+	disciplines: string[],
+) {
+	return prisma.event.create({
+		data: {
+			athleteId,
+			name,
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date(Date.now() + 20 * 7 * 24 * 60 * 60 * 1000),
+			disciplines: JSON.stringify(disciplines),
+		},
+	})
+}
+
+/** No element of the page's content reaches past the viewport. */
+async function contentOverflow(page: Page) {
+	return page.evaluate(() => {
+		const width = document.documentElement.clientWidth
+		let right = 0
+		for (const element of document.querySelectorAll('main *')) {
+			right = Math.max(right, element.getBoundingClientRect().right)
+		}
+		return Math.ceil(right - width)
+	})
+}
+
+test('the season line and the «N uker til» row name the weeks whose placed sessions outrun the capacity, with the section closed', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(180_000)
+	const user = await login()
+	await createAthleteWithThresholds(user.id, 100)
+	const event = await createRace(
+		user.id,
+		`Vårmila ${faker.string.alphanumeric(6)}`,
+		['run'],
+	)
+
+	// Read the placed hours the server will state, and set a capacity that the
+	// heaviest hidden week outruns and the lightest week does not.
+	const roomy = await previewSeason(user.id, event.id, {})
+	if (!roomy.ok || roomy.preview.season.placed.kind !== 'read') {
+		throw new Error('the preview read no Placed Hours')
+	}
+	const hours = roomy.preview.season.placed.weeks.map((week) => week?.hours)
+	const timed = hours.filter((h): h is number => h != null)
+	const hidden = hours.slice(4).filter((h): h is number => h != null)
+	const capacity = Math.round(Math.max(...hidden) * 10) / 10 - 0.1
+	expect(Math.min(...timed)).toBeLessThan(capacity)
+	await prisma.athleteProfile.update({
+		where: { userId: user.id },
+		data: { weeklyCapacityHours: capacity },
+	})
+
+	await page.goto(`/training/plan/generate/${event.id}`)
+	// Visible as the page loads: the season line, and the row's own line.
+	await expect(page.locator('[data-placed="season"]')).toBeVisible()
+	await expect(page.locator('[data-placed="season"]')).toContainText(
+		'Øktene alene tar mer tid enn du har.',
+	)
+	const trigger = page.getByRole('button', { name: /uker til/ })
+	await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+	await expect(trigger.locator('[data-placed="remaining"]')).toBeVisible()
+	await expect(trigger.locator('[data-placed="remaining"]')).toHaveText(
+		/(ligger her, og øktene der tar mer tid enn du har\.|av ukene her tar mer tid enn du har)$/,
+	)
+
+	// Nothing placed changed because of it: the same sessions as without it.
+	const tight = await previewSeason(user.id, event.id, {})
+	if (!tight.ok) throw new Error(tight.reason)
+	expect(tight.preview.season.sessions).toEqual(roomy.preview.season.sessions)
+})
+
+test('the worst-case season wraps without overflow at 320 px and 390 px with 200 % text', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(240_000)
+	const user = await login()
+	// Every week breaches: a triathlete with half an hour a week.
+	await createAthleteWithThresholds(user.id, 0.5)
+	const event = await createRace(
+		user.id,
+		`Norseman Xtreme Triathlon – Eidfjord til Gaustatoppen ${faker.string.alphanumeric(6)}`,
+		['swim', 'bike', 'run'],
+	)
+
+	for (const width of [320, 390]) {
+		await page.setViewportSize({ width, height: 900 })
+		await page.goto(
+			`/training/plan/generate/${event.id}?anchor-swim=6.2&anchor-bike=180&anchor-run=40`,
+		)
+		await page.addStyleTag({ content: 'html { font-size: 200%; }' })
+		await expect(page.locator('[data-placed="season"]')).toContainText(
+			'Hver uke i sesongen',
+		)
+		const trigger = page.getByRole('button', { name: /uker til/ })
+		await untilHydrated(trigger)
+		await trigger.click()
+		await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+		// Three tracks with a swim target, a taper badge, a breach on every card.
+		const cards = page.getByRole('article')
+		await expect(cards.getByText(/^Svømming$/).first()).toBeVisible()
+		await expect(cards.getByText(/^nedtrapping$/i).first()).toBeVisible()
+		const breaching = page.locator('[data-placed="over"]')
+		await expect(breaching).toHaveCount(await cards.count())
+		expect(
+			await contentOverflow(page),
+			`overflow at ${width} px`,
+		).toBeLessThanOrEqual(0)
+	}
 })

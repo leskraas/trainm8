@@ -22,6 +22,7 @@ import { Form, Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Icon, type IconName } from '#app/components/ui/icon.tsx'
+import { WeatherGlyph } from '#app/components/weather-glyph.tsx'
 import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
 import {
 	connectionHubStatus,
@@ -33,9 +34,11 @@ import {
 } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { readHomePlace } from '#app/utils/home-place.server.ts'
 import {
 	APP_TAB_LABELS,
 	CONNECTION_HUB_STATUS_LABELS,
+	HOME_PLACE_LABELS,
 	ME_LABELS,
 	MEG_RESULTS_LABELS,
 	MEG_STRENGTH_LABELS,
@@ -82,6 +85,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		bindingSet,
 		startAnswers,
 		profile,
+		homePlace,
 	] = await Promise.all([
 		prisma.user.findUniqueOrThrow({
 			where: { id: userId },
@@ -111,6 +115,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 			where: { userId },
 			select: { autopilot: true },
 		}),
+		// The Home Place's name, for the Hjemsted row (#433).
+		readHomePlace(userId),
 	])
 	// The same reading the integrations page makes (`connectionHubStatus`).
 	const intervalsicu = connectionHubStatus(connection)
@@ -155,6 +161,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		startAnswersDetail,
 		autopilot: profile?.autopilot ?? true,
 		performanceResultCount,
+		homePlaceDetail: HOME_PLACE_LABELS.rowDetail(homePlace?.name ?? null),
 	}
 }
 
@@ -165,7 +172,8 @@ function MeLink({
 	detail,
 }: {
 	to: string
-	icon: IconName
+	/** A sprite icon, or a glyph drawn inline (`WeatherGlyph`'s map pin). */
+	icon: IconName | React.ReactElement
 	title: string
 	detail?: string
 }) {
@@ -179,12 +187,16 @@ function MeLink({
 				// app's press curve.
 				className="active:bg-muted/60 duration-press -mx-2 flex min-h-11 items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors ease-out hover:underline"
 			>
-				<Icon
-					name={icon}
-					size="md"
-					className="text-muted-foreground"
-					aria-hidden="true"
-				/>
+				{typeof icon === 'string' ? (
+					<Icon
+						name={icon}
+						size="md"
+						className="text-muted-foreground"
+						aria-hidden="true"
+					/>
+				) : (
+					icon
+				)}
 				<span className="min-w-0 flex-1">
 					<span className="block">{title}</span>
 					{detail ? (
@@ -232,6 +244,7 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 		startAnswersDetail,
 		autopilot,
 		performanceResultCount,
+		homePlaceDetail,
 	} = loaderData
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -300,6 +313,17 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 					icon="clock"
 					title={MEG_RESULTS_LABELS.title}
 					detail={MEG_RESULTS_LABELS.detail(performanceResultCount)}
+				/>
+				<MeLink
+					to="/settings/hjemsted"
+					icon={
+						<WeatherGlyph
+							glyph="map-pin"
+							className="text-muted-foreground size-5"
+						/>
+					}
+					title={HOME_PLACE_LABELS.title}
+					detail={homePlaceDetail}
 				/>
 			</MeSection>
 

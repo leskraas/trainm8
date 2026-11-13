@@ -24,6 +24,7 @@ function entry(overrides: Partial<RetrievableEntry> = {}): RetrievableEntry {
 		citationWork: null,
 		citationYear: null,
 		citationLocator: null,
+		blocks: [],
 		...overrides,
 	}
 }
