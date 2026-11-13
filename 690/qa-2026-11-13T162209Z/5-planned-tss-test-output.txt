@@ -1,0 +1,5 @@
+Planned TSS half of criterion 5 (preferRTSS is not settable in the app, so kody's Planned TSS stays null in the UI):
+$ vitest run app/utils/event-result app/utils/performance-result app/utils/user-data-export app/utils/intensity-target
+ 6 files, 122 tests passed, including
+ - linking the raced session writes one verified result at the Event Distance, and moves Planned TSS with its origin
+ - unlinking, cancelling and deleting each remove the result and move Planned TSS back
