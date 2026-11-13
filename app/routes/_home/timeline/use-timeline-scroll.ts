@@ -347,7 +347,10 @@ export function useTimelineScroll({
 			(entries) => {
 				if (!entries.some((entry) => entry.isIntersecting)) return
 				if (afterRef.current >= maxAfterRef.current) return
-				setAfter((n) => nextAhead(n, maxAfterRef.current))
+				// A value, not an updater: on open the sentinel is in reach while the
+				// append after hydration (above) is still pending, and an updater
+				// would be replayed on top of it, mounting two chunks at once.
+				setAfter(nextAhead(afterRef.current, maxAfterRef.current))
 			},
 			{ root: el, rootMargin: `0px 0px ${AHEAD_PAD}px 0px` },
 		)
