@@ -1854,7 +1854,7 @@ function BlockNameEditor({
 				placeholder={BLOCK_SHEET_LABELS.namePlaceholder}
 				maxLength={60}
 				// 16 px text so mobile browsers never zoom the field (§9.2).
-				className="bg-input/50 focus-visible:ring-ring/30 text-body h-11 w-full rounded-3xl border border-transparent px-3 outline-none focus-visible:ring-3"
+				className="bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 text-body h-11 w-full rounded-3xl border border-transparent px-3 outline-none focus-visible:ring-3"
 				onChange={(event) => {
 					control.change(event.target.value)
 					announce(

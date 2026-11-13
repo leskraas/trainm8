@@ -439,7 +439,7 @@ function UniformLoadField({
 				placeholder="—"
 				value={text}
 				onChange={(event) => handleTyped(event.target.value)}
-				className="bg-input/50 focus-visible:ring-ring/30 text-body h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-2 text-center font-medium tabular-nums outline-none focus-visible:ring-3"
+				className="bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 text-body h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-2 text-center font-medium tabular-nums outline-none focus-visible:ring-3"
 			/>
 			<Button
 				type="button"
@@ -577,7 +577,7 @@ function SetGridRow({
 		typeof load.value === 'string' ? load.value : undefined,
 	)
 	const inputClass =
-		'bg-input/50 border-transparent focus-visible:ring-ring/30 h-11 w-full min-w-0 rounded-3xl border px-2 text-center text-body font-medium tabular-nums outline-none focus-visible:ring-3'
+		'bg-input/50 border-transparent focus-visible:border-ring focus-visible:ring-ring/30 h-11 w-full min-w-0 rounded-3xl border px-2 text-center text-body font-medium tabular-nums outline-none focus-visible:ring-3'
 
 	// kg and %1RM are mutually exclusive per set (schema `weightXorPct`): the UI
 	// enforces it by clearing the other field the moment one is given a value,
