@@ -106,8 +106,10 @@ luma's generated class names land on #505's numbers (cards 14–16, controls
 10–12+, pills full) without editing them.
 
 Page code takes the step by **what the element is** (ADR 0117), and the lint
-rule `trainm8/luma-steps` rejects `rounded-sm/md/lg/xl` outside
-`app/components/ui`:
+rule `trainm8/luma-steps` rejects `rounded-sm/md/lg/xl` in page code (its
+exemptions, `app/components/ui`, admin, marketing, SEO, auth, prototypes and
+tests, are listed in its block in `eslint.config.js`; admin still takes the
+steps, by hand):
 
 | Element                                                     | Step            |
 | ----------------------------------------------------------- | --------------- |

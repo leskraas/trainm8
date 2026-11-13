@@ -27,8 +27,9 @@ ones measured 2.0–2.8:1 on `card`, under the 3:1 a graphical mark needs.
    errors `text-footnote`; labels and units `text-caption`; inputs and running
    text `text-body`), not by nearest size, so the three reading steps stay
    distinct. `docs/design/design-system.md` holds the map. This applies to every
-   page and shared component outside `app/components/ui`, admin included. The
-   marketing and auth pages keep the Epic marketing scale, and the throwaway
+   page and shared component outside `app/components/ui`, admin included (by
+   hand: the rule in §2 leaves admin out, as the native-`<select>` guard does).
+   The marketing and auth pages keep the Epic marketing scale, and the throwaway
    prototype files are left as they are.
 
 2. **A local ESLint rule, `trainm8/luma-steps`, keeps page code there.** It
