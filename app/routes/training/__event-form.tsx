@@ -186,9 +186,7 @@ const EventDistanceEntrySchema = z
 	.object({
 		kind: z.string().optional(),
 		disciplines: z.array(z.string()).optional(),
-		distance: z
-			.enum(EVENT_DISTANCE_CHOICES as unknown as [string, ...string[]])
-			.optional(),
+		distance: z.enum(EVENT_DISTANCE_CHOICES).optional(),
 		distanceKm: z.string().optional(),
 	})
 	.superRefine((value, ctx) => {

@@ -156,7 +156,7 @@ function presentResult(view: EventResultView | null) {
 		case 'no-distance':
 			return { kind: 'ask-distance' as const }
 		case 'distance-mismatch': {
-			const race = eventDistanceInText(verdict.raceDistanceM)
+			const race = eventDistanceInText(verdict.eventDistanceM)
 			return {
 				kind: 'mismatch' as const,
 				body: L.mismatch(nbMeasuredKm(verdict.measuredM), race),
@@ -167,7 +167,9 @@ function presentResult(view: EventResultView | null) {
 			return {
 				kind: 'why' as const,
 				title: L.noTimeSaved,
-				body: L.noRecordingDistance(eventDistanceInText(verdict.raceDistanceM)),
+				body: L.noRecordingDistance(
+					eventDistanceInText(verdict.eventDistanceM),
+				),
 			}
 		case 'other-discipline':
 			return {
@@ -519,11 +521,11 @@ function DistanceFix({
 			<input type="hidden" name="intent" value="set-distance" />
 			{labelled ? (
 				<p id={labelId} className="text-callout font-medium">
-					{L.raceDistance}
+					{L.eventDistance}
 				</p>
 			) : (
 				<span id={labelId} className="sr-only">
-					{L.raceDistance}
+					{L.eventDistance}
 				</span>
 			)}
 			<EventDistancePicker

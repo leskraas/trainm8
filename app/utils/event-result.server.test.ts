@@ -32,10 +32,7 @@ import {
 	listPerformanceResults,
 } from './performance-result-writer.server.ts'
 import { getDisciplineThresholds } from './training.server.ts'
-import {
-	deleteWorkoutSession,
-	updateWorkoutSession,
-} from './workout.server.ts'
+import { deleteWorkoutSession, updateWorkoutSession } from './workout.server.ts'
 
 const FIT_FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'fit')
 const fixture = (name: string) =>
@@ -303,7 +300,7 @@ test('a distance set on a done Event writes the result then; a wrong one removes
 		kind: 'missing',
 		reason: 'distance-mismatch',
 		measuredM: 10210,
-		raceDistanceM: 21097,
+		eventDistanceM: 21097,
 	})
 	expect((await planned(ahead)).tss).toBeNull()
 })
@@ -535,7 +532,9 @@ test('a FIT duplicate refreshing the race Recording rewrites the Event result', 
 		name: 'Sentrumsløpet',
 		kind: 'race',
 		priority: 'A',
-		startDate: new Date(`${leg.startedAt.toISOString().slice(0, 10)}T00:00:00Z`),
+		startDate: new Date(
+			`${leg.startedAt.toISOString().slice(0, 10)}T00:00:00Z`,
+		),
 		disciplines: ['run'],
 		status: 'planned',
 		distanceM,

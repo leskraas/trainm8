@@ -8,6 +8,7 @@ import {
 	EVENT_PRIORITIES,
 	EVENT_STATUSES,
 } from './event-schema.ts'
+import { EVENT_DISTANCE_CHOICES } from './event-result.ts'
 import {
 	MAX_START_HOURS,
 	MIN_START_HOURS,
@@ -25,6 +26,7 @@ import {
 	CONVERSION_CONVENTION_LABELS,
 	CONNECTION_HUB_STATUS_LABELS,
 	NB_EVENT_KIND_LABELS,
+	EVENTS_LABELS,
 	SEASON_EVENTS_LABELS,
 	quotedSession,
 	roundFactorLabel,
@@ -162,6 +164,11 @@ test('every event kind, priority, and status has a label', () => {
 		expect(EVENT_PRIORITY_LABELS[value]).toBeTruthy()
 	for (const value of EVENT_STATUSES)
 		expect(EVENT_STATUS_LABELS[value]).toBeTruthy()
+})
+
+test('every Event Distance choice has a label', () => {
+	for (const value of EVENT_DISTANCE_CHOICES)
+		expect(EVENTS_LABELS.distanceNames[value]).toBeTruthy()
 })
 
 test('the empty target kind reads as "No target"', () => {

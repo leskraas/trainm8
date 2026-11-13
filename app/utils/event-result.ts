@@ -65,11 +65,11 @@ export type EventResultMissing =
 	| { reason: 'no-distance' }
 	| { reason: 'no-recording' }
 	| { reason: 'other-discipline'; discipline: string }
-	| { reason: 'no-recording-distance'; raceDistanceM: number }
+	| { reason: 'no-recording-distance'; eventDistanceM: number }
 	| {
 			reason: 'distance-mismatch'
 			measuredM: number
-			raceDistanceM: number
+			eventDistanceM: number
 	  }
 
 export type EventResultVerdict =
@@ -116,8 +116,8 @@ export function eventResultFrom(
 		return { kind: 'ineligible' }
 	}
 	if (!event.resultSessionId || !session) return { kind: 'ineligible' }
-	const raceDistanceM = event.distanceM
-	if (raceDistanceM == null || raceDistanceM <= 0) {
+	const eventDistanceM = event.distanceM
+	if (eventDistanceM == null || eventDistanceM <= 0) {
 		return { kind: 'missing', reason: 'no-distance' }
 	}
 	if (!recording) return { kind: 'missing', reason: 'no-recording' }
@@ -129,17 +129,17 @@ export function eventResultFrom(
 		}
 	}
 	if (recording.distanceM == null || recording.distanceM <= 0) {
-		return { kind: 'missing', reason: 'no-recording-distance', raceDistanceM }
+		return { kind: 'missing', reason: 'no-recording-distance', eventDistanceM }
 	}
 	if (
-		Math.abs(recording.distanceM - raceDistanceM) >
-		raceDistanceM * EVENT_RESULT_TOLERANCE
+		Math.abs(recording.distanceM - eventDistanceM) >
+		eventDistanceM * EVENT_RESULT_TOLERANCE
 	) {
 		return {
 			kind: 'missing',
 			reason: 'distance-mismatch',
 			measuredM: recording.distanceM,
-			raceDistanceM,
+			eventDistanceM,
 		}
 	}
 	const timeSec = Math.round(
@@ -151,7 +151,7 @@ export function eventResultFrom(
 		kind: 'result',
 		result: {
 			discipline: 'run',
-			distanceM: raceDistanceM,
+			distanceM: eventDistanceM,
 			timeSec,
 			day: localDate(session.scheduledAt, timezone),
 			source: event.kind === 'time-trial' ? 'timeTrial' : 'race',

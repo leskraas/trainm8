@@ -89,7 +89,7 @@ test('±5 % is the edge: 10.5 km makes a result for a 10k, 10.6 km and 9.4 km do
 		kind: 'missing',
 		reason: 'distance-mismatch',
 		measuredM: 11400,
-		raceDistanceM: 10000,
+		eventDistanceM: 10000,
 	})
 	expect(
 		eventResultFrom(event(), session, recording({ distanceM: 9400 }), 'UTC')
@@ -127,7 +127,7 @@ test('a linked run race says why it has no result, in order', () => {
 	).toEqual({
 		kind: 'missing',
 		reason: 'no-recording-distance',
-		raceDistanceM: 10000,
+		eventDistanceM: 10000,
 	})
 })
 

@@ -7,7 +7,7 @@
 /* eslint-disable import/consistent-type-specifier-style */
 import type { EventKind, EventPriority, EventStatus } from '../event-schema.ts'
 /* eslint-enable import/consistent-type-specifier-style */
-import { type TARGET_KIND_LABELS } from './vocabulary.ts'
+import { MEASURED_BY_WATCH, type TARGET_KIND_LABELS } from './vocabulary.ts'
 
 /**
  * Sesong's Events card (spec #505 story 57): the upcoming Events the season is
@@ -171,12 +171,12 @@ export const EVENTS_LABELS = {
 	distanceKmInvalid: 'Skriv distansen i km, mellom 1 og 500, f.eks. 7,5',
 	distanceFormHint:
 		'Når du velger økta som er resultatet, lagres tida fra klokka på denne distansen.',
-	raceDistance: 'Løpets distanse',
+	eventDistance: 'Løpets distanse',
 	saveDistance: 'Lagre distansen',
 	changeDistance: 'Endre distansen',
 
 	// An Event's result (#670, ADR 0117): measured, or why there is none.
-	measured: 'Målt av klokka',
+	measured: MEASURED_BY_WATCH,
 	askDistance: 'Hvor langt var løpet?',
 	askDistanceBody: 'Velg distansen, så lagres tida fra klokka som et resultat.',
 	noTimeSaved: 'Ingen tid er lagret',
