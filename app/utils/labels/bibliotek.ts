@@ -156,6 +156,9 @@ export const NB_PROVENANCE_LABELS = {
 	unsourced: 'Ingen kilde kunne leses for denne økta.',
 	nonVouch:
 		'Publisert av en utøver. trainm8 har ikke gått gjennom eller stilt seg bak denne økta.',
+	/** Leads the line on a session the athlete changed after it was placed
+	 * (`adoptedAt`): editing adopted it, it did not erase where it came from. */
+	adopted: 'Endret av deg',
 } as const
 
 /** The strength programs page (`/training/programs`). */

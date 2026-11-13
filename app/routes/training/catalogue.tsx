@@ -38,6 +38,7 @@
 import { Form, Link, redirect, useSearchParams } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
+import { ProvenanceSlot } from '#app/components/provenance-slot.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Checkbox } from '#app/components/ui/checkbox.tsx'
@@ -65,7 +66,6 @@ import {
 	CATALOGUE_TIERS,
 	SESSION_ARCHETYPES,
 	catalogueTier,
-	formatCitation,
 	isCatalogueGoalEvent,
 	isCatalogueLevel,
 	isCataloguePhase,
@@ -82,7 +82,6 @@ import {
 } from '#app/utils/community.server.ts'
 import { readPublishState, type PublishState } from '#app/utils/community.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { formatNbDate } from '#app/utils/format.ts'
 import {
 	APP_TAB_LABELS,
 	CATALOGUE_LABELS,
@@ -96,16 +95,10 @@ import {
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { readSessionProvenance } from '#app/utils/plan-generation/provenance.ts'
-import { useAthleteTimezone } from '#app/utils/user.ts'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/catalogue.ts'
 import { cardWorkoutSelect } from './__catalogue-card.server.ts'
-import {
-	buildCatalogueCard,
-	catalogueBlurb,
-	nbProvenanceNonVouch,
-	nbProvenanceSentence,
-} from './__catalogue-card.ts'
+import { buildCatalogueCard, catalogueBlurb } from './__catalogue-card.ts'
 import { Disclosure } from './__plan-chrome.tsx'
 
 export const meta: Route.MetaFunction = () => [
@@ -251,16 +244,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 				workout: trees.get(entry.workout.id) ?? null,
 				level,
 			}),
+			// The reading itself, not pre-worded strings: the shared slot words it,
+			// so this card, the Plan Preview and the session page say one sentence
+			// for one row (ADR 0117 §4).
 			provenance: {
-				sentence: nbProvenanceSentence(sourcing),
-				publishedAt:
-					sourcing.kind === 'community'
-						? (sourcing.attribution?.publishedAt ?? null)
-						: null,
-				nonVouch: nbProvenanceNonVouch(sourcing),
-				adaptedFrom: adaptedFrom
-					? CATALOGUE_LABELS.adaptedFrom(formatCitation(adaptedFrom))
-					: null,
+				reading: sourcing,
+				adaptedFrom,
 			},
 			saved: saved.has(entry.workout.id),
 		}
@@ -320,35 +309,6 @@ function TierBadge({ tier }: { tier: CatalogueTier }) {
 	)
 }
 
-/**
- * The provenance footnote. One position, one sentence per kind — and the
- * community one is the only one that says trainm8 is not standing behind it.
- * Every sentence comes from `__catalogue-card.ts`, so the slot and a placed
- * session's cannot word the same fact differently.
- */
-function ProvenanceSlot({
-	provenance,
-}: {
-	provenance: CatalogueRow['provenance']
-}) {
-	const timeZone = useAthleteTimezone()
-	return (
-		<div className="text-footnote text-muted-foreground border-border/60 mt-3 space-y-1 border-t pt-3">
-			<p>
-				{provenance.sentence}
-				{provenance.publishedAt
-					? ` · ${formatNbDate(provenance.publishedAt, timeZone)}`
-					: null}
-			</p>
-			{/* The non-vouch, in the slot a Citation would occupy. It is trainm8's
-			    statement about itself, identical on every community row, which is why
-			    it is a constant and not a column. */}
-			{provenance.nonVouch ? <p data-non-vouch>{provenance.nonVouch}</p> : null}
-			{provenance.adaptedFrom ? <p>{provenance.adaptedFrom}</p> : null}
-		</div>
-	)
-}
-
 function EntryCard({ row, search }: { row: CatalogueRow; search: string }) {
 	return (
 		<article className="bg-card rounded-4xl p-4 shadow-xs md:p-5">
@@ -383,7 +343,11 @@ function EntryCard({ row, search }: { row: CatalogueRow; search: string }) {
 				<p className="text-footnote text-muted-foreground mt-3">{row.blurb}</p>
 			) : null}
 
-			<ProvenanceSlot provenance={row.provenance} />
+			<ProvenanceSlot
+				provenance={row.provenance.reading}
+				adaptedFrom={row.provenance.adaptedFrom}
+				className="border-border/60 mt-3 border-t pt-3"
+			/>
 
 			<div className="mt-3 flex flex-wrap gap-2">
 				<Link
