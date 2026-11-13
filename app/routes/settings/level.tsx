@@ -80,7 +80,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// no such week, and nothing to read.
 	if (!season) return { ...answers, activities: noPlanActivities() }
 	const from = await readFirstUnbegunWeekKey(userId, now, season.timezone)
-	const reading = await readPlanStartAnswers(userId, season, from, now)
+	const reading = await readPlanStartAnswers(userId, season, from, now, {
+		offerStrength: true,
+	})
 	return { ...answers, activities: activitiesViewOf(season, reading, from) }
 }
 

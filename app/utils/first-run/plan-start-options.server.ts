@@ -114,9 +114,10 @@ export async function readPlanStartAnswers(
 	season: PlanStartSeason | null,
 	fromWeekKey: string,
 	now: Date = new Date(),
+	{ offerStrength = false }: { offerStrength?: boolean } = {},
 ): Promise<PlanStartAnswersReading> {
 	if (!season) return { ok: false, reason: 'no-plan' }
-	const [stored, profile, reading] = await Promise.all([
+	const [stored, profile] = await Promise.all([
 		readStartAnswersOf(userId),
 		prisma.athleteProfile.findUnique({
 			where: { userId },
@@ -126,13 +127,21 @@ export async function readPlanStartAnswers(
 				strengthPerWeek: true,
 			},
 		}),
-		readStartStrength(userId, now),
 	])
 	const live = season.tracks.filter(
 		(track) => !trackRetiredAt(track, fromWeekKey),
 	)
 	const endurance = live.filter((track) => isCardioDiscipline(track.discipline))
 	const otherCurrency = endurance.some((track) => track.currency !== 'hours')
+	// Lifting, as the start lays it, where the athlete answered a frequency
+	// and the plan has a strength track to lift on. The session to copy is
+	// read anyway for a caller that offers _Styrke_ to a plan without it
+	// (the activities editor); it costs a scan of the lifting history, which
+	// the Plan page's reading does not pay.
+	const strengthTrack = live.find((track) => track.discipline === 'strength')
+	const lifts = profile?.strengthPerWeek != null && strengthTrack != null
+	const reading =
+		offerStrength || lifts ? await readStartStrength(userId, now) : null
 
 	// The plan's first Week Pattern: its days, and the Simple Activities its
 	// fixed days copy.
@@ -177,10 +186,6 @@ export async function readPlanStartAnswers(
 			: []
 	})
 
-	// Lifting, as the start lays it, where the athlete answered a frequency
-	// and the plan has a strength track to lift on.
-	const strengthTrack = live.find((track) => track.discipline === 'strength')
-	const lifts = profile?.strengthPerWeek != null && strengthTrack != null
 	// The main sport first: the track carrying the most hard sessions in the
 	// phase a change begins in, as the start lays the family's mix on the
 	// main sport only; the stored order breaks ties.

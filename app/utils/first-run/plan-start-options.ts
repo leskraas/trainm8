@@ -79,8 +79,11 @@ export type PlanStartInputs = {
 	level: TrainingLevel | null
 	preferences: readonly SessionPreference[]
 	/**
-	 * The plan's tracks, in the order they were written: the main sport
-	 * first. A track retired at `fromWeekKey` (`trackRetiredAt`) is skipped.
+	 * The plan's tracks, main sport first: the caller orders them, and
+	 * `plan-start-options.server.ts` puts the track carrying the most hard
+	 * sessions in the phase `fromWeekKey` falls in first, the written order
+	 * breaking ties. A track retired at `fromWeekKey` (`trackRetiredAt`) is
+	 * skipped.
 	 */
 	tracks: ReadonlyArray<{
 		discipline: string

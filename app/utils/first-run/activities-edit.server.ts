@@ -134,7 +134,9 @@ async function readEditContext(
 	const season = await getActiveSeason(userId, now)
 	if (!season) return { ok: false, reason: 'outline-not-found' }
 	const boundary = await readFirstUnbegunWeekKey(userId, now, timezone)
-	const reading = await readPlanStartAnswers(userId, season, boundary, now)
+	const reading = await readPlanStartAnswers(userId, season, boundary, now, {
+		offerStrength: true,
+	})
 	if (!reading.ok || reading.readOnly) {
 		return { ok: false, reason: 'not-editable' }
 	}
