@@ -60,6 +60,7 @@ export function EventDistancePicker({
 	}
 	const kmId = `${id}-km`
 	const kmErrorId = `${id}-km-error`
+	const kmHintId = `${id}-km-hint`
 	return (
 		<div className="flex flex-col">
 			<ToggleGroup
@@ -103,10 +104,12 @@ export function EventDistancePicker({
 							placeholder="7,5"
 							className="w-[8.5em] tabular-nums"
 							aria-invalid={kmError ? true : undefined}
-							aria-describedby={kmError ? kmErrorId : undefined}
+							aria-describedby={kmError ? kmErrorId : kmHintId}
 						/>
 						{kmError ? null : (
-							<FieldDescription>{L.distanceKmHint}</FieldDescription>
+							<FieldDescription id={kmHintId}>
+								{L.distanceKmHint}
+							</FieldDescription>
 						)}
 						<FieldError
 							id={kmErrorId}

@@ -303,7 +303,7 @@ function ResultRow({
 						// removed on the Event. The hit area reaches past the text.
 						<Link
 							to={`/training/events/${result.event.id}`}
-							className="text-footnote text-primary relative mt-0.5 self-start font-medium [overflow-wrap:anywhere] underline-offset-4 after:absolute after:-inset-x-1 after:-inset-y-3 hover:underline"
+							className="text-footnote text-primary relative mt-0.5 self-start font-medium [overflow-wrap:anywhere] underline-offset-4 after:absolute after:-inset-x-1 after:-inset-y-3.5 hover:underline"
 						>
 							{result.event.name}
 							<Icon
