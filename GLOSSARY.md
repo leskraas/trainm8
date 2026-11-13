@@ -2758,6 +2758,20 @@ counterpart, not a synonym), focus, quality session (in Jack Daniels' broader
 sense, where a long run counts as a "Q" — ours is intensity only, and the long
 run is volume).
 
+**Mix Carrier**: The one endurance **Training Track** of a plan that carries the
+family's **Quality Session Mix**: whenever the plan lays new phases, their mix
+goes on this track and no other, and the hard sessions are its (ADR 0117). The
+plan records it at the act that makes the plan and never re-reads it: the main
+sport in a **First Run** plan, else the endurance track with the largest first
+**Season Anchor** when every endurance track counts in one **Volume Currency**,
+else the first endurance track listed. Only an athlete's act moves it: changing
+the main sport, removing its track (it passes to the next by the same rule, with
+its mix), or adding an endurance track to a plan with none. Never a strength
+track or a **Simple Activity**'s; a plan with no endurance track has none. It
+says where the intensity goes and nothing about volume, so it is no spine (ADR
+0043), and another track's own mix stays that track's. _Avoid_: main track, mix
+track, lead track (the track a week strip is read in, a display choice).
+
 **Strength Goal**: The adaptation a **strength Training Track segment** is
 authored for — `hypertrophy | maximal-strength | power`, ACSM 2026's three under
 the field's own term for the middle one. The strength track's counterpart to the
@@ -2798,21 +2812,22 @@ a swim day draws swim volume and never one undifferentiated pool. Weekdays run
 Sunday-first calendar index **Athlete Profile** stores (ADR 0005). A pattern is
 authored empty, or **built from a proposal the athlete asks for**: a starter
 week deals the days of their **Training Availability** across the endurance
-tracks, one share day each and at most one endurance session a day. The track
-carrying the family's **Quality Session Mix** (or else the largest weekly share)
-takes the last day, weighted double, as its **Long day**, and a day for each
-hard session plus one; each other track's Long day is on a day of its own, as
-far round the week from the others as it goes; a track that names its own days
-keeps to them (ADR 0104 §5). A strength track that authors a **Strength
-Frequency** adds a lifting day per session. It proposes days and never intensity
-— which day is a quality session is the **Quality Session Mix**'s to say, and
-the stamp says it: each week it lays its segment's mix on the ordinary bare
-**share** days, never the long day, as far apart as the week allows, keeping
-each day's share (ADR 0091); the day itself still carries no zone, the new
-Workout's intent does — and where availability was never set it falls back to a
-four-day week and says so rather than implying it read anything (ADR 0048 §4).
-_Avoid_: Week template (reserved for the future **Plan Template**), microcycle
-(as a UI/code term — recognized synonym only), pattern instance.
+tracks, one share day each and at most one endurance session a day. The **Mix
+Carrier** takes the last day, weighted double, as its **Long day**, and a day
+for each hard session plus one, whatever mix another track holds; each other
+track's Long day is on a day of its own, as far round the week from the others
+as it goes; a track that names its own days keeps to them (ADR 0104 §5, ADR
+0117). Building it strips no track's mix. A strength track that authors a
+**Strength Frequency** adds a lifting day per session. It proposes days and
+never intensity — which day is a quality session is the **Quality Session
+Mix**'s to say, and the stamp says it: each week it lays its segment's mix on
+the ordinary bare **share** days, never the long day, as far apart as the week
+allows, keeping each day's share (ADR 0091); the day itself still carries no
+zone, the new Workout's intent does — and where availability was never set it
+falls back to a four-day week and says so rather than implying it read anything
+(ADR 0048 §4). _Avoid_: Week template (reserved for the future **Plan
+Template**), microcycle (as a UI/code term — recognized synonym only), pattern
+instance.
 
 **Hard day**: A day of a laid week on which any session, a track's or a **Simple
 Activity**'s, has an **Effort Word** other than _rolig_ — so a _middels_ day is

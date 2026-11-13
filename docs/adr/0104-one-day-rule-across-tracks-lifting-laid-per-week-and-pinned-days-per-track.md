@@ -1,7 +1,11 @@
 # One day rule across tracks, lifting laid per week, and Pinned days per track
 
 Status: Accepted · Spec #588 (_Dagplassering_) · Recorded in #589, built across
-#589–#598
+#589–#598 · **§5's mechanism superseded by
+[ADR 0117](./0117-the-plan-stores-its-mix-carrier-and-every-lay-writes-the-familys-mix-on-it-alone.md)**:
+the plan stores its **Mix Carrier**, every lay writes the family's mix on it
+alone, and the starter pattern strips nothing. §5's decision, that the hard
+sessions belong to the track that carries the mix, stands.
 
 **Supersedes in part**:
 
