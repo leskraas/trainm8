@@ -100,7 +100,7 @@ describe('the boundary week is laid from the rows the apply stores', () => {
 		const choice = {
 			sports: ['run' as const, 'swim' as const],
 			activities: [],
-			strength: 2,
+			strength: 2 as const,
 		}
 		const start = draftFor(choice)
 		const { draft } = start.options[0]!
@@ -341,7 +341,11 @@ describe('the splice', () => {
 
 describe('kept sessions', () => {
 	test('a kept lift fills a lifting slot, so no second lift is laid; the athlete’s hard session is laid around', () => {
-		const choice = { sports: ['run' as const], activities: [], strength: 2 }
+		const choice = {
+			sports: ['run' as const],
+			activities: [],
+			strength: 2 as const,
+		}
 		const start = draftFor(choice)
 		const { draft } = start.options[0]!
 		const splice = spliceActivitiesEdit({

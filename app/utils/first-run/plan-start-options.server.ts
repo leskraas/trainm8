@@ -13,8 +13,10 @@ import { isCardioDiscipline } from '../workout-schema.ts'
 import { planStartAnswers } from './plan-start-options.ts'
 import {
 	draftStart,
+	STRENGTH_PER_WEEK_CHOICES,
 	type StartAnswers,
 	type StartDraft,
+	type StrengthPerWeek,
 } from './start-draft.ts'
 import {
 	readStartStrength,
@@ -65,7 +67,19 @@ export type ActivitiesReadOnly = 'event' | 'currency'
  * prescribes and the history's frequency, and how many times a week the plan
  * lifts now — null where it does not (no strength track, or a retired one).
  */
-export type PlanStartLifting = StartStrengthReading & { perWeek: number | null }
+export type PlanStartLifting = StartStrengthReading & {
+	perWeek: StrengthPerWeek | null
+}
+
+/** A stored Strength Frequency read back as one of the start's choices. */
+function strengthChoice(
+	value: number | null | undefined,
+): StrengthPerWeek | null {
+	return value != null &&
+		(STRENGTH_PER_WEEK_CHOICES as readonly number[]).includes(value)
+		? (value as StrengthPerWeek)
+		: null
+}
 
 export type PlanStartAnswersReading =
 	| { ok: false; reason: PlanStartAnswersRefusal }
@@ -226,7 +240,9 @@ export async function readPlanStartAnswers(
 			? {
 					...reading,
 					perWeek: strengthTrack
-						? (profile?.strengthPerWeek ?? block?.sessionsPerWeek ?? null)
+						? strengthChoice(
+								profile?.strengthPerWeek ?? block?.sessionsPerWeek ?? null,
+							)
 						: null,
 				}
 			: null,

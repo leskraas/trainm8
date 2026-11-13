@@ -21,6 +21,7 @@ import {
 	levelDefaults,
 	startStrengthPerWeek,
 	STRENGTH_PER_WEEK_CHOICES,
+	type StrengthPerWeek,
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	ACTIVITIES_EDIT_LABELS,
@@ -62,10 +63,10 @@ export type ActivitiesView =
 			current: ActivitiesChoice
 			/** _Styrke_ is offered: there is a session for a lifting day to copy. */
 			lifting: {
-				preset: number
+				preset: StrengthPerWeek
 				fromHistory: number | null
 				/** The frequency the athlete gave last, where they did. */
-				answered: number | null
+				answered: StrengthPerWeek | null
 			} | null
 			/** `Timene og dagene blir som før: …`. */
 			stands: string
@@ -249,7 +250,7 @@ const ActivitiesFormSchema = z.object({
 	strength: z.coerce
 		.number()
 		.int()
-		.refine((value) =>
+		.refine((value): value is StrengthPerWeek =>
 			(STRENGTH_PER_WEEK_CHOICES as readonly number[]).includes(value),
 		)
 		.optional(),

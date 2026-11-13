@@ -16,6 +16,7 @@ import {
 	SIMPLE_ACTIVITY_LABELS,
 	SIMPLE_START_LABELS,
 } from '#app/utils/labels.ts'
+import { type StrengthPerWeek } from '#app/utils/first-run/start-draft.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	ACTIVITY_KINDS,
@@ -46,7 +47,8 @@ export type ActivityPicks = {
 	/** Every sport picked, in the order picked: the first is the main sport. */
 	sports: CardioDiscipline[]
 	activities: ActivityKind[]
-	strength: number | null
+	/** The **Strength Frequency** pressed, or null for no strength. */
+	strength: StrengthPerWeek | null
 }
 
 /**
@@ -56,7 +58,7 @@ export type ActivityPicks = {
 export function pressActivities(
 	before: ActivityPicks,
 	next: readonly string[],
-	strengthPreset: number | null,
+	strengthPreset: StrengthPerWeek | null,
 ): ActivityPicks {
 	const wantsStrength = next.includes(STRENGTH_CHOICE)
 	return {

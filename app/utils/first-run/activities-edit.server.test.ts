@@ -212,7 +212,7 @@ async function authoredHardSession(userId: string, dayKey: string) {
 const SWIM_AND_YOGA = {
 	sports: ['run' as const, 'swim' as const],
 	activities: ['yoga-mobility' as const],
-	strength: 2,
+	strength: 2 as const,
 }
 
 test('made = shown: the boundary week laid is the week previewed, around an adopted lift and an authored hard session', async () => {

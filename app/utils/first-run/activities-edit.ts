@@ -73,6 +73,7 @@ import {
 	type StartDraft,
 	type StartStrengthSession,
 	type StartWeek,
+	type StrengthPerWeek,
 } from './start-draft.ts'
 
 /** What the athlete picks in the editor: the start's own choices. */
@@ -82,13 +83,13 @@ export type ActivitiesChoice = {
 	/** The **Simple Activities**, in the order picked. */
 	activities: ActivityKind[]
 	/** The **Strength Frequency** tapped, or null for no strength. */
-	strength: number | null
+	strength: StrengthPerWeek | null
 }
 
 /** The plan's activities now, as the editor is pre-filled with them. */
 export function activitiesOf(
 	answers: StartAnswers,
-	strengthPerWeek: number | null,
+	strengthPerWeek: StrengthPerWeek | null,
 ): ActivitiesChoice {
 	return {
 		sports: answers.discipline

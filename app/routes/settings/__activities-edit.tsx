@@ -16,7 +16,6 @@ import {
 	type ActivitiesChoice,
 	choiceRefusal,
 } from '#app/utils/first-run/activities-edit.ts'
-import { type StrengthPerWeek } from '#app/utils/first-run/start-draft.ts'
 import {
 	ACTIVITIES_EDIT_LABELS,
 	SESSION_PREFERENCE_LABELS,
@@ -175,7 +174,7 @@ function ActivitiesEditor({
 					<div className="space-y-1">
 						<StrengthField
 							name="strength-tap"
-							value={picks.strength as StrengthPerWeek | null}
+							value={picks.strength}
 							fromHistory={view.lifting.fromHistory}
 							onValueChange={(next) =>
 								setPicks((before) => ({ ...before, strength: next }))
