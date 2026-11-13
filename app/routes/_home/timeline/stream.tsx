@@ -1530,7 +1530,7 @@ export function StartCap({
 	reachWeeks: number
 }) {
 	return (
-		<div className="border-border flex flex-col gap-1 border-b px-4 pt-5 pb-3.5">
+		<div className="border-border/60 flex flex-col gap-1 border-b px-4 pt-5 pb-3.5">
 			<span className="text-muted-foreground text-footnote font-semibold">
 				{CAP_LABELS.readsBackTo(reachesBackToLabel)}
 			</span>
@@ -1560,7 +1560,7 @@ export function EndCap({ cap }: { cap: TimelineEndCap }) {
 	return (
 		<div
 			data-end-cap={cap.plan}
-			className="border-border flex flex-col gap-2.5 border-t p-4"
+			className="border-border/60 flex flex-col gap-2.5 border-t p-4"
 		>
 			<span className="text-foreground text-callout font-semibold">
 				{CAP_LABELS.writtenThrough(cap.writtenThroughLabel)}
