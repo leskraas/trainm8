@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import {
 	localDate,
 	weekBoundsFromMondayUTC,
@@ -10,6 +10,7 @@ import { trackRetiredAt } from '#app/utils/plan-outline/from-rows.ts'
 import { getSeasonForOutline } from '#app/utils/training.server.ts'
 import { buildBlocksCreate } from '#app/utils/workout.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
+import { consoleError } from '#tests/setup/setup-test-env.ts'
 import {
 	applyActivitiesEdit,
 	readActivitiesEdit,
@@ -19,6 +20,24 @@ import {
 	readPlanStartOptions,
 } from './plan-start-options.server.ts'
 import { createFirstRunPlan } from './plan.server.ts'
+
+/** Weeks whose stamp refuses, to drive the apply's fallback. */
+const refusing = vi.hoisted(() => new Set<string>())
+vi.mock('#app/utils/plan-outline/stamp.server.ts', async (importOriginal) => {
+	const actual =
+		await importOriginal<
+			typeof import('#app/utils/plan-outline/stamp.server.ts')
+		>()
+	return {
+		...actual,
+		stampWeekPattern: (
+			...args: Parameters<typeof actual.stampWeekPattern>
+		) =>
+			args[1].weekKeys.some((weekKey) => refusing.has(weekKey))
+				? Promise.resolve({ ok: false as const, reason: 'nothing-to-stamp' })
+				: actual.stampWeekPattern(...args),
+	}
+})
 
 // Editing the activities in Meg, against the database (#587, ADR 0109): a
 // plan the start made, lived a week, and the edit previewed, confirmed and
@@ -403,4 +422,33 @@ test('the same activities, or none, write nothing; a plan toward an Event is not
 		ok: false,
 		reason: 'not-editable',
 	})
+})
+
+test('when the boundary week will not stamp, the old activities\' sessions are cleared from it and the refusal is logged', async () => {
+	const { userId } = await startPlan()
+	const own = await authoredHardSession(userId, '2030-01-22')
+	expect(
+		(await sessionsIn(userId, BOUNDARY)).some(
+			(session) => session.workout?.discipline === 'bike',
+		),
+	).toBe(true)
+	consoleError.mockImplementation(() => {})
+	refusing.add(BOUNDARY)
+	try {
+		const applied = await applyActivitiesEdit(userId, SWIM_AND_YOGA, NOW)
+		if (!applied.ok) throw new Error(applied.reason)
+	} finally {
+		refusing.clear()
+	}
+	const after = await sessionsIn(userId, BOUNDARY)
+	// No session the old activities laid is left: the removed sport is gone.
+	expect(
+		after.some((session) => session.workout?.discipline === 'bike'),
+	).toBe(false)
+	// The athlete's own session stays.
+	expect(after.map((session) => session.id)).toContain(own.id)
+	expect(consoleError).toHaveBeenCalledWith(
+		expect.stringContaining('[activities]'),
+		'nothing-to-stamp',
+	)
 })

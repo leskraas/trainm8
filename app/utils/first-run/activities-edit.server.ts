@@ -50,7 +50,10 @@ import {
 import { PROPOSED_STRENGTH_GOAL } from '../plan-outline/strength-offer.server.ts'
 import { weekIndexOf, weekKeyAt } from '../plan-outline/week-keys.ts'
 import { isPatternWeekday } from '../plan-outline/week-pattern.ts'
-import { REPLACEABLE_SESSION } from '../plan-outline/week-sessions.server.ts'
+import {
+	clearPlanWeek,
+	REPLACEABLE_SESSION,
+} from '../plan-outline/week-sessions.server.ts'
 import { createSimpleActivityWorkout } from '../simple-activity.server.ts'
 import { getActiveSeason, getDisciplineThresholds } from '../training.server.ts'
 import {
@@ -447,12 +450,29 @@ export async function applyActivitiesEdit(
 			orderBy: { orderIndex: 'asc' },
 			select: { id: true },
 		})
-		if (pattern) {
-			await stampWeekPattern(
-				userId,
-				{ patternId: pattern.id, weekKeys: [boundaryWeekKey], replace: true },
-				now,
-				{ aroundKeptSessions: true },
+		const stamped = pattern
+			? await stampWeekPattern(
+					userId,
+					{ patternId: pattern.id, weekKeys: [boundaryWeekKey], replace: true },
+					now,
+					{ aroundKeptSessions: true },
+				)
+			: null
+		if (!stamped?.ok) {
+			// The new rows lay nothing here: what the old activities laid goes,
+			// as `relayFutureWeeks` does for the weeks after it.
+			console.error(
+				'[activities] the boundary week did not stamp after an activities edit',
+				stamped?.reason ?? 'no-pattern',
+			)
+			await prisma.$transaction((tx) =>
+				clearPlanWeek(
+					tx,
+					userId,
+					result.outlineId,
+					boundaryWeekKey,
+					context.timezone,
+				),
 			)
 		}
 		await relayPlanFrom(
