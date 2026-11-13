@@ -676,6 +676,12 @@ export const WORKOUT_SCHEMA_MESSAGES = {
  * carries (`E — rolig/utholdenhet`). FTP, MAP, CP and RPE are the athletes'
  * own words and stay; the stored target is unchanged.
  */
+/**
+ * An Event's result, read off the Recording (#670, ADR 0117): the Event page
+ * and Løpsresultater say the same thing above the same credit line.
+ */
+export const MEASURED_BY_WATCH = 'Målt av klokka'
+
 export const INTENSITY_DISPLAY_WORDS = {
 	/** `hrPct` by its reference: `85–90% terskelpuls`, `70% makspuls`. */
 	hrRef: { max: 'makspuls', lthr: 'terskelpuls' },

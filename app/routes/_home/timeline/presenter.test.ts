@@ -100,6 +100,7 @@ function session(overrides: Partial<LedgerSession> = {}): LedgerSession {
 		tssValue: 50,
 		plannedTssValue: 50,
 		plannedTssConfidence: 'full',
+		plannedTssOrigins: null,
 		replanReason: null,
 		workout: workout(),
 		recording: {
@@ -922,6 +923,7 @@ describe('every planned session says whose it is (#505 story 29)', () => {
 			source: 'generated',
 			plannedTssValue: null,
 			plannedTssConfidence: null,
+			plannedTssOrigins: null,
 			workout: workout({ discipline: 'strength', title: 'Workout A' }),
 		}
 		expect(planned(programDay)).toMatchObject({
@@ -973,6 +975,7 @@ describe('a lifting row reconciles with the week header it sits under', () => {
 			// is why the week's planned side must not move when one is added.
 			plannedTssValue: null,
 			plannedTssConfidence: null,
+			plannedTssOrigins: null,
 			recording: null,
 			workout: workout({ discipline: 'strength', title: 'Workout A' }),
 			setLogs: [

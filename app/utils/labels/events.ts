@@ -7,7 +7,7 @@
 /* eslint-disable import/consistent-type-specifier-style */
 import type { EventKind, EventPriority, EventStatus } from '../event-schema.ts'
 /* eslint-enable import/consistent-type-specifier-style */
-import { type TARGET_KIND_LABELS } from './vocabulary.ts'
+import { MEASURED_BY_WATCH, type TARGET_KIND_LABELS } from './vocabulary.ts'
 
 /**
  * Sesong's Events card (spec #505 story 57): the upcoming Events the season is
@@ -153,4 +153,51 @@ export const EVENTS_LABELS = {
 	setAsResult: 'Bruk som resultat',
 	untitledSession: 'Økt uten navn',
 	notFound: 'Fant ikke løpet',
+
+	// The Event Distance (#670, ADR 0117 §1): the form's pills and the result
+	// section's fix.
+	distance: 'Distanse',
+	distanceNames: {
+		'1500m': '1500 m',
+		'3k': '3 km',
+		'5k': '5 km',
+		'10k': '10 km',
+		hm: 'Halvmaraton',
+		marathon: 'Maraton',
+		other: 'Annen',
+	},
+	distanceKm: 'Distanse i km',
+	distanceKmHint: 'I km, f.eks. 7,5.',
+	distanceKmInvalid: 'Skriv distansen i km, mellom 1 og 500, f.eks. 7,5',
+	distanceFormHint:
+		'Når du velger økta som er resultatet, lagres tida fra klokka på denne distansen.',
+	eventDistance: 'Løpets distanse',
+	saveDistance: 'Lagre distansen',
+	changeDistance: 'Endre distansen',
+
+	// An Event's result (#670, ADR 0117): measured, or why there is none.
+	measured: MEASURED_BY_WATCH,
+	askDistance: 'Hvor langt var løpet?',
+	askDistanceBody: 'Velg distansen, så lagres tida fra klokka som et resultat.',
+	noTimeSaved: 'Ingen tid er lagret',
+	mismatch: (measured: string, race: string) =>
+		`Klokka målte ${measured} km, men løpet er ${race}. Tida lagres bare når de to stemmer.`,
+	mismatchTypedBefore: (race: string) => `Var løypa ${race}? Skriv tida inn på`,
+	noRecordingDistance: (race: string) =>
+		`Opptaket fra klokka har ingen distanse, så det kan ikke måles mot ${race}.`,
+	otherDiscipline: (discipline: string) =>
+		`Opptaket er ${discipline.toLowerCase()}, ikke løping.`,
+	waiting: 'Venter på klokka',
+	waitingBody: 'Økta har ikke noe opptak ennå. Tida lagres når det kommer.',
+	resultsLink: 'Løpsresultater',
+	inUse: (racePace: string) =>
+		`Øktene med ${racePace} regner farten fra denne tida.`,
+	typedSameDay: (race: string, racePace: string) =>
+		`Du skrev inn en tid på ${race} samme dag. Øktene med ${racePace} bruker den, se`,
+	newerInUse: (race: string, racePace: string) =>
+		`Et nyere resultat på ${race} brukes av øktene med ${racePace}, se`,
+	notAnchor: (race: string) =>
+		`${race} er ingen standarddistanse, så ingen økt regner fart fra den.`,
+	candidatesDistance: (race: string) =>
+		`Tida fra klokka lagres som resultat på ${race}.`,
 } as const

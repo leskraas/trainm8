@@ -58,6 +58,15 @@ Platform behind it:
   athlete-entered values (Session Log, RPE, Exercise Set Logs, _Gjort_ by hand)
   have an empty binding set.
 
+> **Amended, targets resolved from a measured result (#670):** see
+> [ADR 0117](./0117-an-events-result-is-a-performance-result-kept-in-step-with-its-recording-and-bound-by-its-origin.md)
+> §4. The plan-side clause above covers what the athlete wrote or trainm8
+> placed, not a `racePace` target resolved from an Event's result: that target,
+> and the Planned TSS computed from it, bind to the result's Recording. Planned
+> TSS therefore stores its binding set beside the number
+> (`WorkoutSession.plannedTssOrigins`), and every reader that sends it passes
+> that set through this gate.
+
 A value may go to a surface only if **every** platform in its binding set allows
 that surface; the attributions it must carry are the union of what each platform
 requires.

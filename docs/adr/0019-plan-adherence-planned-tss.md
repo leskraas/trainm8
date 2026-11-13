@@ -9,6 +9,13 @@
 > score as pace or power misses when executed perfectly. See
 > [`docs/research/workouts-cycling.md`](../research/workouts-cycling.md).
 
+> **Amended, the Planned TSS binding set (#670):** see
+> [ADR 0117](./0117-an-events-result-is-a-performance-result-kept-in-step-with-its-recording-and-bound-by-its-origin.md)
+> §4. A Planned TSS computed from a `racePace` target that resolved against an
+> Event's result is that Recording's derived data (ADR 0098 §1), so the binding
+> set is stored beside `plannedTssValue` on the **Workout Session** and travels
+> with the number to every reader that sends it.
+
 The app computes per-session actual TSS (ADR 0008) and surfaces it on the
 Session Ledger, but nothing tells the athlete how a session compared to what was
 **prescribed**. "Did I do the workout I planned?" is the first adherence

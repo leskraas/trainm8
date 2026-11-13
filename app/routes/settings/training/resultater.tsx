@@ -1,18 +1,26 @@
 /**
  * **Løpsresultater** — the athlete's own race and time-trial results (#464,
- * ADR 0007 as amended), the data a `racePace` step resolves against. Typed
- * here, so every row says it was typed and none is `verified`; the list is
- * newest first because the newest result at a distance is the one a target
- * reads (a prescription is about now). The rules a typed result is held to —
- * a plausible time for the distance, a real day no later than the athlete's
- * own today, one result per distance and day — live in the writer.
+ * ADR 0007 as amended), the data a `racePace` step resolves against. A typed
+ * row says it was typed and is never `verified`; the list is newest first
+ * because the newest result at a distance is the one a target reads (a
+ * prescription is about now). The rules a typed result is held to — a
+ * plausible time for the distance, a real day no later than the athlete's own
+ * today, one typed result per distance and day — live in the writer.
+ *
+ * An Event's result (#670, ADR 0117) sits in the same list as a row of the
+ * same shape: _Målt av klokka_ with its platform's credit (ADR 0098 §3), and
+ * the Event's name linking to the Event where a typed row has _Slett_, because
+ * it is removed on the Event. When a typed result and an Event's share an
+ * anchor and a day, _I bruk_ marks the one the resolver chose.
  */
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { useEffect, useRef, useState } from 'react'
-import { data, useFetcher } from 'react-router'
+import { data, Link, useFetcher } from 'react-router'
 import { z } from 'zod/v3'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
+import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import {
 	Select,
@@ -27,9 +35,9 @@ import {
 	ToggleGroupItem,
 } from '#app/components/ui/toggle-group.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { nbKm } from '#app/utils/event-result.ts'
 import {
 	formatClockDuration,
-	formatDistance,
 	formatNbDate,
 	formatPace,
 } from '#app/utils/format.ts'
@@ -51,6 +59,7 @@ import {
 	performanceResultToday,
 	type PerformanceResultRefusal,
 } from '#app/utils/performance-result-writer.server.ts'
+import { recordingSource } from '#app/utils/source-attribution.ts'
 import { RACE_ANCHORS } from '#app/utils/workout-schema.ts'
 import { MegField, MegFormErrors, MegNote, MegResult } from '../__meg-ui.tsx'
 import { type Route } from './+types/resultater.ts'
@@ -72,19 +81,44 @@ export async function loader({ request }: Route.LoaderArgs) {
 		listPerformanceResults(userId),
 		performanceResultToday(userId),
 	])
+	// Where a typed result and an Event's share an anchor and a day: the one
+	// place there is a choice to explain (ADR 0117 §3).
+	const sameDayKey = (row: (typeof rows)[number]) =>
+		row.anchor ? `${row.anchor}|${row.occurredAt.toISOString()}` : null
+	const typedDays = new Set(rows.filter((row) => !row.event).map(sameDayKey))
+	const eventDays = new Set(rows.filter((row) => row.event).map(sameDayKey))
+	// "The typed time you wrote the same day is used" is only true when the
+	// resolver actually chose that row: with a newer result at the anchor,
+	// neither same-day row is in use, and the Event page says `newer`.
+	const typedInUseDays = new Set(
+		rows.filter((row) => !row.event && row.inUse).map(sameDayKey),
+	)
 	return {
 		results: rows.map((row) => {
 			const pace = paceSecPerKm(row.timeSec, row.distanceM)
+			const day = sameDayKey(row)
+			const contested = day != null && typedDays.has(day) && eventDays.has(day)
+			const credit = row.recording ? recordingSource(row.recording) : null
 			return {
 				id: row.id,
 				distance: row.anchor
 					? anchorName(row.anchor)
-					: formatDistance(row.distanceM).replace('.', ','),
+					: `${nbKm(row.distanceM)} km`,
 				time: formatClockDuration(row.timeSec),
 				pace: pace == null ? null : formatPace(pace),
 				date: formatNbDate(row.occurredAt, 'UTC'),
 				source: sourceName(row.source),
-				typed: !row.verified,
+				typed: !row.event && !row.verified,
+				event: row.event,
+				credit: credit?.text ?? null,
+				creditOwed: credit?.owed ?? false,
+				inUse: contested && row.inUse,
+				shadowed:
+					contested &&
+					!row.inUse &&
+					row.event != null &&
+					day != null &&
+					typedInUseDays.has(day),
 			}
 		}),
 		today,
@@ -221,8 +255,18 @@ function ResultRow({
 		<li data-testid="performance-result" className="flex flex-col gap-1 py-3">
 			<div className="flex items-center gap-3">
 				<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-					<span className="text-callout tabular-nums">
-						{result.distance} · {result.time}
+					<span className="text-callout flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
+						<span>
+							{result.distance} · {result.time}
+						</span>
+						{/* Only where a typed and an Event's result share a day: the
+						    one the targets use (the resolver's choice). Kept beside
+						    the figures so the row's Slett stays where it was. */}
+						{result.inUse ? (
+							<Badge data-in-use className="shrink-0">
+								{L.inUse}
+							</Badge>
+						) : null}
 					</span>
 					<span className="text-footnote text-muted-foreground tabular-nums">
 						{[result.pace, result.source, result.date]
@@ -234,24 +278,62 @@ function ResultRow({
 							{L.typedNote}
 						</span>
 					) : null}
+					{result.event ? (
+						<span
+							data-source-attribution={
+								result.credit
+									? result.creditOwed
+										? 'owed'
+										: 'courtesy'
+									: 'none'
+							}
+							className="text-caption text-muted-foreground [overflow-wrap:anywhere]"
+						>
+							{L.measured}
+							{result.credit ? ` · ${result.credit}` : ''}
+						</span>
+					) : null}
+					{result.shadowed ? (
+						<span className="text-caption text-muted-foreground">
+							{L.notInUseTypedSameDay}
+						</span>
+					) : null}
+					{result.event ? (
+						// The Event's name where Slett would be: an Event's result is
+						// removed on the Event. The hit area reaches past the text.
+						<Link
+							to={`/training/events/${result.event.id}`}
+							className="text-footnote text-primary relative mt-0.5 self-start font-medium [overflow-wrap:anywhere] underline-offset-4 after:absolute after:-inset-x-1 after:-inset-y-3.5 hover:underline"
+						>
+							{result.event.name}
+							<Icon
+								name="chevron-right"
+								size="sm"
+								className="ml-0.5 align-[-3px]"
+								aria-hidden="true"
+							/>
+						</Link>
+					) : null}
 				</span>
-				<fetcher.Form method="POST" className="shrink-0" onSubmit={onDelete}>
-					<input type="hidden" name="intent" value="delete" />
-					<input type="hidden" name="id" value={result.id} />
-					<Button
-						ref={deleteButton}
-						variant={confirm.doubleCheck ? 'destructive' : 'ghost'}
-						size="sm"
-						aria-label={
-							confirm.doubleCheck
-								? undefined
-								: L.deleteLabel(`${result.distance} ${result.time}`)
-						}
-						{...confirm.getButtonProps({ type: 'submit' })}
-					>
-						{confirm.doubleCheck ? MEG_COMMON_LABELS.areYouSure : L.delete}
-					</Button>
-				</fetcher.Form>
+				{result.event ? null : (
+					<fetcher.Form method="POST" className="shrink-0" onSubmit={onDelete}>
+						<input type="hidden" name="intent" value="delete" />
+						<input type="hidden" name="id" value={result.id} />
+						<Button
+							ref={deleteButton}
+							variant={confirm.doubleCheck ? 'destructive' : 'ghost'}
+							size="sm"
+							aria-label={
+								confirm.doubleCheck
+									? undefined
+									: L.deleteLabel(`${result.distance} ${result.time}`)
+							}
+							{...confirm.getButtonProps({ type: 'submit' })}
+						>
+							{confirm.doubleCheck ? MEG_COMMON_LABELS.areYouSure : L.delete}
+						</Button>
+					</fetcher.Form>
+				)}
 			</div>
 			<MegFormErrors errors={failed ? [failed] : null} />
 		</li>

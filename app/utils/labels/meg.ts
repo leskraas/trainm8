@@ -19,7 +19,7 @@ import type { AnchorProtocol, EstimatorName } from '../strength-log.ts'
 import type { ZoneAnchor } from '../zones/types.ts'
 /* eslint-enable import/consistent-type-specifier-style */
 import { nbJoin } from './_helpers.ts'
-import { NB_WEEKDAY_LABELS } from './vocabulary.ts'
+import { MEASURED_BY_WATCH, NB_WEEKDAY_LABELS } from './vocabulary.ts'
 
 // ---------------------------------------------------------------------------
 // Events pages (`/training/events`, new, detail, edit) in Norwegian (ADR 0081,
@@ -83,6 +83,10 @@ export const MEG_RESULTS_LABELS = {
 	saved: 'Resultatet er lagret.',
 	replaced: 'Resultatet er lagret i stedet for det du hadde samme dag.',
 	notDeleted: 'Fant ikke resultatet. Last siden på nytt.',
+	/** An Event's result (#670): measured, and removed on the Event. */
+	measured: MEASURED_BY_WATCH,
+	inUse: 'I bruk',
+	notInUseTypedSameDay: 'Ikke i bruk: tida du skrev inn samme dag brukes.',
 } as const
 
 /**

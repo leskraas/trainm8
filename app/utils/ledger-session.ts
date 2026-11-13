@@ -119,6 +119,9 @@ export const ledgerSessionSelect = {
 	tssValue: true,
 	plannedTssValue: true,
 	plannedTssConfidence: true,
+	// The binding set the Planned TSS was computed with (ADR 0117 §4), which a
+	// reader sending it to the model passes on.
+	plannedTssOrigins: true,
 	// The Replan Note (ADR 0025): rows that carry one get the ledger's small
 	// "adjusted" adornment, so softened sessions are spottable at a glance.
 	replanReason: true,

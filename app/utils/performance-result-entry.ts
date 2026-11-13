@@ -4,7 +4,22 @@
  * **Race Anchor**. Kept out of the `.server` writer so the form can import the
  * same list and rules the writer enforces.
  */
-import { RACE_ANCHOR_DISTANCE_M, type RaceAnchor } from './workout-schema.ts'
+import {
+	RACE_ANCHOR_DISTANCE_M,
+	RACE_ANCHORS,
+	type RaceAnchor,
+} from './workout-schema.ts'
+
+/** The **Race Anchor** a distance in metres names, or null when it names none.
+ * Exact metres only: a 4.8 km parkrun is not a 5k, and rounding one into the
+ * other would put a pace the athlete never ran behind a 5k-pace target. */
+export function raceAnchorForDistance(distanceM: number): RaceAnchor | null {
+	return (
+		RACE_ANCHORS.find(
+			(anchor) => RACE_ANCHOR_DISTANCE_M[anchor] === distanceM,
+		) ?? null
+	)
+}
 
 export const PERFORMANCE_SOURCES = ['race', 'timeTrial'] as const
 export type PerformanceSource = (typeof PERFORMANCE_SOURCES)[number]

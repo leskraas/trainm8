@@ -82,6 +82,7 @@ function session(
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,
+		plannedTssOrigins: null,
 		replanReason: null,
 		workout: {
 			id: `w-${id}`,

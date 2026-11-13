@@ -3,6 +3,7 @@ import { data, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { eventDistanceChoiceOf } from '#app/utils/event-result.ts'
 import {
 	parseEventDisciplines,
 	parseEventTarget,
@@ -76,6 +77,9 @@ export default function EditEventRoute({
 					location: event.location ?? '',
 					notes: event.notes ?? '',
 					...targetEntryOf(parseEventTarget(event.target)),
+					...(({ choice, km }) => ({ distance: choice, distanceKm: km }))(
+						eventDistanceChoiceOf(event.distanceM),
+					),
 				}}
 			/>
 		</main>

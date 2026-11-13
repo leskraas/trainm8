@@ -31,6 +31,7 @@ function ledger(overrides: Partial<LedgerSession> = {}): LedgerSession {
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,
+		plannedTssOrigins: null,
 		replanReason: null,
 		workout: {
 			id: 'workout-1',

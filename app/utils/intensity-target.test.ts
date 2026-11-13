@@ -5,6 +5,7 @@ import {
 	type DisciplineThresholdMap,
 	formatIntensityTarget,
 	parseAuthoredIntensity,
+	racePaceBindingSet,
 	resolveStepBand,
 	sessionMetricTarget,
 	unresolvedThresholdReasons,
@@ -895,4 +896,49 @@ describe('resolveStepBand', () => {
 			resolveStepBand({ kind: 'rest' }, 'run', thresholds, 'heartrate'),
 		).toBeNull()
 	})
+})
+
+test('a race-pace step resolved from a Garmin race binds the prescription to Garmin; a typed result or an unresolved step binds nothing', () => {
+	const workout = {
+		discipline: 'run',
+		blocks: [
+			{
+				steps: [
+					{
+						kind: 'cardio',
+						intensity: JSON.stringify({ kind: 'racePace', event: '10k' }),
+					},
+					{
+						kind: 'cardio',
+						intensity: JSON.stringify({ kind: 'racePace', event: '5k' }),
+					},
+				],
+			},
+		],
+	}
+	const run = {
+		lthr: null,
+		maxHr: null,
+		ftp: null,
+		runPowerThresholdW: null,
+		thresholdPaceSecPerKm: null,
+		cssSecPer100m: null,
+		zoneSystem: null,
+		zoneOverrides: null,
+	}
+	expect(
+		racePaceBindingSet(workout, {
+			run: {
+				...run,
+				raceAnchorPaces: { '10k': 247, '5k': 230 },
+				raceAnchorOrigins: { '10k': ['garmin'], '5k': [] },
+			},
+		}),
+	).toEqual(['garmin'])
+	// No 10k result: the step is its bare authored form, the athlete's words.
+	expect(
+		racePaceBindingSet(workout, {
+			run: { ...run, raceAnchorOrigins: { '10k': ['garmin'] } },
+		}),
+	).toEqual([])
 })

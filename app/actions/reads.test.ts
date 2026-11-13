@@ -635,3 +635,121 @@ test('get_week_change: null before any close, then the proposals with whose sess
 	const today = await done(runAction(ctx, 'get_today', {}))
 	expect(today.openProposals).toEqual({ status: 'available', value: 1 })
 })
+
+test("a Planned TSS computed from a Polar race's pace is Polar data: withheld from a model without the opt-in, while a Garmin one goes with its credit", async () => {
+	// ADR 0117 §4: the binding set is stored with the value when it is
+	// computed, and every reader that sends Planned TSS passes it on.
+	const world = await createWorld()
+	const ctx = ctxFor(world.userId, 'mcp')
+	const plannedTss = async () =>
+		(await done(runAction(ctx, 'get_today', {}))).sessions.find(
+			(s) => s.id === world.planned,
+		)?.planned.tss
+
+	await prisma.workoutSession.update({
+		where: { id: world.planned },
+		data: { plannedTssOrigins: JSON.stringify(['polar']) },
+	})
+	expect(await plannedTss()).toMatchObject({
+		status: 'unavailable',
+		reason: 'source-terms',
+		platforms: ['polar'],
+	})
+	const vsPlan = await done(
+		runAction(ctx, 'get_session_vs_plan', { sessionId: world.planned }),
+	)
+	expect(vsPlan.tss.planned).toMatchObject({ reason: 'source-terms' })
+
+	await prisma.workoutSession.update({
+		where: { id: world.planned },
+		data: { plannedTssOrigins: JSON.stringify(['garmin']) },
+	})
+	expect(await plannedTss()).toMatchObject({ status: 'available', value: 30 })
+})
+
+test("a week's Planned TSS on get_today and get_season binds to the results its sessions' race paces read", async () => {
+	// ADR 0117 §4: a week total takes the union of its sessions' stored sets.
+	const world = await createWorld()
+	const ctx = ctxFor(world.userId, 'mcp')
+	const created = await createPlanOutline(world.userId, {
+		startWeekKey: '2026-10-19',
+		structure: { phases: [{ name: 'Blokk 1', weeks: 4, rhythm: '3:1' }] },
+		tracks: [{ discipline: 'run', currency: 'tss', anchorValue: 300 }],
+	})
+	expect(created.ok).toBe(true)
+	const plannedTrack = async () => {
+		const today = await done(runAction(ctx, 'get_today', {}))
+		const season = await done(runAction(ctx, 'get_season', {}))
+		return {
+			today: today.week.tracks[0]?.planned,
+			season: season.weeks.find((w) => w.weekKey === '2026-10-19')?.tracks[0]
+				?.planned,
+		}
+	}
+	expect(await plannedTrack()).toMatchObject({
+		today: { status: 'available' },
+		season: { status: 'available' },
+	})
+
+	await prisma.workoutSession.update({
+		where: { id: world.planned },
+		data: { plannedTssOrigins: JSON.stringify(['polar']) },
+	})
+	expect(await plannedTrack()).toMatchObject({
+		today: { status: 'unavailable', reason: 'source-terms' },
+		season: { status: 'unavailable', reason: 'source-terms' },
+	})
+})
+
+test("a planned duration timed through a Polar race's pace is Polar data: withheld from a model without the opt-in", async () => {
+	// ADR 0117 §4: a distance step at race pace is timed through the pace the
+	// result sets, so the planned duration is derived from the Recording.
+	const world = await createWorld()
+	const ctx = ctxFor(world.userId, 'mcp')
+	const { recording } = await import('#tests/actions-world.ts')
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId: world.userId },
+		select: { id: true },
+	})
+	await prisma.disciplineProfile.create({
+		data: { athleteProfileId: profile.id, discipline: 'run' },
+	})
+	const race = await recording(world.userId, {
+		originPlatform: 'polar',
+		startedAt: new Date('2026-10-11T08:00:00Z'),
+		durationSec: 2400,
+	})
+	await prisma.performanceResult.create({
+		data: {
+			athleteProfileId: profile.id,
+			discipline: 'run',
+			distanceM: 10_000,
+			timeSec: 2400,
+			occurredAt: new Date('2026-10-11T00:00:00Z'),
+			source: 'race',
+			verified: true,
+			activityImportId: race.id,
+		},
+	})
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: world.planned },
+		select: { workoutId: true },
+	})
+	await prisma.workoutStep.updateMany({
+		where: { block: { workoutId: session.workoutId! } },
+		data: {
+			durationSec: null,
+			distanceM: 5000,
+			intensity: JSON.stringify({ kind: 'racePace', event: '10k' }),
+		},
+	})
+
+	const today = await done(runAction(ctx, 'get_today', {}))
+	expect(
+		today.sessions.find((s) => s.id === world.planned)?.planned.durationS,
+	).toMatchObject({ status: 'unavailable', reason: 'source-terms' })
+	const vsPlan = await done(
+		runAction(ctx, 'get_session_vs_plan', { sessionId: world.planned }),
+	)
+	expect(vsPlan.durationS.planned).toMatchObject({ reason: 'source-terms' })
+})

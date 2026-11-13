@@ -6,6 +6,7 @@ import {
 } from '#app/integrations/shared/origin-platform.ts'
 import { dayBoundsUTC, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import { keepEventResultsInStep } from './event-result.server.ts'
 import {
 	fitsImport,
 	fitsImportByHand,
@@ -260,15 +261,20 @@ export async function updateActivityImportSnapshot(
 				externalId: data.externalId,
 			},
 		},
-		select: { id: true },
+		select: { id: true, promotedSessionId: true },
 	})
 	if (!existing) return { updated: false }
 	if (!(await isAutoSaveMirror(existing.id))) return { updated: false }
 
-	await prisma.activityImport.update({
-		where: { id: existing.id },
-		data: metricColumns(data),
-	})
+	// A refreshed distance or time rewrites an Event's result read from it.
+	await keepEventResultsInStep(
+		{ sessionIds: [existing.promotedSessionId] },
+		() =>
+			prisma.activityImport.update({
+				where: { id: existing.id },
+				data: metricColumns(data),
+			}),
+	)
 	return { updated: true }
 }
 
@@ -308,19 +314,25 @@ export async function deleteImportIfAutoSaveMirror(
 	// The recompute reads the import's date, so resolve it before the rows go.
 	const recompute = await recomputeFromImportDate(existing.id)
 
-	await prisma.$transaction(async (tx) => {
-		// Release the FKs in both directions before deleting either row.
-		await tx.activityImport.update({
-			where: { id: existing.id },
-			data: { promotedSessionId: null },
-		})
-		if (existing.promotedSessionId) {
-			await tx.workoutSession.delete({
-				where: { id: existing.promotedSessionId },
-			})
-		}
-		await tx.activityImport.delete({ where: { id: existing.id } })
-	})
+	// The session may be an Event's result session: its result goes with the
+	// Recording, and the Planned TSS it moved is recomputed.
+	await keepEventResultsInStep(
+		{ sessionIds: [existing.promotedSessionId] },
+		() =>
+			prisma.$transaction(async (tx) => {
+				// Release the FKs in both directions before deleting either row.
+				await tx.activityImport.update({
+					where: { id: existing.id },
+					data: { promotedSessionId: null },
+				})
+				if (existing.promotedSessionId) {
+					await tx.workoutSession.delete({
+						where: { id: existing.promotedSessionId },
+					})
+				}
+				await tx.activityImport.delete({ where: { id: existing.id } })
+			}),
+	)
 	await recompute()
 	return { deleted: true }
 }
@@ -633,37 +645,40 @@ async function releaseRecording(importId: string, sessionId: string) {
 	})
 	if (!session) return
 
-	await prisma.$transaction(async (tx) => {
-		// Clear the import's promoted pointer first to avoid FK issues.
-		await tx.activityImport.update({
-			where: { id: importId },
-			data: { promotedSessionId: null },
-		})
-
-		if (isRecordingOnlySource(session)) {
-			await tx.workoutSession.delete({ where: { id: session.id } })
-			// A `detected` session carries a materialized Workout that nothing else
-			// references; it goes with the session rather than lingering orphaned.
-			if (session.workoutId) {
-				await tx.workout.delete({ where: { id: session.workoutId } })
-			}
-		} else {
-			await tx.workoutSession.update({
-				where: { id: session.id },
-				data: {
-					recordingId: null,
-					status: statusWithoutRecording(session),
-					statusBeforeLink: null,
-					// The TSS was the Recording's. Left behind it would count twice —
-					// here and on the session the Recording moves to — so it goes,
-					// and the recompute below prices what is left (an RPE, or nothing).
-					tssValue: null,
-					tssFormula: null,
-					tssConfidence: null,
-				},
+	// Lifting the Recording off an Event's result session removes its result.
+	await keepEventResultsInStep({ sessionIds: [session.id] }, () =>
+		prisma.$transaction(async (tx) => {
+			// Clear the import's promoted pointer first to avoid FK issues.
+			await tx.activityImport.update({
+				where: { id: importId },
+				data: { promotedSessionId: null },
 			})
-		}
-	})
+
+			if (isRecordingOnlySource(session)) {
+				await tx.workoutSession.delete({ where: { id: session.id } })
+				// A `detected` session carries a materialized Workout that nothing else
+				// references; it goes with the session rather than lingering orphaned.
+				if (session.workoutId) {
+					await tx.workout.delete({ where: { id: session.workoutId } })
+				}
+			} else {
+				await tx.workoutSession.update({
+					where: { id: session.id },
+					data: {
+						recordingId: null,
+						status: statusWithoutRecording(session),
+						statusBeforeLink: null,
+						// The TSS was the Recording's. Left behind it would count twice —
+						// here and on the session the Recording moves to — so it goes,
+						// and the recompute below prices what is left (an RPE, or nothing).
+						tssValue: null,
+						tssFormula: null,
+						tssConfidence: null,
+					},
+				})
+			}
+		}),
+	)
 	if (!isRecordingOnlySource(session)) {
 		await triggerRecomputeForSession(session.id)
 	}
@@ -700,23 +715,27 @@ function statusWithoutRecording(session: {
  * _Angre kobling_ is forgotten: the import has a session again.
  */
 async function linkImportToSession(importId: string, sessionId: string) {
-	await prisma.$transaction(async (tx) => {
-		const before = await tx.workoutSession.findUniqueOrThrow({
-			where: { id: sessionId },
-			select: { status: true },
-		})
-		await tx.workoutSession.update({
-			where: { id: sessionId },
-			data: {
-				recordingId: importId,
-				status: 'completed',
-				// Kept so _Angre kobling_ can put the session back as it was.
-				statusBeforeLink: before.status,
-			},
-		})
-		await tx.activityImport.update({
-			where: { id: importId },
-			data: { promotedSessionId: sessionId, unlinkedFromSessionId: null },
-		})
-	})
+	// A Recording landing on an Event's result session, after the Event was
+	// marked done, writes its result then (ADR 0117 §2).
+	await keepEventResultsInStep({ sessionIds: [sessionId] }, () =>
+		prisma.$transaction(async (tx) => {
+			const before = await tx.workoutSession.findUniqueOrThrow({
+				where: { id: sessionId },
+				select: { status: true },
+			})
+			await tx.workoutSession.update({
+				where: { id: sessionId },
+				data: {
+					recordingId: importId,
+					status: 'completed',
+					// Kept so _Angre kobling_ can put the session back as it was.
+					statusBeforeLink: before.status,
+				},
+			})
+			await tx.activityImport.update({
+				where: { id: importId },
+				data: { promotedSessionId: sessionId, unlinkedFromSessionId: null },
+			})
+		}),
+	)
 }

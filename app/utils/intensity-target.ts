@@ -11,6 +11,7 @@
 // Cockpit Today card, Week timeline, and session detail all resolve through here
 // so the home surface and the detail agree on a session's headline target.
 
+import { type OriginPlatform } from '#app/integrations/shared/origin-platform.ts'
 import { formatPaceClock, formatPaceRange } from './format.ts'
 import {
 	INTENSITY_DISPLAY_WORDS,
@@ -463,6 +464,70 @@ export function describeStepTarget(
 			}
 		}
 	}
+}
+
+/**
+ * The binding set a prescription's resolved `racePace` targets carry (ADR 0117
+ * §4): the union of the origins of the results its race-pace steps resolve
+ * against. Empty when none resolves against a measured result, so a Workout of
+ * typed results and authored numbers owes nothing.
+ */
+export function racePaceBindingSet(
+	workout: {
+		discipline: string
+		blocks: ReadonlyArray<{ steps: readonly StepWithIntensity[] }>
+	},
+	thresholds: DisciplineThresholdMap,
+): OriginPlatform[] {
+	const origins = new Set<OriginPlatform>()
+	for (const block of workout.blocks) {
+		for (const step of block.steps) {
+			if (step.kind !== 'cardio') continue
+			const target = parseAuthoredIntensity(step.intensity)
+			if (target?.kind !== 'racePace') continue
+			const profile = thresholds[step.discipline ?? workout.discipline]
+			// Only a target that resolves binds: without a pace it is the bare
+			// authored form, which is the athlete's own words.
+			if (profile?.raceAnchorPaces?.[target.event] == null) continue
+			for (const origin of profile.raceAnchorOrigins?.[target.event] ?? []) {
+				origins.add(origin)
+			}
+		}
+	}
+	return [...origins]
+}
+
+/**
+ * {@link racePaceBindingSet} for the steps a planned duration is timed through
+ * the pace for (a distance with no authored time, `stepDistanceDurationSec`):
+ * a planned duration read off a Garmin or Polar race's pace is that
+ * platform's data (ADR 0117 §4), while an authored time owes nothing.
+ */
+export function racePaceTimingBindingSet(
+	workout: {
+		discipline: string
+		blocks: ReadonlyArray<{
+			steps: ReadonlyArray<
+				StepWithIntensity & {
+					durationSec: number | null
+					distanceM: number | null
+				}
+			>
+		}>
+	},
+	thresholds: DisciplineThresholdMap,
+): OriginPlatform[] {
+	return racePaceBindingSet(
+		{
+			discipline: workout.discipline,
+			blocks: workout.blocks.map((block) => ({
+				steps: block.steps.filter(
+					(step) => step.durationSec == null && step.distanceM != null,
+				),
+			})),
+		},
+		thresholds,
+	)
 }
 
 /**

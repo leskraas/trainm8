@@ -20,6 +20,10 @@ to Strava and Intervals.icu, and file imports. Specs to copy from:
   session token or one-time code. Better Auth runs dark (ADR 0114), so these
   tables stay empty until the login cutover.
 - Training settings and level: `/settings/training`, `/settings/level`.
+- _Løpsresultater_ at `/settings/training/resultater`: typed results (with
+  _Slett_) and Events' results (_Målt av klokka_, the platform's credit, the
+  Event's name as a link, no _Slett_); _I bruk_ where a typed and an Event's
+  result share a distance and a day (#670).
 - _Hjemsted_ at `/settings/hjemsted` (#433, ADR 0115): the Home Place. Search by
   name (Kartverket, mocked with `MOCK_WEATHER=true`), pick a match (saves at
   once, status line _Lagret. I dag viser været for X._), _Fjern_. The _Meg_ row

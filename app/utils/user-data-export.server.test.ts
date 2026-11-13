@@ -270,6 +270,55 @@ test("a moderator's export carries the reports they resolved, not the reporters'
 	expect(json).not.toContain(other.userId)
 })
 
+test("the export carries each Event's result with the Event and the Recording it came from", async () => {
+	const me = await createAthleteWithTrainingRecord('me')
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId: me.userId },
+		select: { id: true },
+	})
+	const event = await prisma.event.create({
+		select: { id: true },
+		data: {
+			athleteId: me.userId,
+			name: 'Sentrumsløpet',
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date('2026-04-25T00:00:00Z'),
+			disciplines: '["run"]',
+			distanceM: 10000,
+		},
+	})
+	await prisma.performanceResult.create({
+		data: {
+			athleteProfileId: profile.id,
+			discipline: 'run',
+			distanceM: 10000,
+			timeSec: 2472,
+			occurredAt: new Date('2026-04-25T00:00:00Z'),
+			source: 'race',
+			verified: true,
+			eventId: event.id,
+			activityImportId: me.activityImportId,
+		},
+	})
+
+	const { tables } = await exportUserData({
+		userId: me.userId,
+		domain: 'https://x.test',
+	})
+
+	expect(tables.PerformanceResult).toEqual([
+		expect.objectContaining({
+			eventId: event.id,
+			activityImportId: me.activityImportId,
+			verified: true,
+		}),
+	])
+	expect(tables.Event).toEqual([
+		expect.objectContaining({ id: event.id, distanceM: 10000 }),
+	])
+})
+
 test("Better Auth's tables are in the walk, the verification table included", () => {
 	expect(betterAuthModels().sort()).toEqual([
 		'AuthAccount',

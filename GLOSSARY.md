@@ -443,6 +443,14 @@ Recompute Notice** pattern moved from load to prescription. A recompute is
 announced, never offered. _Avoid_: Resolved intensity (the current
 provenance-free shape), baked range, effective target
 
+**Race Anchor**: One of the six race distances a `racePace` **Intensity Target**
+may name and a **Performance Result** resolves at: 1500 m, 3 km, 5 km, 10 km,
+half marathon, marathon. Matched to the metre. In athlete-facing Norwegian the
+word is **standarddistanse** ("7,5 km er ingen standarddistanse"), the plain
+word for it; the _Avoid_ below is about naming the concept in code and docs.
+_Avoid_: Standard distance (as the concept's name), race distance (that is the
+**Event Distance**)
+
 **Race Equivalence**: _Rung 1 built (#449); the conversion models are not._ The
 athlete's own **Performance Result** at the named distance resolves a `racePace`
 **Intensity Target** today. Everything below that rung — a result at another
@@ -1242,7 +1250,10 @@ TSS — neither a `recorded` session nor a `detected` one whose **Workout** was
 auto-materialized by a **Structure Detection** — because a plan reconstructed
 from the session's own actuals would grade itself as ~perfect adherence by
 construction; its **Adherence Band** stays unavailable ("—") (ADR 0034).
-_Avoid_: Target load, expected TSS
+Stored with its **Binding Set**, because a Planned TSS computed from a
+`racePace` target that resolved against an **Event Result** is that Recording's
+derived data and travels with the number (ADR 0117 §4). _Avoid_: Target load,
+expected TSS
 
 **Adherence Band**: The three-state comparison of actual to Planned TSS —
 `under`, `on-target`, or `over` — surfaced on the **Stream** row's compliance
@@ -1578,25 +1589,28 @@ a hand-typed figure never masquerades as a measured one. The queryable history
 for portable race-pace targets, which is why the table landed with the anchors
 (ADR 0007, #449). **Its first writer is the athlete's own hand** (#464):
 _Løpsresultater_ under Meg adds a typed run result at a **Race Anchor**
-distance, always `verified: false`. Populating it from completed **Events** and
-from activity bests is a derivation with its own honesty rules — which efforts
-qualify, and ADR 0021's **Load Confidence** gate. Without a result at that
-distance, a `racePace` target degrades to its bare authored form, exactly as a
-`%FTP` target does without an FTP. A target resolves against the **most recent**
-result at that distance, not the fastest: a prescription is about what the
-athlete can do now, and the fastest-ever reading is a **Personal Record**.
-Distances match an anchor **exactly** — a 4.8 km parkrun is not a 5k, and
-rounding one into the other puts a pace the athlete never ran behind a `5k pace`
-target. Distinct from an **Event Target**, which is a _goal_: a goal that was
-met produces a result and a goal that was missed produces one too, so the two
-must not be overloaded into one field. Distinct from a **Personal Record**,
-which is the _derived best_ over a **Benchmark Kind**; a Performance Result is
-the raw datum a record is chosen from. The most reliable non-race source is not
-a curve fit but a deliberately repeated effort — a 3 km time trial or a
-20-minute tempo on the same route every 6–8 weeks — which is already expressible
-as an **Event** of `kind: 'time-trial'` and enters the ladder at rung 1 rather
-than rung 4. _Avoid_: Race result (a time trial is not a race), PB list,
-benchmark
+distance, always `verified: false`. Its second is a completed run **Event**
+(#670, ADR 0117): the **Event Distance** and the **Recording**'s elapsed time,
+`verified: true`, kept in step with the Event and removed with it. It needs the
+Event and a measured distance within ±5 % of the Event Distance, not **Load
+Confidence**, which judges load, not a race clock. On a day both writers name
+the same anchor, the typed result is the one used. Activity bests are a
+derivation still to come. Without a result at that distance, a `racePace` target
+degrades to its bare authored form, exactly as a `%FTP` target does without an
+FTP. A target resolves against the **most recent** result at that distance, not
+the fastest: a prescription is about what the athlete can do now, and the
+fastest-ever reading is a **Personal Record**. Distances match an anchor
+**exactly** — a 4.8 km parkrun is not a 5k, and rounding one into the other puts
+a pace the athlete never ran behind a `5k pace` target. Distinct from an **Event
+Target**, which is a _goal_: a goal that was met produces a result and a goal
+that was missed produces one too, so the two must not be overloaded into one
+field. Distinct from a **Personal Record**, which is the _derived best_ over a
+**Benchmark Kind**; a Performance Result is the raw datum a record is chosen
+from. The most reliable non-race source is not a curve fit but a deliberately
+repeated effort — a 3 km time trial or a 20-minute tempo on the same route every
+6–8 weeks — which is already expressible as an **Event** of `kind: 'time-trial'`
+and enters the ladder at rung 1 rather than rung 4. _Avoid_: Race result (a time
+trial is not a race), PB list, benchmark
 
 **Proof Strip**: The athlete's current **Personal Records** — one row per
 **Discipline**, each with the record value and the gain over the previous best;
@@ -2126,6 +2140,15 @@ is gone. Attribution and `source-terms` read the Origin Platform, never the
 transport (ADR 0096, ADR 0098). _Avoid_: Source (Intervals.icu's field name,
 ambiguous), provider, transport, origin device
 
+**Binding Set**: Every **Origin Platform** behind a value: its own for an
+import's data, the union of the ones a computation read for a derived value,
+and empty for what the athlete wrote or trainm8 placed (ADR 0098 §1). It is
+what the `source-terms` gate and the attribution lines are looked up by, so a
+value may reach a surface only if every platform in its set allows it. Usually
+computed on read; **Planned TSS** is the exception that stores its own, so a
+session keeps what its number was computed from (ADR 0117 §4). _Avoid_:
+Sources, provenance set, origins (the column name, not the term)
+
 **Import Alias**: A second source's record of an activity trainm8 already holds
 as an **Activity Import** — the same FIT file, or a run whose start and duration
 match closely — kept instead of a second import, so the activity is one session
@@ -2349,7 +2372,15 @@ _Avoid_: Goal value, performance target
 **Event Result**: The post-event outcome, represented by the Workout Session the
 athlete executed for the Event (linked via `resultSessionId`). The Session's
 Recording, Session Log, and TSS hold the actual numbers; the Event itself does
-not duplicate them. _Avoid_: Race result row, achievement
+not duplicate them. A run race or time trial with an **Event Distance** also
+yields a **Performance Result** read from that session's Recording, which
+follows the Event Result and is never edited apart from it. _Avoid_: Race result
+row, achievement
+
+**Event Distance**: How far a race or time trial is, as the course states it:
+one of the **Race Anchors**, or another distance. A fact about the Event, not a
+goal (that is an **Event Target**) and not what the watch measured (a GPS 10k
+reads 10.1–10.3 km). _Avoid_: Target distance, race length, measured distance
 
 ### Plan generation
 

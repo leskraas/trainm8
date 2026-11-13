@@ -16,6 +16,7 @@ function makeLedgerSession(
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,
+		plannedTssOrigins: null,
 		replanReason: null,
 		workout: {
 			id: 'workout-1',

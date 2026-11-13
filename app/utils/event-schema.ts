@@ -66,6 +66,8 @@ export const EventAuthoringSchema = z
 		status: z.enum(EVENT_STATUSES).default('planned'),
 		notes: z.string().max(2000).nullable().optional(),
 		resultSessionId: z.string().nullable().optional(),
+		/** The **Event Distance** in exact metres (ADR 0117 §1). */
+		distanceM: z.number().int().positive().nullable().optional(),
 	})
 	.refine((data) => !data.endDate || data.endDate >= data.startDate, {
 		message: 'End date must be on or after start date',

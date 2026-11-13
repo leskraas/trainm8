@@ -16,6 +16,14 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
   og gå videre_), then _Legg opp sesongen_ (base, units, start volume).
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
   `/training/events/new`, `/training/events/:id`.
+- An Event's result (#670, ADR 0117): on a run-only _Løp_ or _Testløp_, the
+  form's _Distanse_ pills (`1500 m` … `Maraton`, _Annen_ with _Distanse i km_).
+  On a done Event, the _Resultat_ section shows the watch's time, pace and _Målt
+  av klokka_ with the platform's credit, or says why there is none (_Hvor langt
+  var løpet?_, _Klokka målte … men løpet er …_, _Venter på klokka_) with _Lagre
+  distansen_ / _Endre distansen_. The result also shows on _Løpsresultater_
+  (`/settings/training/resultater`) with the Event's name as a link and no
+  _Slett_.
 - Plan generation from an event: `/training/plan/generate/:eventId` (uses the
   deterministic stub model client when `ANTHROPIC_API_KEY` is empty). With a
   **Weekly Capacity** set on the Athlete Profile, the preview states **Placed
@@ -51,6 +59,23 @@ await page.getByRole('button', { name: /lag målet og gå videre/i }).click()
 await page.getByRole('heading', { name: 'Legg opp sesongen' }).waitFor()
 ```
 
+An Event's result needs a done run Event whose result session holds a run
+Recording within ±5 % of its distance. Seed it rather than drive it: create the
+Event on `/training/events/new` (Løp, Løping, _10 km_), upload a run file on
+`/imports/upload` dated the Event's day, then _Bruk som resultat_ on the Event's
+page.
+
+```js
+await page.goto(`${BASE}/training/events/new`)
+await page.getByRole('radio', { name: 'Løp' }).check()
+await page.getByRole('checkbox', { name: 'Løping' }).click()
+await page.getByRole('button', { name: '10 km' }).click()
+// on a done Event with no distance:
+await page.getByText('Hvor langt var løpet?').waitFor()
+await page.getByRole('button', { name: 'Halvmaraton' }).click()
+await page.getByRole('button', { name: 'Lagre distansen' }).click()
+```
+
 ## Gotchas
 
 - The first tap after a load can race hydration: wait for the link to hydrate,
@@ -60,6 +85,8 @@ await page.getByRole('heading', { name: 'Legg opp sesongen' }).waitFor()
   before you drive creation.
 - Season editors are inside _Avansert_, closed by default: open it with one tap
   on its heading (`openPlanAdvanced` in `tests/playwright-utils.ts`).
+- The _Distanse_ row shows only for _Løp_ or _Testløp_ with exactly _Løping_
+  ticked; it opens with `motion-collapse`, so wait for the pills before you tap.
 - A Week Pattern day holds the plan's own copy of what it picked, a **Held
   Workout** (ADR 0113): the row is `Workout.heldByOutlineId = <plan id>`, never
   the session's own `workoutId`. After picking, deleting or editing that session
