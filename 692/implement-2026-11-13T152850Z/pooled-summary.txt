@@ -1,0 +1,10 @@
+['measure-url-final-1.txt', 'measure-url-final-2.txt', 'measure-url-final-3.txt', 'measure-url-final-4.txt'] 24 runs each
+  hydrated: seed 1384, 52-week 1670, +20.7% (pooled medians); paired median +17%; paired runs [-13, -9, 3, 7, 9, 10, 10, 14, 14, 15, 16, 17, 17, 21, 21, 24, 24, 25, 30, 31, 37, 48, 51, 65]
+  longestTask: seed 128, 52-week 130, +1.6% (pooled medians); paired median +4%; paired runs [-29, -16, -16, -16, -14, -7, -7, -4, -3, -3, 2, 4, 4, 6, 10, 16, 16, 17, 21, 26, 31, 32, 51, 56]
+  median: seed 16.600000000093132, 52-week 16.649999999906868
+  p90: seed 18.749999999883585, 52-week 19.75
+  todayTop: seed 122.0, 52-week 138.0
+['measure-nav-final.txt', 'measure-nav-final-2.txt'] 10 runs each
+  longestTask: seed 174, 52-week 178, +2.6% (pooled medians); paired median +12%; paired runs [-26, -11, -4, 5, 7, 16, 18, 19, 20, 22]
+  shown: seed 854, 52-week 995, +16.6% (pooled medians); paired median +18%; paired runs [-21, 9, 14, 15, 18, 19, 21, 23, 26, 41]
+  todayTop: seed 122.0, 52-week 138.0

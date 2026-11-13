@@ -1,0 +1,367 @@
+longtasks: 19, longest 187ms; durations 96,187,131,60,81,128,141,167,128,89,95,117,55,175,83,138,50,99,117
+
+=== busy span 664ms (unthrottled-clock) at +1729ms
+self:
+   115.4ms  (program) :-1
+    51.0ms  hydrate nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7229
+    28.5ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+    21.1ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+    18.4ms  (garbage collector) :-1
+    13.1ms  matchPath nm/react-router/dist/development/chunk-JZWAC4HX.mjs:723
+    12.3ms  ? nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7429
+    10.6ms  commitHookEffectListMount nm/react-dom/cjs/react-dom-client.production.js:8571
+    10.4ms  unflatten nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7218
+     7.7ms  tzOffsetMs app/utils/athlete-calendar.ts:67
+     6.7ms  buildWeek app/routes/_home/timeline/presenter.ts:899
+     6.0ms  buildTimelineSeason app/routes/_home/timeline/presenter.ts:562
+     5.7ms  createClientRoutes nm/react-router/dist/development/chunk-JZWAC4HX.mjs:8585
+     5.5ms  decodeInitial nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7471
+     5.5ms  compilePath nm/react-router/dist/development/chunk-JZWAC4HX.mjs:760
+     5.4ms  trackWeek app/utils/plan-outline/week-volumes.ts:584
+     5.3ms  ? nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7033
+     5.2ms  createHydratedRouter nm/react-router/dist/development/dom-export.mjs:82
+     4.9ms  ? nm/zod/v3/types.js:1936
+     4.9ms  nbParts app/utils/format.ts:290
+
+inclusive:
+   664.3ms  (root) :-1
+   441.7ms  performWorkUntilDeadline nm/scheduler/cjs/scheduler.production.js:121
+   413.4ms  performWorkOnRoot nm/react-dom/cjs/react-dom-client.production.js:10681
+   391.7ms  performWorkOnRootViaSchedulerTask nm/react-dom/cjs/react-dom-client.production.js:12065
+   375.5ms  performUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11304
+   364.1ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+   363.6ms  renderRootConcurrent nm/react-dom/cjs/react-dom-client.production.js:11184
+   359.4ms  workLoopConcurrentByScheduler nm/react-dom/cjs/react-dom-client.production.js:11300
+   317.6ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+   308.3ms  updateFunctionComponent nm/react-dom/cjs/react-dom-client.production.js:6489
+   169.8ms  TimelineFrame app/routes/_home/timeline/home-timeline.tsx:164
+   167.8ms  ? nm/react-dom/cjs/react-dom-client.production.js:5515
+   167.8ms  ? nm/react/cjs/react.production.js:513
+   148.8ms  ? app/routes/_home/timeline/home-timeline.tsx:190
+   148.0ms  buildTimelineSeason app/routes/_home/timeline/presenter.ts:562
+   115.4ms  (program) :-1
+   115.2ms  monday app/routes/_home/timeline/presenter.ts:658
+   109.4ms  buildWeek app/routes/_home/timeline/presenter.ts:899
+    80.5ms  decodeInitial nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7471
+    74.9ms  unflatten nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7218
+
+=== busy span 358ms (unthrottled-clock) at +2393ms
+self:
+   158.3ms  (program) :-1
+     6.3ms  setValueForKnownAttribute nm/react-dom/cjs/react-dom-client.production.js:970
+     6.1ms  setProp nm/react-dom/cjs/react-dom-client.production.js:12957
+     5.5ms  setValueForAttribute nm/react-dom/cjs/react-dom-client.production.js:950
+     5.4ms  bailoutOnAlreadyFinishedWork nm/react-dom/cjs/react-dom-client.production.js:7259
+     5.1ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+     4.7ms  getFormatter nm/@base-ui/utils/formatNumber.mjs:3
+     4.3ms  completeUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11405
+     3.1ms  ? nm/tailwind-merge/dist/bundle-mjs.mjs:68
+     3.0ms  params nm/zod/v3/helpers/parseUtil.js:3
+     3.0ms  appendChild :-1
+     2.9ms  localDate app/utils/athlete-calendar.ts:48
+     2.9ms  updateAway app/routes/_home/timeline/use-timeline-scroll.ts:326
+     2.9ms  paceWindow app/routes/_home/timeline/row-content.ts:533
+     2.8ms  tzOffsetMs app/utils/athlete-calendar.ts:67
+     2.7ms  attach app/routes/_home/timeline/use-timeline-scroll.ts:362
+     2.6ms  setInitialProperties nm/react-dom/cjs/react-dom-client.production.js:13346
+     2.5ms  nbParts app/utils/format.ts:290
+     2.4ms  SessionRow app/routes/_home/timeline/stream.tsx:1196
+     2.3ms  ? app/routes/_home/timeline/use-day-selection.ts:119
+
+inclusive:
+   358.2ms  (root) :-1
+   182.3ms  performWorkUntilDeadline nm/scheduler/cjs/scheduler.production.js:121
+   172.1ms  performWorkOnRootViaSchedulerTask nm/react-dom/cjs/react-dom-client.production.js:12065
+   171.4ms  performWorkOnRoot nm/react-dom/cjs/react-dom-client.production.js:10681
+   159.6ms  workLoopConcurrentByScheduler nm/react-dom/cjs/react-dom-client.production.js:11300
+   159.6ms  renderRootConcurrent nm/react-dom/cjs/react-dom-client.production.js:11184
+   158.5ms  performUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11304
+   158.3ms  (program) :-1
+   118.2ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+   106.0ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+    81.2ms  updateFunctionComponent nm/react-dom/cjs/react-dom-client.production.js:6489
+    51.1ms  updateSimpleMemoComponent nm/react-dom/cjs/react-dom-client.production.js:6212
+    51.1ms  updateMemoComponent nm/react-dom/cjs/react-dom-client.production.js:6160
+    49.3ms  ? app/routes/_home/timeline/stream.tsx:158
+    45.2ms  buildDays app/routes/_home/timeline/presenter.ts:957
+    45.2ms  weekDays app/routes/_home/timeline/presenter.ts:440
+    38.6ms  key app/routes/_home/timeline/presenter.ts:971
+    38.3ms  completeUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11405
+    37.8ms  buildDay app/routes/_home/timeline/presenter.ts:1145
+    34.0ms  completeWork nm/react-dom/cjs/react-dom-client.production.js:7955
+
+=== busy span 326ms (unthrottled-clock) at +2845ms
+self:
+    68.9ms  (program) :-1
+    20.2ms  (garbage collector) :-1
+    12.2ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+    10.7ms  tzOffsetMs app/utils/athlete-calendar.ts:67
+     8.6ms  getNextHydratable nm/react-dom/cjs/react-dom-client.production.js:14251
+     8.1ms  SessionRow app/routes/_home/timeline/stream.tsx:1196
+     7.3ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+     6.6ms  nbParts app/utils/format.ts:290
+     6.3ms  ? nm/tailwind-merge/dist/bundle-mjs.mjs:204
+     5.5ms  prepareToHydrateHostInstance nm/react-dom/cjs/react-dom-client.production.js:2748
+     5.1ms  popHydrationState nm/react-dom/cjs/react-dom-client.production.js:2835
+     5.0ms  volumeSessionOf app/utils/plan-outline/week-volumes.ts:268
+     4.6ms  localDate app/utils/athlete-calendar.ts:48
+     4.0ms  ? nm/scheduler/cjs/scheduler.production.js:63
+     4.0ms  canHydrateInstance nm/react-dom/cjs/react-dom-client.production.js:14134
+     3.9ms  bubbleProperties nm/react-dom/cjs/react-dom-client.production.js:7931
+     3.7ms  useRenderElementProps nm/@base-ui/react/internals/useRenderElement.mjs:36
+     3.6ms  ? nm/@base-ui/utils/fastHooks.mjs:50
+     3.2ms  parseRecordingPhaseBars app/utils/session-profile.ts:41
+     2.7ms  reconcileChildrenArray nm/react-dom/cjs/react-dom-client.production.js:3622
+
+inclusive:
+   325.9ms  (root) :-1
+   235.0ms  performWorkUntilDeadline nm/scheduler/cjs/scheduler.production.js:121
+   231.9ms  performWorkOnRootViaSchedulerTask nm/react-dom/cjs/react-dom-client.production.js:12065
+   230.1ms  performWorkOnRoot nm/react-dom/cjs/react-dom-client.production.js:10681
+   229.6ms  workLoopConcurrentByScheduler nm/react-dom/cjs/react-dom-client.production.js:11300
+   229.6ms  renderRootConcurrent nm/react-dom/cjs/react-dom-client.production.js:11184
+   225.3ms  performUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11304
+   197.0ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+   165.6ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+   129.0ms  updateFunctionComponent nm/react-dom/cjs/react-dom-client.production.js:6489
+    72.6ms  updateMemoComponent nm/react-dom/cjs/react-dom-client.production.js:6160
+    71.8ms  updateSimpleMemoComponent nm/react-dom/cjs/react-dom-client.production.js:6212
+    70.9ms  ? app/routes/_home/timeline/stream.tsx:158
+    68.9ms  (program) :-1
+    68.8ms  buildDays app/routes/_home/timeline/presenter.ts:957
+    68.8ms  weekDays app/routes/_home/timeline/presenter.ts:440
+    62.0ms  key app/routes/_home/timeline/presenter.ts:971
+    60.4ms  buildDay app/routes/_home/timeline/presenter.ts:1145
+    40.1ms  row app/routes/_home/timeline/presenter.ts:1187
+    39.7ms  updateForwardRef nm/react-dom/cjs/react-dom-client.production.js:6126
+
+=== under buildTimelineSeason: 59ms
+self:
+     7.7ms  tzOffsetMs app/utils/athlete-calendar.ts:67
+     6.7ms  buildWeek app/routes/_home/timeline/presenter.ts:899
+     5.4ms  buildTimelineSeason app/routes/_home/timeline/presenter.ts:562
+     5.4ms  trackWeek app/utils/plan-outline/week-volumes.ts:584
+     5.3ms  ? nm/zod/v3/types.js:3004
+     4.9ms  ? nm/zod/v3/types.js:1936
+     4.9ms  nbParts app/utils/format.ts:290
+     4.4ms  ? nm/zod/v3/types.js:99
+     4.3ms  localDate app/utils/athlete-calendar.ts:48
+     4.3ms  ? app/utils/athlete-calendar.ts:52
+     4.3ms  parseRecordingPhaseBars app/utils/session-profile.ts:41
+     3.6ms  data nm/zod/v3/helpers/util.js:93
+     3.6ms  ? nm/zod/v3/types.js:86
+     3.2ms  workoutReps app/utils/workout-reps.ts:115
+     3.2ms  addDays app/utils/athlete-calendar.ts:176
+     3.1ms  ? app/routes/_home/timeline/presenter.ts:666
+     3.0ms  ? nm/zod/v3/helpers/parseUtil.js:82
+     2.5ms  track app/utils/plan-outline/week-volumes.ts:507
+     2.5ms  prescribedDuration app/utils/dashboard.ts:122
+     2.3ms  deriveSessionProfile app/utils/session-profile.ts:329
+     2.1ms  track app/routes/_home/timeline/presenter.ts:1030
+     2.1ms  phaseLookup app/routes/_home/timeline/presenter.ts:875
+     1.9ms  tally app/utils/plan-outline/week-volumes.ts:537
+     1.9ms  plannedMinutes app/utils/dashboard.ts:160
+     1.9ms  params nm/zod/v3/helpers/parseUtil.js:3
+     1.8ms  volumeSessionOf app/utils/plan-outline/week-volumes.ts:268
+     1.8ms  ? nm/zod/v3/types.js:14
+     1.7ms  localTimeUTC app/utils/athlete-calendar.ts:128
+     1.7ms  sessionsAgainstLabel app/utils/labels/i-dag.ts:68
+     1.7ms  s app/utils/session-ledger-rows.ts:91
+
+inclusive:
+   151.2ms  buildTimelineSeason app/routes/_home/timeline/presenter.ts:562
+   151.2ms  ? app/routes/_home/timeline/home-timeline.tsx:190
+   151.2ms  ? nm/react-dom/cjs/react-dom-client.production.js:5515
+   151.2ms  ? nm/react/cjs/react.production.js:513
+   151.2ms  TimelineFrame app/routes/_home/timeline/home-timeline.tsx:164
+   151.2ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+   151.2ms  updateFunctionComponent nm/react-dom/cjs/react-dom-client.production.js:6489
+   151.2ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+   151.2ms  performUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11304
+   151.2ms  workLoopConcurrentByScheduler nm/react-dom/cjs/react-dom-client.production.js:11300
+   151.2ms  renderRootConcurrent nm/react-dom/cjs/react-dom-client.production.js:11184
+   151.2ms  performWorkOnRoot nm/react-dom/cjs/react-dom-client.production.js:10681
+   151.2ms  performWorkOnRootViaSchedulerTask nm/react-dom/cjs/react-dom-client.production.js:12065
+   151.2ms  performWorkUntilDeadline nm/scheduler/cjs/scheduler.production.js:121
+   151.2ms  (root) :-1
+   118.9ms  monday app/routes/_home/timeline/presenter.ts:658
+   113.0ms  buildWeek app/routes/_home/timeline/presenter.ts:899
+    67.0ms  ? app/routes/_home/timeline/presenter.ts:992
+    63.5ms  volumeSessionOf app/utils/plan-outline/week-volumes.ts:268
+    37.4ms  ? nm/zod/v3/types.js:116
+    36.6ms  parseRecordingPhaseBars app/utils/session-profile.ts:41
+    36.5ms  ? nm/zod/v3/types.js:99
+    31.8ms  ? nm/zod/v3/types.js:1936
+    30.8ms  ? nm/zod/v3/types.js:1750
+    29.6ms  ? nm/zod/v3/types.js:1810
+    18.0ms  readPlannedMetric app/utils/planned-discipline.ts:115
+    17.0ms  deriveSessionProfile app/utils/session-profile.ts:329
+    17.0ms  ? app/utils/plan-outline/week-volumes.ts:339
+    16.5ms  ? nm/zod/v3/types.js:3334
+    15.4ms  buildWeekVolumes app/utils/plan-outline/week-volumes.ts:464
+
+=== under hydrate nm/react-router: 24ms
+self:
+    72.1ms  hydrate nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7229
+    14.0ms  ? nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7429
+     0.7ms  k nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7425
+     0.5ms  v nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7419
+
+inclusive:
+    87.3ms  hydrate nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7229
+    87.3ms  unflatten nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7218
+    87.3ms  decodeInitial nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7471
+    87.3ms  (root) :-1
+    14.0ms  ? nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7429
+     0.7ms  k nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7425
+     0.5ms  v nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7419
+
+=== under TimelineFrame: 70ms
+self:
+  1222.7ms  landingScript app/routes/_home/timeline/anchoring.ts:387
+   325.2ms  TimelineFrame app/routes/_home/timeline/home-timeline.tsx:164
+     7.7ms  tzOffsetMs app/utils/athlete-calendar.ts:67
+     6.7ms  buildWeek app/routes/_home/timeline/presenter.ts:899
+     6.0ms  buildTimelineSeason app/routes/_home/timeline/presenter.ts:562
+     5.4ms  trackWeek app/utils/plan-outline/week-volumes.ts:584
+     5.3ms  ? nm/zod/v3/types.js:3004
+     4.9ms  ? nm/zod/v3/types.js:1936
+     4.9ms  nbParts app/utils/format.ts:290
+     4.4ms  ? nm/zod/v3/types.js:99
+     4.3ms  localDate app/utils/athlete-calendar.ts:48
+     4.3ms  ? app/utils/athlete-calendar.ts:52
+     4.3ms  parseRecordingPhaseBars app/utils/session-profile.ts:41
+     4.1ms  wallClockParts app/utils/format.ts:163
+     3.6ms  data nm/zod/v3/helpers/util.js:93
+     3.6ms  ? nm/zod/v3/types.js:86
+     3.2ms  workoutReps app/utils/workout-reps.ts:115
+     3.2ms  addDays app/utils/athlete-calendar.ts:176
+     3.1ms  ? app/routes/_home/timeline/presenter.ts:666
+     3.0ms  ? nm/zod/v3/helpers/parseUtil.js:82
+     3.0ms  prescribedDuration app/utils/dashboard.ts:122
+     2.5ms  track app/utils/plan-outline/week-volumes.ts:507
+     2.3ms  deriveSessionProfile app/utils/session-profile.ts:329
+     2.3ms  toSessionLedgerEntry app/utils/training.ts:163
+     2.2ms  stepDurationSec app/utils/dashboard.ts:83
+     2.1ms  track app/routes/_home/timeline/presenter.ts:1030
+     2.1ms  phaseLookup app/routes/_home/timeline/presenter.ts:875
+     1.9ms  tally app/utils/plan-outline/week-volumes.ts:537
+     1.9ms  plannedMinutes app/utils/dashboard.ts:160
+     1.9ms  params nm/zod/v3/helpers/parseUtil.js:3
+
+inclusive:
+  1717.8ms  TimelineFrame app/routes/_home/timeline/home-timeline.tsx:164
+  1717.8ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+  1717.8ms  updateFunctionComponent nm/react-dom/cjs/react-dom-client.production.js:6489
+  1717.8ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+  1717.8ms  performUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11304
+  1717.8ms  performWorkOnRoot nm/react-dom/cjs/react-dom-client.production.js:10681
+  1717.8ms  performWorkUntilDeadline nm/scheduler/cjs/scheduler.production.js:121
+  1717.8ms  (root) :-1
+  1225.3ms  workLoopSync nm/react-dom/cjs/react-dom-client.production.js:11181
+  1225.3ms  renderRootSync nm/react-dom/cjs/react-dom-client.production.js:11120
+  1225.3ms  performSyncWorkOnRoot nm/react-dom/cjs/react-dom-client.production.js:12084
+  1225.3ms  flushSyncWorkAcrossRoots_impl nm/react-dom/cjs/react-dom-client.production.js:11918
+  1225.3ms  flushPassiveEffects nm/react-dom/cjs/react-dom-client.production.js:11741
+  1225.3ms  ? nm/react-dom/cjs/react-dom-client.production.js:11497
+  1222.7ms  landingScript app/routes/_home/timeline/anchoring.ts:387
+   492.5ms  workLoopConcurrentByScheduler nm/react-dom/cjs/react-dom-client.production.js:11300
+   492.5ms  renderRootConcurrent nm/react-dom/cjs/react-dom-client.production.js:11184
+   492.5ms  performWorkOnRootViaSchedulerTask nm/react-dom/cjs/react-dom-client.production.js:12065
+   164.8ms  ? nm/react-dom/cjs/react-dom-client.production.js:5515
+   164.8ms  ? nm/react/cjs/react.production.js:513
+   152.5ms  ? app/routes/_home/timeline/home-timeline.tsx:190
+   151.7ms  buildTimelineSeason app/routes/_home/timeline/presenter.ts:562
+   118.9ms  monday app/routes/_home/timeline/presenter.ts:658
+   113.0ms  buildWeek app/routes/_home/timeline/presenter.ts:899
+    67.0ms  ? app/routes/_home/timeline/presenter.ts:992
+    63.5ms  volumeSessionOf app/utils/plan-outline/week-volumes.ts:268
+    37.4ms  ? nm/zod/v3/types.js:116
+    36.6ms  parseRecordingPhaseBars app/utils/session-profile.ts:41
+    36.5ms  ? nm/zod/v3/types.js:99
+    31.8ms  ? nm/zod/v3/types.js:1936
+
+=== all busy 1423ms
+self:
+  5819.2ms  (program) :-1
+   119.3ms  (anon) season:66
+    84.4ms  checkClientHints season:4
+    77.5ms  (garbage collector) :-1
+    54.2ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+    51.0ms  hydrate nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7229
+    37.1ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+    21.5ms  tzOffsetMs app/utils/athlete-calendar.ts:67
+    18.8ms  attach app/routes/_home/timeline/use-timeline-scroll.ts:362
+    16.3ms  localDate app/utils/athlete-calendar.ts:48
+    16.1ms  commitHookEffectListMount nm/react-dom/cjs/react-dom-client.production.js:8571
+    15.8ms  prepareToHydrateHostInstance nm/react-dom/cjs/react-dom-client.production.js:2748
+    15.3ms  matchPath nm/react-router/dist/development/chunk-JZWAC4HX.mjs:723
+    14.3ms  commitMutationEffectsOnFiber nm/react-dom/cjs/react-dom-client.production.js:9427
+    14.2ms  nbParts app/utils/format.ts:290
+    13.9ms  getNextHydratable nm/react-dom/cjs/react-dom-client.production.js:14251
+    13.0ms  bailoutOnAlreadyFinishedWork nm/react-dom/cjs/react-dom-client.production.js:7259
+    12.6ms  propagateParentContextChanges nm/react-dom/cjs/react-dom-client.production.js:2978
+    12.3ms  ? nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7429
+    12.2ms  decodeInitial nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7471
+    12.0ms  setProp nm/react-dom/cjs/react-dom-client.production.js:12957
+    11.4ms  ? nm/scheduler/cjs/scheduler.production.js:63
+    11.3ms  ? nm/zod/v3/types.js:255
+    10.5ms  SessionRow app/routes/_home/timeline/stream.tsx:1196
+    10.4ms  unflatten nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7218
+     9.7ms  completeUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11405
+     9.6ms  recursivelyTraverseMutationEffects nm/react-dom/cjs/react-dom-client.production.js:9384
+     9.5ms  params nm/zod/v3/helpers/parseUtil.js:3
+     9.2ms  ? nm/zod/v3/locales/en.js:3
+     9.1ms  propagateContextChanges nm/react-dom/cjs/react-dom-client.production.js:2920
+     9.1ms  createFiberImplClass nm/react-dom/cjs/react-dom-client.production.js:2445
+     9.0ms  updateProperties nm/react-dom/cjs/react-dom-client.production.js:13577
+     8.6ms  ? nm/zod/v3/types.js:1936
+     8.0ms  performUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11304
+     8.0ms  bubbleProperties nm/react-dom/cjs/react-dom-client.production.js:7931
+     7.9ms  ? nm/zod/v3/types.js:14
+     7.8ms  ? nm/tailwind-merge/dist/bundle-mjs.mjs:3362
+     7.7ms  popHydrationState nm/react-dom/cjs/react-dom-client.production.js:2835
+     7.6ms  parseRecordingPhaseBars app/utils/session-profile.ts:41
+     7.6ms  ? nm/tailwind-merge/dist/bundle-mjs.mjs:362
+
+inclusive:
+  7589.3ms  (root) :-1
+  5819.2ms  (program) :-1
+  1243.8ms  performWorkUntilDeadline nm/scheduler/cjs/scheduler.production.js:121
+  1151.8ms  performWorkOnRoot nm/react-dom/cjs/react-dom-client.production.js:10681
+  1119.4ms  performWorkOnRootViaSchedulerTask nm/react-dom/cjs/react-dom-client.production.js:12065
+  1007.9ms  performUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11304
+   996.4ms  renderRootConcurrent nm/react-dom/cjs/react-dom-client.production.js:11184
+   991.4ms  workLoopConcurrentByScheduler nm/react-dom/cjs/react-dom-client.production.js:11300
+   902.4ms  beginWork nm/react-dom/cjs/react-dom-client.production.js:7392
+   738.6ms  renderWithHooks nm/react-dom/cjs/react-dom-client.production.js:4333
+   628.0ms  updateFunctionComponent nm/react-dom/cjs/react-dom-client.production.js:6489
+   208.2ms  updateSimpleMemoComponent nm/react-dom/cjs/react-dom-client.production.js:6212
+   183.1ms  updateMemoComponent nm/react-dom/cjs/react-dom-client.production.js:6160
+   178.3ms  ? nm/react/cjs/react.production.js:513
+   175.3ms  ? nm/react-dom/cjs/react-dom-client.production.js:5515
+   171.1ms  TimelineFrame app/routes/_home/timeline/home-timeline.tsx:164
+   163.4ms  ? app/routes/_home/timeline/stream.tsx:158
+   155.7ms  buildDays app/routes/_home/timeline/presenter.ts:957
+   155.7ms  weekDays app/routes/_home/timeline/presenter.ts:440
+   148.8ms  ? app/routes/_home/timeline/home-timeline.tsx:190
+   148.0ms  buildTimelineSeason app/routes/_home/timeline/presenter.ts:562
+   138.6ms  key app/routes/_home/timeline/presenter.ts:971
+   136.1ms  buildDay app/routes/_home/timeline/presenter.ts:1145
+   126.0ms  updateForwardRef nm/react-dom/cjs/react-dom-client.production.js:6126
+   123.1ms  commitRootWhenReady nm/react-dom/cjs/react-dom-client.production.js:10848
+   122.1ms  commitRoot nm/react-dom/cjs/react-dom-client.production.js:11457
+   119.3ms  (anon) season:66
+   115.2ms  monday app/routes/_home/timeline/presenter.ts:658
+   109.8ms  flushPassiveEffects nm/react-dom/cjs/react-dom-client.production.js:11741
+   109.8ms  ? nm/react-dom/cjs/react-dom-client.production.js:11497
+   109.4ms  buildWeek app/routes/_home/timeline/presenter.ts:899
+   106.6ms  row app/routes/_home/timeline/presenter.ts:1187
+    98.5ms  buildSession app/routes/_home/timeline/presenter.ts:1213
+    96.4ms  completeUnitOfWork nm/react-dom/cjs/react-dom-client.production.js:11405
+    94.5ms  commitHookEffectListMount nm/react-dom/cjs/react-dom-client.production.js:8571
+    87.2ms  decodeInitial nm/react-router/dist/development/chunk-JZWAC4HX.mjs:7471
+    86.7ms  completeWork nm/react-dom/cjs/react-dom-client.production.js:7955
+    85.2ms  (anon) season:0
+    84.4ms  checkClientHints season:4
+    81.9ms  volumeSessionOf app/utils/plan-outline/week-volumes.ts:268

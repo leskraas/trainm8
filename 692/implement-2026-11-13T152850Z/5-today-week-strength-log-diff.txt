@@ -1,0 +1,46 @@
+203,211c203,214
+< <p aria-live="polite" class="text-footnote text-muted-foreground">Henter planen …</p>
+< <form id="strength-log-cmwf2yr6r004b7dmokwibr9j7" novalidate="" class="flex flex-col gap-2" data-discover="true" action="/resources/strength-log" method="post">
+< <input id="strength-log-cmwf2yr6r004b7dmokwibr9j7-intent" form="strength-log-cmwf2yr6r004b7dmokwibr9j7" type="hidden" name="intent" value="as-planned">
+< <input id="strength-log-cmwf2yr6r004b7dmokwibr9j7-sessionId" form="strength-log-cmwf2yr6r004b7dmokwibr9j7" type="hidden" name="sessionId" value="cmwf2yr6r004b7dmokwibr9j7">
+< <div class="flex flex-wrap gap-2">
+< <button type="submit" tabindex="0" data-slot="button" aria-label="Logg Strength Circuit som planlagt" class="group/button focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 pressable relative inline-flex touch-manipulation items-center justify-center border bg-clip-padding text-sm font-medium outline-none select-none after:absolute after:inset-x-0 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-3 [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 [&amp;_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground hover:bg-primary/80 border-transparent h-11 gap-1.5 px-3 after:inset-y-0 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5 min-w-0 flex-1 rounded-full whitespace-nowrap">Som planlagt</button>
+< <button type="button" data-disabled="" tabindex="0" disabled="" data-slot="button" class="group/button focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 pressable relative inline-flex touch-manipulation items-center justify-center border bg-clip-padding text-sm font-medium outline-none select-none after:absolute after:inset-x-0 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-3 [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 [&amp;_svg:not([class*='size-'])]:size-4 border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-input/30 dark:bg-transparent h-11 gap-1.5 px-3 after:inset-y-0 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5 min-w-0 flex-1 rounded-full whitespace-nowrap">Endre</button>
+< </div>
+< </form>
+---
+> <ul class="flex flex-col gap-1">
+> <li data-quick-log-lift="cmwf2ylzt002w7dlvk6ne5axf" class="text-callout text-foreground [text-wrap:pretty]">
+> <span class="font-semibold">Knebøy</span>
+> <span class="text-muted-foreground tabular-nums"> · 5×45 s</span>
+> </li>
+> <li data-quick-log-lift="cmwf2ylzt002y7dlvyagobztb" class="text-callout text-foreground [text-wrap:pretty]">
+> <span class="font-semibold">Armhevinger</span>
+> <span class="text-muted-foreground tabular-nums"> · 5×45 s · kroppsvekt</span>
+> </li>
+> </ul>
+> <p class="text-footnote text-muted-foreground [text-wrap:pretty]">Ett av løftene har ingen fast vekt eller antall, så økta logges sett for sett. <a class="text-primary font-semibold underline underline-offset-2" href="/training/sessions/cmwf2yr6r004b7dmokwibr9j7/log" data-discover="true">Logg sett for sett</a>
+> </p>
+325,333c328,339
+< <p aria-live="polite" class="text-footnote text-muted-foreground">Henter planen …</p>
+< <form id="strength-log-cmwf2ymc200ac7dlvxyenn9ad" novalidate="" class="flex flex-col gap-2" data-discover="true" action="/resources/strength-log" method="post">
+< <input id="strength-log-cmwf2ymc200ac7dlvxyenn9ad-intent" form="strength-log-cmwf2ymc200ac7dlvxyenn9ad" type="hidden" name="intent" value="as-planned">
+< <input id="strength-log-cmwf2ymc200ac7dlvxyenn9ad-sessionId" form="strength-log-cmwf2ymc200ac7dlvxyenn9ad" type="hidden" name="sessionId" value="cmwf2ymc200ac7dlvxyenn9ad">
+< <div class="flex flex-wrap gap-2">
+< <button type="submit" tabindex="0" data-slot="button" aria-label="Logg Strength Circuit som planlagt" class="group/button focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 pressable relative inline-flex touch-manipulation items-center justify-center border bg-clip-padding text-sm font-medium outline-none select-none after:absolute after:inset-x-0 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-3 [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 [&amp;_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground hover:bg-primary/80 border-transparent h-11 gap-1.5 px-3 after:inset-y-0 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5 min-w-0 flex-1 rounded-full whitespace-nowrap">Som planlagt</button>
+< <button type="button" data-disabled="" tabindex="0" disabled="" data-slot="button" class="group/button focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 pressable relative inline-flex touch-manipulation items-center justify-center border bg-clip-padding text-sm font-medium outline-none select-none after:absolute after:inset-x-0 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-3 [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 [&amp;_svg:not([class*='size-'])]:size-4 border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-input/30 dark:bg-transparent h-11 gap-1.5 px-3 after:inset-y-0 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5 min-w-0 flex-1 rounded-full whitespace-nowrap">Endre</button>
+< </div>
+< </form>
+---
+> <ul class="flex flex-col gap-1">
+> <li data-quick-log-lift="cmwf2ylzt002w7dlvk6ne5axf" class="text-callout text-foreground [text-wrap:pretty]">
+> <span class="font-semibold">Knebøy</span>
+> <span class="text-muted-foreground tabular-nums"> · 5×45 s</span>
+> </li>
+> <li data-quick-log-lift="cmwf2ylzt002y7dlvyagobztb" class="text-callout text-foreground [text-wrap:pretty]">
+> <span class="font-semibold">Armhevinger</span>
+> <span class="text-muted-foreground tabular-nums"> · 5×45 s · kroppsvekt</span>
+> </li>
+> </ul>
+> <p class="text-footnote text-muted-foreground [text-wrap:pretty]">Ett av løftene har ingen fast vekt eller antall, så økta logges sett for sett. <a class="text-primary font-semibold underline underline-offset-2" href="/training/sessions/cmwf2ymc200ac7dlvxyenn9ad/log" data-discover="true">Logg sett for sett</a>
+> </p>

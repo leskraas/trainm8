@@ -1,0 +1,4 @@
+{"base":"http://localhost:3001","appearedAt":1770,"hydratedAtTap":false,"oldest":"2026-05-18","weekTop":2,"scrollTop":87,"strip":{"cells":52,"minWidth":"6.89","windowed":false},"seasonWeeks":52}
+{"base":"http://localhost:3000","appearedAt":1613,"hydratedAtTap":false,"oldest":"2026-05-18","weekTop":2,"scrollTop":87,"strip":{"cells":28,"minWidth":"12.78","windowed":false},"seasonWeeks":28}
+{"base":"http://localhost:3001","appearedAt":1649,"hydratedAtTap":false,"oldest":"2026-05-18","weekTop":2,"scrollTop":87,"strip":{"cells":52,"minWidth":"6.89","windowed":false},"seasonWeeks":52}
+{"base":"http://localhost:3001","appearedAt":1327,"hydratedAtTap":false,"oldest":"2026-05-18","weekTop":2,"scrollTop":87,"strip":{"cells":52,"minWidth":"6.89","windowed":false},"seasonWeeks":52}
