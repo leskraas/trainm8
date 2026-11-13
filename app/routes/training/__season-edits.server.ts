@@ -63,7 +63,7 @@ function previewView(
 }
 
 /**
- * A Season Anchor preview's rows, worded (ADR 0112 §1): each changed week of
+ * A Season Anchor preview's rows, worded (ADR 0117 §1): each changed week of
  * the edited track, before → after, with its `authored | derived` marker and
  * how a derived after-value was worked out; then the hand-set weeks held.
  */

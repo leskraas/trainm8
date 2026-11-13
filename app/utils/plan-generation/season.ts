@@ -29,6 +29,7 @@ import {
 	type CatalogueLevel,
 	type SessionArchetype,
 } from '../catalogue.ts'
+import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import {
 	type Rhythm,
 	type VolumeCurrency,
@@ -38,8 +39,10 @@ import { type PresetKey } from '../plan-outline/presets.ts'
 import { type QualityZone } from '../plan-outline/quality-mix.ts'
 import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
+import { type PrescribedDuration } from '../prescribed-duration.ts'
 import { type CardioDiscipline, type Discipline } from '../workout-schema.ts'
 import { type CapacityFit } from './capacity.ts'
+import { type PlacedFit } from './placed-hours.ts'
 import { type SessionProvenance } from './provenance.ts'
 
 /**
@@ -137,6 +140,13 @@ export type SeasonRequest = {
 	 * capacity check then says it did not run (ADR 0110).
 	 */
 	conversionContexts: Partial<Record<Discipline, ConversionContext>>
+	/**
+	 * The athlete's thresholds as a session row reads them
+	 * (`getDisciplineThresholds`, with Race Anchor paces), read on every preview
+	 * and approval. What a placed session's distance steps are timed through
+	 * (ADR 0116 §1). Never the Volume Conversion's contexts.
+	 */
+	thresholds: DisciplineThresholdMap
 }
 
 /** One block of the generated season, and the corpus facet it retrieves under. */
@@ -195,6 +205,12 @@ export type GeneratedSession = {
 	workoutId: string
 	title: string
 	provenance: SessionProvenance
+	/**
+	 * How long the Stock Workout takes as placed, through the athlete's
+	 * thresholds (`prescribedDuration`), or null when no step could be timed.
+	 * Never rescaled to fit anything (ADR 0053 §6).
+	 */
+	prescribed: PrescribedDuration | null
 }
 
 /**
@@ -253,6 +269,11 @@ export type GeneratedSeason = {
 	tracks: GenerationTrack[]
 	/** What the **Weekly Capacity** check did to the season (ADR 0110). */
 	capacity: CapacityFit
+	/**
+	 * Each week's **Placed Hours** against the **Weekly Capacity** (ADR 0110
+	 * §4, ADR 0116): stated where over, never fixed.
+	 */
+	placed: PlacedFit
 	weeks: GeneratedWeek[]
 	/** Every placed session, in season order: week, then weekday, then discipline. */
 	sessions: GeneratedSession[]

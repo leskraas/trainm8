@@ -28,7 +28,7 @@ export type TargetView = {
 	value: number | null
 	/**
 	 * Hand-set by a **Week Volume Override** rather than derived (ADR 0044 §5):
-	 * the `authored | derived` marker every after-value keeps (ADR 0112 §1).
+	 * the `authored | derived` marker every after-value keeps (ADR 0117 §1).
 	 */
 	overridden: boolean
 }

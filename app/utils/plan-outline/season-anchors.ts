@@ -1,4 +1,4 @@
-// The rules of a track's **Season Anchor** list (ADR 0040 §5, ADR 0112 §1),
+// The rules of a track's **Season Anchor** list (ADR 0040 §5, ADR 0117 §1),
 // pure, so both writers of it read them from one place: the Sesong edit
 // (`season-edit.ts`), which previews a change before it lands, and the direct
 // editor under _Avansert_ (`removeSeasonAnchorSegment` in

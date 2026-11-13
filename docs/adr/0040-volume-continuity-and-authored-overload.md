@@ -49,6 +49,8 @@ intensity-distribution literature. Two findings reframed the decision:
    both: it computes a number from other data and **throws the relation away**,
    so it goes stale silently and unrecoverably.
 
+   Named and generalized in (Derived, never authored, ADR 0112).
+
 2. **The ramp steps over loading weeks. Recovery and taper are multiplicative
    roles, not sequence participants.** A recovery week is
    `last loading week × (1 − cut)` and contributes nothing to the progression;

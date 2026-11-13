@@ -1,7 +1,7 @@
 # Sesong edits preview first, and a week target's rise is warned between loading weeks
 
 Status: Accepted · **§1 and §4 amended by
-[ADR 0112](./0112-a-season-anchor-is-corrected-behind-the-sesong-preview-and-a-fresh-start-is-pre-filled-with-the-ramps-level.md)**:
+[ADR 0117](./0117-a-season-anchor-is-corrected-behind-the-sesong-preview-and-a-fresh-start-is-pre-filled-with-the-ramps-level.md)**:
 the Season Anchor is a Sesong edit behind the preview, and the held words gain a
 span.
 

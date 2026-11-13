@@ -75,6 +75,7 @@ import { weekKeyAt } from '../plan-outline/week-keys.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { type Discipline } from '../workout-schema.ts'
 import { fitToCapacity } from './capacity.ts'
+import { readPlacedDuration, readPlacedHours } from './placed-hours.ts'
 import { readSessionProvenance } from './provenance.ts'
 import {
 	archetypesForSlot,
@@ -361,6 +362,7 @@ export function generateDeterministicSeason(
 					workoutId: entry.workoutId,
 					title: entry.title,
 					provenance: readSessionProvenance(entry),
+					prescribed: readPlacedDuration(entry, request.thresholds),
 				})
 			})
 		}
@@ -377,6 +379,16 @@ export function generateDeterministicSeason(
 			(a.discipline < b.discipline ? -1 : a.discipline > b.discipline ? 1 : 0),
 	)
 
+	// Placed Hours: how long the placed sessions take at least, against the
+	// capacity. Stated, never fixed: nothing above changes because of it (ADR
+	// 0110 §4, ADR 0116). It runs whatever the Week Target reading did.
+	const placed = readPlacedHours({
+		weekCount,
+		sessions,
+		unfilled,
+		weeklyCapacityHours: request.weeklyCapacityHours,
+	})
+
 	return {
 		generatorId: DETERMINISTIC_GENERATOR_ID,
 		presetKey: request.presetKey,
@@ -385,6 +397,7 @@ export function generateDeterministicSeason(
 		phases,
 		tracks,
 		capacity,
+		placed,
 		weeks,
 		sessions,
 		unfilled,

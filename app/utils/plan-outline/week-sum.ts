@@ -90,6 +90,7 @@ function addedIn(
 			repeatCount: block.repeatCount,
 			seriesRepeatCount: block.seriesRepeatCount,
 			betweenSeriesRestSec: block.betweenSeriesRestSec,
+			sendOff: block.sendOff == null ? null : JSON.stringify(block.sendOff),
 			// A lift states no distance or time, so a strength step carries
 			// neither and the session reads as unmeasured in km and hours.
 			steps: block.steps.map((step) => ({

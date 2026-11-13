@@ -146,7 +146,7 @@ export async function applySeasonEdit(
 				break
 			case 'season-anchor':
 				// One segment per week per track (`@@unique([trackId, fromWeekKey])`):
-				// a fresh start on a week that has one is an edit of it (ADR 0112 §1).
+				// a fresh start on a week that has one is an edit of it (ADR 0117 §1).
 				if (write.value == null) {
 					await tx.seasonAnchorSegment.deleteMany({
 						where: { trackId: write.trackId, fromWeekKey: write.fromWeekKey },

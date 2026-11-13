@@ -1,6 +1,6 @@
 /**
  * _Endre sesongen_ on the plan page (#505 stories 72–77, #673): a track's
- * Season Anchor (_Endre startnivået_, ADR 0112), a week's target (or back to
+ * Season Anchor (_Endre startnivået_, ADR 0117), a week's target (or back to
  * the plan's own), a phase's name, length and rhythm, and which week of a
  * block is the easy one — each behind a _Forhåndsvisning_ that shows the
  * weeks that change, warns where a target would rise more than 10 % over the
@@ -99,7 +99,7 @@ export type SeasonEditPreviewView = Pick<
 	warnings: string[]
 	/** The edit as posted, so the confirm posts the same one. */
 	edit: SeasonEdit
-	/** A Season Anchor edit's rows and held weeks, worded (ADR 0112 §1). */
+	/** A Season Anchor edit's rows and held weeks, worded (ADR 0117 §1). */
 	anchor?: SeasonAnchorPreviewView
 }
 
@@ -278,7 +278,7 @@ export function SeasonEditsCard({
 	weeks: SeasonWeek[]
 	phases: SeasonPhase[]
 	tracks: SeasonTrack[]
-	/** The tracks _Endre startnivået_ takes (ADR 0112 §1). */
+	/** The tracks _Endre startnivået_ takes (ADR 0117 §1). */
 	anchorChoices?: SeasonAnchorChoice[]
 	firstUnbegunWeekKey: string
 	reply: SeasonEditReply | null
@@ -959,7 +959,7 @@ function fieldFigure(value: number | null, currency: VolumeCurrency): string {
 }
 
 /**
- * The ramp's level as a fresh start's pre-fill (ADR 0112 §2): to three
+ * The ramp's level as a fresh start's pre-fill (ADR 0117 §2): to three
  * decimals, not to the currency's precision — the weeks after it climb from
  * this number, and a level cut to a tenth would move a later week's figure
  * across a rounding edge, so an untouched pre-fill would no longer leave them
@@ -1038,7 +1038,7 @@ function anchorDefaults(
 }
 
 /**
- * _Endre startnivået_ (#673, ADR 0112): a track's Season Anchor, in one form
+ * _Endre startnivået_ (#673, ADR 0117): a track's Season Anchor, in one form
  * with three acts — a fresh start from a week, a segment's value, or a
  * re-anchor taken back — and one preview. Reached from the lead's _Endre
  * volumet_ (`?edit=season-anchor&trackId=…`), opened on the act that will not

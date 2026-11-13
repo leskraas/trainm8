@@ -6,6 +6,14 @@ import {
 	passthroughHandlers as intervalsIcuPassthroughHandlers,
 } from './intervalsicu.ts'
 import {
+	handlers as kartverketHandlers,
+	passthroughHandlers as kartverketPassthroughHandlers,
+} from './kartverket.ts'
+import {
+	handlers as metNorwayHandlers,
+	passthroughHandlers as metNorwayPassthroughHandlers,
+} from './met-norway.ts'
+import {
 	handlers as polarHandlers,
 	passthroughHandlers as polarPassthroughHandlers,
 } from './polar.ts'
@@ -31,6 +39,12 @@ const mockIntervalsIcu =
 const mockPolar =
 	process.env.NODE_ENV === 'test' || process.env.MOCK_POLAR === 'true'
 
+// MET Norway's forecast and Kartverket's place search (ADR 0115): mocked in
+// tests, opt-in mock in dev (MOCK_WEATHER=true); otherwise the real, keyless
+// services answer.
+const mockWeather =
+	process.env.NODE_ENV === 'test' || process.env.MOCK_WEATHER === 'true'
+
 export const server = setupServer(
 	...resendHandlers,
 	...githubHandlers,
@@ -41,6 +55,8 @@ export const server = setupServer(
 		? intervalsIcuHandlers
 		: intervalsIcuPassthroughHandlers),
 	...(mockPolar ? polarHandlers : polarPassthroughHandlers),
+	...(mockWeather ? metNorwayHandlers : metNorwayPassthroughHandlers),
+	...(mockWeather ? kartverketHandlers : kartverketPassthroughHandlers),
 )
 
 server.listen({

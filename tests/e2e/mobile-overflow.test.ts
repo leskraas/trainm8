@@ -232,6 +232,7 @@ test('onboarding does not overflow at 390px', async ({ page, navigate }) => {
 	const cookieConfig = setCookieParser.parseString(
 		await verifySessionStorage.commitSession(verifySession),
 	)
+	if (!cookieConfig) throw new Error('The verify cookie did not parse')
 	await page.context().addCookies([
 		{
 			...cookieConfig,
