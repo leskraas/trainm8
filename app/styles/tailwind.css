@@ -176,7 +176,7 @@
 	--phase-peak: oklch(0.64 0.12 35);
 	--phase-taper: oklch(0.68 0.08 160);
 
-	/* ── Training Zones (ADR 0113 §3) ────────────────────────────────── */
+	/* ── Training Zones (ADR 0117 §3) ────────────────────────────────── */
 
 	/* The Z1–Z5 intensity ladder (blue → red). Marks only (a bar, a strip
 	 * cell, a chart fill, a chip tint), never text: each reaches ≥ 3:1 on
@@ -248,7 +248,7 @@
 	--phase-peak: oklch(0.62 0.11 35);
 	--phase-taper: oklch(0.62 0.08 160);
 
-	/* Training Zones (ADR 0113 §3): the same ladder a step lighter, so each
+	/* Training Zones (ADR 0117 §3): the same ladder a step lighter, so each
 	 * mark reads on dark ground without glowing (≥ 5.5:1 on `card`). */
 	--zone-1: oklch(0.72 0.11 250);
 	--zone-2: oklch(0.72 0.12 160);

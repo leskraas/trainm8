@@ -1,4 +1,4 @@
-// `trainm8/luma-steps` (ADR 0113 §2): page code stays on the luma radius steps
+// `trainm8/luma-steps` (ADR 0117 §2): page code stays on the luma radius steps
 // and the type scale (ADR 0085, docs/design/design-system.md). It reads every
 // string literal and template chunk, splits it into classes, drops variant
 // prefixes (`md:`, `data-[open]:`, `!`) and reports an off-scale corner

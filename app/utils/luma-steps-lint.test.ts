@@ -2,7 +2,7 @@ import path from 'node:path'
 import { ESLint } from 'eslint'
 import { beforeAll, describe, expect, test } from 'vitest'
 
-// The luma-steps guard (ADR 0113 §2), tested through the real eslint.config.js:
+// The luma-steps guard (ADR 0117 §2), tested through the real eslint.config.js:
 // what it rejects, where it applies, and that the native-<select> guard beside
 // it still fires.
 const root = path.resolve(import.meta.dirname, '../..')

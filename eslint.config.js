@@ -34,7 +34,7 @@ export default [
 			],
 		},
 	},
-	// Luma steps guard (ADR 0113 §2): page code uses the luma radius steps and
+	// Luma steps guard (ADR 0117 §2): page code uses the luma radius steps and
 	// the type scale (ADR 0085, docs/design/design-system.md). A local rule of
 	// its own, so its scope never shadows the `no-restricted-syntax` guards.
 	// Generated primitives, admin, marketing, SEO, auth (the Epic marketing
