@@ -27,7 +27,6 @@ import {
 	getAthleteTimezone,
 	readAvailablePatternDays,
 } from '../athlete.server.ts'
-import { plannedMinutes } from '../prescribed-duration.ts'
 import { prisma } from '../db.server.ts'
 import { readEffortWord } from '../effort-word.ts'
 import { liftDisplayName } from '../exercise-aliases-nb.ts'
@@ -54,6 +53,7 @@ import {
 	clearPlanWeek,
 	KEPT_PLAN_SESSION,
 } from '../plan-outline/week-sessions.server.ts'
+import { plannedMinutes } from '../prescribed-duration.ts'
 import { createSimpleActivityWorkout } from '../simple-activity.server.ts'
 import { getActiveSeason, getDisciplineThresholds } from '../training.server.ts'
 import {

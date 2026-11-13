@@ -11,12 +11,12 @@ import {
 	ToggleGroup,
 	ToggleGroupItem,
 } from '#app/components/ui/toggle-group.tsx'
+import { type StrengthPerWeek } from '#app/utils/first-run/start-draft.ts'
 import {
 	NB_DISCIPLINE_LABELS,
 	SIMPLE_ACTIVITY_LABELS,
 	SIMPLE_START_LABELS,
 } from '#app/utils/labels.ts'
-import { type StrengthPerWeek } from '#app/utils/first-run/start-draft.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	ACTIVITY_KINDS,
@@ -30,7 +30,7 @@ import {
 const L = SIMPLE_START_LABELS
 
 /** The list's value for _Styrke_, beside the sports and Activity Kinds. */
-export const STRENGTH_CHOICE = 'strength'
+const STRENGTH_CHOICE = 'strength'
 
 /** A sport's mark is its track hue (design-system: hues are for marks). */
 const SPORT_MARK: Record<CardioDiscipline, string> = {
@@ -92,10 +92,7 @@ export function ActivityChips({
 	onPressedChange,
 	withStrength,
 	invalid,
-	label,
 }: {
-	/** The group's name, where no legend around it names it. */
-	label?: string
 	pressed: string[]
 	onPressedChange: (next: string[]) => void
 	/** _Styrke_ is offered where there is a session for a lifting day to copy. */
@@ -131,7 +128,6 @@ export function ActivityChips({
 			value={pressed}
 			onValueChange={(next) => onPressedChange(next as string[])}
 			aria-invalid={invalid ? true : undefined}
-			aria-label={label}
 			className="w-full flex-wrap"
 		>
 			{choices.map((choice) => (

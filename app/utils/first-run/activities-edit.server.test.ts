@@ -4,9 +4,10 @@ import {
 	weekBoundsFromMondayUTC,
 	weekdayIndex,
 } from '#app/utils/athlete-calendar.ts'
-import { plannedMinutes } from '#app/utils/prescribed-duration.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { trackRetiredAt } from '#app/utils/plan-outline/from-rows.ts'
+import type * as StampServer from '#app/utils/plan-outline/stamp.server.ts'
+import { plannedMinutes } from '#app/utils/prescribed-duration.ts'
 import { getSeasonForOutline } from '#app/utils/training.server.ts'
 import { buildBlocksCreate } from '#app/utils/workout.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
@@ -20,19 +21,15 @@ import {
 	readPlanStartOptions,
 } from './plan-start-options.server.ts'
 import { createFirstRunPlan } from './plan.server.ts'
+import type * as StartStrength from './start-strength.server.ts'
 
 /** Weeks whose stamp refuses, to drive the apply's fallback. */
 const refusing = vi.hoisted(() => new Set<string>())
 vi.mock('#app/utils/plan-outline/stamp.server.ts', async (importOriginal) => {
-	const actual =
-		await importOriginal<
-			typeof import('#app/utils/plan-outline/stamp.server.ts')
-		>()
+	const actual = await importOriginal<typeof StampServer>()
 	return {
 		...actual,
-		stampWeekPattern: (
-			...args: Parameters<typeof actual.stampWeekPattern>
-		) =>
+		stampWeekPattern: (...args: Parameters<typeof actual.stampWeekPattern>) =>
 			args[1].weekKeys.some((weekKey) => refusing.has(weekKey))
 				? Promise.resolve({ ok: false as const, reason: 'nothing-to-stamp' })
 				: actual.stampWeekPattern(...args),
@@ -41,21 +38,21 @@ vi.mock('#app/utils/plan-outline/stamp.server.ts', async (importOriginal) => {
 
 /** True while no lifting session can be copied, as when the stock one is gone. */
 const noLiftingSession = vi.hoisted(() => ({ on: false }))
-vi.mock('#app/utils/first-run/start-strength.server.ts', async (importOriginal) => {
-	const actual =
-		await importOriginal<
-			typeof import('#app/utils/first-run/start-strength.server.ts')
-		>()
-	return {
-		...actual,
-		readStartStrength: (
-			...args: Parameters<typeof actual.readStartStrength>
-		) =>
-			noLiftingSession.on
-				? Promise.resolve(null)
-				: actual.readStartStrength(...args),
-	}
-})
+vi.mock(
+	'#app/utils/first-run/start-strength.server.ts',
+	async (importOriginal) => {
+		const actual = await importOriginal<typeof StartStrength>()
+		return {
+			...actual,
+			readStartStrength: (
+				...args: Parameters<typeof actual.readStartStrength>
+			) =>
+				noLiftingSession.on
+					? Promise.resolve(null)
+					: actual.readStartStrength(...args),
+		}
+	},
+)
 
 // Editing the activities in Meg, against the database (#587, ADR 0109): a
 // plan the start made, lived a week, and the edit previewed, confirmed and
@@ -442,7 +439,7 @@ test('the same activities, or none, write nothing; a plan toward an Event is not
 	})
 })
 
-test('when the boundary week will not stamp, the old activities\' sessions are cleared from it and the refusal is logged', async () => {
+test("when the boundary week will not stamp, the old activities' sessions are cleared from it and the refusal is logged", async () => {
 	const { userId } = await startPlan()
 	const own = await authoredHardSession(userId, '2030-01-22')
 	expect(
@@ -460,9 +457,9 @@ test('when the boundary week will not stamp, the old activities\' sessions are c
 	}
 	const after = await sessionsIn(userId, BOUNDARY)
 	// No session the old activities laid is left: the removed sport is gone.
-	expect(
-		after.some((session) => session.workout?.discipline === 'bike'),
-	).toBe(false)
+	expect(after.some((session) => session.workout?.discipline === 'bike')).toBe(
+		false,
+	)
 	// The athlete's own session stays.
 	expect(after.map((session) => session.id)).toContain(own.id)
 	expect(consoleError).toHaveBeenCalledWith(

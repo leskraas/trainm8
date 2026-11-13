@@ -50,6 +50,7 @@ import { type Route } from './+types/level.ts'
 import {
 	activitiesAction,
 	activitiesViewOf,
+	noPlanActivities,
 } from './__activities-edit.server.ts'
 import { ActivitiesSection } from './__activities-edit.tsx'
 import { MegNote, MegResult } from './__meg-ui.tsx'
@@ -75,15 +76,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getActiveSeason(userId, now),
 	])
 	// The plan's activities from the first week not yet begun: where an edit
-	// would begin, and what it would change (ADR 0109).
-	const from = season
-		? await readFirstUnbegunWeekKey(userId, now, season.timezone)
-		: null
-	const reading = await readPlanStartAnswers(userId, season, from ?? '', now)
-	return {
-		...answers,
-		activities: activitiesViewOf(season, reading, from ?? ''),
-	}
+	// would begin, and what it would change (ADR 0109). With no plan there is
+	// no such week, and nothing to read.
+	if (!season) return { ...answers, activities: noPlanActivities() }
+	const from = await readFirstUnbegunWeekKey(userId, now, season.timezone)
+	const reading = await readPlanStartAnswers(userId, season, from, now)
+	return { ...answers, activities: activitiesViewOf(season, reading, from) }
 }
 
 export async function action({ request }: Route.ActionArgs) {

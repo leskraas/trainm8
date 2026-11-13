@@ -72,19 +72,22 @@ export type ActivitiesView =
 			stands: string
 	  }
 
+/** What _Meg_ shows where there is no plan to read activities off. */
+export function noPlanActivities(): ActivitiesView {
+	return { kind: 'none', text: SESSION_PREFERENCE_LABELS.meg.activitiesNone }
+}
+
 /**
  * The plan's activities as _Meg_ shows them: the editor, pre-filled with the
  * plan's activities now, where the edit can lay the plan; else the plan's
  * activities read-only, retired tracks left out, and why; else nothing.
  */
 export function activitiesViewOf(
-	season: Pick<AuthoredSeason, 'tracks'> | null,
+	season: Pick<AuthoredSeason, 'tracks'>,
 	reading: PlanStartAnswersReading,
 	fromWeekKey: string,
 ): ActivitiesView {
-	if (!season || (!reading.ok && reading.reason === 'no-plan')) {
-		return { kind: 'none', text: SESSION_PREFERENCE_LABELS.meg.activitiesNone }
-	}
+	if (!reading.ok && reading.reason === 'no-plan') return noPlanActivities()
 	if (!reading.ok || reading.readOnly) {
 		const names = [
 			...new Set(
@@ -154,13 +157,18 @@ export function previewViewOf(
 	const { splice, start, choice } = preview
 	const option = { ...start.options[0]!, week: preview.week }
 	const from = splice.boundaryWeekKey
-	const card = weekCardOf(option, result.hours, choice.strength)
-	if (preview.keptMinutes > 0) {
-		card.total = W.totalSplit(
-			minutesLabel(preview.plannedMinutes),
-			minutesLabel(preview.keptMinutes),
-		)
-	}
+	const laid = weekCardOf(option, result.hours, choice.strength)
+	// When the athlete's kept sessions add time, the total says which is which.
+	const card: StartWeekCard =
+		preview.keptMinutes > 0
+			? {
+					...laid,
+					total: W.totalSplit(
+						minutesLabel(preview.plannedMinutes),
+						minutesLabel(preview.keptMinutes),
+					),
+				}
+			: laid
 	const familyName = PHILOSOPHY_LABELS[preview.family]
 	const notes: string[] = []
 	if (start.sportsLeftOut.length > 0) {

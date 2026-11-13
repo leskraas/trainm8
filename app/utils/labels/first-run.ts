@@ -385,7 +385,8 @@ export const ACTIVITIES_EDIT_LABELS = {
 	changedSince:
 		'Du har endret valgene etter forhåndsvisningen. Trykk Vis ny uke for å se uka de gir.',
 	/** A confirm posted without the preview it confirms. */
-	previewFirst: 'Trykk Vis ny uke og se uka før du bekrefter. Ingenting er endret.',
+	previewFirst:
+		'Trykk Vis ny uke og se uka før du bekrefter. Ingenting er endret.',
 	/** `Ny uke · uke 46`: the ISO week the edit begins in. */
 	overline: (isoWeek: number) => `Ny uke · uke ${isoWeek}`,
 	/** `Fra mandag 9. november`. */
@@ -426,8 +427,10 @@ export const ACTIVITIES_EDIT_LABELS = {
 	pinnedRow: (track: string, days: readonly string[]) =>
 		`${track}: ${nbJoin(days)}`,
 	overridesTitle: 'Timer du har satt selv på en uke, fjernes',
-	/** `uke 47 (16. november)`: one cleared week, never split across lines. */
-	/** One cleared week, held on one line (non-breaking spaces). */
+	/**
+	 * `uke 47 (16. november)`: one cleared week, held on one line
+	 * (non-breaking spaces).
+	 */
 	overrideWeek: (isoWeek: number, monday: string) =>
 		`uke\u00a0${isoWeek}\u00a0(${monday.replace(/ /g, '\u00a0')})`,
 	confirm: 'Bekreft',

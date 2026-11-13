@@ -70,17 +70,17 @@ type ShownBlock = SketchBlock & {
 }
 
 /**
- * Each day's blocks as places in its column: lifting on top of the sessions,
- * the stack resting on the baseline, sessions taller for longer and shrunk
- * together when a day holds more than fits.
- */
-/**
  * The athlete's own session in a week the plan is laid again around it
  * (ADR 0109 §5): outlined, so the picture says which blocks are theirs, as
  * the _Din_ badge beside its row does.
  */
 const KEPT_OUTLINE = 'ring-2 ring-inset ring-foreground/70'
 
+/**
+ * Each day's blocks as places in its column: lifting on top of the sessions,
+ * the stack resting on the baseline, sessions taller for longer and shrunk
+ * together when a day holds more than fits.
+ */
 function sketchBlocks(sketch: Sketch, neutral: boolean): SketchBlock[] {
 	const longest = Math.max(
 		1,
