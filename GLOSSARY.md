@@ -2072,9 +2072,11 @@ widget, journey card, progress card, plan banner
 
 **Account Connection**: An athlete's authorized link to an external training
 service account (Strava, Intervals.icu, Garmin, Polar) used to exchange training
-data. One per athlete per external account. The external account ID is stored as
+data. One per athlete per external account, and a Polar account links to at most
+one athlete (ADR 0117). The external account ID is stored as
 `externalAthleteId`. Credentials vary by provider: an OAuth token pair that
-refreshes and expires (Strava), or a personal API key that does neither
+refreshes and expires (Strava), an OAuth token that expires and cannot be
+refreshed (Polar: reconnect), or a personal API key that does neither
 (Intervals.icu) — key-based connections have no refresh token or expiry. Carries
 a `status`: `active`, `expired`, `revoked`, or `error`. `expired` is
 self-healing via background token refresh, is not surfaced to the athlete, and
@@ -2106,7 +2108,9 @@ window** (ADR 0013, amended #151): it goes back far enough to collect at least
 `BACKFILL_TARGET_SESSIONS` (50) modeled-discipline workouts — so an infrequent
 athlete still gets a meaningful history — bounded below by a `BACKFILL_MIN_DAYS`
 (42, the CTL window) floor so Training Load is always seeded, and above by a
-`BACKFILL_MAX_DAYS` (365) age cap. Backfill runs as a background job (not
+`BACKFILL_MAX_DAYS` (365) age cap. Where the provider bounds the history it
+serves, the reach is everything it lists (Polar: the last 30 days, and only what
+reached Flow after connecting). Backfill runs as a background job (not
 synchronous with connect) and auto-promotes imports without a same-day planned
 Workout Session to recording-only Workout Sessions. _Avoid_: Initial sync,
 history sync, "the 42-day window" (42 days is now only the minimum floor).
@@ -2907,14 +2911,14 @@ this number and never the **Week Target**. _Avoid_: Planned load (that is
 Planned TSS, per session), week sum.
 
 **Placed Hours**: How long one generated **Training Week**'s placed endurance
-sessions take **at least**, in hours: every step the **Workout Reading** can time
-through the athlete's own thresholds, a **Send-Off** rep at its cycle time, summed.
-Exact only when every placed session was timed end to end and no slot went
-unfilled; otherwise a floor, and it reads _minst_. Read in the generate preview
-against the **Weekly Capacity** and stated, never fixed, where it is over (ADR
-0110 §4, ADR 0116). Not **Planned Volume**, which drops a whole session for one
-untimed step, so the two may differ on the same week. _Avoid_: Planned hours,
-session hours, week duration.
+sessions take **at least**, in hours: every step the **Workout Reading** can
+time through the athlete's own thresholds, a **Send-Off** rep at its cycle time,
+summed. Exact only when every placed session was timed end to end and no slot
+went unfilled; otherwise a floor, and it reads _minst_. Read in the generate
+preview against the **Weekly Capacity** and stated, never fixed, where it is
+over (ADR 0110 §4, ADR 0116). Not **Planned Volume**, which drops a whole
+session for one untimed step, so the two may differ on the same week. _Avoid_:
+Planned hours, session hours, week duration.
 
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the
