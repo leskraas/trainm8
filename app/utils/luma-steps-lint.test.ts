@@ -60,6 +60,28 @@ export const a = cn('rounded-md', \`p-2 data-[open]:!text-xs\`)
 		])
 	})
 
+	test('bare `rounded`, `rounded-xs` and the large raw sizes fail too', async () => {
+		const code = `export function A() {
+	return <div className="rounded rounded-t-xs text-4xl md:text-6xl">x</div>
+}
+`
+		const messages = await luma(code, 'app/routes/training/plan.tsx')
+		expect(messages.map((m) => m.message)).toEqual([
+			expect.stringMatching(/^`rounded` is off the luma radius steps/),
+			expect.stringMatching(/^`rounded-t-xs` is off the luma radius steps/),
+			expect.stringMatching(/^`text-4xl` is a raw text size/),
+			expect.stringMatching(/^`text-6xl` is a raw text size/),
+		])
+	})
+
+	test('every luma step and data-mark corner passes', async () => {
+		const code = `export function A() {
+	return <div className="rounded-full rounded-[3px] rounded-2xl rounded-none text-body text-footnote text-caption text-heading text-title text-muted-foreground">x</div>
+}
+`
+		expect(await luma(code, 'app/routes/training/plan.tsx')).toEqual([])
+	})
+
 	test('the luma steps pass', async () => {
 		expect(await luma(onSteps, 'app/routes/training/plan.tsx')).toEqual([])
 	})

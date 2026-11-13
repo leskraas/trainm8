@@ -2,15 +2,16 @@
 // and the type scale (ADR 0085, docs/design/design-system.md). It reads every
 // string literal and template chunk, splits it into classes, drops variant
 // prefixes (`md:`, `data-[open]:`, `!`) and reports an off-scale corner
-// (`rounded-*-sm/md/lg/xl`) or a raw text size (`text-xs` … `text-3xl`),
-// naming the step to use by role. A local rule of its own, so its scope never
+// (bare `rounded`, `rounded-*-xs/sm/md/lg/xl`) or a raw text size (`text-xs`
+// … `text-9xl`), naming the step to use by role. A local rule of its own, so its scope never
 // shadows the `no-restricted-syntax` guards beside it.
 
 const DOC = 'docs/design/design-system.md'
 
+// Bare `rounded` (4px) and `rounded-xs` (2px) are sharper than the steps too.
 const RADIUS =
-	/^rounded(?:-(?:t|r|b|l|s|e|tl|tr|br|bl|ss|se|es|ee))?-(?:sm|md|lg|xl)$/
-const TEXT = /^text-(?:xs|sm|base|lg|xl|2xl|3xl)(?:\/[\w.[\]-]+)?$/
+	/^rounded(?:-(?:t|r|b|l|s|e|tl|tr|br|bl|ss|se|es|ee))?(?:-(?:xs|sm|md|lg|xl))?$/
+const TEXT = /^text-(?:xs|sm|base|lg|xl|[2-9]xl)(?:\/[\w.[\]-]+)?$/
 
 /** Strips variant prefixes: everything up to the last `:` outside brackets,
  * then a leading or trailing `!`. */

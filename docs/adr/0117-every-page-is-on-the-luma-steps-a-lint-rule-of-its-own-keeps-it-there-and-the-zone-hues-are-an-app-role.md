@@ -33,20 +33,20 @@ ones measured 2.0–2.8:1 on `card`, under the 3:1 a graphical mark needs.
    prototype files are left as they are.
 
 2. **A local ESLint rule, `trainm8/luma-steps`, keeps page code there.** It
-   reads every string and template literal in its files and reports each
-   `rounded(-side)-sm/md/lg/xl` and `text-xs…3xl` class token (with any variant
-   prefix), naming the luma step to use and pointing at the design system doc.
-   It is its own rule, not another `no-restricted-syntax` entry: flat config
-   replaces a rule's options per matching block instead of merging them, and
-   this guard's files (all of `app/`, minus its exemptions) differ from both the
-   native-`<select>` guard's (route files) and the user-delete guard's (all
-   code), so sharing the rule would need one block per overlap, each listing
-   every restriction, and a missed block silently drops a guard. A rule of its
-   own has one block and cannot shadow the others or be shadowed. Like the
-   native-`<select>` guard it leaves out the admin, marketing, SEO and auth
-   routes (and the auth shell), and it also leaves out `app/components/ui`, the
-   prototype files and tests. A deliberate exception is an
-   `eslint-disable-next-line trainm8/luma-steps` with its reason.
+   reads every string and template literal in its files and reports each bare
+   `rounded`, `rounded(-side)-xs/sm/md/lg/xl` and `text-xs…9xl` class token
+   (with any variant prefix), naming the luma step to use and pointing at the
+   design system doc. It is its own rule, not another `no-restricted-syntax`
+   entry: flat config replaces a rule's options per matching block instead of
+   merging them, and this guard's files (all of `app/`, minus its exemptions)
+   differ from both the native-`<select>` guard's (route files) and the
+   user-delete guard's (all code), so sharing the rule would need one block per
+   overlap, each listing every restriction, and a missed block silently drops a
+   guard. A rule of its own has one block and cannot shadow the others or be
+   shadowed. Like the native-`<select>` guard it leaves out the admin,
+   marketing, SEO and auth routes (and the auth shell), and it also leaves out
+   `app/components/ui`, the prototype files and tests. A deliberate exception is
+   an `eslint-disable-next-line trainm8/luma-steps` with its reason.
 
 3. **`zone-1…5` is a permanent app role with light and dark values.** shadcn has
    no intensity role, and `chart-1…5` are categorical, so mapping zones onto

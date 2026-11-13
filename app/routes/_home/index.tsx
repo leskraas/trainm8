@@ -102,6 +102,7 @@ function MarketingLanding() {
 					</a>
 					<h1
 						data-heading
+						// eslint-disable-next-line trainm8/luma-steps -- the logged-out Epic landing keeps the marketing scale
 						className="animate-slide-top text-foreground xl:animate-slide-left mt-8 text-4xl font-medium [animation-delay:0.3s] [animation-fill-mode:backwards] md:text-5xl xl:mt-4 xl:text-6xl xl:[animation-delay:0.8s] xl:[animation-fill-mode:backwards]"
 					>
 						<a href="https://www.epicweb.dev/stack">The Epic Stack</a>

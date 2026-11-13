@@ -398,7 +398,7 @@ export function ChartFigure({
 				<svg
 					viewBox={`0 0 ${width} ${height}`}
 					preserveAspectRatio="none"
-					className="focus-visible:outline-ring absolute inset-0 size-full touch-manipulation rounded focus-visible:outline-2 focus-visible:outline-offset-2"
+					className="focus-visible:outline-ring absolute inset-0 size-full touch-manipulation rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2"
 					role="img"
 					aria-label={ariaLabel}
 					{...inspect?.surfaceProps}
