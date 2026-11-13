@@ -25,10 +25,15 @@ value under ADR 0098.
 `Event.distanceM` (exact metres, nullable) says how far the race is. A value
 equal to a **Race Anchor** is stored as that anchor's metres
 (`RACE_ANCHOR_DISTANCE_M`, so a half marathon is 21 097), anything else as
-typed. Only a run-only race or time trial carries one; saving an Event that is
-not one clears it. It is not the Event Target's `distance` kind: a target is a
-goal ("run 30 km"), the Event Distance is a fact about the course, and the
-glossary already keeps goals and results apart.
+typed. "Equal" has a 10 m tolerance on what the athlete _types_, because `21,1`
+and `42,2` are how athletes write the half and the full, and a typed `10,01`
+means the 10 km race: the km field snaps within 10 m of an anchor and stores the
+anchor. The _measured_ distance is never snapped — the ±5 % check and the
+glossary's exact match still hold, so no pace the athlete never ran lands behind
+a `5k pace` target. Only a run-only race or time trial carries one; saving an
+Event that is not one clears it. It is not the Event Target's `distance` kind: a
+target is a goal ("run 30 km"), the Event Distance is a fact about the course,
+and the glossary already keeps goals and results apart.
 
 ### 2. An Event's result is a stored row with its provenance, and one function keeps it true
 
@@ -98,6 +103,36 @@ that sets every 10 km-fart session's pace is Garmin data on those sessions.
   was computed from: the binding set is stored beside the Planned TSS when it is
   computed, and every reader that sends Planned TSS passes it on (a week total
   unions its sessions').
+
+### 5. What this stores, in the principle's terms (Derived, never authored, ADR 0112)
+
+Two values here are stored and neither is authored, so both are materializations
+under ADR 0112 §3:
+
+- **An Event's result row** (§2). Every input it is computed from is still held
+  — the Event, its result session and that session's Recording — and the
+  reconcile recomputes it from them. Its recompute triggers are the paths §2
+  enumerates: every change to the Event, its result session, its Recording
+  (including a source refreshing it, a duplicate aliased onto it, and a re-dated
+  result session), and the Event Distance.
+- **The Planned TSS binding set** (`WorkoutSession.plannedTssOrigins`, §4). It
+  is a bake beside `plannedTssValue` (ADR 0019 §2), written by the same
+  computation and on the same triggers, because a done session keeps the Planned
+  TSS it was computed with and must keep what that number was computed from.
+
+**The explanation owed (§4).** The numbers an Event's result moves are a
+`racePace` target's pace and the Planned TSS of sessions still `scheduled`. They
+move because the athlete linked the session they raced, or set the Event
+Distance — their own act, in the same visit — so ADR 0112 §4's silent-movement
+case is not met. The explanation is the line the Event page's result section
+reads off the resolver's choice ("Øktene med 10 km-fart regner farten fra denne
+tida"), and _Løpsresultater_'s _I bruk_ mark. No notice mechanism is added.
+
+**ADR 0112 §3's open question stays open.** Whether a completed session's
+Planned TSS freezes at completion is not decided here. This ADR keeps today's
+behaviour — a **Performance Result** recomputes only `scheduled` sessions — and
+stores the binding set beside the number so that a done session's credit stays
+true for the number it actually holds. A later ADR may still freeze it.
 
 ## Considered options
 

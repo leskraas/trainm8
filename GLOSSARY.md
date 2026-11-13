@@ -445,8 +445,11 @@ provenance-free shape), baked range, effective target
 
 **Race Anchor**: One of the six race distances a `racePace` **Intensity Target**
 may name and a **Performance Result** resolves at: 1500 m, 3 km, 5 km, 10 km,
-half marathon, marathon. Matched to the metre. _Avoid_: Standard distance, race
-distance (that is the **Event Distance**)
+half marathon, marathon. Matched to the metre. In athlete-facing Norwegian the
+word is **standarddistanse** ("7,5 km er ingen standarddistanse"), the plain
+word for it; the _Avoid_ below is about naming the concept in code and docs.
+_Avoid_: Standard distance (as the concept's name), race distance (that is the
+**Event Distance**)
 
 **Race Equivalence**: _Rung 1 built (#449); the conversion models are not._ The
 athlete's own **Performance Result** at the named distance resolves a `racePace`
@@ -1247,7 +1250,10 @@ TSS — neither a `recorded` session nor a `detected` one whose **Workout** was
 auto-materialized by a **Structure Detection** — because a plan reconstructed
 from the session's own actuals would grade itself as ~perfect adherence by
 construction; its **Adherence Band** stays unavailable ("—") (ADR 0034).
-_Avoid_: Target load, expected TSS
+Stored with its **Binding Set**, because a Planned TSS computed from a
+`racePace` target that resolved against an **Event Result** is that Recording's
+derived data and travels with the number (ADR 0117 §4). _Avoid_: Target load,
+expected TSS
 
 **Adherence Band**: The three-state comparison of actual to Planned TSS —
 `under`, `on-target`, or `over` — surfaced on the **Stream** row's compliance
@@ -2133,6 +2139,15 @@ Intervals.icu has Garmin as its Origin Platform, and keeps it after the bridge
 is gone. Attribution and `source-terms` read the Origin Platform, never the
 transport (ADR 0096, ADR 0098). _Avoid_: Source (Intervals.icu's field name,
 ambiguous), provider, transport, origin device
+
+**Binding Set**: Every **Origin Platform** behind a value: its own for an
+import's data, the union of the ones a computation read for a derived value,
+and empty for what the athlete wrote or trainm8 placed (ADR 0098 §1). It is
+what the `source-terms` gate and the attribution lines are looked up by, so a
+value may reach a surface only if every platform in its set allows it. Usually
+computed on read; **Planned TSS** is the exception that stores its own, so a
+session keeps what its number was computed from (ADR 0117 §4). _Avoid_:
+Sources, provenance set, origins (the column name, not the term)
 
 **Import Alias**: A second source's record of an activity trainm8 already holds
 as an **Activity Import** — the same FIT file, or a run whose start and duration

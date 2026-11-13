@@ -231,6 +231,13 @@ app-wide. Verified on the built CSS: every `:hover` rule sits inside that query.
 Icons in every primitive are the Tabler sprite `Icon` (icon workflow); no
 `@tabler/icons-react` or `lucide-react` import remains.
 
+`ToggleGroupField` is multi-choice and `flex-1`. A **single-choice wrapping pill
+row** (the Event Distance picker, #670) is the sanctioned variant for one choice
+out of many that must all stay visible: the same `h-11` pill, one hidden input,
+and a tinted pressed state (`bg-primary/10`, `ring-primary/45`) rather than the
+filled `bg-primary` — filled would read as several pills selected at once in a
+row that wraps.
+
 ## Review: before → after
 
 The `base-rhea` components as they stood, reviewed against Emil's rules and then

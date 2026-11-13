@@ -1,3 +1,17 @@
+-- **An Event's result is read from its Recording** (#670, ADR 0117). The Event
+-- says how far the race was, the result row says which Event and which
+-- Recording it came from, and a Workout Session keeps the binding set of the
+-- results its Planned TSS was computed from (ADR 0098 §1).
+--
+-- Schema: `Event.distanceM`, `PerformanceResult.eventId` (unique, cascade) and
+-- `.activityImportId` (cascade, indexed), `WorkoutSession.plannedTssOrigins`.
+-- Every column is new and nullable. `PerformanceResult` is redefined only
+-- because SQLite adds foreign keys that way: all ten existing columns are
+-- copied across for every row.
+--
+-- No stored number moves. Planned TSS and every existing result stay exactly as
+-- they are until a reconcile runs for an Event that has a result.
+
 -- AlterTable
 ALTER TABLE "Event" ADD COLUMN "distanceM" INTEGER;
 
