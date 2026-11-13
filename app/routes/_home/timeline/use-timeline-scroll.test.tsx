@@ -17,9 +17,11 @@
  */
 import { act, fireEvent, render } from '@testing-library/react'
 import { useCallback, useRef, useState } from 'react'
+import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
 	AHEAD_INITIAL,
+	AHEAD_LANDING,
 	AHEAD_STEP,
 	AWAY_MARGIN,
 	LANDING_GAP,
@@ -293,6 +295,24 @@ describe('landing on today', () => {
 			TODAY_INDEX + 1 + AHEAD_INITIAL,
 		)
 		expect(text('after')).toBe(String(AHEAD_INITIAL))
+	})
+
+	test('the server renders this week and the next; the rest of the first chunk mounts below after hydration, with no write', () => {
+		// ADR 0113 "If the budget is still missed": fewer weeks ahead in the
+		// server render, the rest of the first chunk appended once the frame has
+		// hydrated, below the reader.
+		const html = renderToString(<Harness />)
+		expect(html.match(new RegExp(`${WEEK_ATTR}=`, 'g'))).toHaveLength(
+			TODAY_INDEX + 1 + AHEAD_LANDING,
+		)
+		const { stream, text } = mount()
+		expect(stream.querySelectorAll(`[${WEEK_ATTR}]`)).toHaveLength(
+			TODAY_INDEX + 1 + AHEAD_INITIAL,
+		)
+		expect(text('after')).toBe(String(AHEAD_INITIAL))
+		// The one write is the landing's; the append below moves nothing.
+		expect(writes).toEqual([landing()])
+		expect(stream.scrollTop).toBe(landing())
 	})
 
 	test('late layout before the reader acts is followed', () => {

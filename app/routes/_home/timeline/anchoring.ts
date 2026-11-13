@@ -73,6 +73,14 @@ export const AWAY_BELOW = 40
  * reader can see moves when a week is appended under them.
  */
 export const AHEAD_INITIAL = 6
+/**
+ * How many weeks ahead of today the **server** renders, and the first client
+ * render matches: this week and the next, what a landing can show. The rest of
+ * {@link AHEAD_INITIAL} is appended once the frame has hydrated, below the
+ * reader (ADR 0113, "If the budget is still missed"): fewer weeks to parse,
+ * render and hydrate on open, and nothing the reader sees moves.
+ */
+export const AHEAD_LANDING = 1
 export const AHEAD_STEP = 6
 
 /** How close to the end of the mounted list the next weeks ahead are mounted. */
