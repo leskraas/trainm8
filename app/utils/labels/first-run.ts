@@ -486,7 +486,17 @@ export function nbLongDay(dayKey: string): string {
 		number,
 	]
 	const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7
-	return `${NB_WEEKDAY_LABELS[weekday]} ${day}. ${NB_MONTHS_LONG[month - 1]}`
+	return `${NB_WEEKDAY_LABELS[weekday]} ${nbDayMonth(dayKey)}`
+}
+
+/** `19. oktober`: a calendar day (`YYYY-MM-DD`), without its weekday. */
+export function nbDayMonth(dayKey: string): string {
+	const [, month, day] = dayKey.split('-').map(Number) as [
+		number,
+		number,
+		number,
+	]
+	return `${day}. ${NB_MONTHS_LONG[month - 1]}`
 }
 
 /** The families the start offers, each with its plain name. */

@@ -28,6 +28,7 @@ import {
 	NB_WEEKDAY_LABELS,
 	nbDurationLabel,
 	nbHoursWords,
+	nbDayMonth,
 	nbLongDay,
 	nbTrackName,
 	PHILOSOPHY_LABELS,
@@ -204,10 +205,7 @@ export function previewViewOf(
 		kept:
 			keptFromBoundary.count > 0
 				? [
-						W.kept(
-							keptFromBoundary.count,
-							nbLongDay(from).replace(/^\S+ /, ''),
-						),
+						W.kept(keptFromBoundary.count, nbDayMonth(from)),
 						...(keptFromBoundary.onRemoved > 0
 							? [
 									W.keptRemoved(
@@ -230,10 +228,7 @@ export function previewViewOf(
 				`${nbTrackName(discipline)}: ${splice.overrides
 					.filter((one) => one.discipline === discipline)
 					.map((one) =>
-						W.overrideWeek(
-							isoWeekNumber(one.weekKey),
-							nbLongDay(one.weekKey).replace(/^\S+ /, ''),
-						),
+						W.overrideWeek(isoWeekNumber(one.weekKey), nbDayMonth(one.weekKey)),
 					)
 					.join(', ')}`,
 		),
