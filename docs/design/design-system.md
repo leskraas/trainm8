@@ -164,10 +164,11 @@ content's name (a plan, a session, a lift's exercise), at `text-title`.
 `text-sm font-medium`); row facts, descriptions and field errors `text-footnote`
 (errors in `text-foreground-destructive`; inside a popover or menu,
 `text-foreground-destructive dark:text-destructive`, since the dark
-`foreground-destructive` reads 4.42:1 on `popover`, under AA); labels and units `text-caption`, with
-`font-normal` when muted; inputs, `h-12` calls to action and running text
-`text-body` (`md:text-base` becomes `md:text-body`). Section, row title and row
-fact are three visible steps, so a reader sees what to read first.
+`foreground-destructive` reads 4.42:1 on `popover`, under AA); labels and units
+`text-caption`, with `font-normal` when muted; inputs, `h-12` calls to action
+and running text `text-body` (`md:text-base` becomes `md:text-body`). Section,
+row title and row fact are three visible steps, so a reader sees what to read
+first.
 
 Override weight with `font-*` where needed; never override tracking. Use
 **`tabular-nums`** on every figure that shares a column or changes in place (km,
