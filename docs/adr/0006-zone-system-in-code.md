@@ -151,7 +151,7 @@ empty population, and ADR 0006's own Revisit note already names the 1 %-wide
 band holes in `coggan-power-7`, `friel-hr-5-*`, `daniels-pace-5` and
 `stryd-run-power-5` as the same shape of problem.
 
-_Widened by ADR 0114 (#463): the CTL pair is optional, and each kind declares
+_Widened by ADR 0117 (#463): the CTL pair is optional, and each kind declares
 whether its correction moved load or prescription. The first prescription notice
 still brings its own words and any movement shape it needs._
 

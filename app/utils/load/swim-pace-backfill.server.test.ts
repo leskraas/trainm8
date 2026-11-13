@@ -281,7 +281,7 @@ test('a swimmer without CSS still gets the notice: the pace they read changed', 
 	})
 	expect(notice.kind).toBe(SWIM_REST_LEFT_THE_PACE_NOTICE)
 	// CTL moved nothing beyond noise, so there is no movement to name: the pair
-	// is absent, not today's CTL on both sides (ADR 0114).
+	// is absent, not today's CTL on both sides (ADR 0117).
 	expect(notice.ctlBefore).toBeNull()
 	expect(notice.ctlAfter).toBeNull()
 

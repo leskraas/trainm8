@@ -1223,7 +1223,7 @@ test('a swim notice whose CTL did not visibly move names no movement', async () 
 	expect(callout).not.toHaveTextContent(/kondisjonen (steg|falt)/i)
 })
 
-test('a notice with no CTL pair shows its words and Skjønner, and no movement (ADR 0114)', async () => {
+test('a notice with no CTL pair shows its words and Skjønner, and no movement (ADR 0117)', async () => {
 	// No CTL movement to name: nothing stands in for the movement line, not a
 	// zero, not a placeholder, not an empty line.
 	renderRoute(

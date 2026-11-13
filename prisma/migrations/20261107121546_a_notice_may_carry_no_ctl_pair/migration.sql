@@ -1,4 +1,4 @@
--- A Load Recompute Notice may carry no CTL pair (#463, ADR 0114).
+-- A Load Recompute Notice may carry no CTL pair (#463, ADR 0117).
 --
 -- `ctlBefore`/`ctlAfter` were `REAL NOT NULL`, so a correction with no CTL
 -- movement to name had to invent one. The swim-pace backfill (ADR 0107 §2)

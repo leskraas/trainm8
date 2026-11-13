@@ -594,7 +594,7 @@ export type LoadRecomputeLine = {
 	/**
 	 * The movement, e.g. "Kondisjonen falt med opptil 14 — 62 → 48 på det
 	 * meste", or null when there is none to name: the notice carries no CTL
-	 * pair (ADR 0114), or its rounded figures did not move.
+	 * pair (ADR 0117), or its rounded figures did not move.
 	 */
 	movement: string | null
 }
@@ -615,7 +615,7 @@ export function buildLoadRecomputeLine(
 	// as "0 — 3 → 3": the swim notice is owed for the pace alone (ADR 0107 §2).
 	// A notice with no CTL pair takes the same branch: there is no CTL movement
 	// to name, which is not an Unavailable Metric, so nothing stands in for it
-	// (ADR 0114 §2).
+	// (ADR 0117 §2).
 	return { kind: notice.kind, ...copy, movement: movementLine(notice.ctl) }
 }
 

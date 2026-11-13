@@ -63,7 +63,7 @@ test('float noise, an unchanged curve and unmatched days are no movement', () =>
 	expect(widestCtlMovement(curve([]), curve([]), 'fall')).toBeNull()
 })
 
-test('a prescription correction cannot record a CTL pair (ADR 0114 §3)', () => {
+test('a prescription correction cannot record a CTL pair (ADR 0117 §3)', () => {
 	// A load correction names its movement, or none when it moved no more than
 	// noise. A prescription correction moved no Load Snapshot, so a pair there
 	// would be an invented delta: the type refuses it. Typechecked, so the
