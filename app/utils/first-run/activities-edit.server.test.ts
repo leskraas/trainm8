@@ -87,6 +87,7 @@ async function sessionsIn(userId: string, weekKey: string) {
 							repeatCount: true,
 							seriesRepeatCount: true,
 							betweenSeriesRestSec: true,
+							sendOff: true,
 							steps: {
 								select: {
 									kind: true,
