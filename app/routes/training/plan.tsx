@@ -339,7 +339,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	)
 	const treningsform = startOptions ? treningsformViewOf(startOptions) : null
 
-	// _Endre startnivået_ and the lead's _Ukevolum_ rows (#673, ADR 0119): each
+	// _Endre startnivået_ and the lead's _Ukevolum_ rows (#673, ADR 0121): each
 	// cardio track with a Season Anchor, its segments, and the weeks from the
 	// first unbegun one with the ramp's level there (the fresh-start pre-fill).
 	const anchorChoices = await readSeasonAnchorChoices(

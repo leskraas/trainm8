@@ -517,7 +517,7 @@ export function derivedWeekTarget(
  *
  * The derivation *is* the walk, and `derivedWeekTarget` is its `value`, so a
  * surface that explains a number ("regnet ut") cannot explain a different
- * arithmetic from the one that produced it (ADR 0119 §1).
+ * arithmetic from the one that produced it (ADR 0121 §1).
  */
 export type WeekTargetDerivation = {
 	value: number
@@ -581,7 +581,7 @@ export function weekTargetDerivation(
  *
  * On a loading week it is the week's target. On an easy or taper week it is the
  * number the next loading week climbs from, one ramp step above the target ÷ its
- * role factor. That makes it the pre-fill of a fresh start (ADR 0119 §2): left
+ * role factor. That makes it the pre-fill of a fresh start (ADR 0121 §2): left
  * untouched, a re-anchor here keeps every loading week after it where it was.
  */
 export function rampLevelAt(

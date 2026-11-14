@@ -19,7 +19,7 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
   a share day (_formet etter <tittel>_).
 - _Ukevolum_ in the lead (#673): one row per endurance track with a Season
   Anchor, and _Endre volumet_, which opens _Endre startnivået_ (the
-  `season-anchor` Sesong edit, ADR 0119) inside _Avansert_, scrolled to it:
+  `season-anchor` Sesong edit, ADR 0121) inside _Avansert_, scrolled to it:
   three acts (_Start på nytt fra en uke_, _Endre tallet i et startnivå_, _Fjern
   et nytt startnivå_), a preview, a confirm in a sticky footer.
 - Plan creation at `/training/plan/new`: a dated goal (_Mål_, _Dato_, _Lag målet

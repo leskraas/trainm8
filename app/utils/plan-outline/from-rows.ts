@@ -292,7 +292,7 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 /**
  * One stored track as the derivation's input, in index space — what
  * `resolvedTracks` prices, for a caller that asks `derive.ts` one more
- * question of the same spec (the derivation behind a week, ADR 0119 §1).
+ * question of the same spec (the derivation behind a week, ADR 0121 §1).
  */
 export function trackSpec(rows: OutlineRows, track: TrackRow): TrackSpec {
 	return trackSpecOf(

@@ -1184,7 +1184,7 @@ describe('strengthBoundaryStepInForce', () => {
 	})
 })
 
-describe('the derivation behind a week target (ADR 0119 §1)', () => {
+describe('the derivation behind a week target (ADR 0121 §1)', () => {
 	const stepped = track({
 		segments: phases.map((_, phaseIndex) => ({
 			kind: 'endurance' as const,
@@ -1226,7 +1226,7 @@ describe('the derivation behind a week target (ADR 0119 §1)', () => {
 	})
 })
 
-describe('the Volume Ramp’s level at a week (ADR 0119 §2)', () => {
+describe('the Volume Ramp’s level at a week (ADR 0121 §2)', () => {
 	test('is the target on a loading week', () => {
 		expect(rampLevelAt(phases, track(), 2)).toBe(
 			derivedWeekTarget(phases, track(), 2),

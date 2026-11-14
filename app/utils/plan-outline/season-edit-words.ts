@@ -77,7 +77,7 @@ function nbPercent(fraction: number): string {
 }
 
 /**
- * How a changed week's target was worked out (ADR 0119 §1), the "regnet ut"
+ * How a changed week's target was worked out (ADR 0121 §1), the "regnet ut"
  * a preview row opens: `Startnivå 40 km fra uke 41, så +5 % for hver av de 3
  * harde ukene i Base. Lett uke i Base: 70 % av uke 43.`
  */
