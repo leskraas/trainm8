@@ -95,7 +95,9 @@ future `prisma.user.delete` from making new ones.
 - A purge that fails on every attempt ends `failed`, and no later boot enqueues
   another. Each failed attempt logs `[orphaned-workout-purge] attempt failed`
   with the job id and the error's class and code, never its message (a Prisma
-  validation error prints the query's arguments). The owner's check is therefore
+  validation error prints the query's arguments). The message is still stored
+  in the row's `lastError` and printed by Prisma's own error log, where it can
+  carry Workout ids, never a title or name. The owner's check is therefore
   two reads: the `Job` of kind `orphaned-workout-purge` is `completed` (its
   `lastError` says why if not), and ADR 0051 §5's SQL count shows only kept
   rows.

@@ -83,7 +83,10 @@ export async function runOrphanedWorkoutPurge(job: {
 			// The queue records the error on the row and logs nothing, and a spent
 			// one-time job is never enqueued again: this line is how a failed purge
 			// shows. The error's class and code only, never its message, which for
-			// a Prisma validation error prints the query's arguments.
+			// a Prisma validation error prints the query's arguments. The message
+			// still reaches the row's `lastError` (the queue stores it) and Prisma's
+			// own `prisma:error` output: there it can carry Workout ids, never a
+			// title or name.
 			console.error('[orphaned-workout-purge] attempt failed', {
 				jobId: job.id,
 				error: describeError(error),
