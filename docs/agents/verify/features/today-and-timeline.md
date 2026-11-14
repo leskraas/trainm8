@@ -80,6 +80,13 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
   parsed cannot see a jump. Serving the document slowly (CDP
   `Network.emulateNetworkConditions`) makes the parser yield where it would on a
   phone.
+- Whether a row moved (criterion 7) is judged in painted frames: read it after a
+  frame (`requestAnimationFrame`, then a task), never straight after writing
+  `scrollTop`. Weeks just scrolled into view still carry their
+  `content-visibility` estimate in a layout read before the next frame, and a
+  row measured there "moves" by the estimate's error (2px) in a frame the reader
+  never saw. Scroll in small steps and count your own scrolling against the row,
+  as `home-reading-position.test.ts` does.
 - How fast the full view opens on a long season is measured, not driven:
   `scripts/measure-home-stream.ts` (by URL, and `--nav` from _Se hele sesongen_)
   against a database prepared with `scripts/home-stream-fixture.ts`.
