@@ -77,7 +77,7 @@ import {
 	ROW_LABELS,
 	SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
-import { type SessionEntryRow as SessionRow } from '#app/utils/session-ledger-rows.ts'
+import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
 import { readSimpleActivity } from '#app/utils/simple-activity.ts'
 import {
 	type LoadValue,

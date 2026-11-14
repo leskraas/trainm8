@@ -24,7 +24,8 @@
  *
  * Everything is derived, nothing is fetched: the same `LedgerSession[]` the
  * ledger already ships feeds all of it, through `toSessionLedgerEntry` for
- * status and load and `buildLedgerRows`' own profile rule for the shape bars.
+ * status and load and `sessionProfile`, the Session Ledger's own rule, for the
+ * shape bars.
  *
  * **Two halves, built at two times (ADR 0113).** `buildTimelineSeason` builds
  * the season's **week skeleton**: every week's shape, header, track volumes
@@ -107,8 +108,8 @@ import {
 	volumeSessionOf,
 } from '#app/utils/plan-outline/week-volumes.ts'
 import {
-	buildSessionEntryRows,
-	type SessionEntryRow as SessionRow,
+	buildSessionRows,
+	type SessionRow,
 	sessionProfile,
 } from '#app/utils/session-ledger-rows.ts'
 import {
@@ -590,7 +591,7 @@ export function buildTimelineSeason({
 	// day is built (`buildSession`), by the ledger's own rule; and the ledger's
 	// `now` divider has no place here: the week headers and today's own row
 	// already say where the boundary is, twice over.
-	const ledgerRows = buildSessionEntryRows(ledger, now, timezone, thresholds)
+	const ledgerRows = buildSessionRows(ledger, now, timezone, thresholds)
 	// Weeks are bucketed by the Athlete Calendar, the same Monday–Sunday windows
 	// Weekly Plan Adherence uses — and identically on server and client, so the
 	// stream cannot hydrate into a different shape than it rendered.

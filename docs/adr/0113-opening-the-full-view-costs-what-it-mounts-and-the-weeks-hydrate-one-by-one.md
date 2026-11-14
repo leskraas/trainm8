@@ -164,7 +164,7 @@ these, in order, re-measuring after each:
   stands, and one still waiting for data streams as before.
 - **A row's profile bars are part of its days**, not the skeleton: the presenter
   reads each session's ledger entry for the week's numbers
-  (`buildSessionEntryRows`) and derives its bars (`sessionProfile`, the Session
+  (`buildSessionRows`) and derives its bars (`sessionProfile`, the Session
   Ledger's own rule) when the row is built.
 - **In-app navigation is measured** by `scripts/measure-home-stream.ts --nav`,
   beside the load by URL; both take several servers and interleave them.

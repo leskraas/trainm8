@@ -36,7 +36,7 @@ import {
 	MARK_DONE_LABELS,
 	SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
-import { type SessionEntryRow as SessionRow } from '#app/utils/session-ledger-rows.ts'
+import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
 
 /** The offer on an import's row. One at a time: the row has one question. */
 export type TimelineImportLink =
