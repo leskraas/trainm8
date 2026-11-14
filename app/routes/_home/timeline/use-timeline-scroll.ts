@@ -99,7 +99,7 @@ export type TimelineScroll = {
 	after: number
 	/**
 	 * True until the rest of the first chunk ahead is appended after hydration
-	 * (ADR 0119): the frame holds a screen of room below the list meanwhile, so
+	 * (ADR 0121): the frame holds a screen of room below the list meanwhile, so
 	 * the landing is never clamped short of today (#503 criterion 5).
 	 */
 	firstChunkPending: boolean
@@ -120,7 +120,7 @@ export function useTimelineScroll({
 }): TimelineScroll {
 	const homeKey = weekKeys[todayIndex] ?? weekKeys[0] ?? ''
 	const maxAfter = Math.max(0, weekKeys.length - 1 - todayIndex)
-	// The server renders this week and the next (ADR 0119); the rest of the
+	// The server renders this week and the next (ADR 0121); the rest of the
 	// first chunk is appended below once the frame has hydrated.
 	const [after, setAfter] = useState(() => Math.min(maxAfter, AHEAD_LANDING))
 	const [activeWeekKey, setActiveWeekKey] = useState(homeKey)
@@ -148,7 +148,7 @@ export function useTimelineScroll({
 
 	// After hydration, append the rest of the first chunk ahead. Below the
 	// reader, so it moves nothing they see; in a transition, so the weeks still
-	// to hydrate and a tap the reader makes come first (ADR 0119).
+	// to hydrate and a tap the reader makes come first (ADR 0121).
 	useEffect(() => {
 		startTransition(() => {
 			setAfter((n) => Math.max(n, Math.min(maxAfterRef.current, AHEAD_INITIAL)))

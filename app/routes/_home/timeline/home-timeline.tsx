@@ -530,7 +530,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 								) : (
 									<>
 										{/* Until the rest of the first chunk is appended (ADR
-										    0119), a screen of room below the list, so the landing
+										    0121), a screen of room below the list, so the landing
 										    never runs out of room below today and stops short of
 										    it, to move once the weeks arrive (#503 criterion 5).
 										    `svh`, not `dvh`: the URL bar collapsing never resizes it. */}
