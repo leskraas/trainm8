@@ -232,8 +232,6 @@ export async function readGenerationCorpus(): Promise<RetrievableEntry[]> {
 	}))
 }
 
-export { goalEventFor }
-
 /** The shape the request needs, read once and shared by preview and approve. */
 type GenerationContext = {
 	event: {
