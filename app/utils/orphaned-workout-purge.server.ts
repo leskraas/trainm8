@@ -57,20 +57,19 @@ export async function ensureOrphanedWorkoutPurgeEnqueued(): Promise<void> {
 
 /**
  * Run the purge. `job` is the queue's row this run is (its id and the payload
- * it was claimed with); the record is written onto that row. Called without
- * one, it purges and logs and records nothing.
+ * it was claimed with); the record is written onto that row.
  *
  * The payload a run is claimed with carries the record of any earlier run
  * that committed, since the claim reads the row after that commit.
  */
-export async function runOrphanedWorkoutPurge(job?: {
+export async function runOrphanedWorkoutPurge(job: {
 	id: string
 	payload: Record<string, unknown>
 }): Promise<AccountErasure> {
 	const erasure = await prisma
 		.$transaction(async (tx) => {
 			const erasure = await eraseOrphanedWorkouts(tx)
-			if (!job || isErasureRecord(job.payload.purged)) return erasure
+			if (isErasureRecord(job.payload.purged)) return erasure
 			await tx.job.update({
 				where: { id: job.id },
 				data: { payload: JSON.stringify({ ...job.payload, purged: erasure }) },
@@ -83,7 +82,7 @@ export async function runOrphanedWorkoutPurge(job?: {
 			// shows. The error's class and code only, never its message, which for
 			// a Prisma validation error prints the query's arguments.
 			console.error('[orphaned-workout-purge] attempt failed', {
-				jobId: job?.id,
+				jobId: job.id,
 				error: describeError(error),
 			})
 			throw error
