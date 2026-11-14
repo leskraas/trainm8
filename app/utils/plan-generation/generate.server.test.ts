@@ -636,3 +636,68 @@ test('the preview states the weeks whose placed sessions outrun the Weekly Capac
 	// What was written is the placed sessions, unchanged by the reading.
 	expect(approved.sessions).toBe(sessions.length)
 })
+
+test('a placed session whose id is not a Stock Workout is neither read into the preview nor copied on approval', async () => {
+	const athlete = await createAthlete()
+	const other = await createAthlete()
+	await seedMeasurableCorpus()
+	// Another athlete's own 50 km run: no Stock Workout, and not the athlete's.
+	const theirs = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: other.id,
+			title: 'Privat langtur',
+			discipline: 'run',
+			intent: 'endurance',
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'cardio',
+									discipline: 'run',
+									distanceM: 50_000,
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	// A generator behind the seam (ADR 0053) that names a wrong id: the reader
+	// trusts no id it is handed to be a Stock Workout.
+	const generator: SeasonGenerator = {
+		id: DETERMINISTIC_SEASON_GENERATOR.id,
+		generate(request, corpus) {
+			const season = DETERMINISTIC_SEASON_GENERATOR.generate(request, corpus)
+			return {
+				...season,
+				sessions: season.sessions.map((session) => ({
+					...session,
+					workoutId: theirs.id,
+				})),
+			}
+		},
+	}
+	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
+
+	const preview = await previewSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+		generator,
+	})
+	if (!preview.ok) throw new Error(preview.reason)
+	expect(preview.preview.season.sessions.length).toBeGreaterThan(0)
+	for (const week of preview.preview.weekVolumes) {
+		expect(week.hasSessions).toBe(false)
+	}
+
+	await approveSeason(athlete.id, event.id, choice(), { now: NOW, generator })
+	expect(
+		await prisma.workout.count({ where: { copiedFromId: theirs.id } }),
+	).toBe(0)
+})

@@ -757,7 +757,9 @@ async function readStockWorkouts(
 	workoutIds: readonly string[],
 ): Promise<Map<string, StockWorkout>> {
 	const rows = await prisma.workout.findMany({
-		where: { id: { in: [...new Set(workoutIds)] } },
+		// Stock rows only, as the corpus read: an id the seam hands back is never
+		// trusted to be one, so no athlete's own Workout is read or copied.
+		where: { id: { in: [...new Set(workoutIds)] }, authorship: 'system' },
 		select: stockWorkoutSelect,
 	})
 	return new Map(rows.map((row) => [row.id, row]))
