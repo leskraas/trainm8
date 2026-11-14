@@ -766,18 +766,23 @@
 	}
 	/*
 	 * The room the phone's bottom tab bar takes (ADR 0083): its 56px row plus the
-	 * safe-area inset under it. Keyed off the bar being in the page rather than set
-	 * by hand, so a screen without it (logged out, auth) pays nothing; and 0 from
-	 * `md` up, where the tabs sit in the wordmark row instead.
+	 * safe-area inset under it. Keyed off the root's `data-tab-bar-space`, which
+	 * `root.tsx` sets wherever `TabBar` draws the bar, so a screen without it
+	 * (logged out, auth, the first run) pays nothing; and 0 from `md` up, where
+	 * the tabs sit in the wordmark row instead.
+	 *
+	 * Not `:root:has([data-tab-bar])`: a `:has()` on the root restyles the whole
+	 * page for every node added anywhere, which on the full Home Timeline was a
+	 * long task for each week that hydrated (#503).
 	 */
 	:root {
 		--tab-bar-space: 0px;
 	}
-	:root:has([data-tab-bar]) {
+	:root[data-tab-bar-space] {
 		--tab-bar-space: calc(3.5rem + env(safe-area-inset-bottom));
 	}
 	@media (width >= 48rem) {
-		:root:has([data-tab-bar]) {
+		:root[data-tab-bar-space] {
 			--tab-bar-space: 0px;
 		}
 	}

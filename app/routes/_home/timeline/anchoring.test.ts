@@ -23,7 +23,9 @@ import {
 	LANDING_ROOM,
 	landingOffsetFor,
 	landingPosition,
+	landingHoldScript,
 	landingScript,
+	LANDING_HOLD_ID,
 	landingTop,
 	nextAhead,
 	offsetWithin,
@@ -168,6 +170,34 @@ describe('the landing script the server renders', () => {
 		expect(() => new Function(landingScript('missing'))()).not.toThrow()
 	})
 
+	test('the list is held unpainted until the landing has parked it, and only that long', () => {
+		const stream = layout({
+			weekOffset: 2000,
+			todayOffset: 2240,
+			todayHeight: 120,
+			headerHeight: 80,
+			clientHeight: VIEWPORT,
+		})
+		new Function(landingHoldScript('data-timeline-stream'))()
+		const hold = document.getElementById(LANDING_HOLD_ID)
+		expect(hold?.parentElement).toBe(document.head)
+		expect(hold?.textContent).toContain('[data-timeline-stream]')
+		expect(hold?.textContent).toContain('visibility:hidden')
+		new Function(landingScript('s'))()
+		expect(document.getElementById(LANDING_HOLD_ID)).toBeNull()
+		expect(stream.scrollTop).toBeGreaterThan(0)
+	})
+
+	test('the hold is lifted even where there is nothing to park', () => {
+		new Function(landingHoldScript('data-timeline-stream'))()
+		document.body.innerHTML = '<div id="s"></div>'
+		new Function(landingScript('s'))()
+		expect(document.getElementById(LANDING_HOLD_ID)).toBeNull()
+		new Function(landingHoldScript('data-timeline-stream'))()
+		new Function(landingScript('missing'))()
+		expect(document.getElementById(LANDING_HOLD_ID)).toBeNull()
+	})
+
 	test('the stream id is quoted, never spliced in raw', () => {
 		expect(landingScript('a"b')).toContain(JSON.stringify('a"b'))
 	})
@@ -306,7 +336,7 @@ describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
 		summary: '2 av 5 gjort',
 		planStart: false,
 		opensHorizon: false,
-		rows: Array.from({ length: 7 }, () => day()),
+		days: Array.from({ length: 7 }, () => day()),
 		...overrides,
 	})
 
@@ -318,10 +348,10 @@ describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
 	})
 
 	test('sessions, a wrapping sentence and an action line each add their height', () => {
-		const one = weekHeightEstimate(week({ rows: [day(['6 km rolig'])] }))
+		const one = weekHeightEstimate(week({ days: [day(['6 km rolig'])] }))
 		const long = weekHeightEstimate(
 			week({
-				rows: [
+				days: [
 					day([
 						'Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg · Roing 3×8 · Markløft 3×5',
 					]),
@@ -329,17 +359,17 @@ describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
 			}),
 		)
 		const two = weekHeightEstimate(
-			week({ rows: [day(['6 km rolig', 'Styrke A'])] }),
+			week({ days: [day(['6 km rolig', 'Styrke A'])] }),
 		)
 		expect(long).toBeGreaterThan(one)
 		expect(two).toBe(one + WEEK_HEIGHTS.extraSession)
 	})
 
 	test('a Garmin credit under a title adds its line, and a long one its wraps (#557)', () => {
-		const plain = weekHeightEstimate(week({ rows: [day(['6 km rolig'])] }))
+		const plain = weekHeightEstimate(week({ days: [day(['6 km rolig'])] }))
 		const credited = weekHeightEstimate(
 			week({
-				rows: [
+				days: [
 					{
 						sessions: [
 							{ title: '6 km rolig', sourceCredit: 'Garmin Forerunner 965' },
@@ -350,7 +380,7 @@ describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
 		)
 		const longCredit = weekHeightEstimate(
 			week({
-				rows: [
+				days: [
 					{
 						sessions: [
 							{

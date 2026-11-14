@@ -230,8 +230,6 @@ function row(overrides: Partial<LedgerSession> = {}): SessionRow {
 		id: session.id,
 		session,
 		entry: toSessionLedgerEntry(session, NOW),
-		bars: [],
-		groups: [],
 		isPast: session.scheduledAt.getTime() < NOW.getTime(),
 	}
 }

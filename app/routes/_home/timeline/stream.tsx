@@ -55,7 +55,15 @@
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod/v3'
-import { Fragment, memo, type ReactNode, useEffect, useRef } from 'react'
+import {
+	type ComponentProps,
+	Fragment,
+	memo,
+	type ReactNode,
+	Suspense,
+	useEffect,
+	useRef,
+} from 'react'
 import { Link, useFetcher } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'
 import { SourceCredits } from '#app/components/source-credits.tsx'
@@ -99,6 +107,7 @@ import {
 	type TimelineSession,
 	type TimelineTrackWeek,
 	type TimelineWeek,
+	weekDays,
 } from './presenter.ts'
 import { type RowChipTone } from './row-content.ts'
 import { TITLE_INSET, TITLE_INSET_BOX } from './row-inset.ts'
@@ -170,6 +179,10 @@ export const WeekBlock = memo(function WeekBlock({
 	/** Today's action and coach line; passed to today's week only. */
 	today?: TodayRowExtras | null
 }) {
+	// The week's days are built here, in this block's own render, the first
+	// time the week mounts (ADR 0125 §2): during hydration that is one week's
+	// work at a time, which React can yield between.
+	const days = weekDays(week)
 	return (
 		<section
 			{...{ [WEEK_ATTR]: week.key }}
@@ -188,7 +201,7 @@ export const WeekBlock = memo(function WeekBlock({
 						// rest is behind the summary's disclosure.
 						noteCount: trackEssentials(track).length > 0 ? 1 : 0,
 					})),
-					rows: week.rows.map((day) => ({
+					days: days.map((day) => ({
 						sessions: day.sessions,
 						addAnother: offersAnother(day, anchorDayKey),
 					})),
@@ -207,7 +220,7 @@ export const WeekBlock = memo(function WeekBlock({
 					{DAY_ROW_LABELS.planStart}
 				</p>
 			) : null}
-			{week.rows.map((day) => (
+			{days.map((day) => (
 				<DayRow
 					key={day.key}
 					day={day}
@@ -219,6 +232,35 @@ export const WeekBlock = memo(function WeekBlock({
 			))}
 			{afterDays}
 		</section>
+	)
+})
+
+/**
+ * A week of the Stream in its own `<Suspense>` boundary, so the weeks hydrate
+ * one by one (ADR 0125 §3).
+ *
+ * The server renders every mounted week as before. On the client the frame,
+ * the top line, the Week Strip and the Stream element hydrate first; each week
+ * follows at idle priority, building its days in `WeekBlock`'s own render, and
+ * React yields between them. A tap on a week not yet hydrated hydrates that
+ * week first and is replayed, so no tap is dropped. Nothing here suspends, so
+ * the fallback is never shown: on a client render the week renders at once.
+ *
+ * **Memoised, and that is load-bearing.** A re-render of the frame that hands
+ * a boundary a new element before it has hydrated makes React hydrate it at
+ * once, synchronously, with every other pending week: measured on the
+ * 52-week season, one such re-render cost a single 326–493ms task (#503).
+ * The memo sits *outside* the boundary, so a frame re-render (the reader
+ * crossing a week header, the weeks ahead appending, the Ukeskiftet card
+ * changing) stops here for every week whose own props did not change.
+ */
+export const StreamWeek = memo(function StreamWeek(
+	props: ComponentProps<typeof WeekBlock>,
+) {
+	return (
+		<Suspense fallback={null}>
+			<WeekBlock {...props} />
+		</Suspense>
 	)
 })
 

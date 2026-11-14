@@ -42,6 +42,18 @@ async function expectCurrentTab(
 	await expect(bar.locator('[aria-current]')).toHaveCount(1)
 }
 
+/** What `--tab-bar-space` resolves to on this page, in px. */
+async function tabBarSpace(page: Page) {
+	return page.evaluate(() => {
+		const probe = document.createElement('div')
+		probe.style.height = 'var(--tab-bar-space)'
+		document.body.append(probe)
+		const height = probe.getBoundingClientRect().height
+		probe.remove()
+		return height
+	})
+}
+
 async function tapTab(page: Page, name: string, url: string | RegExp) {
 	// The first tap after a load can race hydration (the pointer-down node is
 	// swapped mid-render and the click is lost), so retry until it lands.
@@ -87,6 +99,10 @@ test('every tab navigates and marks itself current on a phone', async ({
 	expect(Math.round(box!.y + box!.height)).toBe(VIEWPORT.height)
 	expect(Math.round(box!.width)).toBe(VIEWPORT.width)
 	await expect(bar.getByRole('link')).toHaveText(['I dag', 'Plan', 'Meg'])
+	// The page keeps room for it (`--tab-bar-space`, ADR 0083 §3): its 56px
+	// row, with no safe-area inset here, and its 1px top border over the page.
+	expect(await tabBarSpace(page)).toBe(56)
+	expect(Math.round(box!.height)).toBe(57)
 	// Every tab is a target of at least 44px each way (ui-conventions §2.2).
 	for (const tab of await bar.getByRole('link').all()) {
 		const target = await tab.boundingBox()
@@ -319,4 +335,6 @@ test('the start carries no tab bar', async ({ page, navigate, login }) => {
 	await navigate('/start')
 	await expect(page.getByRole('main')).toBeVisible()
 	await expect(tabBar(page)).toHaveCount(0)
+	// And keeps no room for one.
+	expect(await tabBarSpace(page)).toBe(0)
 })

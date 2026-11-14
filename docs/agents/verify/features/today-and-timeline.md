@@ -2,6 +2,7 @@
 
 The athlete's landing page and the whole season as one bi-directional stream
 (spec #558, ADR 0101). Specs to copy from: `tests/e2e/home-timeline.test.ts`,
+`tests/e2e/home-reading-position.test.ts` (runs in WebKit too),
 `tests/e2e/dashboard.test.ts`, `tests/e2e/writing-line.test.ts`,
 `tests/e2e/mobile-dashboard.test.ts`.
 
@@ -66,3 +67,26 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
 - What I dag shows depends on today's date against kody's seeded history and
   plan, so a journey that needs a session today should create one first (see
   `session-authoring.md`).
+- Each week of the stream hydrates on its own, after the frame (ADR 0125): a
+  week's controls answer once the week carries React's props. Wait with
+  `untilHydrated` on the control before a tap that writes.
+- The server renders this week and the next ahead only; the rest of the first
+  chunk ahead mounts after hydration (ADR 0125). Wait for a week further ahead
+  rather than reading it off the first HTML.
+- Opened by URL, the list stays unpainted until the landing script has parked it
+  on today (`landingHoldScript`, #503 criterion 5): a check of where today sits
+  must read only frames where the stream is not `visibility: hidden`, and must
+  watch every frame from the first, since a check made once the document is
+  parsed cannot see a jump. Serving the document slowly (CDP
+  `Network.emulateNetworkConditions`) makes the parser yield where it would on a
+  phone.
+- Whether a row moved (criterion 7) is judged in painted frames: read it after a
+  frame (`requestAnimationFrame`, then a task), never straight after writing
+  `scrollTop`. Weeks just scrolled into view still carry their
+  `content-visibility` estimate in a layout read before the next frame, and a
+  row measured there "moves" by the estimate's error (2px) in a frame the reader
+  never saw. Scroll in small steps and count your own scrolling against the row,
+  as `home-reading-position.test.ts` does.
+- How fast the full view opens on a long season is measured, not driven:
+  `scripts/measure-home-stream.ts` (by URL, and `--nav` from _Se hele sesongen_)
+  against a database prepared with `scripts/home-stream-fixture.ts`.

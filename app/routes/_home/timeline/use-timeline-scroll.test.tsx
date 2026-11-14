@@ -17,9 +17,11 @@
  */
 import { act, fireEvent, render } from '@testing-library/react'
 import { useCallback, useRef, useState } from 'react'
+import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
 	AHEAD_INITIAL,
+	AHEAD_LANDING,
 	AHEAD_STEP,
 	AWAY_MARGIN,
 	LANDING_GAP,
@@ -224,6 +226,9 @@ function Harness() {
 			<span data-testid="frame">{`${scroll.frame.from}/${scroll.frame.to}`}</span>
 			<span data-testid="away">{scroll.away}</span>
 			<span data-testid="after">{scroll.after}</span>
+			<span data-testid="first-chunk-pending">
+				{String(scroll.firstChunkPending)}
+			</span>
 			<button type="button" data-testid="back" onClick={scroll.backToToday} />
 			<button
 				type="button"
@@ -293,6 +298,27 @@ describe('landing on today', () => {
 			TODAY_INDEX + 1 + AHEAD_INITIAL,
 		)
 		expect(text('after')).toBe(String(AHEAD_INITIAL))
+	})
+
+	test('the server renders this week and the next; the rest of the first chunk mounts below after hydration, with no write', () => {
+		// ADR 0125 "If the budget is still missed": fewer weeks ahead in the
+		// server render, the rest of the first chunk appended once the frame has
+		// hydrated, below the reader.
+		const html = renderToString(<Harness />)
+		expect(html.match(new RegExp(`${WEEK_ATTR}=`, 'g'))).toHaveLength(
+			TODAY_INDEX + 1 + AHEAD_LANDING,
+		)
+		// The frame holds room below the list until the append (criterion 5).
+		expect(html).toMatch(/data-testid="first-chunk-pending">true</)
+		const { stream, text } = mount()
+		expect(stream.querySelectorAll(`[${WEEK_ATTR}]`)).toHaveLength(
+			TODAY_INDEX + 1 + AHEAD_INITIAL,
+		)
+		expect(text('after')).toBe(String(AHEAD_INITIAL))
+		expect(text('first-chunk-pending')).toBe('false')
+		// The one write is the landing's; the append below moves nothing.
+		expect(writes).toEqual([landing()])
+		expect(stream.scrollTop).toBe(landing())
 	})
 
 	test('late layout before the reader acts is followed', () => {
@@ -417,6 +443,23 @@ describe('jumps are instant writes the reader asked for', () => {
 		expect(stream.querySelector(`[${WEEK_ATTR}="${KEYS[27]}"]`)).not.toBeNull()
 		expect(stream.scrollTop).toBe(weekOffset(27) - 2)
 		expect(writes).toEqual([weekOffset(27) - 2])
+	})
+
+	test('the sentinel firing while a jump ahead is still to render never unmounts the jump’s week', () => {
+		const { stream, getByTestId, text } = mount()
+		const sentinel = stream.querySelector(`[${AHEAD_SENTINEL_ATTR}]`)!
+		const ahead = aheadObserver()
+		act(() => {
+			fireEvent.click(getByTestId(`jump-${KEYS[27]}`))
+			ahead.callback(
+				[
+					{ target: sentinel, isIntersecting: true },
+				] as unknown as IntersectionObserverEntry[],
+				ahead as unknown as IntersectionObserver,
+			)
+		})
+		expect(Number(text('after'))).toBeGreaterThanOrEqual(27 - TODAY_INDEX)
+		expect(stream.querySelector(`[${WEEK_ATTR}="${KEYS[27]}"]`)).not.toBeNull()
 	})
 
 	test('a jump hands the position to the reader: late layout no longer re-lands', () => {

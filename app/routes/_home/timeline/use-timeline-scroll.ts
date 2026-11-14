@@ -38,6 +38,7 @@
 import {
 	Component,
 	type ReactNode,
+	startTransition,
 	useCallback,
 	useEffect,
 	useLayoutEffect,
@@ -49,12 +50,14 @@ import {
 	activeLineMargin,
 	activeWeekOf,
 	AHEAD_INITIAL,
+	AHEAD_LANDING,
 	AHEAD_PAD,
 	AWAY_MARGIN,
 	awayFromEntry,
 	awayOf,
 	compensatedScrollTop,
 	frameOf,
+	LANDING_HOLD_ID,
 	landingTop,
 	nextAhead,
 	offsetWithin,
@@ -95,6 +98,12 @@ export type TimelineScroll = {
 	away: AwayFromToday
 	/** How many weeks after today are mounted. Every week before it always is. */
 	after: number
+	/**
+	 * True until the rest of the first chunk ahead is appended after hydration
+	 * (ADR 0125): the frame holds a screen of room below the list meanwhile, so
+	 * the landing is never clamped short of today (#503 criterion 5).
+	 */
+	firstChunkPending: boolean
 	backToToday: () => void
 	/** Mount the week if it is ahead of the window, then jump the stream to it. */
 	goToWeek: (key: string) => void
@@ -112,7 +121,9 @@ export function useTimelineScroll({
 }): TimelineScroll {
 	const homeKey = weekKeys[todayIndex] ?? weekKeys[0] ?? ''
 	const maxAfter = Math.max(0, weekKeys.length - 1 - todayIndex)
-	const [after, setAfter] = useState(() => Math.min(maxAfter, AHEAD_INITIAL))
+	// The server renders this week and the next (ADR 0125); the rest of the
+	// first chunk is appended below once the frame has hydrated.
+	const [after, setAfter] = useState(() => Math.min(maxAfter, AHEAD_LANDING))
 	const [activeWeekKey, setActiveWeekKey] = useState(homeKey)
 	const [frame, setFrame] = useState({ from: homeKey, to: homeKey })
 	const [away, setAway] = useState<AwayFromToday>(0)
@@ -135,6 +146,15 @@ export function useTimelineScroll({
 	afterRef.current = after
 	const maxAfterRef = useRef(maxAfter)
 	maxAfterRef.current = maxAfter
+
+	// After hydration, append the rest of the first chunk ahead. Below the
+	// reader, so it moves nothing they see; in a transition, so the weeks still
+	// to hydrate and a tap the reader makes come first (ADR 0125).
+	useEffect(() => {
+		startTransition(() => {
+			setAfter((n) => Math.max(n, Math.min(maxAfterRef.current, AHEAD_INITIAL)))
+		})
+	}, [])
 
 	// ——— measuring ————————————————————————————————————————————————————————
 
@@ -246,6 +266,9 @@ export function useTimelineScroll({
 	// nothing. Without it (no-JS-script cases, a client navigation) this is the
 	// landing.
 	useLayoutEffect(() => {
+		// The landing script lifts its hold on the list as it parks it; should it
+		// not have run, the list is never left held (`landingHoldScript`).
+		document.getElementById(LANDING_HOLD_ID)?.remove()
 		land()
 	}, [land])
 
@@ -332,7 +355,13 @@ export function useTimelineScroll({
 			(entries) => {
 				if (!entries.some((entry) => entry.isIntersecting)) return
 				if (afterRef.current >= maxAfterRef.current) return
-				setAfter((n) => nextAhead(n, maxAfterRef.current))
+				// The next chunk counts from what is rendered, not from an update
+				// still pending: on open the sentinel is in reach while the append
+				// after hydration (above) is pending, and counting from it would
+				// mount two chunks at once. Never below a pending value, though: a
+				// jump ahead (`goToWeek`) still to render keeps its week mounted.
+				const want = nextAhead(afterRef.current, maxAfterRef.current)
+				setAfter((n) => Math.max(n, want))
 			},
 			{ root: el, rootMargin: `0px 0px ${AHEAD_PAD}px 0px` },
 		)
@@ -423,7 +452,11 @@ export function useTimelineScroll({
 			if (index < 0) return
 			// A jump is the reader's own act: the landing has no more say.
 			releaseRef.current()
-			if (index > todayIndex + afterRef.current) setAfter(index - todayIndex)
+			// Never below an update still pending: a jump made while the first
+			// chunk's append waits in its transition keeps the whole chunk.
+			if (index > todayIndex + afterRef.current) {
+				setAfter((n) => Math.max(n, index - todayIndex))
+			}
 			pendingJumpRef.current = key
 			drainJump()
 		},
@@ -444,6 +477,7 @@ export function useTimelineScroll({
 		frame,
 		away,
 		after,
+		firstChunkPending: after < Math.min(maxAfter, AHEAD_INITIAL),
 		backToToday,
 		goToWeek,
 		readerKey,

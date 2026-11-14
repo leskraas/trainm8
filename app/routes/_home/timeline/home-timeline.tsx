@@ -67,7 +67,11 @@ import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { AutopilotHistoryCard } from '../__autopilot-notice.tsx'
 import { buildLoadRecomputeLine, type LoadRecomputeLine } from '../presenter.ts'
-import { type AwayFromToday, landingScript } from './anchoring.ts'
+import {
+	type AwayFromToday,
+	landingHoldScript,
+	landingScript,
+} from './anchoring.ts'
 import {
 	type ComposerContainer,
 	type ComposerTarget,
@@ -82,7 +86,7 @@ import {
 	type TimelineTopLine,
 } from './presenter.ts'
 import { SeasonPane, useLargeScreen, useWideScreen } from './season-pane.tsx'
-import { EndCap, StartCap, type TodayRowExtras, WeekBlock } from './stream.tsx'
+import { EndCap, StartCap, StreamWeek, type TodayRowExtras } from './stream.tsx'
 import { useDaySelection } from './use-day-selection.ts'
 import {
 	AHEAD_SENTINEL_ATTR,
@@ -469,6 +473,16 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 						</div>
 					</header>
 
+					{/*
+					 * Hold the list unpainted until the landing script below has parked
+					 * it (#503 criterion 5): a frame the browser paints while it is
+					 * still parsing the list would show the top of the season.
+					 */}
+					<script
+						nonce={nonce}
+						suppressHydrationWarning
+						dangerouslySetInnerHTML={{ __html: landingHoldScript(STREAM_ATTR) }}
+					/>
 					<div
 						ref={streamRef}
 						id={streamId}
@@ -513,7 +527,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 									reachWeeks={season.reachWeeks}
 								/>
 								{visibleWeeks.map((week) => (
-									<WeekBlock
+									<StreamWeek
 										key={week.key}
 										week={week}
 										anchorDayKey={season.todayKey}
@@ -528,9 +542,19 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 								{to === season.weeks.length - 1 ? (
 									<EndCap cap={season.endCap} />
 								) : (
-									// In reach, the next weeks ahead mount below — which moves
-									// nothing the reader can see.
-									<div aria-hidden {...{ [AHEAD_SENTINEL_ATTR]: '' }} />
+									<>
+										{/* Until the rest of the first chunk is appended (ADR
+										    0125), a screen of room below the list, so the landing
+										    never runs out of room below today and stops short of
+										    it, to move once the weeks arrive (#503 criterion 5).
+										    `svh`, not `dvh`: the URL bar collapsing never resizes it. */}
+										{scroll.firstChunkPending ? (
+											<div aria-hidden className="h-svh" />
+										) : null}
+										{/* In reach, the next weeks ahead mount below — which
+										    moves nothing the reader can see. */}
+										<div aria-hidden {...{ [AHEAD_SENTINEL_ATTR]: '' }} />
+									</>
 								)}
 							</div>
 						</ReadingHold>
