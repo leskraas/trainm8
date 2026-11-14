@@ -433,7 +433,7 @@ export function generateDeterministicSeason(
 	// Placed Hours: how long the placed sessions take at least, against the
 	// capacity. Stated, never fixed: nothing above changes because of it (ADR
 	// 0110 §4, ADR 0116). It runs whatever the Week Target reading did.
-	const placedFit = readPlacedHours({
+	const placedHours = readPlacedHours({
 		weekCount,
 		sessions: placedSessions(placed),
 		unfilled: unfilledSlots(placed),
@@ -448,7 +448,7 @@ export function generateDeterministicSeason(
 		phases,
 		tracks,
 		capacity,
-		placed: placedFit,
+		placed: placedHours,
 		weeks,
 		sessions: placedSessions(placed),
 		unfilled: unfilledSlots(placed),
