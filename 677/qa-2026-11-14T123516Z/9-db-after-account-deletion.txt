@@ -1,0 +1,6 @@
+user exists: [(0,)]
+private workout: [(0,)] (0 = erased)
+published workout held by kody session: [('private', None)] entry retired: [(1,)] attribution: [(0,)]
+kody session still there: [(1,)]
+kody fork copiedFrom -> (held): [('cmwgdtkbb00047dg9fey3c7l8',)]
+null-owner athlete workouts now: [(3,)]

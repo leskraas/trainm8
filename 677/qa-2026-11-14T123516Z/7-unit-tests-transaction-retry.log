@@ -1,0 +1,25 @@
+Foreign key constraint violated on the foreign key
+
+ [32m✓[39m app/utils/account-deletion.server.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 3739[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting an account erases every Workout it wrote, published ones included (#468) [33m 394[2mms[22m[39m
+   [33m[2m✓[22m[39m deleting an account applies Account Erasure to everything the athlete wrote [33m 488[2mms[22m[39m
+   [33m[2m✓[22m[39m the purge applies the same Account Erasure to Workouts orphaned before #641 [33m 542[2mms[22m[39m
+   [33m[2m✓[22m[39m the purge never reaches the corpus or a Workout somebody owns [33m 485[2mms[22m[39m
+   [33m[2m✓[22m[39m a second purge changes nothing: a row kept unattributed stays kept [33m 507[2mms[22m[39m
+ [32m✓[39m app/utils/orphaned-workout-purge.server.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 2286[2mms[22m[39m
+   [33m[2m✓[22m[39m the job erases the Orphaned Workouts and records counts only, on its own row [33m 387[2mms[22m[39m
+   [33m[2m✓[22m[39m a run after one that committed keeps the first record, never zeros [33m 328[2mms[22m[39m
+   [33m[2m✓[22m[39m a record that is not three counts is not taken as the first run’s [33m 316[2mms[22m[39m
+   [33m[2m✓[22m[39m a purge that fails partway erases nothing and is retried [33m 405[2mms[22m[39m
+   [33m[2m✓[22m[39m a purge a crash stranded in running is retried by the next boot [33m 357[2mms[22m[39m
+   [33m[2m✓[22m[39m the run writes its record on its own row, not on another of its kind [33m 354[2mms[22m[39m
+ [32m✓[39m app/utils/jobs/queue.server.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 526[2mms[22m[39m
+ [32m✓[39m app/utils/eslint-restrictions.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 13444[2mms[22m[39m
+   [33m[2m✓[22m[39m a direct user delete outside Account Erasure fails lint, naming deleteAccount [33m 969[2mms[22m[39m
+   [33m[2m✓[22m[39m Account Erasure itself and tests may delete a user; route tests keep the <select> guard [33m 1174[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m      Tests [22m [1m[32m40 passed[39m[22m[90m (40)[39m
+[2m   Start at [22m 12:22:37
+[2m   Duration [22m 15.82s[2m (transform 4.53s, setup 5.33s, import 4.34s, tests 19.99s, environment 1ms)[22m
+

@@ -1,0 +1,21 @@
+== Workouts of fixture (id title authorship owner visibility copiedFrom)
+stock [('QA stock with entry', 'system', 0, 'private', None)]
+stockNoEntry [('QA stock no entry', 'system', 0, 'private', None)]
+kodyOwned [('QA kody owned', 'athlete', 1, 'private', None)]
+O1_private GONE
+F1_published_fork GONE
+kodyForkOfF1 [('QA stock with entry', 'athlete', 1, 'private', 'cmwgdnuo400017dtcyqf7uiph')]
+O2_saved GONE
+O3_heldBySession [('QA stock with entry', 'athlete', 0, 'private', 'cmwgdnuo400017dtcyqf7uiph')]
+O4_heldByProgramDay [('QA O4 held by program day', 'athlete', 0, 'private', None)]
+O5_root GONE
+kodyForkOfO5 [('QA O5 root no ancestor', 'athlete', 1, 'private', None)]
+catalogue entries per authorship: [('athlete', 1), ('system', 152)]
+catalogue entry ids of fixture: [('stock', 1), ('stockNoEntry', 0), ('O1_private', 0), ('F1_published_fork', 0), ('O2_saved', 0), ('O3_heldBySession', 1), ('O4_heldByProgramDay', 0), ('O5_root', 0)]
+attribution of fixture: [('O1_private', 0), ('F1_published_fork', 0), ('O2_saved', 0), ('O3_heldBySession', 0), ('O4_heldByProgramDay', 0), ('O5_root', 0)]
+saves on O2: [(0,)]
+session [('cmwgdnuu9000q7dtccwkgik48',)]
+programDay [('cmwgdnuw7000y7dtcy6rtm3ur',)]
+athlete workouts, null owner: [(2,)]
+total workouts [(181,)] stock [(159,)]
+jobs: [('cmwgdoc2s000a7dvns7k3cfgo', 'orphaned-workout-purge', 'completed', 1, '{"purged":{"erased":4,"keptUnattributed":2,"spliced":2}}', None)]
