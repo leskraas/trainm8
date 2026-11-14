@@ -584,7 +584,7 @@ export type SeasonAnchorChoice = {
 }
 
 /**
- * Every track the Season Anchor edit takes — a cardio track with a Season
+ * Every track the Season Anchor edit takes — an endurance track with a Season
  * Anchor (ADR 0121 §1) — with its choices, in the plan's track order.
  */
 export function seasonAnchorChoices(

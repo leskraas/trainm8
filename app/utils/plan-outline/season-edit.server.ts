@@ -187,7 +187,7 @@ export async function applySeasonEdit(
 }
 
 /**
- * What _Endre startnivået_ and Plan's _Ukevolum_ rows offer (#673): each cardio
+ * What _Endre startnivået_ and Plan's _Ukevolum_ rows offer (#673): each endurance
  * track with a Season Anchor, its segments and the weeks from
  * `firstUnbegunWeekKey` on, read from the same rows the edit previews over.
  */

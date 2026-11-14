@@ -883,7 +883,7 @@ describe('a Season Anchor (#673, ADR 0121)', () => {
 		).toEqual({ ok: false, reason: 'no-season-anchor' })
 	})
 
-	test('the choices: cardio tracks with an anchor, from the first unbegun week, with the ramp’s level', () => {
+	test('the choices: endurance tracks with an anchor, from the first unbegun week, with the ramp’s level', () => {
 		const [choice] = seasonAnchorChoices(outline(), UNBEGUN)
 		expect(choice).toMatchObject({
 			trackId: 'run',
