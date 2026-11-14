@@ -99,6 +99,8 @@ import {
 	type SeasonRequest,
 	type SessionSlot,
 	type UnfilledSlot,
+	placedSessions,
+	unfilledSlots,
 } from './season.ts'
 
 /** Which implementation produced a payload. Stamped on every season it returns. */
@@ -314,16 +316,6 @@ export function placeDeterministicWeeks(
 			(a.discipline < b.discipline ? -1 : a.discipline > b.discipline ? 1 : 0),
 	)
 	return { slots }
-}
-
-/** The placed sessions of a placement, in its order. */
-export function placedSessions(placed: PlacedWeeks): GeneratedSession[] {
-	return placed.slots.flatMap((slot) => (slot.session ? [slot.session] : []))
-}
-
-/** The slots a placement found nothing in the corpus for, in its order. */
-export function unfilledSlots(placed: PlacedWeeks): UnfilledSlot[] {
-	return placed.slots.flatMap(({ session, ...slot }) => (session ? [] : [slot]))
 }
 
 /**

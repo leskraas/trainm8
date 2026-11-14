@@ -8,7 +8,6 @@ import { relayPlanFrom } from '../plan-outline/open-ended.server.ts'
 import { outlinePreviewSelect } from '../plan-outline/outline-preview.ts'
 import { readPlanWeekSource } from '../plan-outline/week-source.server.ts'
 import { getDisciplineThresholds } from '../training.server.ts'
-import { placedSessions } from './deterministic.ts'
 import {
 	approveSeason,
 	previewSeason,
@@ -17,6 +16,7 @@ import {
 } from './generate.server.ts'
 import { DETERMINISTIC_SEASON_GENERATOR } from './generator.ts'
 import { relayGeneratedPlan } from './relay.server.ts'
+import { placedSessions } from './season.ts'
 
 // A generated plan keeps its sessions when its weeks are laid again (#686,
 // ADR 0117). Against the database: approval, the stored record, and

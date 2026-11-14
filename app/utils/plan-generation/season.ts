@@ -337,3 +337,13 @@ export type PlacedSlot = UnfilledSlot & { session: GeneratedSession | null }
 
 /** The slots of the weeks asked for, in season order. */
 export type PlacedWeeks = { slots: PlacedSlot[] }
+
+/** The placed sessions of a placement, in its order. */
+export function placedSessions(placed: PlacedWeeks): GeneratedSession[] {
+	return placed.slots.flatMap((slot) => (slot.session ? [slot.session] : []))
+}
+
+/** The slots a placement found nothing in the corpus for, in its order. */
+export function unfilledSlots(placed: PlacedWeeks): UnfilledSlot[] {
+	return placed.slots.flatMap(({ session, ...slot }) => (session ? [] : [slot]))
+}

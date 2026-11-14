@@ -43,7 +43,11 @@ import {
 import { readGenerationCorpus } from './generate.server.ts'
 import { generatorFor } from './generator.ts'
 import { matchesCriteria, type RetrievableEntry } from './retrieval.ts'
-import { type PlacedSlot, type PlaceWeeksRequest } from './season.ts'
+import {
+	placedSessions,
+	type PlacedSlot,
+	type PlaceWeeksRequest,
+} from './season.ts'
 import {
 	defaultTrainingTime,
 	readStockWorkouts,
@@ -168,9 +172,7 @@ async function layWeeks(
 		weekKeys.map(indexOf),
 	)
 	const placed = generator.placeWeeks(request, corpus)
-	const sources = await readStockWorkouts(
-		placed.slots.flatMap((slot) => (slot.session ? [slot.session] : [])),
-	)
+	const sources = await readStockWorkouts(placedSessions(placed))
 	const target: GeneratedSessionTarget = {
 		athleteId: outline.athleteId,
 		eventId: outline.eventId,
@@ -266,7 +268,7 @@ async function layWeeks(
 			const ids = await writeGeneratedSessions(
 				tx,
 				target,
-				open.flatMap((slot) => (slot.session ? [slot.session] : [])),
+				placedSessions({ slots: open }),
 				sources,
 			)
 			return { ids, removed: doomed.length }
