@@ -331,22 +331,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 	// _Bytt treningsform_ (ADR 0101 §2, #581): the Start Options again, laid
 	// from the week a switch would begin in for this plan's tracks and days.
-	const startOptions = await readPlanStartOptions(
-		userId,
-		season,
-		firstUnbegunWeekKey,
-		now,
-	)
-	const treningsform = startOptions ? treningsformViewOf(startOptions) : null
-
 	// _Endre startnivået_ and the lead's _Ukevolum_ rows (#673, ADR 0121): each
-	// cardio track with a Season Anchor, its segments, and the weeks from the
+	// endurance track with a Season Anchor, its segments, and the weeks from the
 	// first unbegun one with the ramp's level there (the fresh-start pre-fill).
-	const anchorChoices = await readSeasonAnchorChoices(
-		userId,
-		season.outlineId,
-		firstUnbegunWeekKey,
-	)
+	// Neither reads the other, so they are read side by side.
+	const [startOptions, anchorChoices] = await Promise.all([
+		readPlanStartOptions(userId, season, firstUnbegunWeekKey, now),
+		readSeasonAnchorChoices(userId, season.outlineId, firstUnbegunWeekKey),
+	])
+	const treningsform = startOptions ? treningsformViewOf(startOptions) : null
 
 	return {
 		// What Plan leads with beside the curve (ADR 0101 §2): the easy week the
