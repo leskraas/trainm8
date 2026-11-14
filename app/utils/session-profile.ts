@@ -194,15 +194,15 @@ function stepToZone(step: WorkoutStep): TrainingZone | null {
  * an intensity is text the athlete may have written: past the cap it starts
  * over.
  */
-const intensityZones = new Map<string, TrainingZone | null>()
+const INTENSITY_ZONES = new Map<string, TrainingZone | null>()
 const INTENSITY_ZONES_MAX = 512
 
 function intensityZone(intensity: string): TrainingZone | null {
-	const known = intensityZones.get(intensity)
+	const known = INTENSITY_ZONES.get(intensity)
 	if (known !== undefined) return known
 	const zone = readIntensityZone(intensity)
-	if (intensityZones.size >= INTENSITY_ZONES_MAX) intensityZones.clear()
-	intensityZones.set(intensity, zone)
+	if (INTENSITY_ZONES.size >= INTENSITY_ZONES_MAX) INTENSITY_ZONES.clear()
+	INTENSITY_ZONES.set(intensity, zone)
 	return zone
 }
 
