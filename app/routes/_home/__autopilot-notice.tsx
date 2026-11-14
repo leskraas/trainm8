@@ -170,7 +170,7 @@ export function AutopilotHistoryCard({ notice }: { notice: AutopilotNotice }) {
 		<section
 			aria-labelledby={headingId}
 			data-autopilot-history={notice.comingWeekKey}
-			className="border-border bg-card mx-4 my-3 flex min-w-0 flex-col gap-2 rounded-[14px] border px-4 py-4"
+			className="border-border bg-card mx-4 my-3 flex min-w-0 flex-col gap-2 rounded-4xl border px-4 py-4"
 		>
 			<h3
 				id={headingId}
