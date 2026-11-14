@@ -1,0 +1,10 @@
+   ✓ the tapped row is held where it was while the panel above closes 8ms
+   ✓ the hold lets go once the athlete scrolls (pointerdown) 4ms
+   ✓ the hold lets go once the athlete scrolls (wheel) 3ms
+   ✓ the hold lets go once the athlete scrolls (keydown) 3ms
+   × a panel closed again before it finished opening is never scrolled to 37ms
+   × a panel closed by another row before it finished opening is never scrolled to 9ms
+   × Escape before a panel finished opening cancels its scroll into view 6ms
+   ✓ a panel left open is scrolled into view once it has opened 5ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed | 5 passed (8)

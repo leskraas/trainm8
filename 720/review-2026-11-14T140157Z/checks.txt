@@ -1,0 +1,15 @@
+head b91bcf4
+eslint . --quiet: exit 0 (0 errors)
+npm run typecheck: exit 0
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  app/routes/_auth/auth.$provider/callback.test.ts > a new user goes to onboarding
+ FAIL  app/routes/_auth/auth.$provider/callback.test.ts > when auth fails, send the user to login with a toast
+ FAIL  app/routes/_auth/auth.$provider/callback.test.ts > when a user is logged in, it creates the connection
+ FAIL  app/routes/_auth/auth.$provider/callback.test.ts > when a user is logged in and has already connected, it doesn't do anything and just redirects the user back to the connections page
+ FAIL  app/routes/_auth/auth.$provider/callback.test.ts > when a user exists with the same email, create connection and make session
+ FAIL  app/routes/_auth/auth.$provider/callback.test.ts > gives an error if the account is already connected to another user
+ FAIL  app/routes/_auth/auth.$provider/callback.test.ts > if a user is not logged in, but the connection exists, make a session
+ FAIL  app/routes/_auth/auth.$provider/callback.test.ts > if a user is not logged in, but the connection exists and they have enabled 2FA, send them to verify their 2FA and do not make a session
+ Test Files  1 failed | 434 passed (435)
+      Tests  8 failed | 6597 passed (6605)
+callback.test.ts fails 8/8 identically at the PR's original head ce79486 (same env), so it is the container's env, not this PR.

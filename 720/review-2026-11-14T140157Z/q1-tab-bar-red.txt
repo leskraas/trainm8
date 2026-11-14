@@ -1,0 +1,30 @@
+Running 3 tests using 2 workers
+[1A[2K(node:4164) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[1A[2K(node:4165) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[1A[2K[1/3] [chromium] › tests/e2e/mobile-overflow.test.ts:191:1 › the Plan Preview with a provenance panel open does not overflow at 390px (#475)
+[1A[2K[2/3] [chromium] › tests/e2e/mobile-overflow.test.ts:223:1 › a Plan Preview panel opened just above the tab bar scrolls clear of it, with no request (#475)
+[1A[2K[chromium] › tests/e2e/mobile-overflow.test.ts:191:1 › the Plan Preview with a provenance panel open does not overflow at 390px (#475)
+prisma:query - 65ms - DELETE FROM `main`.`User` WHERE `main`.`User`.`id` = ?
+[1A[2K[3/3] [chromium] › tests/e2e/mobile-overflow.test.ts:425:1 › a session page carrying the longest Citation and a URL locator does not overflow at 390px (#475)
+[1A[2K  1) [chromium] › tests/e2e/mobile-overflow.test.ts:223:1 › a Plan Preview panel opened just above the tab bar scrolls clear of it, with no request (#475) 
+    Error: the open panel ends above the tab bar, not behind it
+    expect(received).toBeLessThanOrEqual(expected)
+    Expected: <= 0
+    Received:    52.25
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+      262 | 	await expect(panel).toBeVisible()
+      263 | 	// The panel opens (200 ms), then scrolls into view.
+    > 264 | 	await expect
+          | 	^
+      265 | 		.poll(async () => {
+      266 | 			const bottom = await panel.evaluate(
+      267 | 				(el) => el.getBoundingClientRect().bottom,
+        at /tmp/claude-0/-home-user-trainm8/60f1705c-02ca-57f2-932d-9c253bfa6b7c/scratchpad/wt/720-review3/tests/e2e/mobile-overflow.test.ts:264:2
+    Error Context: test-results/mobile-overflow-a-Plan-Pre-66e63--of-it-with-no-request-475--chromium/error-context.md
+[1A[2K  1 failed
+    [chromium] › tests/e2e/mobile-overflow.test.ts:223:1 › a Plan Preview panel opened just above the tab bar scrolls clear of it, with no request (#475) 
+  2 passed (1.0m)
+exit 1
