@@ -88,15 +88,18 @@ in pieces React can yield between.
    behaviour do not change; on the client the frame, the top line, the Week
    Strip and the Stream element hydrate first, and the weeks follow at idle
    priority. A tap on a week not yet hydrated hydrates that week first and React
-   replays the tap, so no tap is dropped. **The week elements handed to the
-   boundaries are referentially stable** (built in a `useMemo` over the visible
-   weeks and their stable props), so a frame state change during load does not
-   force every boundary to hydrate in one task (finding 6).
+   replays the tap, so no tap is dropped. **Each week is a memoised
+   `StreamWeek` with the memo outside its boundary** (`memo` around the
+   `<Suspense>` around `WeekBlock`), and its props are stable, so a frame state
+   change during load stops at every unchanged week and never hands a pending
+   boundary a new element, which would force every boundary to hydrate in one
+   task (finding 6).
 
 ### If the budget is still missed
 
-#503 sets the budget: the 52-week season within 15% of the seed season, by URL
-and by navigation. After 1–3 the build measures with
+#503 sets the budget against the seed season: the longest task within 15%, by
+URL and by navigation (median of 5), and "hydrated" by URL within 25%, each
+season's median over at least 20 interleaved runs. After 1–3 the build measures with
 `scripts/measure-home-stream.ts`, and only if a criterion is still over takes
 these, in order, re-measuring after each:
 
@@ -132,6 +135,11 @@ these, in order, re-measuring after each:
 - **Move the presenter into a Web Worker or `requestIdleCallback`.** Rejected:
   hydration needs the same tree the server rendered on its first pass, so the
   data cannot arrive late without a mismatch or a second render.
+- **The week elements built in one `useMemo` over the visible weeks.**
+  Rejected while building it: one list is rebuilt whole when any of its inputs
+  changes (a week appended, the Ukeskiftet card), and every pending boundary is
+  then handed a new element. A memo per week, outside its boundary, stops at
+  each unchanged week.
 - **A virtualiser.** Rejected by ADR 0078 §1; the profile adds nothing for it:
   scrolling holds at 364 rows and the rows are not in the long task.
 
@@ -178,9 +186,10 @@ these, in order, re-measuring after each:
 - **The fallback is built**: the server renders this week and the next
   (`AHEAD_LANDING`), and an effect appends the rest of `AHEAD_INITIAL` in a
   transition once the frame has hydrated, below the reader.
-- **What is left is not the presenter or hydration.** After both, pooled over
-  19 interleaved runs at 4×, the longest task by URL is level with the seed
-  season and by navigation 8% shorter, but "hydrated" is still 17–23% later.
+- **What is left is not the presenter or hydration.** After both, at 4×, the
+  longest task is 1.6% longer than the seed season's by URL and 2.6% by
+  navigation, and "hydrated" is 20.7% later pooled over 24 interleaved runs
+  (paired median 17%), which #503's 25% budget for it allows.
   The profile has the presenter at 59ms against 40ms; the rest is the parse and
   layout of the denser past's markup and the ledger's decode, the remainder this
   ADR leaves to the spec rather than change what the loader ships.
