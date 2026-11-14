@@ -50,6 +50,7 @@ import {
 	useIntensityDraft,
 	type IntensityDraft,
 } from './__intensity-editor.tsx'
+import { POPOVER_FIELD_CLASS } from './__popover-field.ts'
 
 // ——— The kind row ———————————————————————————————————————————————————————
 
@@ -793,7 +794,10 @@ function NudgeField({
 					placeholder={placeholder ?? '—'}
 					value={value}
 					onChange={(event) => onChange(event.target.value)}
-					className="bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 duration-press text-body h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-1 text-center font-medium tabular-nums transition-[box-shadow] ease-out outline-none focus-visible:ring-3"
+					className={cn(
+						POPOVER_FIELD_CLASS,
+						'duration-press flex-1 px-1 text-center font-medium tabular-nums transition-[box-shadow] ease-out',
+					)}
 				/>
 				<Button
 					type="button"

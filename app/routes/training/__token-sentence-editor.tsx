@@ -118,6 +118,7 @@ import {
 } from './__empty-state.tsx'
 import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
 import { IntensityPopoverEditor, UnitToggle } from './__intensity-popover.tsx'
+import { POPOVER_FIELD_CLASS } from './__popover-field.ts'
 import {
 	QUIET_TEXT_BUTTON_CLASS,
 	StrengthSetsEditor,
@@ -1854,7 +1855,7 @@ function BlockNameEditor({
 				placeholder={BLOCK_SHEET_LABELS.namePlaceholder}
 				maxLength={60}
 				// 16 px text so mobile browsers never zoom the field (§9.2).
-				className="bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 text-body h-11 w-full rounded-3xl border border-transparent px-3 outline-none focus-visible:ring-3"
+				className={cn(POPOVER_FIELD_CLASS, 'px-3')}
 				onChange={(event) => {
 					control.change(event.target.value)
 					announce(

@@ -15,6 +15,8 @@ import {
 	parseDuration,
 } from '#app/utils/format.ts'
 import { TOKEN_EDITOR_CONTROL_LABELS as C } from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
+import { POPOVER_FIELD_CLASS } from './__popover-field.ts'
 
 // Conform metadata is typed loosely here, matching the editor modules: only
 // names/keys/values are read, so the generics add noise without safety.
@@ -223,7 +225,10 @@ export function TypeToEditStepper({
 				aria-label={C.value(label)}
 				value={text}
 				onChange={(event) => handleTyped(event.target.value)}
-				className="bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 text-body h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-3 text-center font-medium tabular-nums outline-none focus-visible:ring-3"
+				className={cn(
+					POPOVER_FIELD_CLASS,
+					'flex-1 px-3 text-center font-medium tabular-nums',
+				)}
 			/>
 			<Button
 				type="button"

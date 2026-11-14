@@ -62,6 +62,7 @@ import {
 	type LoadTarget,
 } from '#app/utils/workout-schema.ts'
 import { UnitToggle } from './__intensity-popover.tsx'
+import { POPOVER_FIELD_CLASS } from './__popover-field.ts'
 import {
 	parseCount,
 	parseSeconds,
@@ -439,7 +440,10 @@ function UniformLoadField({
 				placeholder="—"
 				value={text}
 				onChange={(event) => handleTyped(event.target.value)}
-				className="bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 text-body h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-2 text-center font-medium tabular-nums outline-none focus-visible:ring-3"
+				className={cn(
+					POPOVER_FIELD_CLASS,
+					'flex-1 px-2 text-center font-medium tabular-nums',
+				)}
 			/>
 			<Button
 				type="button"
@@ -576,8 +580,10 @@ function SetGridRow({
 	const authored = parseLoadTarget(
 		typeof load.value === 'string' ? load.value : undefined,
 	)
-	const inputClass =
-		'bg-input/50 border-transparent focus-visible:border-ring focus-visible:ring-ring/30 h-11 w-full min-w-0 rounded-3xl border px-2 text-center text-body font-medium tabular-nums outline-none focus-visible:ring-3'
+	const inputClass = cn(
+		POPOVER_FIELD_CLASS,
+		'px-2 text-center font-medium tabular-nums',
+	)
 
 	// kg and %1RM are mutually exclusive per set (schema `weightXorPct`): the UI
 	// enforces it by clearing the other field the moment one is given a value,
