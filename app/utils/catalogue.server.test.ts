@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
+import { consoleWarn } from '#tests/setup/setup-test-env.ts'
 import { localTimeUTC } from './athlete-calendar.ts'
 import {
 	catalogueAdoptionCount,
@@ -870,4 +871,20 @@ test('an athlete’s own fork of a Stock Workout, a deleted source and an own se
 	})
 	expect(await readPlacedProvenance(own.id, null)).toBeNull()
 	expect(await readPlacedProvenance(null, null)).toBeNull()
+})
+
+test('an unsourced placed row shows no line, and says so in the log (#475)', async () => {
+	const athlete = await createAthlete()
+	// A system row with an entry, no Citation and neither notice: corpus drift
+	// that `isPlaceable` should have kept out of every plan.
+	const stock = await createStockWorkout()
+	await createCatalogueEntry(stock.id, { archetype: 'threshold' })
+	const placed = await placedCopy(stock.id, athlete.id)
+	consoleWarn.mockImplementation(() => {})
+
+	expect(await readPlacedProvenance(placed, null)).toBeNull()
+	expect(consoleWarn).toHaveBeenCalledWith(
+		expect.stringContaining('unsourced'),
+		expect.objectContaining({ workoutId: stock.id }),
+	)
 })

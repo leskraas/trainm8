@@ -406,6 +406,7 @@ export async function resolveCatalogueOrigin(
  * selected: it is the author's to read (ADR 0052 §2).
  */
 const placedProvenanceRowSelect = {
+	id: true,
 	authorship: true,
 	description: true,
 	visibility: true,
@@ -472,7 +473,15 @@ export async function readPlacedProvenance(
 		...row.catalogueEntry,
 		attribution: isPublished(row) ? row.attribution : null,
 	})
-	if (provenance.kind === 'unsourced') return null
+	if (provenance.kind === 'unsourced') {
+		// Broken data, not an absence: `isPlaceable` keeps such a row out of
+		// every plan, so a placed one means the corpus drifted under it (a
+		// notice reworded, a Citation cleared). Shown as nothing, logged.
+		console.warn('readPlacedProvenance: an unsourced Catalogue row was placed', {
+			workoutId: row.id,
+		})
+		return null
+	}
 	return {
 		provenance,
 		takenDown: row.attribution?.takenDownAt != null,
