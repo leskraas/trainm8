@@ -1517,11 +1517,11 @@ function SeasonAnchorPreviewPanel({
 					<div>
 						<h4
 							id="season-anchor-preview-weeks"
-							className="text-muted-foreground text-caption"
+							className="text-muted-foreground text-caption font-normal"
 						>
 							{SEASON_ANCHOR_EDIT_LABELS.weeks}
 						</h4>
-						<p className="text-muted-foreground text-caption">
+						<p className="text-muted-foreground text-caption font-normal">
 							{SEASON_ANCHOR_EDIT_LABELS.weeksHint}
 						</p>
 						<ul
@@ -1542,7 +1542,7 @@ function SeasonAnchorPreviewPanel({
 					<div>
 						<h4
 							id="season-anchor-preview-held"
-							className="text-muted-foreground text-caption"
+							className="text-muted-foreground text-caption font-normal"
 						>
 							{SEASON_ANCHOR_EDIT_LABELS.held}
 						</h4>
@@ -1561,7 +1561,7 @@ function SeasonAnchorPreviewPanel({
 											{SEASON_ANCHOR_EDIT_LABELS.week} {week.weekNumber} ·{' '}
 											{week.figure}
 										</span>
-										<span className="text-muted-foreground text-caption block">
+										<span className="text-muted-foreground text-caption block font-normal">
 											{SEASON_ANCHOR_EDIT_LABELS.handSetDetail}
 										</span>
 									</span>
@@ -1573,7 +1573,7 @@ function SeasonAnchorPreviewPanel({
 						</ul>
 					</div>
 				) : null}
-				<p className="text-muted-foreground text-caption">
+				<p className="text-muted-foreground text-caption font-normal">
 					{SEASON_EDIT_LABELS.aroundYours}
 				</p>
 			</div>
@@ -1661,7 +1661,7 @@ function SeasonAnchorPreviewRow({
 				</span>{' '}
 				<span className="text-muted-foreground">{unit}</span>
 			</span>
-			<span className="text-muted-foreground text-caption block">
+			<span className="text-muted-foreground text-caption block font-normal">
 				{row.authored
 					? SEASON_ANCHOR_EDIT_LABELS.handSet
 					: SEASON_ANCHOR_EDIT_LABELS.derived}
@@ -1673,7 +1673,7 @@ function SeasonAnchorPreviewRow({
 			<span className="text-callout block">
 				{SEASON_ANCHOR_EDIT_LABELS.week} {row.weekNumber}
 			</span>
-			<span className="text-muted-foreground text-caption block [overflow-wrap:anywhere]">
+			<span className="text-muted-foreground text-caption block font-normal [overflow-wrap:anywhere]">
 				{row.where}
 			</span>
 		</span>
