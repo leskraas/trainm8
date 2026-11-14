@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { localDate, weekdayIndex, weekMonday } from '../athlete-calendar.ts'
@@ -611,4 +613,78 @@ test('once a generated plan has a Week Pattern with days, a re-lay stamps it (AC
 	)
 	// The pattern's one day, not the four the record holds.
 	expect(week.map((row) => row.weekday)).toEqual([2])
+})
+
+const MIGRATION = path.join(
+	process.cwd(),
+	'prisma/migrations/20261107174755_a_generated_plan_keeps_a_generation_record/migration.sql',
+)
+
+/** The migration's data step: the statement below its legacy-plans marker. */
+async function runLegacyBackfill() {
+	const sql = fs.readFileSync(MIGRATION, 'utf8')
+	const [, backfill] = sql.split(
+		/^-- Plans Plan Generation made before this record existed.*$/m,
+	)
+	if (!backfill) throw new Error('no legacy-plans marker in the migration')
+	await prisma.$executeRawUnsafe(backfill.trim().replace(/;$/, ''))
+}
+
+test('the migration records each legacy generated plan once, however often it runs (AC 9)', async () => {
+	await seedCorpus()
+	// A plan generated before the record: approved, its record then gone.
+	const legacy = await approve()
+	await prisma.generationRecord.delete({
+		where: { outlineId: legacy.outlineId },
+	})
+	// A plan approval already recorded keeps its own record.
+	const recorded = await approve()
+	// A generated plan the athlete gave days of their own is not generated any more.
+	const patterned = await approve()
+	await prisma.generationRecord.delete({
+		where: { outlineId: patterned.outlineId },
+	})
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId: patterned.outlineId },
+		select: { id: true },
+	})
+	const pattern = await prisma.weekPattern.create({
+		select: { id: true },
+		data: { outlineId: patterned.outlineId, orderIndex: 0, name: 'Min uke' },
+	})
+	await prisma.weekPatternDay.create({
+		data: {
+			patternId: pattern.id,
+			trackId: track.id,
+			weekday: 2,
+			orderInDay: 0,
+			kind: 'share',
+			weight: 1,
+		},
+	})
+	const records = () =>
+		prisma.generationRecord.findMany({
+			select: { id: true, outlineId: true, presetKey: true, intent: true },
+			orderBy: { id: 'asc' },
+		})
+
+	await runLegacyBackfill()
+	const once = await records()
+	await runLegacyBackfill()
+	expect(await records()).toEqual(once)
+
+	expect(once).toHaveLength(2)
+	expect(once).toContainEqual({
+		id: `genrec_${legacy.outlineId}`,
+		outlineId: legacy.outlineId,
+		presetKey: null,
+		intent: null,
+	})
+	expect(once).toContainEqual(
+		expect.objectContaining({
+			outlineId: recorded.outlineId,
+			presetKey: 'masters-2-1-short',
+			intent: 'deliberately-building',
+		}),
+	)
 })
