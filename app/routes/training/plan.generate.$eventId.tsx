@@ -942,8 +942,11 @@ function TrackFigureLine({ track }: { track: TimelineTrackWeek }) {
 		track.figures.planned != null
 			? withUnit(track.figures.planned)
 			: (track.figureNotes.planned ?? '—')
+	// When a count goes beside the sum is `wordTrackWeek`'s rule; the preview
+	// says it unsided (`+1 uten km`), as the design asks, since `planlagt` is
+	// already named on this line.
 	const beside =
-		track.figures.planned != null && track.plannedUnmeasuredCount > 0
+		track.plannedUnmeasuredLabel != null
 			? unmeasuredCountLabel(track.plannedUnmeasuredCount, track.currency)
 			: null
 	const drift = track.driftLabel ? (
