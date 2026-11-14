@@ -242,6 +242,23 @@ test('Escape closes the open panel wherever focus is, and returns focus to its r
 	expect(button).toHaveFocus()
 })
 
+test('Escape pressed in another control closes the panel and leaves focus where the athlete is', async () => {
+	const user = userEvent.setup()
+	renderScreen()
+	const button = await row('5 × 1 km @ T')
+	await user.click(button)
+	expect(button).toHaveAttribute('aria-expanded', 'true')
+	// The athlete has moved on to another control on the page.
+	const approve = screen.getByRole('button', {
+		name: /legg denne økta i kalenderen/i,
+	})
+	act(() => approve.focus())
+
+	await user.keyboard('{Escape}')
+	expect(button).toHaveAttribute('aria-expanded', 'false')
+	expect(approve).toHaveFocus()
+})
+
 test('a community session reads the slot without a Citation, and carries the non-vouch', async () => {
 	// Generation places no community row today, but the slot reads provenance
 	// rather than assuming a Citation — so a forked or adopted session still

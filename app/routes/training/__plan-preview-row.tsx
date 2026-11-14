@@ -199,15 +199,24 @@ export function SessionRow({
 	const panelId = `provenance-${key}`
 
 	// Escape closes the open panel wherever focus is: Safari does not focus a
-	// clicked button, and a click elsewhere moves focus off the row.
+	// clicked button, and a click elsewhere moves focus off the row. Focus goes
+	// back to the row only from the row, its panel or nowhere (`body`): an
+	// athlete pressing Escape in another control keeps their place.
 	const { close } = openRow
 	useEffect(() => {
 		if (!open) return
 		function onKeyDown(event: globalThis.KeyboardEvent) {
 			if (event.key !== 'Escape' || event.defaultPrevented) return
 			event.preventDefault()
+			const active = document.activeElement
+			const returnFocus =
+				active == null ||
+				active === document.body ||
+				Boolean(
+					triggerRef.current?.closest('[data-session-row]')?.contains(active),
+				)
 			close()
-			triggerRef.current?.focus()
+			if (returnFocus) triggerRef.current?.focus()
 		}
 		document.addEventListener('keydown', onKeyDown)
 		return () => document.removeEventListener('keydown', onKeyDown)
