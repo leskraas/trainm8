@@ -5,7 +5,8 @@
 // Pure: the plan's rows, the start's draft for the new activities and the
 // sessions the athlete keeps go in; out come the rows the apply will store,
 // what else the edit changes (the tracks re-anchored, added or retired, the
-// Pinned days handed back, the Week Volume Overrides cleared), the boundary
+// Pinned days handed back, the Week Volume Overrides and the athlete's later
+// Season Anchors cleared), the boundary
 // week laid from those rows exactly as the stamp will lay it, and a digest
 // of all of it. The preview and the apply run the same computation
 // (`activities-edit.server.ts`), so the week confirmed is the week laid.
@@ -235,12 +236,36 @@ export type ActivitiesSplice = {
 	pinned: Array<{ trackId: string; discipline: string; days: PatternWeekday[] }>
 	/** Every Week Volume Override from the boundary on, which is cleared. */
 	overrides: Array<{ trackId: string; discipline: string; weekKey: string }>
+	/**
+	 * Every Season Anchor dated after the boundary Monday on a track the edit
+	 * re-anchors or retires, which is cleared (#587 criterion 4). Only the
+	 * athlete writes those (_Plan_ → _Avansert_, or the Sesong edit); one on
+	 * the boundary Monday may be the plan's own or an earlier edit's, which
+	 * the rows cannot tell apart, and the edit's re-anchor replaces it.
+	 */
+	anchors: Array<{
+		trackId: string
+		discipline: string
+		weekKey: string
+		value: number
+	}>
 	/** The rows as the apply will store them, new rows under preview ids. */
 	rows: OutlineRows
 }
 
 /** Prefix of the ids the edit gives rows it has not written yet. */
 export const ACTIVITIES_PREVIEW_ID = 'activities:'
+
+/** What the preview lists, by track and then by week. */
+function byTrackAndWeek<T extends { discipline: string; weekKey: string }>(
+	rows: T[],
+): T[] {
+	return rows.sort(
+		(a, b) =>
+			a.discipline.localeCompare(b.discipline) ||
+			a.weekKey.localeCompare(b.weekKey),
+	)
+}
 
 /** A mixless, flat segment: what a track takes on a phase it never laid. */
 function quietSegment(discipline: string): LaidSegment {
@@ -541,8 +566,8 @@ export function spliceActivitiesEdit({
 				? [{ trackId: track.id, discipline: track.discipline, days }]
 				: []
 		}),
-		overrides: outline.tracks
-			.flatMap((track) =>
+		overrides: byTrackAndWeek(
+			outline.tracks.flatMap((track) =>
 				track.overrides
 					.filter((override) => override.weekKey >= boundaryKey)
 					.map((override) => ({
@@ -550,12 +575,24 @@ export function spliceActivitiesEdit({
 						discipline: track.discipline,
 						weekKey: override.weekKey,
 					})),
-			)
-			.sort(
-				(a, b) =>
-					a.discipline.localeCompare(b.discipline) ||
-					a.weekKey.localeCompare(b.weekKey),
 			),
+		),
+		// The apply clears anchors from the boundary on only where it writes a
+		// track's anchor: a track it keeps, takes up again or retires.
+		anchors: byTrackAndWeek(
+			outline.tracks.flatMap((track) =>
+				changeOf(track.id)
+					? track.anchors
+							.filter((anchor) => anchor.fromWeekKey > boundaryKey)
+							.map((anchor) => ({
+								trackId: track.id,
+								discipline: track.discipline,
+								weekKey: anchor.fromWeekKey,
+								value: anchor.value,
+							}))
+					: [],
+			),
+		),
 		rows,
 	}
 }
@@ -801,6 +838,7 @@ export function previewActivitiesEdit({
 			strength: splice.strength,
 			pinned: splice.pinned,
 			overrides: splice.overrides,
+			anchors: splice.anchors,
 			laid: laid.map((session) => [
 				session.weekday,
 				session.orderInDay,

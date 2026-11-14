@@ -11,6 +11,7 @@ import {
 } from '#app/utils/labels.ts'
 import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
+import { weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader as meLoader } from '../me.tsx'
@@ -238,7 +239,7 @@ test('a plan with only strength left stays read-only in Meg, saying why', async 
 	})
 })
 
-test('the preview says what else changes: kept sessions, Pinned days and cleared weeks', async () => {
+test('the preview says what else changes: kept sessions, Pinned days, cleared weeks and later Season Anchors', async () => {
 	const { userId, cookie } = await setUp()
 	await startPlan(userId)
 	const plan = await planOf(userId)
@@ -257,6 +258,19 @@ test('the preview says what else changes: kept sessions, Pinned days and cleared
 	await prisma.weekVolumeOverride.create({
 		data: { trackId: run.id, weekKey: boundary, value: 5 },
 	})
+	// A re-anchor the athlete set two weeks after the boundary, and one on the
+	// boundary Monday itself, which the rows cannot tell from the plan's own.
+	const later = weekKeyAt(boundary, 2)
+	for (const [fromWeekKey, value] of [
+		[later, 7],
+		[boundary, 6],
+	] as const) {
+		await prisma.seasonAnchorSegment.upsert({
+			where: { trackId_fromWeekKey: { trackId: run.id, fromWeekKey } },
+			create: { trackId: run.id, fromWeekKey, value },
+			update: { value },
+		})
+	}
 	const workout = await prisma.workout.create({
 		select: { id: true },
 		data: {
@@ -286,11 +300,16 @@ test('the preview says what else changes: kept sessions, Pinned days and cleared
 	})) as {
 		activities: {
 			kind: string
-			preview: { kept: string | null; pinned: string[]; overrides: string[] }
+			preview: {
+				kept: string | null
+				pinned: string[]
+				overrides: string[]
+				anchors: string[]
+			}
 		}
 	}
 	expect(shown.activities.kind).toBe('preview')
-	const { kept, pinned, overrides } = shown.activities.preview
+	const { kept, pinned, overrides, anchors } = shown.activities.preview
 	// One own session stays, and it is on the removed sport (bike is out,
 	// the session is a run, so only the count line names it).
 	expect(kept).toContain(ACTIVITIES_EDIT_LABELS.kept(1, '').split(' ')[0])
@@ -306,6 +325,13 @@ test('the preview says what else changes: kept sessions, Pinned days and cleared
 	// The cleared week is held on one line: no ordinary spaces inside it.
 	expect(overrides[0]).not.toContain('uke ')
 	expect(overrides[0]).not.toContain(' (')
+	// Only the anchor after the boundary Monday is named as the athlete's.
+	expect(anchors).toEqual([
+		`Løping: ${ACTIVITIES_EDIT_LABELS.overrideWeek(
+			isoWeekNumber(later),
+			nbDayMonth(later),
+		)}`,
+	])
 })
 
 test('a plan the start made is edited in place: pre-filled, previewed, refused when unchanged, and laid on Bekreft', async () => {

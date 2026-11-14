@@ -428,6 +428,11 @@ export const ACTIVITIES_EDIT_LABELS = {
 		`${track}: ${nbJoin(days)}`,
 	overridesTitle: 'Timer du har satt selv på en uke, fjernes',
 	/**
+	 * The **Season Anchors** the athlete set for a later week (_Plan_ →
+	 * _Avansert_, or _Sesong_), each listed as `uke 49 (30. november)`.
+	 */
+	anchorsTitle: 'Nytt startnivå du har satt fra en senere uke, fjernes',
+	/**
 	 * `uke 47 (16. november)`: one cleared week, held on one line
 	 * (non-breaking spaces).
 	 */

@@ -87,6 +87,15 @@ is made only when there is none.
   Reconciling them with the new activities is not as simple: an hour count typed
   for one sport mix has no meaning in another. The preview names each cleared
   week, by track and Monday. Overrides before the boundary stay as they are.
+- Season Anchors from the boundary on are **cleared** on every track the edit
+  re-anchors or retires, for the same reason: a later anchor is a new base (ADR
+  0040 §5) and would change the hours laid after it. Only the athlete writes an
+  anchor dated after the first unbegun week (_Plan_ → _Avansert_, or the Sesong
+  edit, ADR 0122), so the preview names each one dated **after** the boundary
+  Monday, by track and Monday. One on the boundary Monday itself may be the
+  plan's own first anchor or an earlier edit's re-anchor, which the rows cannot
+  tell apart (`SeasonAnchorSegment` has no source); the edit's re-anchor
+  replaces it unnamed.
 - Strength: its dated blocks are cut at the boundary; when the edit lifts, a new
   block opens there at the lifts laid (keeping the goal of the block it cuts,
   else the general goal), with that many lifting slots on the session
@@ -101,10 +110,12 @@ is made only when there is none.
   cannot be mistaken for an athlete's own number. Every reader of the plan's
   activities goes through it: _Meg_'s list and the editor's pre-fill, and
   `planStartAnswers`, so _Bytt treningsform_ never lays a sport the athlete
-  removed. The anchor editor (`__season-anchor-editor`) refuses to remove or
-  move a retirement anchor, and to re-anchor a retired track after it: a track
-  comes back by being taken up again here, which writes its days as well as its
-  hours.
+  removed. The Season Anchor list's own rule (`editAnchorList` in
+  `season-anchors.ts`, ADR 0122 §1), which the anchor editor
+  (`__season-anchor-editor`) and the Sesong edit both read, refuses to remove or
+  move a retirement anchor, and to re-anchor a retired track after it; the
+  Sesong edit does not offer a retired track. A track comes back by being taken
+  up again here, which writes its days as well as its hours.
 
 ### 4. Days: the draft's pattern, written as drawn
 
@@ -140,10 +151,11 @@ The preview writes nothing. It shows that week with the start's card week
 the athlete's, the start's notes (_Fikk ikke plass_, short of the hours, lifting
 capped), the Monday it begins, how many of the athlete's own or adopted sessions
 from then on stay where they are, which Pinned days are handed back to the app,
-and which hand-set weeks are cleared (§3). The confirm posts the preview's
-digest, which covers the laid week, the kept sessions it was laid around (id,
-day, Discipline) and the cleared overrides; the apply recomputes inside its
-transaction and refuses with `preview-stale` when it differs, as
+which hand-set weeks are cleared, and which of the athlete's later Season
+Anchors are cleared (§3). The confirm posts the preview's digest, which covers
+the laid week, the kept sessions it was laid around (id, day, Discipline), the
+cleared overrides and the cleared anchors (week and value); the apply recomputes
+inside its transaction and refuses with `preview-stale` when it differs, as
 `switchPhilosophy` does. A session added, moved or adopted in the boundary week
 after the preview therefore makes it stale. After commit the weeks from the
 boundary are re-laid through `relayPlanFrom`, whose clearing is the gated
@@ -181,6 +193,10 @@ The seven calls this record left to the owner were settled on #587 (autonomy
    preview by track and Monday.
 7. **Hours and days are not edited here.** The hours stay the plan's; the days
    stay the athlete's Training Availability.
+
+Review on #699 added one: **the athlete's later Season Anchors are cleared**
+from the boundary on and each one dated after the boundary Monday is named in
+the preview by track and Monday (§3), as overrides and Pinned days are.
 
 ## 7. What the build draws out, and where
 
@@ -239,9 +255,9 @@ moves to where both read it rather than being copied:
 
 ## State
 
-Accepted on #587 (2026-11-07), and built on #587 (PR #699): the pure
-splice and edit reading (`app/utils/first-run/activities-edit.ts`), the server
-read, preview and apply (`activities-edit.server.ts`) with a "made = shown" test
+Accepted on #587 (2026-11-07), and built on #587 (PR #699): the pure splice and
+edit reading (`app/utils/first-run/activities-edit.ts`), the server read,
+preview and apply (`activities-edit.server.ts`) with a "made = shown" test
 against the database that keeps an adopted lift and an authored hard session in
 the boundary week, the extractions in §7, the Meg editor in `level.tsx` with its
 words in `labels.ts`, and an e2e at 390 × 844.

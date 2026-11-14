@@ -227,6 +227,47 @@ describe('the splice', () => {
 		expect(splice.pinned).toEqual([
 			{ trackId: runId, discipline: 'run', days: [6] },
 		])
+		// No Season Anchor after the boundary Monday, so none is named.
+		expect(splice.anchors).toEqual([])
+	})
+
+	test('the athlete’s Season Anchors after the boundary Monday are cleared and named; one on it is the re-anchor', () => {
+		const outline = livedPlan()
+		const run = outline.tracks.find((track) => track.discipline === 'run')!
+		const bike = outline.tracks.find((track) => track.discipline === 'bike')!
+		const later = weekKeyAt(PLAN_START, 9)
+		run.anchors.push(
+			{ fromWeekKey: BOUNDARY, value: 5 },
+			{ fromWeekKey: later, value: 7 },
+		)
+		bike.anchors.push({ fromWeekKey: weekKeyAt(PLAN_START, 8), value: 2 })
+		const { draft } = draftFor({
+			sports: ['run', 'swim'],
+			activities: [],
+			strength: null,
+		}).options[0]!
+		const splice = spliceActivitiesEdit({
+			outline,
+			boundaryWeekKey: BOUNDARY,
+			draft,
+			strength: null,
+		})
+		// Run is kept and bike retired: both are re-anchored at the boundary,
+		// so each anchor after it goes, by track and then by week.
+		expect(splice.anchors).toEqual([
+			{
+				trackId: bike.id,
+				discipline: 'bike',
+				weekKey: weekKeyAt(PLAN_START, 8),
+				value: 2,
+			},
+			{ trackId: run.id, discipline: 'run', weekKey: later, value: 7 },
+		])
+		const runRow = splice.rows.tracks.find((track) => track.id === run.id)!
+		const runChange = splice.tracks.find((change) => change.trackId === run.id)!
+		expect(
+			runRow.anchors.filter((anchor) => anchor.fromWeekKey >= BOUNDARY),
+		).toEqual([{ fromWeekKey: BOUNDARY, value: runChange.anchor }])
 	})
 
 	test('a retired sport taken up again reuses its track and is laid from the boundary', () => {

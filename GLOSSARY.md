@@ -2406,9 +2406,9 @@ non-vouch says it does not. What it cannot do it **names**: no preset carries a
 the payload, and a slot the corpus has nothing for is left empty and said out
 loud rather than backfilled. A season is reviewed on the **Plan Preview** before
 approval and on _Plan_ after it; there is no separate review screen (ADR 0123).
-The plan it writes keeps a **Generation Record**, and its weeks are laid again by
-the generator until the athlete gives it a **Week Pattern** with days (ADR 0120).
-_Avoid_: AI plan, auto-plan.
+The plan it writes keeps a **Generation Record**, and its weeks are laid again
+by the generator until the athlete gives it a **Week Pattern** with days (ADR
+0120). _Avoid_: AI plan, auto-plan.
 
 **Generation Record**: What a **Plan Outline** made by **Plan Generation** keeps
 of its approval: the generator that made it, the **Periodization Preset** and
@@ -2740,8 +2740,12 @@ and still revertible (ADR 0044 §5). Corrected behind a preview in _Endre
 sesongen_ (ADR 0122), or directly under _Avansert_, where a track's first anchor
 is added. A fresh start is pre-filled with the level the **Volume Ramp** has
 reached at that week, the number its next loading week gets, never a week's
-target. _Avoid_: Starting volume (ambiguous once there are segments), baseline
-(overloaded with threshold baselines).
+target. An activities edit in _Meg_ re-anchors each track it keeps at its
+boundary and clears the segments after it, naming each one dated after the
+boundary Monday in its preview (ADR 0109 §3); an anchor of 0 is a **Retired
+track**, which neither editor removes or moves. _Avoid_: Starting volume
+(ambiguous once there are segments), baseline (overloaded with threshold
+baselines).
 
 **Volume Ramp**: The per-week rate of volume increase a **Training Track**
 authors per segment — the app's _upward_ counterpart to **Week Replan**'s

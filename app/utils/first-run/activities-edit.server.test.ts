@@ -350,6 +350,48 @@ test('a confirm whose boundary week changed since the preview writes nothing, an
 	expect(await sessionsIn(userId, BOUNDARY)).toEqual(week)
 })
 
+test('a Season Anchor the athlete sets after the preview makes the confirm stale; one shown is cleared on Bekreft', async () => {
+	const { userId, outlineId } = await startPlan()
+	const run = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId, discipline: 'run' },
+		select: { id: true },
+	})
+	const later = '2030-02-04'
+	const preview = await readActivitiesEdit(userId, SWIM_AND_YOGA, NOW)
+	if (!preview.ok) throw new Error(preview.reason)
+	expect(preview.preview.splice.anchors).toEqual([])
+	// The athlete re-anchors run for a later week before confirming.
+	await prisma.seasonAnchorSegment.create({
+		data: { trackId: run.id, fromWeekKey: later, value: 7 },
+	})
+	expect(
+		await applyActivitiesEdit(userId, SWIM_AND_YOGA, NOW, {
+			digest: preview.preview.digest,
+		}),
+	).toEqual({ ok: false, reason: 'preview-stale' })
+	expect(
+		await prisma.seasonAnchorSegment.count({
+			where: { trackId: run.id, fromWeekKey: later },
+		}),
+	).toBe(1)
+
+	// Previewed again, the anchor is named, and Bekreft clears it.
+	const again = await readActivitiesEdit(userId, SWIM_AND_YOGA, NOW)
+	if (!again.ok) throw new Error(again.reason)
+	expect(again.preview.splice.anchors).toEqual([
+		{ trackId: run.id, discipline: 'run', weekKey: later, value: 7 },
+	])
+	const applied = await applyActivitiesEdit(userId, SWIM_AND_YOGA, NOW, {
+		digest: again.preview.digest,
+	})
+	expect(applied.ok).toBe(true)
+	expect(
+		await prisma.seasonAnchorSegment.count({
+			where: { trackId: run.id, fromWeekKey: { gt: BOUNDARY } },
+		}),
+	).toBe(0)
+})
+
 test('a removed sport is never laid again by Bytt treningsform, and removing strength clears the frequency', async () => {
 	const { userId, outlineId } = await startPlan()
 	const applied = await applyActivitiesEdit(

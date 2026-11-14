@@ -22,9 +22,10 @@ to Strava and Intervals.icu, and file imports. Specs to copy from:
 - Training settings and level: `/settings/training`, `/settings/level`.
 - The plan's activities at `/settings/level` (#587, ADR 0109): the start's chips
   pressed with the plan's activities, _Vis ny uke_ for the server's preview of
-  the first week the edit lays, _Bekreft_ to lay it. A plan toward an Event,
-  measured in km or TSS, or lifting only shows the activities read-only with
-  why; no plan shows no editor.
+  the first week the edit lays (with _Dette endres også_: kept sessions, Pinned
+  days, hand-set weeks and the athlete's later Season Anchors that go),
+  _Bekreft_ to lay it. A plan toward an Event, measured in km or TSS, or lifting
+  only shows the activities read-only with why; no plan shows no editor.
 - _Hjemsted_ at `/settings/hjemsted` (#433, ADR 0115): the Home Place. Search by
   name (Kartverket, mocked with `MOCK_WEATHER=true`), pick a match (saves at
   once, status line _Lagret. I dag viser været for X._), _Fjern_. The _Meg_ row

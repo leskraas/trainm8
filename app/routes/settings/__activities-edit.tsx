@@ -274,6 +274,9 @@ function ActivitiesPreview({
 		preview.overrides.length > 0
 			? { title: W.overridesTitle, lines: preview.overrides, key: 'overrides' }
 			: null,
+		preview.anchors.length > 0
+			? { title: W.anchorsTitle, lines: preview.anchors, key: 'anchors' }
+			: null,
 	].filter((item) => item != null)
 	return (
 		<section

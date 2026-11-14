@@ -143,6 +143,8 @@ export type ActivitiesPreviewView = {
 	kept: string | null
 	pinned: string[]
 	overrides: string[]
+	/** The athlete's later Season Anchors the confirm clears, per track. */
+	anchors: string[]
 }
 
 function minutesLabel(minutes: number): string {
@@ -232,16 +234,27 @@ export function previewViewOf(
 				one.days.map((day) => NB_WEEKDAY_LABELS[day]!),
 			),
 		),
-		overrides: [...new Set(splice.overrides.map((one) => one.discipline))].map(
-			(discipline) =>
-				`${nbTrackName(discipline)}: ${splice.overrides
-					.filter((one) => one.discipline === discipline)
-					.map((one) =>
-						W.overrideWeek(isoWeekNumber(one.weekKey), nbDayMonth(one.weekKey)),
-					)
-					.join(', ')}`,
-		),
+		overrides: weeksByTrack(splice.overrides),
+		anchors: weeksByTrack(splice.anchors),
 	}
+}
+
+/**
+ * `Sykling: uke 47 (16. november), uke 49 (30. november)`: one line per
+ * track, each week held on one line.
+ */
+function weeksByTrack(
+	rows: ReadonlyArray<{ discipline: string; weekKey: string }>,
+): string[] {
+	return [...new Set(rows.map((one) => one.discipline))].map(
+		(discipline) =>
+			`${nbTrackName(discipline)}: ${rows
+				.filter((one) => one.discipline === discipline)
+				.map((one) =>
+					W.overrideWeek(isoWeekNumber(one.weekKey), nbDayMonth(one.weekKey)),
+				)
+				.join(', ')}`,
+	)
 }
 
 /** The editor's form, as posted: the choice, and the confirm's digest. */
