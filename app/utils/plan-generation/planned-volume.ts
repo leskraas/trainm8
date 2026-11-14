@@ -15,7 +15,7 @@
  * model's tracks and groups the sessions by the week they fall in. It returns
  * numbers and codes. The words go on at the edge (`wordTrackWeek`).
  */
-import { addDays, weekdayIndex } from '../athlete-calendar.ts'
+import { mondayOfDay } from '../athlete-calendar.ts'
 import {
 	buildWeekVolumes,
 	type PlanTrackTargets,
@@ -65,11 +65,6 @@ export function seasonTrackTargets(
 	}))
 }
 
-/** The Monday of the Training Week a `YYYY-MM-DD` day falls in. */
-function mondayOf(dayKey: string): string {
-	return addDays(dayKey, -weekdayIndex(dayKey))
-}
-
 /**
  * Every season week's numbers, over the week as approval would leave it: the
  * sessions the generator placed and the athlete's own already in that week.
@@ -92,7 +87,7 @@ export function previewWeekVolumes({
 	const byWeek = (sessions: readonly VolumeSession[]) => {
 		const weeks = new Map<string, VolumeSession[]>()
 		for (const session of sessions) {
-			const monday = mondayOf(session.dayKey)
+			const monday = mondayOfDay(session.dayKey)
 			weeks.set(monday, [...(weeks.get(monday) ?? []), session])
 		}
 		return weeks
