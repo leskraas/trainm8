@@ -1239,7 +1239,7 @@ function SeasonAnchorEdit({
 					meta={fields.trackId}
 					labelProps={{
 						children: SEASON_ANCHOR_EDIT_LABELS.track,
-						className: 'text-sm font-medium',
+						className: 'text-callout',
 					}}
 					items={tracks.map((choice) => ({
 						value: choice.trackId,
@@ -1252,7 +1252,7 @@ function SeasonAnchorEdit({
 			<RadioGroupField
 				name={fields.action.name}
 				legend={SEASON_ANCHOR_EDIT_LABELS.actLegend}
-				legendClassName="text-sm font-medium"
+				legendClassName="text-callout"
 				value={action}
 				onValueChange={(next) => setAction(next as 'add' | 'set' | 'remove')}
 				options={[
@@ -1288,7 +1288,7 @@ function SeasonAnchorEdit({
 					meta={fields.addWeekKey}
 					labelProps={{
 						children: SEASON_ANCHOR_EDIT_LABELS.fromWeek,
-						className: 'text-sm font-medium',
+						className: 'text-callout',
 					}}
 					items={track.weeks.map((week) => ({
 						value: week.weekKey,
@@ -1319,7 +1319,7 @@ function SeasonAnchorEdit({
 						...getInputProps(fields.addValue, { type: 'text' }),
 						inputMode: 'decimal',
 						autoComplete: 'off',
-						className: 'text-base md:text-sm tabular-nums',
+						className: 'text-body tabular-nums',
 						onInput: () => {
 							typed.current.add = true
 						},
@@ -1339,7 +1339,7 @@ function SeasonAnchorEdit({
 					meta={fields.setWeekKey}
 					labelProps={{
 						children: SEASON_ANCHOR_EDIT_LABELS.segment,
-						className: 'text-sm font-medium',
+						className: 'text-callout',
 					}}
 					items={track.anchors.map((anchor) => ({
 						value: anchor.fromWeekKey,
@@ -1356,7 +1356,7 @@ function SeasonAnchorEdit({
 						...getInputProps(fields.setValue, { type: 'text' }),
 						inputMode: 'decimal',
 						autoComplete: 'off',
-						className: 'text-base md:text-sm tabular-nums',
+						className: 'text-body tabular-nums',
 						onInput: () => {
 							typed.current.set = true
 						},
@@ -1377,7 +1377,7 @@ function SeasonAnchorEdit({
 						meta={fields.removeWeekKey}
 						labelProps={{
 							children: SEASON_ANCHOR_EDIT_LABELS.segment,
-							className: 'text-sm font-medium',
+							className: 'text-callout',
 						}}
 						items={removable.map((anchor) => ({
 							value: anchor.fromWeekKey,
