@@ -1,0 +1,13 @@
+$ git grep -n "copyWorkout(" 3c5e9a5 -- app/utils/plan-outline/copy-week.server.ts app/utils/day-stamp.server.ts app/utils/load/week-replan-proposals.server.ts
+3c5e9a5:app/utils/day-stamp.server.ts:188:		const copy = await copyWorkout(tx, original, userId)
+3c5e9a5:app/utils/load/week-replan-proposals.server.ts:639:			const workout = await copyWorkout(tx, target.workout, ctx.userId)
+3c5e9a5:app/utils/load/week-replan-proposals.server.ts:781:	const workout = await copyWorkout(tx, source, ctx.userId)
+3c5e9a5:app/utils/plan-outline/copy-week.server.ts:239:			const fresh = await copyWorkout(tx, workout, userId)
+
+$ git ls-tree --name-only $(git merge-tree --write-tree origin/main 3c5e9a5 | head -1) docs/adr/ | grep 0121
+docs/adr/0121-orphaned-workouts-are-erased-once-by-a-boot-job-and-lint-keeps-deleteaccount-the-one-path.md
+docs/adr/0121-provenance-is-available-not-asserted-a-row-carries-the-plan-and-its-provenance-is-one-tap-away.md
+
+$ (after c6f6be6) same at HEAD | grep -E 012[12]
+docs/adr/0121-orphaned-workouts-are-erased-once-by-a-boot-job-and-lint-keeps-deleteaccount-the-one-path.md
+docs/adr/0122-provenance-is-available-not-asserted-a-row-carries-the-plan-and-its-provenance-is-one-tap-away.md

@@ -1,0 +1,30 @@
+{
+  "number": 720,
+  "kind": "pr",
+  "title": "Provenance is available, not asserted: the Plan Preview's row opens its source, the session page states it (#475)",
+  "state": "open",
+  "createdAt": "2026-11-13T16:28:27Z",
+  "closedAt": null,
+  "labels": [
+    "agent:in-progress",
+    "agent"
+  ],
+  "body": "",
+  "author": "leskraas",
+  "association": "OWNER",
+  "comments": [],
+  "head": "3c5e9a50de621ece77dec724f3e4cb5c6f11f48f",
+  "branch": "agent/475-build-the-review-surface",
+  "base": "main",
+  "fork": false,
+  "merged": false,
+  "mergedAt": null,
+  "draft": false,
+  "mergeable": true,
+  "issue": 475,
+  "trusted": true,
+  "hidden": {
+    "factory_comments": 3,
+    "pr_body": true
+  }
+}

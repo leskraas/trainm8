@@ -1,0 +1,6 @@
+[22m[39mBEFORE {"provenance":{"kind":"community","attribution":{"displayName":"Jo","publishedAt":"2026-11-14T12:53:28.171Z"}},"takenDown":false}
+[22m[39mERASURE {"erased":1,"withdrawn":0,"spliced":1}
+[22m[39mAFTER null
+ [32m✓[39m app/utils/zz-probe-s2.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 272[2mms[22m[39m
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
