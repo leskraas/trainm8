@@ -1,0 +1,6 @@
+> typecheck
+ Test Files  440 passed (440)
+      Tests  6696 passed (6696)
+✖ 160 problems (0 errors, 160 warnings)
+  0 errors and 5 warnings potentially fixable with the `--fix` option.
+

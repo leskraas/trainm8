@@ -1,0 +1,14 @@
+(node:11693) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Running 4 tests using 2 workers
+(node:11769) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11770) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[1/4] [chromium] › tests/e2e/plan-generate.test.ts:19:1 › athlete builds a season from the catalogue, answers its question, and adds it
+[2/4] [chromium] › tests/e2e/plan-generate.test.ts:155:1 › a season over the athlete’s weekly hours is scaled to fit, and says so
+[chromium] › tests/e2e/plan-generate.test.ts:155:1 › a season over the athlete’s weekly hours is scaled to fit, and says so
+prisma:query - 81ms - DELETE FROM `main`.`User` WHERE `main`.`User`.`id` = ?
+[3/4] [chromium] › tests/e2e/plan-generate.test.ts:257:1 › the season line and the «N uker til» row name the weeks whose placed sessions outrun the capacity, with the section closed
+[4/4] [chromium] › tests/e2e/plan-generate.test.ts:305:1 › the worst-case season wraps without overflow at 320 px and 390 px with 200 % text
+  4 passed (53.6s)
