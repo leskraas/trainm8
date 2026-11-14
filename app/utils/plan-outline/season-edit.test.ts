@@ -573,7 +573,7 @@ describe('a strength track', () => {
 	})
 })
 
-describe('a Season Anchor (#673, ADR 0121)', () => {
+describe('a Season Anchor (#673, ADR 0122)', () => {
 	type Track = OutlineRows['tracks'][number]
 	const withTrack = (change: Partial<Track>, unbegun = UNBEGUN) => {
 		const rows = outline()

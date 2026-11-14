@@ -331,7 +331,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 	// _Bytt treningsform_ (ADR 0101 §2, #581): the Start Options again, laid
 	// from the week a switch would begin in for this plan's tracks and days.
-	// _Endre startnivået_ and the lead's _Ukevolum_ rows (#673, ADR 0121): each
+	// _Endre startnivået_ and the lead's _Ukevolum_ rows (#673, ADR 0122): each
 	// endurance track with a Season Anchor, its segments, and the weeks from the
 	// first unbegun one with the ramp's level there (the fresh-start pre-fill).
 	// Neither reads the other, so they are read side by side.

@@ -72,7 +72,7 @@ export function seasonEditWarningMessage(warning: SeasonEditWarning): string {
 }
 
 /**
- * How a changed week's target was worked out (ADR 0121 §1), the "regnet ut"
+ * How a changed week's target was worked out (ADR 0122 §1), the "regnet ut"
  * a preview row opens: `Startnivå 40 km fra uke 41, så +5 % for hver av de 3
  * harde ukene i Base. Lett uke i Base: 70 % av uke 43.`
  */

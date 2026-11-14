@@ -1,6 +1,6 @@
 // _Sesong_ edits, version 1 (#505 stories 72–77): a week's target (or back to
 // the plan's own), a phase's name, length and rhythm, which week of a block is
-// the easy one, and a track's **Season Anchor** (#673, ADR 0121) — each worked
+// the easy one, and a track's **Season Anchor** (#673, ADR 0122) — each worked
 // out before anything is written, so the preview the athlete approves and the
 // edit that lands are one computation. (The fifth Sesong edit, the philosophy,
 // is `philosophy.ts`, built the same way.)
@@ -95,7 +95,7 @@ export type SeasonEdit =
 	| SeasonAnchorEdit
 
 /**
- * A track's **Season Anchor** changed (ADR 0121 §1): a fresh start from a week
+ * A track's **Season Anchor** changed (ADR 0122 §1): a fresh start from a week
  * (`add`), a segment's value (`set`, the segment named by its week), or a
  * re-anchor taken back (`remove`, never the earliest).
  */
@@ -138,7 +138,7 @@ export type SeasonEditRefusal =
 	/** The season's first Season Anchor can be changed, never removed. */
 	| 'earliest-anchor'
 	| 'anchor-not-found'
-	/** A track's first Season Anchor is added under _Avansert_ (ADR 0121 §3). */
+	/** A track's first Season Anchor is added under _Avansert_ (ADR 0122 §3). */
 	| 'no-season-anchor'
 	/** Strength and the Simple Activities' track have no Season Anchor edit. */
 	| 'not-endurance-track'
@@ -155,7 +155,7 @@ export const HELD_NUMBERS = [
 	'week-targets',
 	'plan-start',
 	'other-phases',
-	/** A Season Anchor edit's span (ADR 0121 §4). */
+	/** A Season Anchor edit's span (ADR 0122 §4). */
 	'phases',
 	/** The weeks before the edit's own week, which the summary carries. */
 	'weeks-before',
@@ -311,7 +311,7 @@ export type SeasonEditRefused = {
 	reason: SeasonEditRefusal
 	/**
 	 * The edit to make instead, built by the domain beside the rule that
-	 * refused (ADR 0121 §1): on `segment-lived`, a fresh start from the first
+	 * refused (ADR 0122 §1): on `segment-lived`, a fresh start from the first
 	 * unbegun week with the typed value.
 	 */
 	offer?: SeasonAnchorEdit
@@ -549,7 +549,7 @@ export function previewEasyWeek(
 }
 
 /**
- * What _Endre startnivået_ offers for one track (ADR 0121): its segments, and
+ * What _Endre startnivået_ offers for one track (ADR 0122): its segments, and
  * the weeks a fresh start may be picked from — each with its role, its target
  * and the **Volume Ramp**'s level there, the pre-fill (§2). Computed here, by
  * `derive.ts`, so the page never divides by a role factor itself.
@@ -584,7 +584,7 @@ export type SeasonAnchorChoice = {
 
 /**
  * Every track the Season Anchor edit takes — an endurance track with a Season
- * Anchor (ADR 0121 §1) — with its choices, in the plan's track order.
+ * Anchor (ADR 0122 §1) — with its choices, in the plan's track order.
  */
 export function seasonAnchorChoices(
 	outline: OutlineRows,
@@ -640,7 +640,7 @@ export function seasonAnchorChoices(
 }
 
 /**
- * Change a track's **Season Anchor** (#673, ADR 0121 §1): a fresh start from a
+ * Change a track's **Season Anchor** (#673, ADR 0122 §1): a fresh start from a
  * week, a segment's value, or a re-anchor taken back. Every week after the
  * segment's own week is derived from it, so the preview is the season from
  * there: each week whose target moves, and each hand-set week whose rule moved

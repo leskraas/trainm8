@@ -428,7 +428,7 @@ export const SEASON_EDIT_LABELS = {
 } as const
 
 /**
- * _Endre startnivået_ in _Endre sesongen_ (#673, ADR 0121): a track's **Season
+ * _Endre startnivået_ in _Endre sesongen_ (#673, ADR 0122): a track's **Season
  * Anchor** — the number every week is worked out from — changed behind the
  * same preview as the other Sesong edits.
  */
@@ -499,7 +499,7 @@ export const SEASON_ANCHOR_EDIT_LABELS = {
 				: `${count} uker får nytt mål`,
 } as const
 
-/** How a changed week's target was worked out (ADR 0121 §1), worded. */
+/** How a changed week's target was worked out (ADR 0122 §1), worded. */
 export type SeasonAnchorDerivationWords = {
 	anchor: { figure: string; weekNumber: number }
 	/** `percent`: signed, with its sign, `+2,5 %` (`formatNbSignedRate`). */
@@ -553,7 +553,7 @@ export function seasonAnchorDerivationSentence(
  * _Avansert_ on Sesong (#505 story 75, ADR 0084 §1): the plan's rules that are
  * outside the Sesong edits — a segment's climb and quality mix, a phase's
  * place, a lifting block, a shape, the Event fit, and the direct Season Anchor
- * editor kept beside _Endre startnivået_ (ADR 0121 §3). They apply directly,
+ * editor kept beside _Endre startnivået_ (ADR 0122 §3). They apply directly,
  * and the disclosure says so before it opens.
  */
 export const SEASON_ADVANCED_LABELS = {
@@ -635,7 +635,7 @@ export const HELD_NUMBER_LABELS: Record<
 	'plan-start': 'starten på planen',
 	'other-phases': 'de andre fasene',
 	phases: 'fasene',
-	/** The edit's own week (ADR 0121 §4): `ukene før uke 47`. */
+	/** The edit's own week (ADR 0122 §4): `ukene før uke 47`. */
 	'weeks-before': (weekNumber) => `ukene før uke ${weekNumber}`,
 	'other-tracks': 'de andre sporene',
 	'hand-set-weeks': 'ukene du har satt selv',
