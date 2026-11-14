@@ -5,7 +5,7 @@
  *
  * `Workout.ownerId` is `SetNull` (ADR 0051 §2), so a bare `prisma.user.delete`
  * erases the account and leaves every Workout the athlete wrote behind as an
- * orphan — their titles, descriptions and notes, and, for a published one, a
+ * Orphaned Workout — their titles, descriptions and notes, and, for a published one, a
  * Shared Workout under the name they published as. This is the one place an
  * account is deleted, and it erases first; lint rejects any other
  * `user.delete` in `app/` and `server/` (ADR 0114 §4).
@@ -15,7 +15,7 @@
  * What survives, and why nothing else has to:
  *
  * - **Stock Workouts** — never the athlete's. The account scope selects by
- *   owner, which a Stock Workout never has (CHECK); the orphan scope selects by
+ *   owner, which a Stock Workout never has (CHECK); the Orphaned Workout scope selects by
  *   `authorship = 'athlete'` as well as the missing owner, never by the missing
  *   owner alone, which would take in the whole corpus.
  * - **Another athlete's adoption or plan** — placing, forking and stamping all
@@ -54,7 +54,9 @@ export type AccountErasure = {
  * Whose Workouts an erasure takes: one account's, or the Orphaned Workouts an
  * account deleted before #641 left behind.
  */
-type ErasureScope = { kind: 'account'; userId: string } | { kind: 'orphans' }
+type ErasureScope =
+	| { kind: 'account'; userId: string }
+	| { kind: 'orphanedWorkouts' }
 
 // A prolific athlete's purge (many Workouts, a big fork tree) outruns Prisma's 5 s default.
 export const ERASURE_TRANSACTION_OPTIONS = { timeout: 30_000 }
@@ -83,10 +85,10 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 export async function eraseOrphanedWorkouts(
 	tx: Prisma.TransactionClient,
 ): Promise<AccountErasure> {
-	return erase(tx, { kind: 'orphans' })
+	return erase(tx, { kind: 'orphanedWorkouts' })
 }
 
-/** The Workouts a scope may erase. Carries `authorship` for the orphan scope. */
+/** The Workouts a scope may erase. Carries `authorship` for the Orphaned Workout scope. */
 function candidateWhere(scope: ErasureScope): Prisma.WorkoutWhereInput {
 	return scope.kind === 'account'
 		? { ownerId: scope.userId }
@@ -95,18 +97,18 @@ function candidateWhere(scope: ErasureScope): Prisma.WorkoutWhereInput {
 
 /**
  * The training that keeps a candidate. An account's own sessions and slots go
- * with it, so they do not count; an orphan's author's training already went
+ * with it, so they do not count; an Orphaned Workout's author's training already went
  * with their account, so any session, slot or Program day still on it is
  * somebody else's.
  *
  * The `patternDays` clauses cannot match on a migrated database: since ADR
  * 0113 a day uses only its own plan's Held Workout (§3), and its migration
  * re-pointed every existing day at one (§8), so no slot points at another
- * athlete's row or at an orphan. They stay as the guard the rule states, for a
+ * athlete's row or at an Orphaned Workout. They stay as the guard the rule states, for a
  * row a future path or an unmigrated database could still hold.
  */
 function heldElsewhereWhere(scope: ErasureScope): Prisma.WorkoutWhereInput {
-	if (scope.kind === 'orphans') {
+	if (scope.kind === 'orphanedWorkouts') {
 		return {
 			OR: [
 				{ sessions: { some: {} } },
@@ -151,7 +153,7 @@ async function erase(
 
 	await keepUnattributed(tx, [...kept])
 	const spliced = await spliceLineage(tx, parentOf)
-	// The candidate `where` again, never `ownerId` alone: in the orphan scope it
+	// The candidate `where` again, never `ownerId` alone: in the Orphaned Workout scope it
 	// is what keeps every Stock Workout out of this delete.
 	const { count: erased } = await tx.workout.deleteMany({
 		where: { AND: [candidates, { id: { notIn: [...kept] } }] },

@@ -257,7 +257,7 @@ test('another athlete’s Week Pattern slot on the departing athlete’s Workout
 /**
  * One world both entry points run over (#468, ADR 0114): an author whose
  * Workouts are erased, another athlete whose training and lineage hang off
- * them, and the corpus the orphan scope must never reach.
+ * them, and the corpus the Orphaned Workout scope must never reach.
  */
 async function createErasureWorld() {
 	const author = await createAthlete()
