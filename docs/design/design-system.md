@@ -106,8 +106,9 @@ luma's generated class names land on #505's numbers (cards 14–16, controls
 10–12+, pills full) without editing them.
 
 Page code takes the step by **what the element is** (ADR 0119), and the lint
-rule `trainm8/luma-steps` rejects `rounded-sm/md/lg/xl` in page code (its
-exemptions, `app/components/ui`, admin, marketing, SEO, auth, prototypes and
+rule `trainm8/luma-steps` rejects an off-step corner in page code (bare
+`rounded`, `rounded-xs/sm/md/lg/xl` and their side forms such as `rounded-t-lg`;
+its exemptions, `app/components/ui`, admin, marketing, SEO, auth, prototypes and
 tests, are listed in its block in `eslint.config.js`; admin still takes the
 steps, by hand):
 
@@ -145,7 +146,7 @@ Public Sans. shadcn ships no type tokens, so this is an app role in Tailwind's
 own `--text-*` namespace. Each step is a set: size, line height, weight and
 size-specific tracking (negative as type grows, slightly positive at caption
 sizes). Generated components keep their `text-sm`/`text-base`; page content uses
-these steps, and `trainm8/luma-steps` rejects a raw `text-xs`…`text-3xl` in page
+these steps, and `trainm8/luma-steps` rejects a raw `text-xs`…`text-9xl` in page
 code (ADR 0119).
 
 | Class           | Size/leading | Weight | Tracking | For                                |
