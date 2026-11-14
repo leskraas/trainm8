@@ -1345,7 +1345,10 @@ function SeasonAnchorEdit({
 					</p>
 				) : null}
 				<Field
-					labelProps={{ children: SEASON_ANCHOR_EDIT_LABELS.startsAt(unit) }}
+					labelProps={{
+						children: SEASON_ANCHOR_EDIT_LABELS.startsAt(unit),
+						className: 'text-callout',
+					}}
 					inputProps={{
 						...getInputProps(fields.addValue, { type: 'text' }),
 						inputMode: 'decimal',
@@ -1382,7 +1385,10 @@ function SeasonAnchorEdit({
 					}))}
 				/>
 				<Field
-					labelProps={{ children: SEASON_ANCHOR_EDIT_LABELS.newValue(unit) }}
+					labelProps={{
+						children: SEASON_ANCHOR_EDIT_LABELS.newValue(unit),
+						className: 'text-callout',
+					}}
 					inputProps={{
 						...getInputProps(fields.setValue, { type: 'text' }),
 						inputMode: 'decimal',

@@ -429,3 +429,14 @@ test('every picker in the edit labels its weeks “Fra uke”', async () => {
 	)
 	expect(picker?.textContent).toMatch(/^Fra uke 2 · /)
 })
+
+test('the value fields’ labels are on the callout step like the edit’s others', async () => {
+	renderAnchorEdit(anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]))
+	await screen.findByRole('form', { name: 'Endre startnivået' })
+	for (const name of ['Starter på (km)', 'Nytt tall (km)']) {
+		const label = document.querySelector(
+			`label[for="${screen.getByLabelText(name).id}"]`,
+		)
+		expect(label?.classList).toContain('text-callout')
+	}
+})
