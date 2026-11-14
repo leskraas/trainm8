@@ -24,7 +24,7 @@ import { relayGeneratedPlan } from './relay.server.ts'
 import { placedSessions } from './season.ts'
 
 // A generated plan keeps its sessions when its weeks are laid again (#686,
-// ADR 0117). Against the database: approval, the stored record, and
+// ADR 0119). Against the database: approval, the stored record, and
 // `relayPlanFrom` routed to the generator.
 
 const NOW = new Date('2026-01-07T09:00:00Z')

@@ -1,5 +1,5 @@
 /**
- * **The one writer of generated sessions** (ADR 0117, restructuring 4): approval
+ * **The one writer of generated sessions** (ADR 0119, restructuring 4): approval
  * and a re-lay of a generated plan's weeks write identical rows through it.
  *
  * Every placed session gets a **fresh** copy of its **Stock Workout** (never a

@@ -1,5 +1,5 @@
 /**
- * **A stored generated plan, as the generator's request** (ADR 0117 §2).
+ * **A stored generated plan, as the generator's request** (ADR 0119 §2).
  *
  * The bridge between a Plan Outline's rows (`from-rows.ts`) plus its
  * **Generation Record**, and what `SeasonGenerator.placeWeeks` takes. Pure: the
@@ -60,7 +60,7 @@ export function recordedIntent(intent: string | null): GenerationIntent {
 /**
  * The request that places `weekIndices` of a stored generated plan. A track
  * with no stored days places nothing (a track added after approval, or
- * strength: ADR 0117's consequences), so it is left out.
+ * strength: ADR 0119's consequences), so it is left out.
  */
 export function storedPlaceWeeksRequest(
 	rows: OutlineRows,
