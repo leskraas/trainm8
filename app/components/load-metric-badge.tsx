@@ -50,7 +50,7 @@ export function LoadMetricBadge({
 	return (
 		<div
 			className={cn(
-				'rounded-3xl px-2.5 py-1 text-xs font-medium tabular-nums',
+				'text-caption rounded-3xl px-2.5 py-1 font-medium tabular-nums',
 				colorClassName,
 			)}
 		>

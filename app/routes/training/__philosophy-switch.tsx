@@ -259,7 +259,7 @@ export function PhilosophyPreview({
 				afterLabel={PHILOSOPHY_SWITCH_LABELS.after}
 				weeks={preview.weeks}
 			/>
-			<p className="text-muted-foreground text-caption">
+			<p className="text-muted-foreground text-caption font-normal">
 				{PHILOSOPHY_SWITCH_LABELS.aroundYours}
 			</p>
 			<Form
@@ -341,12 +341,12 @@ export function PreviewWeekTable({
 	return (
 		<table className="text-footnote w-full text-left tabular-nums">
 			{caption ? (
-				<caption className="text-muted-foreground text-caption pb-1 text-left">
+				<caption className="text-muted-foreground text-caption pb-1 text-left font-normal">
 					{caption}
 				</caption>
 			) : null}
 			<thead>
-				<tr className="text-muted-foreground text-caption">
+				<tr className="text-muted-foreground text-caption font-normal">
 					<th scope="col" className="py-1 font-medium">
 						{PHILOSOPHY_SWITCH_LABELS.weekColumn}
 					</th>
@@ -365,7 +365,7 @@ export function PreviewWeekTable({
 							{/* The ISO week, as every Sesong surface numbers it, with its
 							    Monday beside it. */}
 							<span className="block">Uke {isoWeekNumber(week.weekKey)}</span>
-							<span className="text-muted-foreground text-caption block">
+							<span className="text-muted-foreground text-caption block font-normal">
 								{formatNbDayMonth(dayOf(week.weekKey), 'UTC')}
 							</span>
 						</th>

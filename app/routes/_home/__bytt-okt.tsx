@@ -191,7 +191,7 @@ function SwapPicker({
 					enterKeyHint="search"
 					autoComplete="off"
 					// 16px, so iOS never zooms the page into the field.
-					className="text-base"
+					className="text-body"
 				/>
 				{from === 'exercise' ? (
 					<p className="text-footnote text-muted-foreground [text-wrap:pretty]">

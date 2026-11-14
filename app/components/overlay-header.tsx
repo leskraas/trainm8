@@ -19,9 +19,9 @@ export function OverlayHeader({
 	return (
 		<div className="flex items-start justify-between gap-4">
 			<div className="min-w-0">
-				<Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
+				<Dialog.Title className="text-heading">{title}</Dialog.Title>
 				{description ? (
-					<Dialog.Description className="text-muted-foreground text-sm">
+					<Dialog.Description className="text-muted-foreground text-footnote">
 						{description}
 					</Dialog.Description>
 				) : null}

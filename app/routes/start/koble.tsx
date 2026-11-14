@@ -131,7 +131,7 @@ export default function ConnectStep({
 					</Form>
 					<section
 						aria-labelledby="first-run-skip"
-						className="border-border space-y-3 border-t pt-6"
+						className="border-border/60 space-y-3 border-t pt-6"
 					>
 						<p
 							id="first-run-skip"

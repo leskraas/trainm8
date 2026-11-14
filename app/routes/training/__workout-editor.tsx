@@ -120,7 +120,7 @@ export function WorkoutStructureEditor({
 		<div className="space-y-4">
 			{/* The editable Token Sentence: the draft rendered as tappable notation —
 			    the sole authoring surface (§0). */}
-			<div className="border-border/70 bg-muted/20 rounded-lg border p-3">
+			<div className="bg-muted/50 rounded-3xl p-3">
 				<TokenSentenceEditor
 					form={form}
 					blocksField={blocksField}
@@ -140,7 +140,7 @@ export function WorkoutStructureEditor({
 			{shapeSegments.length > 0 ? (
 				<div
 					data-testid="editor-workout-shape"
-					className="border-border/70 bg-muted/20 rounded-lg border p-3"
+					className="bg-muted/50 rounded-3xl p-3"
 				>
 					<ShapeStrip segments={shapeSegments} />
 				</div>

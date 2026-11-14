@@ -157,7 +157,7 @@ export function AttachEventOffer({
 						labelProps={{ children: ATTACH_EVENT_LABELS.name }}
 						inputProps={{
 							...getInputProps(fields.name, { type: 'text' }),
-							className: 'text-base',
+							className: 'text-body',
 						}}
 						errors={fields.name.errors as string[] | undefined}
 					/>
@@ -165,7 +165,7 @@ export function AttachEventOffer({
 						labelProps={{ children: ATTACH_EVENT_LABELS.date }}
 						inputProps={{
 							...getInputProps(fields.startDate, { type: 'date' }),
-							className: 'text-base',
+							className: 'text-body',
 						}}
 						errors={fields.startDate.errors as string[] | undefined}
 					/>
@@ -275,7 +275,7 @@ function AttachEventPreview({
 					afterLabel={ATTACH_EVENT_LABELS.after}
 					weeks={preview.weeks}
 				/>
-				<p className="text-muted-foreground text-caption pt-2">
+				<p className="text-muted-foreground text-caption pt-2 font-normal">
 					{ATTACH_EVENT_LABELS.aroundYours}
 				</p>
 			</CollapsibleSection>

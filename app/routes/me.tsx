@@ -228,7 +228,7 @@ function MeSection({
 	return (
 		<section aria-labelledby={id} className="mt-8">
 			<MeSectionHeading id={id}>{title}</MeSectionHeading>
-			<ul className="divide-border/70 divide-y">{children}</ul>
+			<ul className="divide-border/60 divide-y">{children}</ul>
 		</section>
 	)
 }

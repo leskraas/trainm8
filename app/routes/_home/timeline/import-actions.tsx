@@ -39,7 +39,7 @@ import { type TimelineImportLink } from './presenter.ts'
 import { TITLE_INSET, TITLE_INSET_BOX } from './row-inset.ts'
 
 const ACTION_TEXT =
-	'text-muted-foreground text-caption pressable flex min-h-11 flex-none items-center gap-1 underline decoration-dotted underline-offset-[3px]'
+	'text-muted-foreground text-caption pressable flex min-h-11 flex-none items-center gap-1 underline decoration-dotted underline-offset-[3px] font-normal'
 
 /** The one import offer a row carries, by kind. */
 export function ImportLinkAction({
@@ -206,7 +206,7 @@ function ImportLinkButton({
 			{sent ? (
 				<span
 					aria-live="polite"
-					className="text-caption text-muted-foreground flex min-h-9 items-center"
+					className="text-caption text-muted-foreground flex min-h-9 items-center font-normal"
 				>
 					{IMPORT_LINK_LABELS.saving}
 				</span>
@@ -283,7 +283,7 @@ export function MarkDoneAction({
 					data-today-done
 					className={cn(
 						buttonVariants({ size: 'default' }),
-						'h-12 w-full gap-2 text-base font-semibold disabled:opacity-70',
+						'text-body h-12 w-full gap-2 font-semibold disabled:opacity-70',
 					)}
 				>
 					<Icon name="check" size="sm" />
