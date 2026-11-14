@@ -1,0 +1,19 @@
+ FAIL  app/utils/plan-generation/relay.server.test.ts > the database refuses a record day or intent outside their vocabularies
+AssertionError: promise resolved "{ …(5) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "discipline": "run",
++   "id": "cmwg0oec5009u7d8p4o6ectxk",
++   "recordId": "cmwg0oe2n00147d8pwtywrsmo",
++   "role": "ordinary",
+--
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  06:20:38
+   Duration  3.55s (transform 1.51s, setup 1.09s, import 1.22s, tests 597ms, environment 0ms)
+
