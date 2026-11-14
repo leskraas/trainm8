@@ -40,7 +40,10 @@ reached the calendar.
    warning stay visible without a tap (#429: a warning withheld is a warning
    broken). A community session's non-vouch and a moderator's takedown are
    caveats on trusting the session, so the session page shows them in its line,
-   never behind a tap.
+   never behind a tap. The Plan Preview's panel would put them behind one, and
+   is allowed to only because generation retrieves stock rows only (ADR 0053
+   §4), so no community row reaches a preview; a generator that places one must
+   show its non-vouch on the row.
 4. **One slot, one wording.** The Catalogue card, the Plan Preview panel and the
    session page render one slot component that words a `SessionProvenance`
    itself, from `labels.ts`, so the three cannot word the same provenance
