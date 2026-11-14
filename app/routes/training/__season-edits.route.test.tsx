@@ -13,6 +13,7 @@
  * `plan.route.test.tsx` and `plan.season-edits.test.ts`.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
@@ -439,4 +440,49 @@ test('the value fields’ labels are on the callout step like the edit’s other
 		)
 		expect(label?.classList).toContain('text-callout')
 	}
+})
+
+test('a stale confirm moves focus to what to do next', async () => {
+	function Card() {
+		const [stale, setStale] = useState(false)
+		return (
+			<>
+				<button type="button" onClick={() => setStale(true)}>
+					stale
+				</button>
+				<SeasonEditsCard
+					outlineId="outline-1"
+					weeks={[]}
+					phases={[]}
+					tracks={[]}
+					anchorChoices={[
+						anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]),
+					]}
+					firstUnbegunWeekKey="2030-01-07"
+					reply={
+						stale
+							? { edit: 'season-anchor', stale: true }
+							: anchorPreviewReply(42)
+					}
+				/>
+			</>
+		)
+	}
+	const App = createRoutesStub([
+		{
+			path: '/training/plan',
+			Component: Card,
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+	render(<App initialEntries={['/training/plan?edit=season-anchor']} />)
+
+	const confirm = await screen.findByRole('button', { name: 'Bruk endringen' })
+	confirm.focus()
+	fireEvent.click(screen.getByRole('button', { name: 'stale' }))
+
+	const refresh = await screen.findByRole('button', {
+		name: 'Vis ny forhåndsvisning',
+	})
+	await waitFor(() => expect(document.activeElement).toBe(refresh))
 })

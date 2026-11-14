@@ -1469,6 +1469,12 @@ function SeasonAnchorPreviewPanel({
 	useEffect(() => {
 		heading.current?.focus()
 	}, [])
+	// A stale confirm takes away the button that had focus: focus goes to what
+	// the athlete can do now, a fresh preview, not back to the page's top.
+	const refresh = useRef<HTMLButtonElement>(null)
+	useEffect(() => {
+		if (stale) refresh.current?.focus()
+	}, [stale])
 	const posted = Object.entries(formValues(preview.edit))
 	// The apply lays every changed week again before it answers, so it can
 	// take a while: the confirm says so and takes no second tap, which would
@@ -1582,7 +1588,12 @@ function SeasonAnchorPreviewPanel({
 						{posted.map(([name, value]) => (
 							<input key={name} type="hidden" name={name} value={value} />
 						))}
-						<Button type="submit" variant="secondary" className="w-full">
+						<Button
+							ref={refresh}
+							type="submit"
+							variant="secondary"
+							className="w-full"
+						>
 							{SEASON_ANCHOR_EDIT_LABELS.refresh}
 						</Button>
 					</Form>
