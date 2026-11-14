@@ -569,7 +569,7 @@ test('the page says once, above the weeks, that sessions are placed as published
 	const sentence = await screen.findByText((_, element) =>
 		element?.tagName === 'P'
 			? element.textContent ===
-					PLAN_GENERATE_LABELS.placedAsPublished(DRIFT_TOLERANCE * 100)
+				PLAN_GENERATE_LABELS.placedAsPublished(DRIFT_TOLERANCE * 100)
 			: false,
 	)
 	expect(sentence).toHaveTextContent(/≠ betyr at planlagt er mer enn 10 %/)
