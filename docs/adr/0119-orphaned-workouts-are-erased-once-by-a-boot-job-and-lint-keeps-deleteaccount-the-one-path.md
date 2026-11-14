@@ -88,9 +88,10 @@ future `prisma.user.delete` from making new ones.
   idempotent, but it is a second run) and the record is lost. The retention
   sweep is not built; when it is, it exempts them.
 - A purge a machine stopped mid-run (a deploy, a crash) rolls back but leaves
-  its row `running`. Boot fails such a row once it is ten minutes old (the run
-  is one 30 s transaction), so the queue's attempts retry it; without that its
-  row would block every later enqueue.
+  its row `running`. Boot fails such a row when it started before this process
+  did (one node runs the worker), so the queue's attempts retry it on the
+  first boot after the stop, however soon; without that its row would block
+  every later enqueue.
 - A purge that fails on every attempt ends `failed`, and no later boot enqueues
   another. Each failed attempt logs `[orphaned-workout-purge] attempt failed`
   with the job id and the error's class and code, never its message (a Prisma

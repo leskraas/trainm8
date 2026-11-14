@@ -217,7 +217,7 @@ test('a job with no registered handler fails rather than spinning', async () => 
 	expect(row.lastError).toMatch(/handler/i)
 })
 
-test('failStaleJobs fails only long-running jobs of its kind', async () => {
+test('failStaleJobs fails only jobs of its kind running since before the given moment', async () => {
 	const longAgo = new Date(Date.now() - 60 * 60 * 1000)
 	const running = (kind: string, startedAt: Date, attempts = 1) =>
 		enqueueJob({ kind, maxAttempts: 2 }).then((job) =>
@@ -232,7 +232,10 @@ test('failStaleJobs fails only long-running jobs of its kind', async () => {
 	const otherKind = await running('strava-backfill', longAgo)
 
 	expect(
-		await failStaleJobs({ kind: 'one-shot', staleAfterMs: 10 * 60 * 1000 }),
+		await failStaleJobs({
+			kind: 'one-shot',
+			startedBefore: new Date(Date.now() - 10 * 60 * 1000),
+		}),
 	).toBe(2)
 
 	const status = async (id: string) =>

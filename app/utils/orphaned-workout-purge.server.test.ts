@@ -267,6 +267,29 @@ test('a purge a crash stranded in running is retried by the next boot', async ()
 	).toBe(1)
 })
 
+test('a purge a quick restart stranded in running is retried by that boot', async () => {
+	await prisma.job.deleteMany({})
+	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
+	// A deploy stopped the machine mid-purge and it was back within a minute:
+	// the row says `running`, started before this process did, and only a
+	// minute ago. No worker of this process claimed it, so nothing ever will.
+	await prisma.job.update({
+		where: { id: job.id },
+		data: {
+			status: 'running',
+			attempts: 1,
+			startedAt: new Date(performance.timeOrigin - 60 * 1000),
+		},
+	})
+
+	await ensureOrphanedWorkoutPurgeEnqueued()
+
+	expect(await readJob(job.id)).toMatchObject({
+		status: 'pending',
+		attempts: 1,
+	})
+})
+
 test('boot leaves a purge that is running now alone', async () => {
 	await prisma.job.deleteMany({})
 	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })

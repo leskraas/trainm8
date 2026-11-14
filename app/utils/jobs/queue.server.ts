@@ -228,24 +228,25 @@ export async function failJob(
 }
 
 /**
- * Fail every job of `kind` that has said `running` for longer than
- * `staleAfterMs`: its worker stopped mid-run (a deploy, a crash) and nothing
- * else will ever move it on. Each goes through {@link failJob}, so it is retried
- * with backoff, or ends `failed` once its attempts are spent. Only a kind whose
- * run has a hard upper bound may use this, with `staleAfterMs` well past that
- * bound, or a live run would be claimed twice. Returns how many it failed.
+ * Fail every job of `kind` that has said `running` since before `startedBefore`:
+ * its worker stopped mid-run (a deploy, a crash) and nothing else will ever
+ * move it on. Each goes through {@link failJob}, so it is retried with backoff,
+ * or ends `failed` once its attempts are spent. A caller passes a moment no live
+ * run of the kind can have started before (this process's start, on the one
+ * node that runs the worker), or a live run would be claimed twice. Returns
+ * how many it failed.
  */
 export async function failStaleJobs({
 	kind,
-	staleAfterMs,
+	startedBefore,
 }: {
 	kind: string
-	staleAfterMs: number
+	startedBefore: Date
 }): Promise<number> {
 	const isStale = {
 		kind,
 		status: 'running',
-		startedAt: { lt: new Date(Date.now() - staleAfterMs) },
+		startedAt: { lt: startedBefore },
 	} satisfies Prisma.JobWhereInput
 	const stale = await prisma.job.findMany({
 		where: isStale,

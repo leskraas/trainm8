@@ -27,12 +27,13 @@ import { enqueueJob, failStaleJobs } from './jobs/queue.server.ts'
 export const ORPHANED_WORKOUT_PURGE_JOB_KIND = 'orphaned-workout-purge'
 
 /**
- * How long a purge may say `running` before boot takes it for one whose machine
- * stopped mid-run. The run is one transaction capped at
- * `ERASURE_TRANSACTION_OPTIONS.timeout` (30 s) plus a log line, so ten minutes
- * is far past any live run.
+ * When this process started. One node runs the job worker (LiteFS static
+ * lease), and boot calls the ensure below, so a purge row `running` since before
+ * this moment belongs to a process that has stopped: no live run is that old.
+ * Read from the process's own clock origin, which is earlier than the worker's
+ * start, so a purge this process's worker claimed is never taken for one.
  */
-const PURGE_STALE_AFTER_MS = 10 * 60 * 1000
+const PROCESS_STARTED_AT = new Date(performance.timeOrigin)
 
 /**
  * Enqueue the one-time purge if it has never been enqueued. Any job of this
@@ -40,12 +41,14 @@ const PURGE_STALE_AFTER_MS = 10 * 60 * 1000
  *
  * A purge left `running` by a machine that stopped mid-run (its transaction
  * rolled back) is failed first, so the queue retries it: otherwise its row
- * would block every later enqueue and the purge would never run.
+ * would block every later enqueue and the purge would never run. Stale means
+ * started before this process did, however recently, so a quick restart after
+ * a deploy retries it at once.
  */
 export async function ensureOrphanedWorkoutPurgeEnqueued(): Promise<void> {
 	await failStaleJobs({
 		kind: ORPHANED_WORKOUT_PURGE_JOB_KIND,
-		staleAfterMs: PURGE_STALE_AFTER_MS,
+		startedBefore: PROCESS_STARTED_AT,
 	})
 	const existing = await prisma.job.findFirst({
 		where: { kind: ORPHANED_WORKOUT_PURGE_JOB_KIND },
