@@ -1,0 +1,30 @@
+ [32m✓[39m app/routes/training/__phase-editor.route.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 1071[2mms[22m[39m
+   [33m[2m✓[22m[39m an existing phase is edited in Endre sesongen, pre-filled, and not on the card [33m 595[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/strength-goal.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m app/routes/training/__treningsform.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 838[2mms[22m[39m
+   [33m[2m✓[22m[39m the options are closed until asked for, then each is a real week with the current one marked [33m 616[2mms[22m[39m
+ [32m✓[39m app/routes/training/catalogue.publish.route.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 576[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/band-fit.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [32m✓[39m app/routes/training/__event-target.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m app/routes/training/__catalogue-card.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m app/routes/training/exercises.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 414[2mms[22m[39m
+ [32m✓[39m app/routes/training/catalogue.place.route.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 531[2mms[22m[39m
+   [33m[2m✓[22m[39m placing sends the day the athlete picked [33m 316[2mms[22m[39m
+ [32m✓[39m app/utils/labels.plan-generate.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/session-placement.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/quality-mix.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/planned-volume.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m app/routes/training/__philosophy-switch.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 116[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/philosophy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m app/routes/training/__preset-gallery.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/week-keys.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m app/routes/training/__token-sentence-editor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m app/routes/training/__validation-summary.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/event-fit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m app/routes/training/index.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 10[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m113 passed[39m[22m[90m (113)[39m
+[2m      Tests [22m [1m[32m2199 passed[39m[22m[90m (2199)[39m
+[2m   Start at [22m 07:46:08
+[2m   Duration [22m 200.00s[2m (transform 15.97s, setup 84.12s, import 62.11s, tests 399.74s, environment 22.61s)[22m
+
