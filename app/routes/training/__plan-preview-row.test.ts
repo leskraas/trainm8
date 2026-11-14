@@ -94,10 +94,18 @@ test.each([
 		try {
 			const { result } = renderHook(() => usePlanPreviewOpenRow())
 			const a = rowWithPanel('a')
-			act(() => result.current.toggle('a', a.row))
-			act(() => vi.advanceTimersByTime(COLLAPSE_OPEN_MS / 2))
-			act(() => closeIt(result.current.toggle, a.row))
-			act(() => vi.advanceTimersByTime(COLLAPSE_OPEN_MS))
+			act(() => {
+				result.current.toggle('a', a.row)
+			})
+			act(() => {
+				vi.advanceTimersByTime(COLLAPSE_OPEN_MS / 2)
+			})
+			act(() => {
+				closeIt(result.current.toggle, a.row)
+			})
+			act(() => {
+				vi.advanceTimersByTime(COLLAPSE_OPEN_MS)
+			})
 			// Its exit is still running: scrolling to it would chase a closing panel.
 			expect(window.scrollBy).not.toHaveBeenCalled()
 		} finally {
@@ -111,9 +119,15 @@ test('Escape before a panel finished opening cancels its scroll into view', () =
 	try {
 		const { result } = renderHook(() => usePlanPreviewOpenRow())
 		const a = rowWithPanel('a')
-		act(() => result.current.toggle('a', a.row))
-		act(() => result.current.close())
-		act(() => vi.advanceTimersByTime(COLLAPSE_OPEN_MS))
+		act(() => {
+			result.current.toggle('a', a.row)
+		})
+		act(() => {
+			result.current.close()
+		})
+		act(() => {
+			vi.advanceTimersByTime(COLLAPSE_OPEN_MS)
+		})
 		expect(window.scrollBy).not.toHaveBeenCalled()
 	} finally {
 		vi.useRealTimers()
@@ -125,8 +139,12 @@ test('a panel left open is scrolled into view once it has opened', () => {
 	try {
 		const { result } = renderHook(() => usePlanPreviewOpenRow())
 		const a = rowWithPanel('a')
-		act(() => result.current.toggle('a', a.row))
-		act(() => vi.advanceTimersByTime(COLLAPSE_OPEN_MS))
+		act(() => {
+			result.current.toggle('a', a.row)
+		})
+		act(() => {
+			vi.advanceTimersByTime(COLLAPSE_OPEN_MS)
+		})
 		expect(window.scrollBy).toHaveBeenCalledTimes(1)
 		expect(window.scrollBy).toHaveBeenCalledWith(
 			expect.objectContaining({ top: 800 - window.innerHeight }),
@@ -148,8 +166,12 @@ test('on a phone the fold is the top of the fixed tab bar, not the bottom of the
 		const a = rowWithPanel('a')
 		// On screen, but its last 50 px sit behind the bar.
 		a.panel.getBoundingClientRect = () => ({ top: 662, bottom: 762 }) as DOMRect
-		act(() => result.current.toggle('a', a.row))
-		act(() => vi.advanceTimersByTime(COLLAPSE_OPEN_MS))
+		act(() => {
+			result.current.toggle('a', a.row)
+		})
+		act(() => {
+			vi.advanceTimersByTime(COLLAPSE_OPEN_MS)
+		})
 		expect(window.scrollBy).toHaveBeenCalledWith(
 			expect.objectContaining({ top: 50 }),
 		)
