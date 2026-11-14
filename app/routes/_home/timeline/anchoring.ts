@@ -387,14 +387,17 @@ export const LANDING_HOLD_ID = 'timeline-landing-hold'
  * A style the script adds rather than one the page renders: a client
  * navigation never runs a script React inserts, so the list it renders is
  * never held, and the hook's landing parks it. Without JS nothing is held.
+ * `streamAttr` is the attribute the stream carries (`STREAM_ATTR`), so the
+ * hold follows the stream if it is renamed.
  */
-export function landingHoldScript(): string {
+export function landingHoldScript(streamAttr: string): string {
+	const hold = `[${streamAttr}]{content-visibility:hidden;visibility:hidden}`
 	return [
 		'(function(){',
 		"var c=document.createElement('style');",
 		`c.id=${JSON.stringify(LANDING_HOLD_ID)};`,
 		'var n=document.currentScript&&document.currentScript.nonce;if(n)c.nonce=n;',
-		"c.textContent='[data-timeline-stream]{content-visibility:hidden;visibility:hidden}';",
+		`c.textContent=${JSON.stringify(hold)};`,
 		'document.head.appendChild(c);',
 		'})();',
 	].join('')

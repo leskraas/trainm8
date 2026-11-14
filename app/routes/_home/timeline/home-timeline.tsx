@@ -481,7 +481,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					<script
 						nonce={nonce}
 						suppressHydrationWarning
-						dangerouslySetInnerHTML={{ __html: landingHoldScript() }}
+						dangerouslySetInnerHTML={{ __html: landingHoldScript(STREAM_ATTR) }}
 					/>
 					<div
 						ref={streamRef}

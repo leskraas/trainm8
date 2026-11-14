@@ -178,7 +178,7 @@ describe('the landing script the server renders', () => {
 			headerHeight: 80,
 			clientHeight: VIEWPORT,
 		})
-		new Function(landingHoldScript())()
+		new Function(landingHoldScript('data-timeline-stream'))()
 		const hold = document.getElementById(LANDING_HOLD_ID)
 		expect(hold?.parentElement).toBe(document.head)
 		expect(hold?.textContent).toContain('[data-timeline-stream]')
@@ -189,11 +189,11 @@ describe('the landing script the server renders', () => {
 	})
 
 	test('the hold is lifted even where there is nothing to park', () => {
-		new Function(landingHoldScript())()
+		new Function(landingHoldScript('data-timeline-stream'))()
 		document.body.innerHTML = '<div id="s"></div>'
 		new Function(landingScript('s'))()
 		expect(document.getElementById(LANDING_HOLD_ID)).toBeNull()
-		new Function(landingHoldScript())()
+		new Function(landingHoldScript('data-timeline-stream'))()
 		new Function(landingScript('missing'))()
 		expect(document.getElementById(LANDING_HOLD_ID)).toBeNull()
 	})
