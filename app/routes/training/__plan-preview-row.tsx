@@ -220,7 +220,7 @@ export function SessionRow({
 					event.preventDefault()
 					openRow.toggle(key, event.currentTarget)
 				}}
-				className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 w-[calc(100%+1rem)] touch-manipulation items-center gap-3 rounded-2xl px-2 py-2 text-left select-none motion-safe:transition-colors motion-safe:ease-out"
+				className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center gap-2 rounded-2xl px-2 py-2 text-left motion-safe:transition-colors motion-safe:ease-out motion-safe:active:duration-0"
 			>
 				<span className="min-w-0 flex-1 space-y-0.5">
 					<DayLine
