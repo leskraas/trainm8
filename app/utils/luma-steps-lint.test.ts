@@ -90,6 +90,8 @@ export const a = cn('rounded-md', \`p-2 data-[open]:!text-xs\`)
 		'app/components/ui/button.tsx',
 		'app/routes/_auth/login.tsx',
 		'app/routes/admin/moderation.tsx',
+		'app/routes/_marketing/about.tsx',
+		'app/routes/training/__prototype-variant-l.tsx',
 		'app/routes/training/plan.test.tsx',
 	])('%s sits outside the guard', async (file) => {
 		expect(await luma(offScale, file)).toEqual([])
