@@ -477,9 +477,13 @@ export async function readPlacedProvenance(
 		// Broken data, not an absence: `isPlaceable` keeps such a row out of
 		// every plan, so a placed one means the corpus drifted under it (a
 		// notice reworded, a Citation cleared). Shown as nothing, logged.
-		console.warn('readPlacedProvenance: an unsourced Catalogue row was placed', {
-			workoutId: row.id,
-		})
+		console.warn(
+			'readPlacedProvenance: an unsourced Catalogue row was placed',
+			{
+				workoutId: row.id,
+				sessionWorkoutId: workoutId,
+			},
+		)
 		return null
 	}
 	return {

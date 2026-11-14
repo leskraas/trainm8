@@ -885,6 +885,7 @@ test('an unsourced placed row shows no line, and says so in the log (#475)', asy
 	expect(await readPlacedProvenance(placed, null)).toBeNull()
 	expect(consoleWarn).toHaveBeenCalledWith(
 		expect.stringContaining('unsourced'),
-		expect.objectContaining({ workoutId: stock.id }),
+		// The Catalogue row that drifted, and the session's Workout it reached.
+		expect.objectContaining({ workoutId: stock.id, sessionWorkoutId: placed }),
 	)
 })
