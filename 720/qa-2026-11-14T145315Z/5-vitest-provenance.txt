@@ -1,0 +1,25 @@
+   [33m[2m✓[22m[39m completed session with a telemetry stream renders the overlay, not the unavailable state [33m 440[2mms[22m[39m
+ [32m✓[39m app/routes/training/__plan-preview-row.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 268[2mms[22m[39m
+ [32m✓[39m app/components/provenance-slot.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 353[2mms[22m[39m
+ [32m✓[39m app/routes/training/catalogue.route.test.tsx [2m([22m[2m16 tests[22m[2m)[22m[33m 1779[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx [2m([22m[2m30 tests[22m[2m)[22m[33m 10358[2mms[22m[39m
+   [33m[2m✓[22m[39m the season is already there — the screen opens on a plan, not a blank form [33m 791[2mms[22m[39m
+   [33m[2m✓[22m[39m nothing reaches the calendar until the athlete says so [33m 403[2mms[22m[39m
+   [33m[2m✓[22m[39m a row carries the plan and no Session Provenance until it is tapped (ADR 0123) [33m 516[2mms[22m[39m
+   [33m[2m✓[22m[39m tapping a corpus row opens its Citation below it; tapping again closes it [33m 647[2mms[22m[39m
+   [33m[2m✓[22m[39m a row controls its panel only while the panel exists [33m 464[2mms[22m[39m
+   [33m[2m✓[22m[39m one panel is open across the season, and Escape closes it back onto the row [33m 781[2mms[22m[39m
+   [33m[2m✓[22m[39m Escape closes the open panel wherever focus is, and returns focus to its row [33m 317[2mms[22m[39m
+   [33m[2m✓[22m[39m Escape pressed in another control closes the panel and leaves focus where the athlete is [33m 492[2mms[22m[39m
+   [33m[2m✓[22m[39m a community session reads the slot without a Citation, and carries the non-vouch [33m 650[2mms[22m[39m
+   [33m[2m✓[22m[39m an empty day is named rather than backfilled [33m 316[2mms[22m[39m
+   [33m[2m✓[22m[39m the one question and the pre-selected shape read in Norwegian, as Sesong names them [33m 427[2mms[22m[39m
+   [33m[2m✓[22m[39m a 'unset' reading adds nothing to the preview [33m 320[2mms[22m[39m
+   [33m[2m✓[22m[39m a 'unpriced' reading adds nothing to the preview [33m 324[2mms[22m[39m
+   [33m[2m✓[22m[39m a 'fits' reading adds nothing to the preview [33m 332[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m147 passed[39m[22m[90m (147)[39m
+[2m   Start at [22m 14:49:37
+[2m   Duration [22m 20.07s[2m (transform 7.09s, setup 6.68s, import 8.49s, tests 22.35s, environment 2.95s)[22m
+

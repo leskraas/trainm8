@@ -1,0 +1,2 @@
+CI=true playwright test -c pw.qa.config.mjs tests/e2e/plan-generate.test.ts tests/e2e/mobile-overflow.test.ts  (head 619cf73, isolated instance on :3100)
+15 passed (52.2s), including: Plan Preview with a provenance panel open does not overflow at 390px (#475); a Plan Preview panel opened just above the tab bar scrolls clear of it, with no request (#475); a session page carrying the longest Citation and a URL locator does not overflow at 390px (#475)
