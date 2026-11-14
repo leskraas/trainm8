@@ -12,7 +12,7 @@
  * The rest of the card (previews, confirms, refusals) is covered in
  * `plan.route.test.tsx` and `plan.season-edits.test.ts`.
  */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
@@ -362,4 +362,33 @@ test('the preview heading focus lands on reads the headline with it', async () =
 	expect(
 		await screen.findByRole('heading', { name: 'Forhåndsvisning' }),
 	).toHaveAccessibleDescription('Løping fra uke 3: nytt startnivå 42 km.')
+})
+
+test('the confirm takes no second tap while the edit is being applied', async () => {
+	const App = createRoutesStub([
+		{
+			path: '/training/plan',
+			Component: () => (
+				<SeasonEditsCard
+					outlineId="outline-1"
+					weeks={[]}
+					phases={[]}
+					tracks={[]}
+					anchorChoices={[
+						anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]),
+					]}
+					firstUnbegunWeekKey="2030-01-07"
+					reply={anchorPreviewReply(42)}
+				/>
+			),
+			// The apply lays the changed weeks again: it has not answered yet.
+			action: () => new Promise(() => {}),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+	render(<App initialEntries={['/training/plan?edit=season-anchor']} />)
+
+	const confirm = await screen.findByRole('button', { name: 'Bruk endringen' })
+	fireEvent.click(confirm)
+	await waitFor(() => expect(confirm).toBeDisabled())
 })

@@ -28,7 +28,13 @@ import {
 } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { useEffect, useRef, useState } from 'react'
-import { Form, Link, useLocation, useSearchParams } from 'react-router'
+import {
+	Form,
+	Link,
+	useLocation,
+	useNavigation,
+	useSearchParams,
+} from 'react-router'
 import { type z } from 'zod/v3'
 import {
 	ErrorList,
@@ -43,6 +49,7 @@ import {
 	CollapsibleTrigger,
 } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { formatNbDayMonth, formatNbVolumeFigure } from '#app/utils/format.ts'
 import {
@@ -1449,6 +1456,14 @@ function SeasonAnchorPreviewPanel({
 		heading.current?.focus()
 	}, [])
 	const posted = Object.entries(formValues(preview.edit))
+	// The apply lays every changed week again before it answers, so it can
+	// take a while: the confirm says so and takes no second tap, which would
+	// land on the plan the first one already changed and say nothing changed.
+	const navigation = useNavigation()
+	const applying =
+		navigation.state !== 'idle' &&
+		navigation.formData?.get('intent') === 'apply-season-edit' &&
+		navigation.formData.get('edit') === 'season-anchor'
 	return (
 		<section
 			aria-labelledby={titleId}
@@ -1583,9 +1598,14 @@ function SeasonAnchorPreviewPanel({
 						<p className="text-footnote text-muted-foreground min-w-0 flex-1 tabular-nums">
 							{anchor.changedWeeks}
 						</p>
-						<Button type="submit" className="w-full sm:w-auto">
+						<StatusButton
+							type="submit"
+							className="w-full sm:w-auto"
+							status={applying ? 'pending' : 'idle'}
+							disabled={applying}
+						>
 							{SEASON_EDIT_LABELS.apply}
-						</Button>
+						</StatusButton>
 					</div>
 				</Form>
 			)}
