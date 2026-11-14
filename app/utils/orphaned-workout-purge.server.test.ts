@@ -94,6 +94,19 @@ test('boot enqueues the purge exactly once, ever', async () => {
 			where: { kind: ORPHANED_WORKOUT_PURGE_JOB_KIND },
 		}),
 	).toBe(1)
+
+	// A purge whose attempts are spent stays failed: boot does not try again.
+	await prisma.job.updateMany({
+		where: { kind: ORPHANED_WORKOUT_PURGE_JOB_KIND },
+		data: { status: 'failed' },
+	})
+	await ensureOrphanedWorkoutPurgeEnqueued()
+	expect(
+		await prisma.job.findMany({
+			where: { kind: ORPHANED_WORKOUT_PURGE_JOB_KIND },
+			select: { status: true },
+		}),
+	).toEqual([{ status: 'failed' }])
 })
 
 test('the job erases the Orphaned Workouts and records counts only, on its own row', async () => {
