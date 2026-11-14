@@ -180,7 +180,12 @@ export async function applySeasonEdit(
 				onlyWeekKeys: result.relayWeekKeys,
 			})
 		} catch (error) {
-			console.error('[season-edit] laying weeks after an edit failed', error)
+			// The edit is written; the weeks still sit at their old targets.
+			// Say whose and which, so they can be laid again.
+			console.error(
+				`[season-edit] laying weeks after a ${edit.kind} edit failed (user ${userId}, outline ${outlineId}, weeks ${fromWeekKey}–${result.relayWeekKeys.at(-1)})`,
+				error,
+			)
 		}
 	}
 	return result
