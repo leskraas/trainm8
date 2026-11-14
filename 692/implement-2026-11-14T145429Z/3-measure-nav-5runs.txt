@@ -1,0 +1,15 @@
+ 14:39:02 up  1:35,  0 user,  load average: 1.75, 1.77, 1.68
+{"label":"seed","mode":"nav","run":1,"shown":986.4000000003725,"longTasks":4,"longTaskMs":367,"blockingMs":167,"longestTask":164,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":1,"shown":1140.7000000001863,"longTasks":6,"longTaskMs":633,"blockingMs":333,"longestTask":180,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":2,"shown":1064.9000000003725,"longTasks":3,"longTaskMs":370,"blockingMs":220,"longestTask":199,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":2,"shown":1202,"longTasks":6,"longTaskMs":571,"blockingMs":271,"longestTask":189,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":3,"shown":887.9000000003725,"longTasks":2,"longTaskMs":259,"blockingMs":159,"longestTask":177,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":3,"shown":1167.6000000005588,"longTasks":6,"longTaskMs":564,"blockingMs":264,"longestTask":174,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":4,"shown":1000.7000000001863,"longTasks":5,"longTaskMs":431,"blockingMs":181,"longestTask":180,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":4,"shown":1214.699999999255,"longTasks":6,"longTaskMs":574,"blockingMs":274,"longestTask":177,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":5,"shown":827.5,"longTasks":3,"longTaskMs":257,"blockingMs":107,"longestTask":138,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":5,"shown":1271.699999999255,"longTasks":5,"longTaskMs":540,"blockingMs":290,"longestTask":179,"todayTop":122,"weeks":32}
+seed: median of 5 runs by navigation, 4× CPU, 390×844: {"shown":986.4,"longTasks":3,"longTaskMs":367,"blockingMs":167,"longestTask":177,"todayTop":122,"weeks":28}
+long: median of 5 runs by navigation, 4× CPU, 390×844: {"shown":1202,"longTasks":6,"longTaskMs":571,"blockingMs":274,"longestTask":179,"todayTop":122,"weeks":32}
+long against seed: {"longestTask":"1.1%","shown":"21.9%"}
+ 14:40:22 up  1:37,  0 user,  load average: 2.20, 1.91, 1.73

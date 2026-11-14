@@ -1,0 +1,89 @@
+(node:5853) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 46 tests using 2 workers
+
+[1A[2K(node:5870) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1A[2K(node:5871) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1A[2K[1/46] [chromium] › tests/e2e/home-reading-position.test.ts:102:1 › a live import on a day the reader has scrolled past does not move the row they are reading
+[1A[2K[2/46] [chromium] › tests/e2e/home-reading-position.test.ts:165:1 › weeks that mount after the first paint never move the row the reader is reading
+[1A[2K[3/46] [chromium] › tests/e2e/home-reading-position.test.ts:196:1 › on a screen taller than the weeks the server renders ahead, today is parked before the first paint and stays there
+[1A[2K[4/46] [chromium] › tests/e2e/home-reading-position.test.ts:265:2 › a strip tap made the moment the full view appears lands on the oldest week, and stays there
+[1A[2K[5/46] [chromium] › tests/e2e/home-reading-position.test.ts:265:2 › a strip tap made the moment the full view appears lands on the four ahead week, and stays there
+[1A[2K[6/46] [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen
+[1A[2K[7/46] [chromium] › tests/e2e/home-timeline.test.ts:513:1 › Se hele sesongen opens on this week, not on a long empty history (#562)
+[1A[2K[8/46] [chromium] › tests/e2e/home-timeline.test.ts:599:1 › the reader’s own scroll is never taken back: no snap-back to today
+[1A[2K[9/46] [chromium] › tests/e2e/home-timeline.test.ts:627:1 › the whole past is mounted on open, and scrolling up through it writes no scroll position
+[1A[2K[10/46] [chromium] › tests/e2e/home-timeline.test.ts:671:1 › the pill appears with the direction back to today, and takes you there
+[1A[2K[11/46] [chromium] › tests/e2e/home-timeline.test.ts:713:1 › reading forwards loads later weeks, and the far end states itself
+[1A[2K[12/46] [chromium] › tests/e2e/home-timeline.test.ts:736:1 › tapping a week in the strip jumps the stream there, and the frame follows the scroll
+[1A[2K[13/46] [chromium] › tests/e2e/home-timeline.test.ts:854:1 › a season too long for a phone shows a window around the reader, and the rest is one tap away (S10)
+[1A[2K[14/46] [chromium] › tests/e2e/home-timeline.test.ts:916:1 › a comparable session names its basis and its band; an unplanned one refuses to
+[1A[2K[15/46] [chromium] › tests/e2e/home-timeline.test.ts:1080:2 › every state mark on the timeline is legible in light theme
+[1A[2K[16/46] [chromium] › tests/e2e/home-timeline.test.ts:1080:2 › every state mark on the timeline is legible in dark theme
+[1A[2K[17/46] [chromium] › tests/e2e/home-timeline.test.ts:1309:1 › today still to come: today’s row is that session, with its action on it
+[1A[2K[18/46] [chromium] › tests/e2e/home-timeline.test.ts:1339:1 › today completed: today’s row is the done session, and nothing later is headlined as today’s
+[1A[2K[19/46] [chromium] › tests/e2e/home-timeline.test.ts:1357:1 › today empty: today’s row says so, and is the cell that writes one
+[1A[2K[20/46] [chromium] › tests/e2e/home-timeline.test.ts:1398:2 › a sideways swipe over the strip moves nothing, and the list scrolls (light)
+[1A[2K[21/46] [chromium] › tests/e2e/home-timeline.test.ts:1398:2 › a sideways swipe over the strip moves nothing, and the list scrolls (dark)
+[1A[2K[22/46] [chromium] › tests/e2e/home-timeline.test.ts:1449:2 › a lifting session states what it lifted, and its shortfall (light)
+[1A[2K[23/46] [chromium] › tests/e2e/home-timeline.test.ts:1449:2 › a lifting session states what it lifted, and its shortfall (dark)
+[1A[2K[24/46] [chromium] › tests/e2e/home-timeline.test.ts:1601:2 › the grid has no holes forward of today — a rest day the plan left in a written week
+[1A[2K[chromium] › tests/e2e/home-timeline.test.ts:1449:2 › a lifting session states what it lifted, and its shortfall (dark)
+prisma:query - [34m23ms[39m - DELETE FROM `main`.`User` WHERE `main`.`User`.`id` = ?
+
+[1A[2K[25/46] [chromium] › tests/e2e/home-timeline.test.ts:1601:2 › the grid has no holes forward of today — a day in a week nobody has written
+[1A[2K[26/46] [chromium] › tests/e2e/home-timeline.test.ts:1666:1 › with nothing on today the stream still lands on today, and the pill still comes back
+[1A[2K[27/46] [chromium] › tests/e2e/home-timeline.test.ts:1718:1 › a day holding two sessions is one row under one gutter, between the cells around it
+[1A[2K[28/46] [chromium] › tests/e2e/home-timeline.test.ts:1792:1 › a planned row says whose it is, and its title is never cut short (#505)
+[1A[2K[29/46] [chromium] › tests/e2e/home-timeline.test.ts:1915:1 › today’s row wraps the session’s title, never cutting it (#505 story 32)
+[1A[2K[30/46] [chromium] › tests/e2e/home-timeline.test.ts:1980:2 › an empty cell is legible in light theme
+[1A[2K[31/46] [chromium] › tests/e2e/home-timeline.test.ts:1980:2 › an empty cell is legible in dark theme
+[1A[2K[32/46] [chromium] › tests/e2e/home-timeline.test.ts:2091:1 › the near end states how far home reads, never how far the athlete has trained
+[1A[2K[33/46] [chromium] › tests/e2e/home-timeline.test.ts:2147:1 › tapping an empty day opens the composer on it: the sport derived, the stamp its empty state, and the row lands in place
+[1A[2K[34/46] [chromium] › tests/e2e/home-timeline.test.ts:2203:1 › what a cell writes is a prescription, and a mistake is recoverable without leaving the timeline
+[1A[2K[35/46] [chromium] › tests/e2e/home-timeline.test.ts:2397:1 › the timeline animates its press and a landing, the composer its Drawer, and the frame declares nothing else
+[1A[2K[36/46] [chromium] › tests/e2e/home-timeline.test.ts:2489:2 › reduced motion drops the movement and keeps the fade
+[1A[2K[37/46] [chromium] › tests/e2e/home-timeline.test.ts:2591:1 › calm I dag declares its press and a landed row’s tint, and nothing else
+[1A[2K[38/46] [chromium] › tests/e2e/home-timeline.test.ts:2718:1 › a week header reads the Week Target, the Planned Volume and the Actual Volume side by side (#505 story 23)
+[1A[2K[39/46] [chromium] › tests/e2e/home-timeline.test.ts:2768:1 › a week past the Planning Horizon is a whole week under the horizon’s divider, and shows the athlete’s own session (#505 stories 27–28, ADR 0086)
+[1A[2K[40/46] [chromium] › tests/e2e/home-timeline.test.ts:2816:1 › a closed week is drawn whole above today, muted, with its numbers and verdict (ADR 0086)
+[1A[2K[41/46] [chromium] › tests/e2e/home-timeline.test.ts:2850:1 › a row built on a Garmin recording credits "Garmin [device model]" under its title, whole (#557)
+[1A[2K[42/46] [chromium] › tests/e2e/tab-bar.test.ts:66:1 › every tab navigates and marks itself current on a phone
+[1A[2K[43/46] [chromium] › tests/e2e/tab-bar.test.ts:187:1 › every old Sesong and Bibliotek address lands in Plan, with Plan lit
+[1A[2K  1) [chromium] › tests/e2e/tab-bar.test.ts:66:1 › every tab navigates and marks itself current on a phone 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeCloseTo[2m([22m[32mexpected[39m[2m, [22mprecision[2m)[22m
+
+    Expected: [32m57[39m
+    Received: [31m56[39m
+
+    Expected precision:    0
+    Expected difference: < [32m0.5[39m
+    Received difference:   [31m1[39m
+
+      102 | 	// The room the page keeps for it (`--tab-bar-space`, ADR 0083 §3) is the
+      103 | 	// bar's own height.
+    > 104 | 	expect(await tabBarSpace(page)).toBeCloseTo(box!.height, 0)
+          | 	                                ^
+      105 | 	// Every tab is a target of at least 44px each way (ui-conventions §2.2).
+      106 | 	for (const tab of await bar.getByRole('link').all()) {
+      107 | 		const target = await tab.boundingBox()
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-implement/tests/e2e/tab-bar.test.ts:104:34
+
+    Error Context: test-results/tab-bar-every-tab-navigate-5f333-s-itself-current-on-a-phone-chromium/error-context.md
+
+
+[1A[2K(node:7396) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1A[2K[44/46] [chromium] › tests/e2e/tab-bar.test.ts:258:1 › with a plan, Bibliotek lands in its section on the plan
+[1A[2K[45/46] [chromium] › tests/e2e/tab-bar.test.ts:292:1 › Bibliotek lists every exercise, searchable, for an athlete with no lifts yet
+[1A[2K[46/46] [chromium] › tests/e2e/tab-bar.test.ts:331:1 › the start carries no tab bar
+[1A[2K  1 failed
+    [chromium] › tests/e2e/tab-bar.test.ts:66:1 › every tab navigates and marks itself current on a phone 
+  45 passed (1.2m)

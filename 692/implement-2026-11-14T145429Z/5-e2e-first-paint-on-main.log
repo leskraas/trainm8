@@ -1,0 +1,173 @@
+(node:9250) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 2 workers
+
+[1A[2K(node:9270) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1A[2K(node:9271) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1A[2K[1/4] [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen
+[1A[2K[2/4] [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen
+[1A[2K[chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen
+prisma:query - [31m35ms[39m - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `tssValue`, `plannedTssValue`, `plannedTssConfidence`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`, `workoutId`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+[1A[2K  1) [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen 
+
+    Error: today's row painted away from where it is parked (284px)
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -  1[39m
+    [31m+ Received  + 13[39m
+
+    [32m- Array [][39m
+    [31m+ Array [[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+ ][39m
+
+      453 | 		paintedTops.filter((top) => Math.abs(top - parkedTop) > 2),
+      454 | 		`today's row painted away from where it is parked (${parkedTop}px)`,
+    > 455 | 	).toEqual([])
+          | 	  ^
+      456 | 	// Today lands *below* its week's sticky header, never under it — right
+      457 | 	// against it when today opens the week (a Monday), and with room to spare
+      458 | 	// on any later day.
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-implement/tests/e2e/home-timeline.test.ts:455:4
+
+    Error Context: test-results/home-timeline-opens-parked-8b886-nd-the-list-gets-the-screen-chromium-repeat1/error-context.md
+
+
+[1A[2K  2) [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen 
+
+    Error: today's row painted away from where it is parked (284px)
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -  1[39m
+    [31m+ Received  + 13[39m
+
+    [32m- Array [][39m
+    [31m+ Array [[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+ ][39m
+
+      453 | 		paintedTops.filter((top) => Math.abs(top - parkedTop) > 2),
+      454 | 		`today's row painted away from where it is parked (${parkedTop}px)`,
+    > 455 | 	).toEqual([])
+          | 	  ^
+      456 | 	// Today lands *below* its week's sticky header, never under it — right
+      457 | 	// against it when today opens the week (a Monday), and with room to spare
+      458 | 	// on any later day.
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-implement/tests/e2e/home-timeline.test.ts:455:4
+
+    Error Context: test-results/home-timeline-opens-parked-8b886-nd-the-list-gets-the-screen-chromium/error-context.md
+
+
+[1A[2K(node:9549) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1A[2K(node:9556) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1A[2K[3/4] [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen
+[1A[2K[4/4] [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen
+[1A[2K  3) [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen 
+
+    Error: today's row painted away from where it is parked (284px)
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -  1[39m
+    [31m+ Received  + 13[39m
+
+    [32m- Array [][39m
+    [31m+ Array [[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+ ][39m
+
+      453 | 		paintedTops.filter((top) => Math.abs(top - parkedTop) > 2),
+      454 | 		`today's row painted away from where it is parked (${parkedTop}px)`,
+    > 455 | 	).toEqual([])
+          | 	  ^
+      456 | 	// Today lands *below* its week's sticky header, never under it — right
+      457 | 	// against it when today opens the week (a Monday), and with room to spare
+      458 | 	// on any later day.
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-implement/tests/e2e/home-timeline.test.ts:455:4
+
+    Error Context: test-results/home-timeline-opens-parked-8b886-nd-the-list-gets-the-screen-chromium-repeat2/error-context.md
+
+
+[1A[2K  4) [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen 
+
+    Error: today's row painted away from where it is parked (284px)
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -  1[39m
+    [31m+ Received  + 13[39m
+
+    [32m- Array [][39m
+    [31m+ Array [[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+   1501,[39m
+    [31m+ ][39m
+
+      453 | 		paintedTops.filter((top) => Math.abs(top - parkedTop) > 2),
+      454 | 		`today's row painted away from where it is parked (${parkedTop}px)`,
+    > 455 | 	).toEqual([])
+          | 	  ^
+      456 | 	// Today lands *below* its week's sticky header, never under it — right
+      457 | 	// against it when today opens the week (a Monday), and with room to spare
+      458 | 	// on any later day.
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-implement/tests/e2e/home-timeline.test.ts:455:4
+
+    Error Context: test-results/home-timeline-opens-parked-8b886-nd-the-list-gets-the-screen-chromium-repeat3/error-context.md
+
+
+[1A[2K  4 failed
+    [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen 
+    [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen 
+    [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen 
+    [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen 
