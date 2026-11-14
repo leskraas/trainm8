@@ -183,6 +183,7 @@ test('a purge that fails partway erases nothing and is retried', async () => {
 		`CREATE TRIGGER purge_record_fails BEFORE UPDATE OF payload ON Job
 		BEGIN SELECT RAISE(ABORT, 'disk full'); END`,
 	)
+	const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
 
 	expect(await processNextJob(jobHandlers)).toBe('processed')
 
@@ -202,6 +203,18 @@ test('a purge that fails partway erases nothing and is retried', async () => {
 		lastError: expect.stringContaining('tx.job.update'),
 	})
 	expect(row.payload).toEqual({})
+	// A failed attempt leaves a log line: which job, the error's class, and
+	// nothing the author wrote nor which rows.
+	expect(logged).toHaveBeenCalledWith(
+		'[orphaned-workout-purge] attempt failed',
+		expect.objectContaining({ jobId: job.id, error: expect.any(String) }),
+	)
+	const failure = JSON.stringify(logged.mock.calls)
+	for (const needle of ['Kari', 'notater', 'terskel', ...erasable, held.id]) {
+		expect(failure).not.toContain(needle)
+	}
+	logged.mockRestore()
+	await prisma.$executeRawUnsafe(`DROP TRIGGER purge_record_fails`)
 })
 
 test('a purge a crash stranded in running is retried by the next boot', async () => {

@@ -67,15 +67,27 @@ export async function runOrphanedWorkoutPurge(job?: {
 	id: string
 	payload: Record<string, unknown>
 }): Promise<AccountErasure> {
-	const erasure = await prisma.$transaction(async (tx) => {
-		const erasure = await eraseOrphanedWorkouts(tx)
-		if (!job || isErasureRecord(job.payload.purged)) return erasure
-		await tx.job.update({
-			where: { id: job.id },
-			data: { payload: JSON.stringify({ ...job.payload, purged: erasure }) },
+	const erasure = await prisma
+		.$transaction(async (tx) => {
+			const erasure = await eraseOrphanedWorkouts(tx)
+			if (!job || isErasureRecord(job.payload.purged)) return erasure
+			await tx.job.update({
+				where: { id: job.id },
+				data: { payload: JSON.stringify({ ...job.payload, purged: erasure }) },
+			})
+			return erasure
+		}, ERASURE_TRANSACTION_OPTIONS)
+		.catch((error: unknown) => {
+			// The queue records the error on the row and logs nothing, and a spent
+			// one-time job is never enqueued again: this line is how a failed purge
+			// shows. The error's class and code only, never its message, which for
+			// a Prisma validation error prints the query's arguments.
+			console.error('[orphaned-workout-purge] attempt failed', {
+				jobId: job?.id,
+				error: describeError(error),
+			})
+			throw error
 		})
-		return erasure
-	}, ERASURE_TRANSACTION_OPTIONS)
 	// This run's counts: a later run keeps the first record on the row, but
 	// logs what it did itself.
 	console.info(
@@ -91,4 +103,11 @@ function isErasureRecord(value: unknown): value is AccountErasure {
 	return (['erased', 'keptUnattributed', 'spliced'] as const).every(
 		(key) => typeof record[key] === 'number',
 	)
+}
+
+/** An error's class, and its code where it has one (a Prisma error's `P2…`). */
+function describeError(error: unknown): string {
+	if (!(error instanceof Error)) return typeof error
+	const code = (error as { code?: unknown }).code
+	return typeof code === 'string' ? `${error.name} ${code}` : error.name
 }
