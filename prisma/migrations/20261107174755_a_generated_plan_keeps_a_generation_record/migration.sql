@@ -18,6 +18,10 @@
 -- timezone, which SQLite cannot compute; the plan's first re-lay freezes them
 -- from its own sessions in the same run.
 --
+-- The CHECKs state each column's vocabulary (`GENERATION_INTENTS`, the cardio
+-- Disciplines, a Monday-first weekday, the day's role), as the plan's other
+-- tables do: a bad write fails here rather than placing on the wrong day.
+--
 -- Deterministic and re-runnable: the id is `'genrec_' || outline.id`, the
 -- timestamp a fixed epoch, and `INSERT OR IGNORE` (per
 -- `docs/agents/production-seed-data.md`) never clobbers a record approval
@@ -30,7 +34,7 @@ CREATE TABLE "GenerationRecord" (
     "outlineId" TEXT NOT NULL,
     "generatorId" TEXT NOT NULL,
     "presetKey" TEXT,
-    "intent" TEXT,
+    "intent" TEXT CHECK ("intent" IS NULL OR "intent" IN ('first-season', 'returning-from-injury', 'deliberately-building')),
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "GenerationRecord_outlineId_fkey" FOREIGN KEY ("outlineId") REFERENCES "PlanOutline" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -39,9 +43,9 @@ CREATE TABLE "GenerationRecord" (
 CREATE TABLE "GenerationRecordDay" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "recordId" TEXT NOT NULL,
-    "discipline" TEXT NOT NULL,
-    "weekday" INTEGER NOT NULL,
-    "role" TEXT NOT NULL,
+    "discipline" TEXT NOT NULL CHECK ("discipline" IN ('run', 'swim', 'bike')),
+    "weekday" INTEGER NOT NULL CHECK ("weekday" BETWEEN 0 AND 6),
+    "role" TEXT NOT NULL CHECK ("role" IN ('long', 'ordinary')),
     CONSTRAINT "GenerationRecordDay_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "GenerationRecord" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 

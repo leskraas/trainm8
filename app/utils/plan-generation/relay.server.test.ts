@@ -688,3 +688,38 @@ test('the migration records each legacy generated plan once, however often it ru
 		}),
 	)
 })
+
+test('the database refuses a record day or intent outside their vocabularies', async () => {
+	await seedCorpus()
+	const { outlineId } = await approve()
+	const record = await prisma.generationRecord.findUniqueOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	const day = {
+		recordId: record.id,
+		discipline: 'run',
+		weekday: 1,
+		role: 'ordinary',
+	}
+	await expect(
+		prisma.generationRecordDay.create({ data: { ...day, weekday: 7 } }),
+	).rejects.toThrow()
+	await expect(
+		prisma.generationRecordDay.create({ data: { ...day, role: 'quality' } }),
+	).rejects.toThrow()
+	await expect(
+		prisma.generationRecordDay.create({
+			data: { ...day, discipline: 'strength' },
+		}),
+	).rejects.toThrow()
+	await expect(
+		prisma.generationRecord.update({
+			where: { id: record.id },
+			data: { intent: 'racing' },
+		}),
+	).rejects.toThrow()
+	await expect(
+		prisma.generationRecordDay.create({ data: day }),
+	).resolves.toBeDefined()
+})
