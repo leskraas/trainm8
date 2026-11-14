@@ -1,0 +1,6 @@
+ Test Files  50 passed (50)
+      Tests  1342 passed (1342)
+server re-lay pins (vitest run app/utils/plan-outline/season-edit.server.test.ts app/routes/training/plan.season-edits.test.ts): 25 passed
+ - a Season Anchor fresh start lays only the changed weeks again: the machine's untrained sessions, never the athlete's, and the other weeks byte-equal
+ - a Season Anchor value change lays only its own segment's weeks again: a trained session stays, and the weeks after the next segment are byte-equal
+ - a Season Anchor confirm gone stale is refused and writes nothing
