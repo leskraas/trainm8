@@ -1,0 +1,2418 @@
+
+ RUN  v4.0.18 /tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2
+
+stdout | app/utils/plan-outline/authoring.server.test.ts > two racing creates leave one plan, and the loser is told why
+prisma:error 
+Invalid `tx.planOutline.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/authoring.server.ts:486:39
+
+  483 	phases: PhaseLay[],
+  484 	withoutMix: readonly PlannedDiscipline[] = [],
+  485 ): Promise<{ id: string }> {
+→ 486 	const created = await tx.planOutline.create(
+Unique constraint failed on the fields: (`eventId`)
+
+stdout | app/utils/plan-outline/authoring.server.test.ts > an open-ended plan (ADR 0079) > does not stop another athlete, or a plan toward an Event
+prisma:query - 29ms - COMMIT
+
+ ✓ app/routes/_home/timeline/presenter.test.ts (175 tests) 3907ms
+stdout | app/utils/plan-outline/authoring.server.test.ts > two racing adds for one Discipline leave one track, and the loser is told why
+prisma:error 
+Invalid `prisma.trainingTrack.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/authoring.server.ts:860:46
+
+  857 }
+  858 
+  859 try {
+→ 860 	const created = await prisma.trainingTrack.create(
+Unique constraint failed on the fields: (`outlineId`,`discipline`)
+
+stdout | app/utils/plan-outline/authoring.server.test.ts > re-anchoring a track mid-season > a re-anchor is removed, and its weeks go back to the anchor before it
+prisma:query - 27ms - SELECT `main`.`TrainingTrack`.`id` FROM `main`.`TrainingTrack` LEFT JOIN `main`.`PlanOutline` AS `j0` ON (`j0`.`id`) = (`main`.`TrainingTrack`.`outlineId`) WHERE (`main`.`TrainingTrack`.`id` = ? AND (`j0`.`athleteId` = ? AND (`j0`.`id` IS NOT NULL))) LIMIT ? OFFSET ?
+
+stdout | app/routes/training/plan.test.ts > a ramp steeper than the convention saves, and the guard says so
+prisma:query - 24ms - COMMIT
+
+ ✓ app/routes/training/plan.test.ts (84 tests) 16404ms
+   ✓ a prescription the track’s currency cannot read is priced as Unavailable  304ms
+   ✓ a session only partly prescribed in the currency is Unavailable, not understated  318ms
+ ✓ app/utils/plan-outline/authoring.server.test.ts (169 tests) 26568ms
+stdout | app/utils/training.server.test.ts > getActiveSeason names no Unavailable cross-track reading for a plan with no strength track
+prisma:query - 27ms - COMMIT
+
+stdout | app/utils/strength-program.server.test.ts > a fold recorded before its outcomes were stored is restated rather than folded in again
+prisma:error 
+Invalid `tx.programSessionApplication.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/strength-program.server.ts:1986:37
+
+  1983 // **The guard, and the answer kept.** The unique index refuses the second
+  1984 // insert, which aborts this transaction and rolls the whole second advance
+  1985 // back; the stored `outcomes` are what a second Finish then replays.
+→ 1986 await tx.programSessionApplication.create(
+Unique constraint failed on the fields: (`instanceId`,`sessionId`)
+
+stdout | app/utils/strength-program.server.test.ts > a session opened before the load was materialised is repointed at a stamped copy, unless sets were already logged against it
+prisma:query - 20ms - COMMIT
+
+stdout | app/utils/strength-program.server.test.ts > reopening a session after the working weight changed shows the new weight in the grid
+prisma:query - 20ms - UPDATE `main`.`ExerciseSet` SET `load` = ?, `weightKg` = ? WHERE (`main`.`ExerciseSet`.`id` = ? AND 1=1) RETURNING `id` AS `id`
+
+stdout | app/utils/strength-program.server.test.ts > a program session the athlete adopted keeps the weights they wrote, until they hand it back
+prisma:query - 26ms - UPDATE `main`.`ExerciseSet` SET `load` = ?, `weightKg` = ? WHERE (`main`.`ExerciseSet`.`id` = ? AND 1=1) RETURNING `id` AS `id`
+
+stdout | app/utils/strength-program.server.test.ts > a program session the athlete adopted keeps the weights they wrote, until they hand it back
+prisma:query - 41ms - UPDATE `main`.`ExerciseSet` SET `load` = ?, `weightKg` = ? WHERE (`main`.`ExerciseSet`.`id` = ? AND 1=1) RETURNING `id` AS `id`
+
+ ✓ app/utils/training.server.test.ts (78 tests) 11874ms
+   ✓ the ledger reads a lifting session's sets without an N+1  412ms
+   ✓ getDisciplineThresholds reads every discipline in the same round trips as one  340ms
+stdout | app/utils/strength-program.server.test.ts > a program lift logged as a machine stack level is told the session could not be read, and that a stack lift cannot progress in a program yet
+prisma:query - 21ms - INSERT INTO `main`.`StrengthProgram` (`id`, `key`, `variantId`, `name`, `authorship`, `cursorKind`, `initialCursor`, `citationAuthor`, `citationWork`, `citationYear`, `citationLocator`, `provenanceNote`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT  (`id`) DO UPDATE SET `key` = ?, `variantId` = ?, `name` = ?, `authorship` = ?, `cursorKind` = ?, `initialCursor` = ?, `citationAuthor` = ?, `citationWork` = ?, `citationYear` = ?, `citationLocator` = ?, `provenanceNote` = ?, `updatedAt` = ? WHERE (`main`.`StrengthProgram`.`id` = ? AND 1=1) RETURNING `id` AS `id`
+
+stdout | app/utils/strength-program.server.test.ts > the source set of a re-estimate is the row that was read, not a row that happens to share its number
+prisma:query - 46ms - COMMIT
+
+ ✓ app/utils/strength-program.server.test.ts (32 tests) 9617ms
+   ✓ a program run is reachable only by its athlete  333ms
+   ✓ the load resolves when the session is opened, so the next session’s weight is a function of the last log  413ms
+   ✓ the advanced state and its appended weight history land together  301ms
+   ✓ a session logged for an athlete who does not own the run changes nothing  356ms
+   ✓ a Stall Cut is written to the lift’s stall history, so “why did my squat drop?” has an answer  476ms
+   ✓ a fold recorded before its outcomes were stored is restated rather than folded in again  426ms
+   ✓ reopening a session after the working weight changed shows the new weight in the grid  312ms
+   ✓ a program session the athlete adopted keeps the weights they wrote, until they hand it back  373ms
+   ✓ a scheduled session left over from an ended run is not adopted by a new one  329ms
+   ✓ a Stall Cut lands on a weight the athlete’s gym can actually load  501ms
+   ✓ a session logged lighter than prescribed does not move the weight, and says which two weights it read  339ms
+   ✓ a session is graded against the weight it was stamped with, not the weight the state moved to  318ms
+   ✓ a kilo-priced lift logged with no honest kilo is unverifiable, and nothing moves  324ms
+   ✓ a barbell lift logged as a bodyweight load is unverifiable through the real stamp and query, and nothing moves  311ms
+   ✓ a lift logged on the assisted machine is unverifiable through the real stamp and query, because its number means less work as it grows  306ms
+   ✓ a program lift logged as a machine stack level is told the session could not be read, and that a stack lift cannot progress in a program yet  372ms
+   ✓ a session whose stored kilo does not follow from its load is neither a success nor a miss  376ms
+   ✓ the source set of a re-estimate is the row that was read, not a row that happens to share its number  338ms
+ ✓ app/routes/training/__runner-presenter.test.ts (94 tests) 297ms
+ ✓ app/utils/workout-notation.test.ts (84 tests) 212ms
+ ✓ app/utils/strength/program-engine.test.ts (49 tests) 151ms
+ ✓ app/routes/training/sessions.$sessionId.route.test.tsx (52 tests) 3917ms
+   ✓ completed session with a telemetry stream renders the overlay, not the unavailable state  407ms
+   ✓ the reasoning behind a read archetype waits behind a tap  305ms
+ ✓ app/utils/workout.server.test.ts (43 tests) 7542ms
+ ✓ app/routes/_home/timeline/row-content.test.ts (95 tests) 314ms
+ ✓ app/utils/strength-log.server.test.ts (37 tests) 6550ms
+stdout | app/utils/strength-records.server.test.ts > a weighted-dip record reads the kilos baked at log time, so a later bodyweight change never rewrites it
+prisma:query - 20ms - COMMIT
+
+ ✓ app/routes/_home/index.dashboard.test.tsx (45 tests) 4813ms
+   ✓ today's row carries today's session, its action and the coach's line  465ms
+   ✓ an empty day is never called a rest day — nothing prescribes one  383ms
+ ✓ app/utils/strength-records.server.test.ts (34 tests) 5926ms
+   ✓ another athlete’s logged sets are not in this athlete’s history  313ms
+ ✓ app/routes/training/sessions.$sessionId_.log.route.test.tsx (51 tests) 3145ms
+stdout | app/utils/plan-outline/lifting-days.server.test.ts > chosen lifting days hold in every Week Pattern that lifts, and the undo puts each back
+prisma:query - 35ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+stdout | app/utils/plan-outline/track-days.server.test.ts > undoing from the toast puts back exactly what the change replaced
+prisma:query - 37ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+stdout | app/utils/plan-outline/lifting-days.server.test.ts > a choice made against a plan that changed since is refused
+prisma:query - 22ms - UPDATE `main`.`WorkoutSession` SET `plannedTssValue` = ?, `plannedTssConfidence` = ?, `updatedAt` = ? WHERE (`main`.`WorkoutSession`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `scheduledAt` AS `scheduledAt`, `status` AS `status`, `tssValue` AS `tssValue`, `tssFormula` AS `tssFormula`, `tssConfidence` AS `tssConfidence`, `plannedTssValue` AS `plannedTssValue`, `plannedTssConfidence` AS `plannedTssConfidence`, `replanReason` AS `replanReason`, `source` AS `source`, `adoptedAt` AS `adoptedAt`, `releasedAt` AS `releasedAt`, `countsInNoTrack` AS `countsInNoTrack`, `markedDoneAt` AS `markedDoneAt`, `statusBeforeLink` AS `statusBeforeLink`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `userId` AS `userId`, `workoutId` AS `workoutId`, `recordingId` AS `recordingId`, `targetEventId` AS `targetEventId`, `planOutlineId` AS `planOutlineId`
+
+stdout | app/utils/plan-outline/track-days.server.test.ts > a choice made against a plan that changed since is refused
+prisma:query - 21ms - COMMIT
+
+ ✓ app/utils/plan-outline/lifting-days.server.test.ts (12 tests) 9309ms
+   ✓ a plan whose lifting the app lays reads as La appen velge  471ms
+   ✓ choosing Tuesday and Thursday lifts on Tuesday and Thursday in every week, and the run’s intervals are laid away from them  736ms
+   ✓ the Strength Frequency is the number of days chosen  704ms
+   ✓ the strength blocks lift as often as the days chosen, and the undo puts their frequency back (story 20)  1042ms
+   ✓ chosen lifting days hold in every Week Pattern that lifts, and the undo puts each back  1001ms
+   ✓ undoing puts back exactly the rows the write replaced, whatever sessions they lifted  1355ms
+   ✓ an undo cannot put an orphaned athlete's Workout into the week (#639 H26)  667ms
+   ✓ undoing from the toast restores the previous days  914ms
+   ✓ an existing plan’s fixed strength days appear as the chosen days, and La appen velge hands them back  627ms
+   ✓ a day the athlete does not train on cannot be chosen  386ms
+   ✓ a choice made against a plan that changed since is refused  712ms
+   ✓ Week Replan is told a missed lift’s track’s chosen days, so a make-up goes on one of them  688ms
+ ✓ app/routes/training/plan.route.test.tsx (144 tests) 70068ms
+   ✓ Plan opens on the plain name with the family small and the next easy week  411ms
+   ✓ Bytt treningsform comes after Legg til et løp in the lead, and its preview leaves Avansert closed  592ms
+   ✓ a link to a reading or an edit lands on Avansert open  310ms
+   ✓ Plan is a tab: no way back, and the Events it plans around are on it (ADR 0083, ADR 0101)  308ms
+   ✓ the Weeks reading shows each week’s role and its derived target  464ms
+   ✓ a week opens its target edit in Endre sesongen, pre-filled for that week and track  416ms
+   ✓ a week already begun shows its target and offers no edit  375ms
+   ✓ switching reading keeps the season being read  317ms
+   ✓ every phase links to its own edit in Endre sesongen, and edits no name, length or rhythm itself  486ms
+   ✓ the season’s ends have nothing to swap with, and say so  596ms
+   ✓ a plan’s only phase cannot be removed — that would be deleting the plan  311ms
+   ✓ two phases with the same name do not both read as current — position does  382ms
+   ✓ a phase is added at a position, and the copy promises the start week stays  814ms
+   ✓ deleting is confirmed, and the confirmation says what stays  592ms
+   ✓ a refused edit is said at the top of the reading that asked for it  613ms
+   ✓ the roster offers only the disciplines the plan does not already measure  680ms
+   ✓ adding a track posts its discipline, its unit and its first anchor in one act  1099ms
+   ✓ a strength track states its unit rather than offering a dead picker  869ms
+   ✓ the add form proposes the unit the athlete’s own history is measured in  804ms
+   ✓ a partly-trained window says how many weeks it read  742ms
+   ✓ with no history the add form asks for the unit rather than preselecting one  328ms
+   ✓ switching the unit brings that unit’s own figure, not the first one relabelled  1182ms
+   ✓ switching the discipline brings that discipline’s figure, same unit or not  866ms
+   ✓ removing a track is confirmed, and says the phases stay  533ms
+   ✓ an authored ramp shows the number the athlete typed  392ms
+   ✓ an unset ramp is blank and says the block holds level  393ms
+   ✓ an unset cut reads as the convention, not as the convention’s number  431ms
+   ✓ an authored cut of the convention’s own size is visibly the athlete’s  395ms
+   ✓ the season’s opening block offers no boundary step, and says why  396ms
+   ✓ a later block authors a boundary step at its opening  442ms
+   ✓ re-anchoring onto a later block’s opening takes its step away  472ms
+   ✓ a block no anchor reaches says there is no level for a step to move  421ms
+   ✓ a taper cut is offered only where the phase tapers  500ms
+   ✓ a rate with no field for it still travels, so saving cannot clear it  511ms
+   ✓ the guard’s copy is a convention and makes no injury claim  482ms
+   ✓ every guard arrives open, and each offers to be closed by name  399ms
+   ✓ a guard the athlete has read and decided about closes, alone  653ms
+   ✓ each Guard Notice is on the page once: the Blokker reading under Avansert holds none  2456ms
+   ✓ the mix offers one field per quality zone, and no fourth kind of work  447ms
+   ✓ a zone in the mix shows its count, and one that is not shows blank  514ms
+   ✓ the emphasis label and the count are read off the mix  390ms
+   ✓ an empty mix reads as no quality sessions, never as unknown  365ms
+   ✓ neither derived reading is a control the athlete could type into  509ms
+   ✓ a week span that outruns the trainable weekdays is noted, and blocks nothing  463ms
+   ✓ every shape is on offer, five families at three lengths, each with an Apply  1710ms
+   ✓ once the plan has begun, no shape is offered: Bytt filosofi is, behind its preview  652ms
+   ✓ the edits outside Sesong v1 wait behind Avansert, which says they apply directly  378ms
+   ✓ the gallery states the fitting rule: base first, taper never  921ms
+   ✓ a shape is chosen from a picture of the load profile it lays down  808ms
+   ✓ the picture’s numbers are reachable, not only its pixels  1046ms
+   ✓ the ramp is stated as a convention and claims nothing about injury  873ms
+   ✓ the two cuts read as the convention’s, never as the shape’s own  875ms
+   ✓ a card names what makes its shape different from the others  848ms
+   ✓ applying replaces the blocks, and the card says so without blocking  946ms
+   ✓ a card posts the shape it shows, against the plan being read  847ms
+   ✓ the gallery says the plan is not stretched to reach the event  1005ms
+   ✓ the pattern lists its days Monday-first, each with its track and its kind  506ms
+   ✓ each day says what it resolves to against the chosen week’s real target  399ms
+   ✓ the totals say the week’s target, the fixed volume and the remainder  450ms
+   ✓ a different week resolves to different volumes, from that week’s own target  394ms
+   ✓ a week with no derived target reads Unavailable with its reason, never 0  536ms
+   ✓ a prescribed session the currency cannot read costs the shares their number  395ms
+   ✓ fixed days over the week’s target warn, and nothing claims to correct them  480ms
+   ✓ a pattern at either end of the order has nothing to swap with  587ms
+   ✓ two sessions on one weekday are orderable, and the ends are disabled  630ms
+   ✓ deleting a pattern is confirmed, and the confirmation says what stays  834ms
+   ✓ deleting a pattern with no days yet reads as a sentence, never “its 0 days”  560ms
+   ✓ a day is added by weekday, track and kind — and by no volume or zone  440ms
+   ✓ choosing a share day asks for its weight, and a fixed one for its workout  1031ms
+   ✓ a share day opens with no shape, and never inherits the fixed day’s workout  1069ms
+   ✓ the kind selector names the kind, and the rule is said under the field  937ms
+   ✓ the workout picker offers only the chosen track’s own discipline  842ms
+   ✓ a track with no workout of its own discipline offers no fixed day, and says why  1002ms
+   ✓ an athlete with no workouts is told why, and pointed at authoring one  505ms
+   ✓ the chosen week is URL state, and travels with the season being read  917ms
+   ✓ the plan’s first week needs no param, exactly like the default reading  445ms
+   ✓ an athlete with no pattern reads that, and is offered one  649ms
+   ✓ the starter week names the athlete’s own days, or says it is a convention  586ms
+   ✓ a pattern with no share day says what nothing absorbs  351ms
+   ✓ a refused pattern edit is said at the top of the reading that asked for it  771ms
+   ✓ a lifting block is laid out along the plan’s weeks, not on a phase  839ms
+   ✓ the section says what `sets` means and attaches no citable range to it  857ms
+   ✓ the derived band moves with the goal, and there is no input for it  772ms
+   ✓ nothing on a lifting block derives sets a week from the goal  843ms
+   ✓ an unset deload cut reads as the convention, and an authored one as theirs  777ms
+   ✓ a dismissed band note comes back when the goal moves the band  1232ms
+   ✓ each Unavailable reading gets its own sentence and its own reason  526ms
+   ✓ the lifter reads what the plan cannot tell them while authoring blocks  1214ms
+   ✓ a block whose window fell out of the plan is shown rather than hidden  827ms
+   ✓ a strength track with no blocks says every week is no lifting  931ms
+   ✓ the anchor list says the athlete re-anchored, from when and to what  798ms
+   ✓ the earliest anchor cannot be removed, and the row says why  760ms
+   ✓ an anchor row edits its value, and offers no unit anywhere  695ms
+   ✓ the re-anchor form offers only weeks that carry no anchor yet  1137ms
+   ✓ weeks before the first anchor are named as Unavailable, never guessed  706ms
+ ✓ app/utils/plan-outline/track-days.server.test.ts (19 tests) 15098ms
+   ✓ every endurance track and Simple Activity can have its days chosen, La appen velge by default  496ms
+   ✓ a Simple Activity picked again for another day stays one unit (ADR 0113 §2)  512ms
+   ✓ a Langrenn day moved to Saturday stays on Saturday, and the run’s hard session is laid around it  759ms
+   ✓ an endurance track pinned to two days trains only on them, its week spread over them  709ms
+   ✓ La appen velge deals the track’s days again around the others  959ms
+   ✓ undoing from the toast puts back exactly what the change replaced  1023ms
+   ✓ undoing the first days chosen for a track with none puts back none  817ms
+   ✓ a pinned track trains only on its days in every Week Pattern, and the undo puts each back  1031ms
+   ✓ undoing puts back a day shaped by a Stock Workout exactly as it was  964ms
+   ✓ a shape a choice drops waits for its undo, then goes with the next write (ADR 0113 §4)  1409ms
+   ✓ an undo cannot put an orphaned athlete's Workout into the week (#639 H26)  692ms
+   ✓ a choice made against a plan that changed since is refused  615ms
+   ✓ a day the athlete does not train on cannot be chosen  482ms
+   ✓ a Simple Activity always has a day: it cannot be handed to the app  479ms
+   ✓ Week Replan is told a missed ride’s track’s chosen days  747ms
+   ✓ taking a day out of Training Availability drops it from the tracks that pinned it, and says so  1088ms
+   ✓ a track that loses every pinned day goes back to La appen velge  1042ms
+   ✓ clearing every day of Training Availability drops every pinned day, not none  869ms
+   ✓ Sesong’s starter week keeps a pinned track on its days and deals the others around it  401ms
+ ✓ app/utils/plan-generation/generate.server.test.ts (16 tests) 6631ms
+   ✓ approving writes the Plan Outline and the sessions under it  656ms
+   ✓ a placed session is generated, anchored, and owns a fresh copy of the corpus row  609ms
+   ✓ a placed session reaches its Citation through the chain, never a copy of it  616ms
+   ✓ an Event already carrying a plan is refused rather than doubled  584ms
+   ✓ approving under a Weekly Capacity writes the lowered season, and the plan’s own hours check stays quiet (#473)  709ms
+   ✓ a preview week’s Planned Volume is the one Sesong reads for that week once the season is approved unchanged  882ms
+   ✓ a placed session is not rescaled: its copy carries its Stock Workout’s blocks and steps field by field  659ms
+   ✓ the preview states the weeks whose placed sessions outrun the Weekly Capacity, and approval reads them again on the server (#473)  606ms
+stdout | app/utils/plan-outline/stamp.server.test.ts > lifting laid per week > an existing plan’s fixed strength days survive a re-lay unchanged
+prisma:query - 20ms - COMMIT
+
+stdout | app/utils/plan-outline/held-workouts.server.test.ts > a Workout a day still uses cannot be deleted out from under it
+prisma:error 
+Invalid `	prisma.workout.delete()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/held-workouts.server.test.ts:802:18
+
+  799 	(day) => day.kind === 'fixed',
+  800 )
+  801 await expect(
+→ 802 	prisma.workout.delete(
+Foreign key constraint violated on the foreign key
+
+ ✓ app/utils/plan-outline/stamp.server.test.ts (36 tests) 8166ms
+     ✓ a re-lay is stable: the same week comes out again  354ms
+     ✓ a lift the athlete kept fills its slot on a re-lay, wherever it is  356ms
+     ✓ an existing plan’s fixed strength days survive a re-lay unchanged  397ms
+ ✓ app/utils/plan-outline/held-workouts.server.test.ts (17 tests) 4124ms
+   ✓ after the strength offer, the strength session the lifts copy can be deleted and the next laid weeks still lift it  369ms
+   ✓ deleting the plan or its Event takes its Held Workouts, fixed, share and lifting alike  424ms
+ ✓ app/utils/plan-outline/copy-week.server.test.ts (21 tests) 3725ms
+ ✓ app/utils/plan-outline/philosophy.server.test.ts (10 tests) 3254ms
+   ✓ a switch keeps lived weeks and the athlete’s sessions, and lays the machine’s weeks ahead again on the new family  418ms
+   ✓ the preview writes nothing, and is what the switch then applies  357ms
+   ✓ a switch to the family the plan follows, or on someone else’s plan, is refused and nothing moves  322ms
+   ✓ a next round proposed on the old family is closed by the switch  341ms
+   ✓ a week holding the athlete’s adopted session is laid again around it, at the new targets  395ms
+   ✓ a confirm whose preview no longer matches is refused, and nothing moves  349ms
+   ✓ switching to Stor base previews and lays only easy sessions in its first block  414ms
+ ✓ app/utils/plan-outline/open-ended.server.test.ts (9 tests) 2908ms
+   ✓ adding an Event mid-round ends the round early, lays phases to the Event, and keeps the athlete’s sessions  384ms
+   ✓ an Event only a week or two out still gets its taper  312ms
+   ✓ after an Event is added, weeks up to the horizon the plan never laid get their sessions, and a waiting round is closed  309ms
+   ✓ the preview writes nothing, counts the athlete’s sessions it keeps, and is what the attach then applies  356ms
+   ✓ a race named on the spot is previewed without being made, and made only by the confirm  397ms
+   ✓ a confirm whose preview no longer matches is refused, nothing moves, and no race is left behind  375ms
+stdout | app/utils/plan-outline/constraints.test.ts > a Volume Currency outside the vocabulary is rejected by the database
+prisma:error 
+Invalid `prisma.trainingTrack.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:68:30
+
+  65 	discipline = 'run',
+  66 	currency = 'km',
+  67 ) {
+→ 68 	return prisma.trainingTrack.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: currency") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a Discipline gets at most one Training Track (ADR 0043 §1)
+prisma:error 
+Invalid `prisma.trainingTrack.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:68:30
+
+  65 	discipline = 'run',
+  66 	currency = 'km',
+  67 ) {
+→ 68 	return prisma.trainingTrack.create(
+Unique constraint failed on the fields: (`outlineId`,`discipline`)
+
+stdout | app/utils/plan-outline/constraints.test.ts > a Quality Session Mix admits zones 3–5 only (ADR 0042 §3)
+prisma:error 
+Invalid `	prisma.qualitySessionMixEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:105:33
+
+  102 })
+  103 
+  104 await expect(
+→ 105 	prisma.qualitySessionMixEntry.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: zone") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a Quality Session Mix admits zones 3–5 only (ADR 0042 §3)
+prisma:error 
+Invalid `	prisma.qualitySessionMixEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:116:33
+
+  113 ).resolves.toBeTruthy()
+  114 // A zone cannot appear twice in one mix — it is a multiset by count, not by row.
+  115 await expect(
+→ 116 	prisma.qualitySessionMixEntry.create(
+Unique constraint failed on the fields: (`segmentId`,`zone`)
+
+stdout | app/utils/plan-outline/constraints.test.ts > an endurance segment is bound to a phase and a strength segment is dated
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:128:31
+
+  125 
+  126 // Neither kind may borrow the other's positioning fields (ADR 0044 §3).
+  127 await expect(
+→ 128 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: TrainingTrackSegment_kind_position") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > an endurance segment is bound to a phase and a strength segment is dated
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:137:31
+
+  134 	}),
+  135 ).rejects.toThrow()
+  136 await expect(
+→ 137 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: TrainingTrackSegment_kind_position") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a Strength Goal outside the vocabulary is rejected by the database
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:166:31
+
+  163 const outline = await createOutline()
+  164 const track = await createTrack(outline.id, 'strength', 'sets')
+  165 const strengthSegment = (goal: string) =>
+→ 166 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: goal") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a strength segment must carry a Strength Goal and a Strength Frequency
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:189:31
+
+  186 const outline = await createOutline()
+  187 const track = await createTrack(outline.id, 'strength', 'sets')
+  188 const segment = (data: { goal?: string; sessionsPerWeek?: number }) =>
+→ 189 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: TrainingTrackSegment_kind_position") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a strength segment must carry a Strength Goal and a Strength Frequency
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:189:31
+
+  186 const outline = await createOutline()
+  187 const track = await createTrack(outline.id, 'strength', 'sets')
+  188 const segment = (data: { goal?: string; sessionsPerWeek?: number }) =>
+→ 189 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: TrainingTrackSegment_kind_position") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a strength segment must carry a Strength Goal and a Strength Frequency
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:189:31
+
+  186 const outline = await createOutline()
+  187 const track = await createTrack(outline.id, 'strength', 'sets')
+  188 const segment = (data: { goal?: string; sessionsPerWeek?: number }) =>
+→ 189 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: TrainingTrackSegment_kind_position") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a Strength Frequency of zero is rejected — an empty block is an absent one
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:235:31
+
+  232 // "No lifting these weeks" is expressed by the segment not existing, which is
+  233 // why a gap between segments is a meaningful state (ADR 0047 §6).
+  234 await expect(
+→ 235 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: sessionsPerWeek") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > an endurance segment carries no Strength Goal and no Strength Frequency
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:254:31
+
+  251 // The two new fields are strength-only, the way the positioning fields already
+  252 // are: neither kind may borrow the other's (ADR 0047 §3/§4).
+  253 await expect(
+→ 254 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: TrainingTrackSegment_kind_position") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > an endurance segment carries no Strength Goal and no Strength Frequency
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:264:31
+
+  261 	}),
+  262 ).rejects.toThrow()
+  263 await expect(
+→ 264 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: TrainingTrackSegment_kind_position") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > two strength segments cannot open in the same week
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:279:31
+
+  276 const outline = await createOutline()
+  277 const track = await createTrack(outline.id, 'strength', 'sets')
+  278 const segment = (startWeekKey: string) =>
+→ 279 	prisma.trainingTrackSegment.create(
+Unique constraint failed on the fields: (`trackId`,`startWeekKey`)
+
+stdout | app/utils/plan-outline/constraints.test.ts > a strength segment of zero weeks is rejected
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:307:31
+
+  304 // tested at one end only is half a constraint, and the NULL end is tested below.
+  305 // Goal and frequency are present so the duration is the only thing wrong.
+  306 await expect(
+→ 307 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: TrainingTrackSegment_kind_position") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a strength segment carries no Quality Session Mix
+prisma:error 
+Invalid `	prisma.qualitySessionMixEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:379:33
+
+  376 // requires, so this is structural rather than a service-layer rule — a CHECK
+  377 // could not express it, since it reaches across two tables.
+  378 await expect(
+→ 379 	prisma.qualitySessionMixEntry.create(
+Foreign key constraint violated on the foreign key
+
+stdout | app/utils/plan-outline/constraints.test.ts > a segment cannot change kind out from under its Quality Session Mix
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:403:31
+
+  400 // Rewriting the kind would leave zoned sessions hanging off a strength block,
+  401 // which is the same lie the previous test forbids authoring directly.
+  402 await expect(
+→ 403 	prisma.trainingTrackSegment.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: segmentKind") }), transient: false })
+
+ ✓ app/utils/plan-outline/season-edit.server.test.ts (7 tests) 2376ms
+   ✓ a new week target lays that week again at it, keeps the athlete’s session, and leaves the other weeks alone  506ms
+   ✓ another athlete’s plan reads as not found  312ms
+   ✓ a chosen easy week is stored, read by home and the season, and its weeks laid again  379ms
+   ✓ back to the plan’s target removes the override and lays the week again at the plan’s number  388ms
+stdout | app/utils/plan-outline/constraints.test.ts > a strength segment without a duration is rejected, NULL comparison notwithstanding
+prisma:error 
+Invalid `	prisma.trainingTrackSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:424:31
+
+  421 // on NULL — so the constraint tests IS NOT NULL first. This is the test that
+  422 // caught that. Goal and frequency are present so the duration is what is missing.
+  423 await expect(
+→ 424 	prisma.trainingTrackSegment.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: TrainingTrackSegment_kind_position") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a Week Pattern day is a fixed session or a weighted share, never neither
+prisma:error 
+Invalid `	prisma.weekPatternDay.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:449:25
+
+  446 	weekday?: number
+  447 	orderInDay?: number
+  448 }) =>
+→ 449 	prisma.weekPatternDay.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: WeekPatternDay_kind_fields") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a Week Pattern day is a fixed session or a weighted share, never neither
+prisma:error 
+Invalid `	prisma.weekPatternDay.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:449:25
+
+  446 	weekday?: number
+  447 	orderInDay?: number
+  448 }) =>
+→ 449 	prisma.weekPatternDay.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: WeekPatternDay_kind_fields") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a Week Pattern day is a fixed session or a weighted share, never neither
+prisma:error 
+Invalid `	prisma.weekPatternDay.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:449:25
+
+  446 	weekday?: number
+  447 	orderInDay?: number
+  448 }) =>
+→ 449 	prisma.weekPatternDay.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: weekday") }), transient: false })
+
+stdout | app/utils/plan-outline/constraints.test.ts > a Week Pattern day is a fixed session or a weighted share, never neither
+prisma:error 
+Invalid `	prisma.weekPatternDay.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:449:25
+
+  446 	weekday?: number
+  447 	orderInDay?: number
+  448 }) =>
+→ 449 	prisma.weekPatternDay.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: weekday") }), transient: false })
+
+ ✓ app/utils/plan-outline/held-workouts-migration.server.test.ts (4 tests) 1463ms
+   ✓ the migration gives every day a row its own plan holds, copying only what something else uses  322ms
+   ✓ after the migration the weeks laid are the weeks laid before, and the sessions are the athlete’s again  578ms
+   ✓ the migration copies a reported row rather than holding it, so its report outlives the plan  323ms
+stdout | app/utils/plan-outline/constraints.test.ts > a week carries at most one anchor and at most one override per track
+prisma:error 
+Invalid `	prisma.seasonAnchorSegment.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:478:30
+
+  475 	data: { trackId: track.id, fromWeekKey: START_WEEK_KEY, value: 55 },
+  476 })
+  477 await expect(
+→ 478 	prisma.seasonAnchorSegment.create(
+Unique constraint failed on the fields: (`trackId`,`fromWeekKey`)
+
+stdout | app/utils/plan-outline/constraints.test.ts > a week carries at most one anchor and at most one override per track
+prisma:error 
+Invalid `	prisma.weekVolumeOverride.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/plan-outline/constraints.test.ts:487:29
+
+  484 	data: { trackId: track.id, weekKey: '2030-01-21', value: 45 },
+  485 })
+  486 await expect(
+→ 487 	prisma.weekVolumeOverride.create(
+Unique constraint failed on the fields: (`trackId`,`weekKey`)
+
+ ✓ app/utils/plan-outline/constraints.test.ts (18 tests) 2330ms
+ ✓ app/utils/plan-outline/stamp.test.ts (47 tests) 143ms
+ ✓ app/utils/plan-outline/strength-offer.server.test.ts (3 tests) 954ms
+   ✓ an athlete who lifts twice a week is offered a strength track; accepting it gives the plan lifting targets and lifting sessions  453ms
+   ✓ accepting the offer adds lifting slots, laid away from the intervals rather than on the first days of the week  359ms
+ ✓ app/utils/plan-outline/week-volumes.server.test.ts (7 tests) 1343ms
+ ✓ app/utils/plan-outline/season-chart.test.ts (24 tests) 61ms
+ ✓ app/utils/profile-analysis/estimate.test.ts (18 tests) 56ms
+ ✓ app/utils/plan-generation/capacity.test.ts (99 tests) 588ms
+ ✓ app/utils/plan-outline/volume-conversion.server.test.ts (5 tests) 907ms
+   ✓ an empty window is null — the honest close of the distance gate  334ms
+ ✓ app/utils/plan-outline/derive.test.ts (82 tests) 192ms
+stdout | app/routes/training/sessions.$sessionId.test.ts > action prevents non-owner from creating session log
+prisma:query - 24ms - COMMIT
+
+ ✓ app/utils/load/week-replan-proposals.server.test.ts (31 tests) 6400ms
+   ✓ a missed session stays ikke gjort on its day; the key one is offered as a make-up on a free day and the rest are let go  307ms
+   ✓ easeWeek softens every session still ahead in the week by 15 %, the athlete’s own too, and reports before and after  305ms
+ ✓ app/utils/strength/records.test.ts (35 tests) 98ms
+ ✓ app/routes/training/sessions.$sessionId.test.ts (34 tests) 5656ms
+   ✓ marking a key session missed eases the next planned cardio session there and then  419ms
+ ✓ app/utils/strength/program-rules.test.ts (37 tests) 87ms
+stdout | app/utils/load/week-replan.server.test.ts > a generated session stays generated after a rescale (source preserved, no adoption)
+prisma:query - 49ms - COMMIT
+
+stdout | app/utils/first-run/plan.server.test.ts > two submits at once make one plan
+prisma:query - 21ms - COMMIT
+
+stdout | app/utils/first-run/plan.server.test.ts > two submits at once make one plan
+prisma:query - 56ms - BEGIN IMMEDIATE
+
+ ✓ app/utils/load/week-replan.server.test.ts (19 tests) 4090ms
+   ✓ completed, past, next-week, strength, and unquantified sessions are untouched (no scale, no note)  313ms
+   ✓ a Session Nudge ease clears the eased session note; the WeekReplan row stands and no recompute re-softens  301ms
+ ✓ app/utils/first-run/plan.server.test.ts (20 tests) 5451ms
+   ✓ an open-ended first plan lays its first two weeks on the chosen days only, each week adding up to its target  362ms
+   ✓ the plan made is the plan shown: same family, same days, same minutes  318ms
+   ✓ the days become the athlete’s availability, and the plan’s heaviest week its weekly capacity  326ms
+   ✓ Terskelfokus lays its two hard sessions in each of the first two weeks, titled as the preview showed  318ms
+   ✓ seven chosen days lay six, and keep all seven as the athlete’s availability  352ms
+   ✓ a two-track plan made is the plan shown, minute for minute  358ms
+     ✓ polarized is made as its card showed it, and nothing is marked done or ikke gjort  310ms
+     ✓ classic is made as its card showed it, and nothing is marked done or ikke gjort  304ms
+     ✓ several sports ('run' first) are made as the card showed them: every track, minute for minute  328ms
+     ✓ several sports ('swim' first) are made as the card showed them: every track, minute for minute  390ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts (46 tests) 146ms
+ ✓ app/utils/plan-generation/deterministic.test.ts (21 tests) 139ms
+ ✓ app/utils/plan-outline/volume-conversion.test.ts (78 tests) 231ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx (34 tests) 9879ms
+   ✓ the season is already there — the screen opens on a plan, not a blank form  800ms
+   ✓ nothing reaches the calendar until the athlete says so  432ms
+   ✓ a corpus session shows its Citation in the provenance slot  326ms
+   ✓ a week card shows each track’s target and planned figure, labelled, with units  371ms
+   ✓ a week with no Season Anchor reads “—” for its target and still shows what is planned  309ms
+   ✓ a session with no number in the unit is counted apart, never as zero, and keeps a short week unmarked  366ms
+   ✓ the page says once, above the weeks, that sessions are placed as published  332ms
+   ✓ the one question and the pre-selected shape read in Norwegian, as Sesong names them  489ms
+   ✓ past three hidden spans the row counts the weeks instead of listing them  363ms
+stdout | app/routes/imports.upload.server.test.ts > a .tcx run persists an HR + pace Activity Stream at parity with GPX/FIT (ADR 0036)
+prisma:query - 20ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+stdout | app/routes/imports.upload.server.test.ts > a .gpx upload with HR extensions persists an HR Activity Stream and phase bars
+prisma:query - 25ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/routes/resources/session-adjust.test.ts (33 tests) 5844ms
+   ✓ Angre on an older change is refused while a newer one stands, and works again once that is undone  307ms
+   ✓ on a plan’s own session, a Juster leaves the machine’s session the machine’s and never moves the Week Target  383ms
+ ✓ app/routes/training/sessions.new.token-editing.route.test.tsx (25 tests) 30746ms
+   ✓ the duration token opens a popover stepper that writes through to the sentence  1591ms
+   ✓ focus returns to the token trigger when the popover closes  785ms
+   ✓ the distance token opens a popover stepper bound to the distance value  1029ms
+   ✓ the repeat-count token opens a popover stepper bound to the block repeat  994ms
+   ✓ the editor renders the live Workout Shape strip, expanding repeats with no bracket rail  712ms
+   ✓ the strip appears only with the first paintable step  331ms
+   ✓ a rest step token sets its duration through the popover stepper  686ms
+   ✓ the note token opens a popover textarea writing through to the note facet  1435ms
+   ✓ sentence affordances add, reorder, and remove steps and blocks via Conform intents  1542ms
+   ✓ two authoring paths — the ± stepper and typing — submit the same form data  2516ms
+   ✓ intensity tokens are editable via the popover in this slice  834ms
+   ✓ editing the intensity re-resolves the sentence zone chip and bpm facet live  1262ms
+   ✓ the uniform mirror edits sets × reps @ load; the payload matches the classic set-row fields  1482ms
+   ✓ the kind select swaps the middle control between reps, timed, and AMRAP  2375ms
+   ✓ load is one field with a kg ⇄ %1RM toggle — mutually exclusive on commit  1277ms
+   ✓ the load field states the authored Load Target union, which is the form the save reads  1468ms
+   ✓ vary-individually round-trips: diverge hides the collapse affordance until sets are equal again  1389ms
+   ✓ mixed sets open directly expanded, and per-set edits keep the popover open  1910ms
+   ✓ rest-between-sets is addable and removable from the popover footer and reads as the mid-dot facet  1437ms
+   ✓ rest-between-sets renders as the sentence rest facet and is editable there  1277ms
+   ✓ activating another token retargets the open popover in place — same popup, swapped content  1191ms
+   ✓ every value is type-to-edit: typing into the popover input writes through; unparseable text never does  665ms
+   ✓ committed changes announce through the polite live region in human words  1119ms
+   ✓ token buttons are native tab stops carrying value + facet + position names  739ms
+   ✓ clicking non-interactive ground closes the popover  691ms
+ ✓ app/routes/imports.upload.server.test.ts (41 tests) 15604ms
+   ✓ two athletes uploading the same .fit file each get their own session (#544)  344ms
+   ✓ a .fit import persists a downsampled Activity Stream and HR phase bars  1652ms
+   ✓ a .tcx run persists an HR + pace Activity Stream at parity with GPX/FIT (ADR 0036)  1416ms
+   ✓ a .gpx upload with HR extensions persists an HR Activity Stream and phase bars  1218ms
+   ✓ a .gz that inflates past the per-file limit is refused as too large  466ms
+   ✓ a file over the upload size limit is refused, not thrown  360ms
+   ✓ an upload near local midnight lands on the Oslo calendar day: auto-match + Load Snapshot  2339ms
+   ✓ a batch upload attributes days in the Athlete Timezone too  2233ms
+ ✓ app/utils/strength-anchors.server.test.ts (26 tests) 4144ms
+   ✓ each of the five barbell lifts either estimates or refuses with a stated reason  578ms
+stdout | app/integrations/strava/webhook.server.test.ts > a create event with no streams files the import without a stream
+prisma:query - 35ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+stdout | app/utils/strength-runner.server.test.ts > “marker som ikke gjort” finishes, and the untapped sets are read as not done
+prisma:query - 34ms - UPDATE `main`.`StrengthProgramLiftRule` SET `programId` = ?, `exerciseId` = ?, `equipment` = ?, `orderIndex` = ?, `dayIds` = ?, `setCount` = ?, `repsPerSet` = ?, `setWeightSources` = ?, `trigger` = ?, `successPredicate` = ?, `increment` = ?, `stallsBeforeResponse` = ?, `stallResponse` = ?, `incrementAdjustmentOnStall` = ?, `defaultStartKg` = ?, `startSeedRepMaxReps` = ?, `notes` = ?, `updatedAt` = ? WHERE (`main`.`StrengthProgramLiftRule`.`id` = ? AND 1=1) RETURNING `id` AS `id`
+
+ ✓ app/routes/_home/presenter.test.ts (41 tests) 150ms
+ ✓ app/utils/workout-schema.test.ts (69 tests) 226ms
+stdout | app/utils/strength-runner.server.test.ts > finishing a session twice advances the program once
+prisma:error 
+Invalid `tx.programSessionApplication.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/strength-program.server.ts:1986:37
+
+  1983 // **The guard, and the answer kept.** The unique index refuses the second
+  1984 // insert, which aborts this transaction and rolls the whole second advance
+  1985 // back; the stored `outcomes` are what a second Finish then replays.
+→ 1986 await tx.programSessionApplication.create(
+Unique constraint failed on the fields: (`instanceId`,`sessionId`)
+
+ ✓ app/utils/labels.test.ts (47 tests) 141ms
+stdout | app/utils/strength-runner.server.test.ts > a session put back to scheduled and finished again still advances the program once
+prisma:error 
+Invalid `tx.programSessionApplication.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/strength-program.server.ts:1986:37
+
+  1983 // **The guard, and the answer kept.** The unique index refuses the second
+  1984 // insert, which aborts this transaction and rolls the whole second advance
+  1985 // back; the stored `outcomes` are what a second Finish then replays.
+→ 1986 await tx.programSessionApplication.create(
+Unique constraint failed on the fields: (`instanceId`,`sessionId`)
+
+stdout | app/utils/strength-runner.server.test.ts > a second finish returns the first finish’s outcomes rather than an error
+prisma:error 
+Invalid `tx.programSessionApplication.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/strength-program.server.ts:1986:37
+
+  1983 // **The guard, and the answer kept.** The unique index refuses the second
+  1984 // insert, which aborts this transaction and rolls the whole second advance
+  1985 // back; the stored `outcomes` are what a second Finish then replays.
+→ 1986 await tx.programSessionApplication.create(
+Unique constraint failed on the fields: (`instanceId`,`sessionId`)
+
+stdout | app/utils/strength-quick-log.server.test.ts > two taps in flight at once still log every set once
+prisma:query - 34ms - BEGIN IMMEDIATE
+
+ ✓ app/utils/strength-runner.server.test.ts (18 tests) 7064ms
+   ✓ finishing is an explicit act that marks the session completed  344ms
+   ✓ “marker som ikke gjort” finishes, and the untapped sets are read as not done  335ms
+   ✓ a session with every set tapped is never asked  360ms
+   ✓ finishing folds the log into the program, so the next session’s weight moved  349ms
+   ✓ another athlete cannot finish this athlete’s session  514ms
+   ✓ a session that belongs to no running program finishes and advances nothing  323ms
+   ✓ finishing a session twice advances the program once  550ms
+   ✓ a session put back to scheduled and finished again still advances the program once  583ms
+   ✓ a second finish returns the first finish’s outcomes rather than an error  525ms
+   ✓ a day shape that repeats its block is graded on every round, so five rounds of one set make a 5×5  427ms
+   ✓ sets logged through the runner’s own save path move the working weight, because the writer and the reader key on the same equipment  428ms
+   ✓ a logged set records which realization it was, so changing a variant later cannot rekey it  399ms
+   ✓ a rule that states no equipment still folds in a set that names one, because the leniency is the rule’s to state  387ms
+   ✓ a set logged on another realization of the lift does not move a barbell rule  382ms
+ ✓ app/utils/intensity-target.test.ts (60 tests) 148ms
+ ✓ app/integrations/strava/webhook.server.test.ts (26 tests) 12594ms
+   ✓ a create event fetches the activity and files an ActivityImport  1248ms
+   ✓ a create event ingests the activity Activity Stream  1170ms
+   ✓ a create event enqueues detection once, with laps stored, phase bars and one streams call (#611)  1192ms
+   ✓ a create event with no streams files the import without a stream  1176ms
+   ✓ a create event auto-matches the import to a planned same-day session  1263ms
+   ✓ a delete event cascade-deletes an auto-save mirror WorkoutDetection  1283ms
+   ✓ a delete event removes an auto-save mirror  1111ms
+   ✓ a duplicate create event does not create a second import  1157ms
+   ✓ a retried create event fetches the stream its first run did not get  1103ms
+   ✓ a redelivered create event does not ask again for streams Strava has none of  1100ms
+stdout | app/utils/strength-quick-log.server.test.ts > the sets and the finish land together: a finish that fails leaves no set behind
+prisma:error 
+Invalid `tx.workoutSession.updateMany()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/strength-runner.server.ts:284:26
+
+  281 		programName: prepared.programName,
+  282 	}
+  283 }
+→ 284 await tx.workoutSession.updateMany(
+Foreign key constraint violated on the foreign key
+
+ ✓ app/routes/training/__exercise-history-presenter.test.ts (42 tests) 140ms
+stdout | app/utils/strength-quick-log.server.test.ts > a program session is logged at the run’s current working weight
+prisma:query - 25ms - UPDATE `main`.`ExerciseSet` SET `load` = ?, `weightKg` = ? WHERE (`main`.`ExerciseSet`.`id` = ? AND 1=1) RETURNING `id` AS `id`
+
+ ✓ app/utils/strength-quick-log.server.test.ts (24 tests) 6542ms
+   ✓ Som planlagt can be taken back: Angre removes exactly the sets it wrote, and the session is planned again (ADR 0088)  386ms
+   ✓ a program session logged as planned folds into the run once, however often it is tapped  473ms
+   ✓ a gym day an import linked is still logged: the import brought no sets  663ms
+   ✓ a program session is logged at the run’s current working weight  443ms
+   ✓ the weight is kept to the hundredth, from 2,5 kg to 500 kg  421ms
+   ✓ a program lift logged lighter than prescribed moves nothing: not the weight, not the Stall Count  527ms
+ ✓ app/utils/first-run/start-draft.test.ts (30 tests) 4058ms
+   ✓ for every level and day count the options are the level’s families, ranked, and no two lay the same week  478ms
+   ✓ two and three sports at every level: week 1 adds up to the hours across every track, one session a day, within the level’s session cap  2910ms
+ ✓ app/actions/reads.test.ts (17 tests) 2143ms
+ ✓ app/routes/_home/timeline/composer.test.tsx (15 tests) 7096ms
+   ✓ a free day’s “+” opens the composer in a Drawer, on that day, with the stamp as its empty state  814ms
+   ✓ a typed line reads back as tokens and the week sum, and Enter writes it  710ms
+   ✓ Styrke writes lifts through the line: the nearest name for an unknown lift, the week sum in sets, and no way off I dag (ADR 0089)  1506ms
+   ✓ a word the reader does not know is said where it stands, with a fix, and writes nothing  473ms
+   ✓ Annet is chosen when writing, and the session counts in no track (owner decision 4)  517ms
+   ✓ a past day offers “Allerede gjort”, on, and the write says done (owner decision 5)  391ms
+   ✓ Bibliotek fills the line with the session as tokens; untouched, it is placed from the Catalogue  460ms
+   ✓ Kopier picks last week’s session; one the line cannot say is copied whole  441ms
+   ✓ a write that comes back with nothing keeps the composer open on what was written, and says so  649ms
+   ✓ the landed row carries Angre, and so does the toast — one way back (ADR 0088)  553ms
+ ✓ app/utils/plan-outline/presets.test.ts (40 tests) 166ms
+stdout | app/routes/training/sessions.new.test.ts > authenticated loader returns default date and time
+prisma:query - 41ms - SELECT `main`.`Exercise`.`id`, `main`.`Exercise`.`name`, `main`.`Exercise`.`primaryMuscle`, `main`.`Exercise`.`equipment`, `main`.`Exercise`.`isCompound`, `main`.`Exercise`.`authorship`, `main`.`Exercise`.`createdByAthleteId` FROM `main`.`Exercise` WHERE (`main`.`Exercise`.`authorship` = ? OR `main`.`Exercise`.`createdByAthleteId` = ?) ORDER BY `main`.`Exercise`.`name` ASC LIMIT ? OFFSET ?
+
+stdout | app/routes/training/sessions.new.test.ts > authenticated loader returns default date and time
+prisma:query - 43ms - SELECT `main`.`WorkoutSession`.`id`, `main`.`WorkoutSession`.`workoutId` FROM `main`.`WorkoutSession` LEFT JOIN `main`.`Workout` AS `j0` ON (`j0`.`id`) = (`main`.`WorkoutSession`.`workoutId`) WHERE (`main`.`WorkoutSession`.`userId` = ? AND (EXISTS(SELECT `t1`.`workoutId` FROM `main`.`WorkoutBlock` AS `t1` WHERE (EXISTS(SELECT `t2`.`blockId` FROM `main`.`WorkoutStep` AS `t2` WHERE (`t2`.`kind` = ? AND `t2`.`exerciseId` IS NOT NULL AND (`t1`.`id`) = (`t2`.`blockId`) AND `t2`.`blockId` IS NOT NULL)) AND (`j0`.`id`) = (`t1`.`workoutId`) AND `t1`.`workoutId` IS NOT NULL)) AND (`j0`.`id` IS NOT NULL))) ORDER BY `main`.`WorkoutSession`.`scheduledAt` DESC LIMIT ? OFFSET ?
+
+stdout | app/routes/training/sessions.new.test.ts > the discipline is derived from the athlete’s own history, not hardcoded
+prisma:query - 23ms - SELECT `main`.`WorkoutSession`.`id`, `main`.`WorkoutSession`.`workoutId` FROM `main`.`WorkoutSession` LEFT JOIN `main`.`Workout` AS `j0` ON (`j0`.`id`) = (`main`.`WorkoutSession`.`workoutId`) WHERE (`main`.`WorkoutSession`.`userId` = ? AND (EXISTS(SELECT `t1`.`workoutId` FROM `main`.`WorkoutBlock` AS `t1` WHERE (EXISTS(SELECT `t2`.`blockId` FROM `main`.`WorkoutStep` AS `t2` WHERE (`t2`.`kind` = ? AND `t2`.`exerciseId` IS NOT NULL AND (`t1`.`id`) = (`t2`.`blockId`) AND `t2`.`blockId` IS NOT NULL)) AND (`j0`.`id`) = (`t1`.`workoutId`) AND `t1`.`workoutId` IS NOT NULL)) AND (`j0`.`id` IS NOT NULL))) ORDER BY `main`.`WorkoutSession`.`scheduledAt` DESC LIMIT ? OFFSET ?
+
+stdout | app/routes/training/sessions.new.test.ts > with no history the route opens unset — the athlete is asked
+prisma:query - 24ms - SELECT `main`.`WorkoutSession`.`id`, `main`.`WorkoutSession`.`scheduledAt`, `main`.`WorkoutSession`.`recordingId`, `main`.`WorkoutSession`.`workoutId` FROM `main`.`WorkoutSession` WHERE (`main`.`WorkoutSession`.`userId` = ? AND `main`.`WorkoutSession`.`status` = ? AND `main`.`WorkoutSession`.`scheduledAt` >= ? AND `main`.`WorkoutSession`.`scheduledAt` <= ?) LIMIT ? OFFSET ?
+
+stdout | app/routes/training/sessions.new.test.ts > with no history the route opens unset — the athlete is asked
+prisma:query - 25ms - SELECT `main`.`WorkoutSession`.`id`, `main`.`WorkoutSession`.`workoutId` FROM `main`.`WorkoutSession` LEFT JOIN `main`.`Workout` AS `j0` ON (`j0`.`id`) = (`main`.`WorkoutSession`.`workoutId`) WHERE (`main`.`WorkoutSession`.`userId` = ? AND (EXISTS(SELECT `t1`.`workoutId` FROM `main`.`WorkoutBlock` AS `t1` WHERE (EXISTS(SELECT `t2`.`blockId` FROM `main`.`WorkoutStep` AS `t2` WHERE (`t2`.`kind` = ? AND `t2`.`exerciseId` IS NOT NULL AND (`t1`.`id`) = (`t2`.`blockId`) AND `t2`.`blockId` IS NOT NULL)) AND (`j0`.`id`) = (`t1`.`workoutId`) AND `t1`.`workoutId` IS NOT NULL)) AND (`j0`.`id` IS NOT NULL))) ORDER BY `main`.`WorkoutSession`.`scheduledAt` DESC LIMIT ? OFFSET ?
+
+stdout | app/routes/training/sessions.new.test.ts > with no history the route opens unset — the athlete is asked
+prisma:query - 26ms - SELECT `main`.`Exercise`.`id`, `main`.`Exercise`.`name`, `main`.`Exercise`.`primaryMuscle`, `main`.`Exercise`.`equipment`, `main`.`Exercise`.`isCompound`, `main`.`Exercise`.`authorship`, `main`.`Exercise`.`createdByAthleteId` FROM `main`.`Exercise` WHERE (`main`.`Exercise`.`authorship` = ? OR `main`.`Exercise`.`createdByAthleteId` = ?) ORDER BY `main`.`Exercise`.`name` ASC LIMIT ? OFFSET ?
+
+ ✓ app/routes/training/sessions.new.intensity-popover.route.test.tsx (16 tests) 15208ms
+   ✓ the popover leads with the athlete’s own zone chips; one tap re-zones the target  1380ms
+   ✓ the kind row is ordered discipline-aware — run leads with pace, RPE last  664ms
+   ✓ a bike step leads the kind row with watts  1158ms
+   ✓ watts: authored W reads back in the chip with the zone-equivalent tint; W ⇄ %FTP converts through FTP  1399ms
+   ✓ heart rate: bpm ⇄ %LTHR ⇄ %maxHR converts through the profile thresholds  891ms
+   ✓ pace renders inside the chip and buckets against a pace-anchored recipe  770ms
+   ✓ RPE is authorable, tints by the convention table, and never degrades to unresolved  786ms
+   ✓ an unresolvable metric target renders the dashed chip and the provenance line says why  997ms
+   ✓ a half-typed target states its own state in the provenance line  657ms
+   ✓ %LTHR ⇄ %maxHR with no thresholds clears rather than reinterpreting the number  857ms
+   ✓ the intensity chip retargets the open popover in place — same popup, swapped content  1067ms
+   ✓ committed intensity changes announce through the polite live region  1032ms
+   ✓ Remove intensity clears the target and the chip leaves the line  787ms
+   ✓ a popover-authored target submits as the canonical Intensity Target JSON  1033ms
+   ✓ pace: /km ⇄ % T-pace converts through threshold pace, and the bounds swap sides  1035ms
+   ✓ lactate is authored as itself, and the pace beside it is a derived ≈ facet  678ms
+ ✓ app/routes/training/sessions.new.test.ts (24 tests) 3132ms
+ ✓ app/utils/zones/resolve.test.ts (73 tests) 191ms
+ ✓ app/utils/load/session-nudge.test.ts (33 tests) 102ms
+ ✓ app/routes/_home/timeline/large-screen.test.tsx (12 tests) 3695ms
+     ✓ the table numbers weeks as the calendar does, outlines this one and marks the horizon once  407ms
+     ✓ ≥1280: a click on a row’s gutter, or focus in a row, shows that day beside the list  730ms
+     ✓ 1024–1279: the day opens in a sheet from a row’s gutter or `I`, never from its controls  1136ms
+ ✓ app/routes/_home/index.calm-view.test.tsx (18 tests) 3073ms
+   ✓ I dag opens on today's card with one large Gjort, then this week  499ms
+   ✓ a free day is fri, and tapping it opens the composer  322ms
+   ✓ Bytt økt opens Bibliotek as a picker, and a pick replaces today’s session  385ms
+   ✓ Avansert leads to the session, the composer and Plan’s Avansert  524ms
+ ✓ app/utils/plan-outline/availability-fit.test.ts (42 tests) 108ms
+ ✓ app/routes/training/sessions.new.structural-chrome.route.test.tsx (17 tests) 16653ms
+   ✓ the ⠿ menu names a block — the name reaches the field but never the line (G2)  1636ms
+   ✓ the ⠿ menu introduces a repeat, which renders as the gutter badge (G3)  850ms
+   ✓ the ⠿ menu reorders blocks, with the ends disabled — the keyboard reorder path  1339ms
+   ✓ the ⠿ menu adds a block after its own block, not at the end  1272ms
+   ✓ the ⠿ menu deletes a block  900ms
+   ✓ deleting the only block lands on the empty composition (§11) — no last-block guard  503ms
+   ✓ the ⠿ Add-step submenu requires a kind choice, and rest lands as rest notation  1015ms
+   ✓ dragging a block grip onto another line reorders the blocks  730ms
+   ✓ every step kind carries the same ⋮ menu — cardio, strength, and rest alike (G4)  1106ms
+   ✓ ⋮ Duplicate copies the step in place with its values  1667ms
+   ✓ removing a block's only step removes the block itself  1095ms
+   ✓ removing the whole workout's last step lands on the empty composition (§11)  613ms
+   ✓ ＋ opens the three-row kind chooser with seed hints — never a blind insert (G5)  702ms
+   ✓ the strength seed lands as exercise + set notation, submitting a strength step  795ms
+   ✓ the sheet opens from the ⠿ menu as a summoned surface and edits write through  993ms
+   ✓ the chrome marks are native tab stops in notation order (§9.3)  1031ms
+   ✓ opening a menu never shifts the line — the menu is portaled off the flow  395ms
+ ✓ app/utils/catalogue.server.test.ts (19 tests) 3661ms
+   ✓ adoption is countable across athletes — the thing copy-on-save destroys  316ms
+   ✓ a reported row is gone for its reporter at once, and for nobody else  373ms
+ ✓ app/utils/load/week-change.server.test.ts (14 tests) 3845ms
+   ✓ the week closes at 20:00 on Sunday in the athlete’s own zone, not a minute before  387ms
+   ✓ home reads the week that just closed from Sunday evening on  307ms
+   ✓ with no plan, or a plan with no pattern, the close fills nothing  347ms
+   ✓ the hourly sweep queues one job per athlete with a week change due, and only one  368ms
+   ✓ a horizon fill that did not finish is retried by the next run, and then never again  352ms
+ ✓ app/routes/training/sessions.$sessionId.inline-edit.route.test.tsx (10 tests) 12488ms
+   ✓ a scheduled session edits a token inline and autosaves the whole prescription through the detail action  2662ms
+   ✓ merely opening a scheduled session persists nothing — autosave fires on change, not on mount  1905ms
+   ✓ an edit elsewhere on the session preserves every authored load, including the kinds the legacy weight/percent pair cannot hold  1101ms
+   ✓ the sets popover shows a load it cannot express as authored, and an edit beside it leaves that load alone  1379ms
+   ✓ editing a generated session autosaves through the detail action, adopting it (source: authored)  1070ms
+   ✓ a failed autosave surfaces the server error inline without losing the draft  1035ms
+   ✓ a fast autosave is silent — the "saving…" indicator only appears when a save hangs  3096ms
+ ✓ app/utils/exercise-seed.server.test.ts (24 tests) 16514ms
+   ✓ the seed writes an unauthored laterality as null and counts only the ones actually stated  2459ms
+   ✓ seeding writes the corpus, its variants and its aliases, and re-seeding duplicates nothing  5386ms
+   ✓ seeding writes the Norwegian names as movement aliases in `nb`, and re-seeding duplicates none (owner decision 9)  4949ms
+ ✓ app/utils/load/open-ended-round.server.test.ts (13 tests) 4533ms
+   ✓ a round done to plan proposes the next one with more volume, and silence does not apply it  330ms
+   ✓ under autopilot, a round done to plan never opens past the ramp guard over the week before it (#584)  390ms
+   ✓ a round with missed weeks proposes the same volume, says why, and silence appends it  428ms
+   ✓ an appended round lets the horizon fill carry on laying weeks  433ms
+   ✓ the athlete can accept the next round at a volume they choose  354ms
+   ✓ a round brought down to the same volume is recorded as keeping the load  356ms
+   ✓ a round answered after the plan’s end opens on a week not yet begun, and the lived weeks between join the last round  456ms
+   ✓ a declined round is asked about again, graded on the weeks lived since  409ms
+   ✓ a lifting block that runs to the plan’s end keeps going in the new round; one that ended stays ended  353ms
+   ✓ a Stor base plan written before its base became all easy keeps its stored mix in the next round  346ms
+ ✓ app/utils/strength/plates.test.ts (34 tests) 178ms
+ ✓ app/routes/_home/__calm-today.test.ts (29 tests) 473ms
+ ✓ app/routes/training/sessions.new.absent-facets.route.test.tsx (10 tests) 12365ms
+   ✓ the quantity popover leads with a Duration ⇄ Distance switch that seeds defaults and round-trips  1403ms
+   ✓ the quantity is removable from its popover, and reintroducible via "＋ time or distance" in the note popover  1411ms
+   ✓ "＋ intensity" swaps the quantity popover to the intensity editor; removal is its quiet footer action  1184ms
+   ✓ "＋ note" swaps to the note editor; "Remove note" lives in the note popover footer  1188ms
+   ✓ the rest popover offers "＋ note" but never intensity or discipline  890ms
+   ✓ the discipline select overrides and clears; an override renders the quiet word token  1809ms
+   ✓ the sets popover carries the discipline select and the "＋ note" link for strength steps  743ms
+   ✓ a facet removed through the popover is absent from the submission — not a stale seeded carrier  1213ms
+   ✓ a fully emptied step grows the one ⋮ "Add…" row, absent in every normal state  1509ms
+   ✓ reintroducing the quantity via Duration lands the seed, even when it equals the field default  1011ms
+stdout | app/integrations/strava/sync.server.test.ts > reactively refreshes and retries once on a 401
+prisma:query - 24ms - COMMIT
+
+ ✓ app/integrations/strava/sync.server.test.ts (18 tests) 4759ms
+   ✓ derives HR phase bars for recordings when the athlete has a threshold  1653ms
+   ✓ enqueues detection once per run/bike recording, from one streams call per activity (#611)  1483ms
+ ✓ app/routes/training/plan.new.$eventId.test.ts (15 tests) 2183ms
+ ✓ app/utils/plan-outline/week-pattern.test.ts (38 tests) 114ms
+stdout | app/utils/activity-import.server.test.ts > dedup: rejects duplicate (externalProvider, externalId)
+prisma:error 
+Invalid `prisma.activityImport.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/activity-import.server.ts:191:46
+
+  188 	input: ActivityImportInput,
+  189 ) {
+  190 	const data = ActivityImportInputSchema.parse(input)
+→ 191 	const created = await prisma.activityImport.create(
+Unique constraint failed on the fields: (`athleteId`,`externalProvider`,`externalId`)
+
+ ✓ app/utils/activity-import.server.test.ts (20 tests) 3057ms
+ ✓ app/utils/load/week-replan-undo.server.test.ts (13 tests) 3260ms
+   ✓ undoing a next round keeps the round and re-lays it at factor 1  795ms
+   ✓ a next round cannot be undone once the week it opens on has begun  349ms
+ ✓ app/utils/load/session-nudge.server.test.ts (16 tests) 2922ms
+   ✓ a co-occurring Form back-off and a recorded miss produce one and the same ease (never double-counted)  330ms
+ ✓ app/routes/training/plan.new.$eventId.route.test.tsx (16 tests) 15864ms
+   ✓ the Plan Start Week is authored, defaulting to this week’s Monday  777ms
+   ✓ the proposed currency is preselected and named as a proposal  444ms
+   ✓ switching to the offered hours brings the hours figure, not the km one  1931ms
+   ✓ the anchor is pre-filled with its derivation shown, and stays editable  1324ms
+   ✓ with no history the currency is the athlete’s to pick and the anchor is empty  1194ms
+   ✓ strength is offered sets and nothing else  346ms
+   ✓ a multi-discipline event authors a track each over one phase timeline  3641ms
+   ✓ the athlete names their phases with a week count each, and submits the plan  3010ms
+   ✓ the season opens with shapes to pick from, not with an empty structure  428ms
+   ✓ a shape that misses says what the fitting rule would cost, before it is picked  335ms
+   ✓ the shape that lands closest to the event is the one already picked, and it leads the list  376ms
+   ✓ picking a shape submits the shape and no phase rows  1028ms
+   ✓ a goal just created is named as created, so nothing was written invisibly  465ms
+ ✓ app/routes/_home/index.writing-line.test.ts (17 tests) 4053ms
+     ✓ the window runs two years ahead, past the plan’s end, and the loader reads the session back  312ms
+     ✓ a sentence goes any distance ahead, past what I dag reads, and is still taken back (#505 story 40)  312ms
+     ✓ undo on another athlete’s session leaves it, and says nothing  366ms
+     ✓ a token edit that moves the sum toasts it; one that does not says nothing  415ms
+     ✓ a delete from the detail view goes home with the sum the other way  303ms
+stdout | app/integrations/intervalsicu/backfill.server.test.ts > Training Load reaches back to a backfilled activity older than the CTL window
+prisma:query - 48ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+stdout | app/utils/import-link.server.test.ts > hva var dette? — linking it to one of two planned runs takes that one and leaves the other
+prisma:query - 49ms - COMMIT
+
+stdout | app/utils/structure-detection/detect-backfill.server.test.ts > the backfill reaches an existing promoted import: structured history gains a detection and a materialized detected Workout
+prisma:query - 38ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+stdout | app/utils/import-link.server.test.ts > Gjort refuses a session whose day has not begun, and one already done
+prisma:query - 37ms - COMMIT
+
+stdout | app/utils/structure-detection/detect-backfill.server.test.ts > the backfill reaches an existing promoted import: structured history gains a detection and a materialized detected Workout
+prisma:query - 27ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+stdout | app/utils/import-link.server.test.ts > Gjort refuses a session whose day has not begun, and one already done
+prisma:query - 25ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `source`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`, `workoutId`) VALUES (?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+ ✓ app/utils/import-link.server.test.ts (12 tests) 3889ms
+   ✓ another athlete is refused every answer, and nothing moves  358ms
+   ✓ Angre kobling leaves no TSS behind: the week’s adherence and volumes count the run once  915ms
+ ✓ app/integrations/intervalsicu/backfill.server.test.ts (17 tests) 30328ms
+   ✓ backfill imports the activities in the window with the intervalsicu provider  1499ms
+   ✓ the job handler runs the backfill for the enqueued athlete  1519ms
+   ✓ an unmatched modeled activity is auto-promoted to a recording-only session  1373ms
+   ✓ a matched activity links to the planned session instead of creating one  1484ms
+   ✓ an "other" activity auto-saves onto its own session, never matched to a plan, never feeding load  1600ms
+   ✓ watermarks are stamped: lastSyncedAt to the latest activity, backfillCompletedAt set  1453ms
+   ✓ Training Load is recomputed across the window after backfill  1458ms
+   ✓ backfill is idempotent on retry: no duplicate imports, sessions, or streams  2360ms
+   ✓ backfill ingests a downsampled Activity Stream for each modeled recording, never for "other"  1234ms
+   ✓ a promoted ride with a power stream earns NP-based Coggan TSS  1586ms
+   ✓ a backfilled activity with no streams persists none and degrades, not errors  1307ms
+   ✓ a backfilled, auto-promoted recording exposes its stream through the session loader  1334ms
+   ✓ a prolific athlete is backfilled to the count target, trimming older activities  2938ms
+   ✓ Training Load reaches back to a backfilled activity older than the CTL window  2165ms
+   ✓ activities older than the age cap are not imported  2786ms
+   ✓ two athletes sharing one Intervals.icu key each get their own imports and sessions (#544)  4182ms
+stdout | app/integrations/intervalsicu/sync.server.test.ts > an auto-matched activity earns TSS from the post-sync load recompute
+prisma:query - 24ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/integrations/intervalsicu/sync.server.test.ts (14 tests) 3213ms
+   ✓ an auto-matched activity earns TSS from the post-sync load recompute  2480ms
+ ✓ app/utils/structure-detection/detect-backfill.server.test.ts (11 tests) 9741ms
+   ✓ the backfill reaches an existing promoted import: structured history gains a detection and a materialized detected Workout  1760ms
+   ✓ a steady existing import gains neither a detection nor a structure  1449ms
+   ✓ the backfill reaches an existing bike import too (run/bike, ADR 0015)  1552ms
+   ✓ the backfill does not disturb a promoted Recording that already carries a detection (#343)  1158ms
+   ✓ a stale-version detection is re-detected: it re-stamps to the current engine and the detected Workout is rebuilt  1200ms
+   ✓ an adopted authored session is never rebuilt, even with a stale-version detection  1256ms
+   ✓ a re-detect that now reads below the honesty gate clears the stale detected structure  1203ms
+ ✓ app/utils/format.test.ts (61 tests) 192ms
+ ✓ app/routes/resources/session-adjust.swap.test.ts (14 tests) 2759ms
+ ✓ app/utils/strength/one-rm.test.ts (25 tests) 63ms
+ ✓ app/routes/training/__season-chart.route.test.tsx (18 tests) 2148ms
+     ✓ all five plus Form are offered, and each toggles on its own  523ms
+stderr | app/actions/parity.test.ts
+responseMode: 'json' drops mid-call notifications. subscriptions/listen streams are always served over SSE regardless; other notifications emitted before a result are dropped.
+
+stdout | app/integrations/strava/backfill.server.test.ts > backfill imports the activities in the window
+prisma:query - 36ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/utils/load/autopilot.server.test.ts (14 tests) 2917ms
+stdout | app/utils/structure-detection/detection-lifecycle.server.test.ts > discarding a non-promoted import (disconnect) cascade-deletes its WorkoutDetection
+prisma:query - 30ms - INSERT INTO `main`.`ActivityImport` (`id`, `athleteId`, `externalProvider`, `externalId`, `originPlatform`, `deviceName`, `fitFileKey`, `startedAt`, `endedAt`, `durationSec`, `distanceM`, `discipline`, `hrAvg`, `hrMax`, `powerAvg`, `powerMax`, `powerWeightedAvg`, `cadenceAvg`, `paceAvgSecPerKm`, `speedMaxMps`, `elevationGainM`, `kilojoules`, `polyline`, `lapsJson`, `rawJson`, `createdAt`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`, `startedAt` AS `startedAt`, `endedAt` AS `endedAt`, `discipline` AS `discipline`
+
+ ✓ app/actions/parity.test.ts (18 tests) 5982ms
+     ✓ accept_round  617ms
+     ✓ answer_proposal  528ms
+     ✓ ease_week  570ms
+     ✓ get_season  508ms
+     ✓ get_session  515ms
+     ✓ get_session_vs_plan  560ms
+     ✓ get_today  714ms
+     ✓ get_training_load  534ms
+     ✓ get_week_change  603ms
+     ✓ list_sessions  520ms
+stdout | app/integrations/strava/backfill.server.test.ts > Training Load is recomputed across the window after backfill
+prisma:query - 22ms - INSERT INTO `main`.`ActivityStream` (`id`, `resolutionSec`, `sampleCount`, `timeSec`, `power`, `heartrate`, `pace`, `createdAt`, `activityImportId`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`activityImportId`) DO UPDATE SET `resolutionSec` = ?, `sampleCount` = ?, `timeSec` = ?, `power` = ?, `heartrate` = ?, `pace` = ? WHERE (`main`.`ActivityStream`.`activityImportId` = ? AND 1=1) RETURNING `id` AS `id`, `resolutionSec` AS `resolutionSec`, `sampleCount` AS `sampleCount`, `timeSec` AS `timeSec`, `power` AS `power`, `heartrate` AS `heartrate`, `pace` AS `pace`, `createdAt` AS `createdAt`, `activityImportId` AS `activityImportId`
+
+ ✓ app/components/forms.test.tsx (18 tests) 1094ms
+ ✓ app/utils/workout-sentence.lifts.test.ts (62 tests) 237ms
+ ✓ app/routes/_home/timeline/use-timeline-scroll.test.tsx (20 tests) 363ms
+ ✓ app/utils/structure-detection/detection-lifecycle.server.test.ts (9 tests) 8950ms
+   ✓ a below-gate recompute on an import promoted after enqueue leaves the frozen detection  1236ms
+   ✓ a source delete of an auto-save mirror cascade-deletes its WorkoutDetection  1219ms
+   ✓ an import the athlete has built on keeps its Recording and detection when deleted at source  1236ms
+   ✓ a re-detect over a detected session replaces its materialized Workout (#357)  1302ms
+   ✓ a re-detect never rebuilds an adopted authored session (#357, ADR 0033)  1277ms
+   ✓ moving a Recording to a planned session keeps the detection  2329ms
+ ✓ app/components/score-stanza.test.tsx (21 tests) 238ms
+ ✓ app/routes/_home/timeline/stream.test.tsx (14 tests) 1009ms
+   ✓ a past free day is quieter, and can still be written into (ADR 0065 §6)  304ms
+stdout | app/integrations/strava/backfill.server.test.ts > re-running backfill does not duplicate Activity Streams (idempotent)
+prisma:query - 25ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+stdout | app/integrations/strava/backfill.server.test.ts > re-running backfill does not duplicate Activity Streams (idempotent)
+prisma:query - 20ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/utils/load/compute.test.ts (31 tests) 125ms
+stdout | app/integrations/strava/backfill.server.test.ts > a prolific athlete is backfilled to the count target, trimming older activities
+prisma:query - 40ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+stdout | app/integrations/intervalsicu/fit-harvest.server.test.ts > after the harvest, uploading the same FIT matches on its FIT key
+prisma:query - 42ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/integrations/intervalsicu/fit-harvest.server.test.ts (16 tests) 5037ms
+   ✓ the harvest never touches the Recording or its metrics  1397ms
+   ✓ only Intervals.icu imports are asked for  1222ms
+   ✓ an original that inflates past the size limit is marked asked and not kept  322ms
+   ✓ after the harvest, uploading the same FIT matches on its FIT key  1209ms
+ ✓ app/routes/resources/import-link.test.ts (15 tests) 3301ms
+   ✓ another athlete’s Angre on a link answer is not found, and the link stands  313ms
+ ✓ app/routes/settings/training/index.test.ts (18 tests) 2282ms
+stdout | app/integrations/strava/backfill.server.test.ts > activities older than the age cap are not imported
+prisma:query - 31ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/integrations/strava/backfill.server.test.ts (15 tests) 26172ms
+   ✓ backfill imports the activities in the window  1621ms
+   ✓ an unmatched modeled activity is auto-promoted to a recording-only session  1375ms
+   ✓ a matched activity links to the planned session instead of creating one  1308ms
+   ✓ an "other" activity auto-saves onto its own session, never matched to a plan  1412ms
+   ✓ watermarks are stamped: lastSyncedAt to the latest activity, backfillCompletedAt set  1666ms
+   ✓ Training Load is recomputed across the window after backfill  1369ms
+   ✓ backfill is idempotent on retry  2850ms
+   ✓ backfill ingests an Activity Stream for each modeled recording, never for "other"  1476ms
+   ✓ backfill enqueues detection once per run/bike recording, from one streams call per activity (#611)  1455ms
+   ✓ re-running backfill does not duplicate Activity Streams (idempotent)  2775ms
+   ✓ a backfilled activity with no streams persists none and does not error  1415ms
+   ✓ a backfilled, auto-promoted recording exposes its stream through the session loader  1325ms
+   ✓ a prolific athlete is backfilled to the count target, trimming older activities  1574ms
+   ✓ a sparse athlete is backfilled well past the 42-day floor, up to the age cap  2462ms
+   ✓ activities older than the age cap are not imported  2082ms
+ ✓ app/utils/community.server.test.ts (13 tests) 3104ms
+   ✓ a report hides the row from the reporter at once and from nobody else  324ms
+   ✓ a takedown removes it for everyone, tells the author why, and is permanent  418ms
+   ✓ dismissing a report leaves it published and still hidden from the reporter  388ms
+ ✓ app/utils/zones/recipes.test.ts (21 tests) 78ms
+stdout | app/utils/load/autopilot-notice.server.test.ts > every past notice stays in Se hele sesongen at its week, with its lines and reasons
+prisma:query - 22ms - SELECT `main`.`WorkoutSession`.`id`, `main`.`WorkoutSession`.`status`, `main`.`WorkoutSession`.`scheduledAt`, `main`.`WorkoutSession`.`source`, `main`.`WorkoutSession`.`adoptedAt`, `main`.`WorkoutSession`.`releasedAt`, `main`.`WorkoutSession`.`workoutId` FROM `main`.`WorkoutSession` WHERE (`main`.`WorkoutSession`.`userId` = ? AND `main`.`WorkoutSession`.`scheduledAt` >= ? AND `main`.`WorkoutSession`.`scheduledAt` <= ?) ORDER BY `main`.`WorkoutSession`.`scheduledAt` ASC LIMIT ? OFFSET ?
+
+ ✓ app/utils/structure-detection/analyze.test.ts (13 tests) 144ms
+ ✓ app/utils/archetype-classification/classify.test.ts (29 tests) 75ms
+ ✓ app/routes/start/simple-start.route.test.ts (12 tests) 2143ms
+     ✓ a Nybegynner’s seven days lay four sessions, the ones Uka di showed, and keep all seven as availability  357ms
+ ✓ app/utils/load/autopilot-notice.server.test.ts (14 tests) 3671ms
+   ✓ another athlete’s notice, or a week with none, is not marked seen  323ms
+   ✓ every past notice stays in Se hele sesongen at its week, with its lines and reasons  313ms
+   ✓ a week that was laid says nothing about laying  302ms
+   ✓ an open-ended plan’s next round lays the week the fill found past its end, so nothing is said  365ms
+ ✓ app/utils/strength/exercise-history.test.ts (18 tests) 76ms
+ ✓ app/utils/account-connection.server.test.ts (16 tests) 1032ms
+   ✓ Load Snapshots are unchanged for days containing promoted imports  425ms
+ ✓ app/routes/resources/week-change.test.ts (11 tests) 2006ms
+   ✓ "Gjør uka lettere" eases the coming week once, with before and after  304ms
+ ✓ app/routes/settings/integrations.test.tsx (19 tests) 2027ms
+   ✓ connected Strava card shows plain-language state, last sync, and all three actions  413ms
+ ✓ app/routes/training/exercises.$exerciseId.route.test.tsx (15 tests) 985ms
+stdout | app/utils/athlete.server.test.ts > updateAthleteProfile > never-set availability reads as empty / null without crashing
+prisma:query - 27ms - COMMIT
+
+ ✓ app/utils/plan-outline/pinned-days.test.ts (27 tests) 83ms
+ ✓ app/utils/plan-outline/week-sum.test.ts (16 tests) 71ms
+ ✓ app/utils/athlete.server.test.ts (39 tests) 2246ms
+ ✓ app/utils/plan-outline/season-edit.test.ts (18 tests) 104ms
+ ✓ app/utils/plan-outline/from-rows.test.ts (25 tests) 76ms
+ ✓ app/utils/plan-outline/proposal.test.ts (25 tests) 81ms
+ ✓ app/utils/plan-outline/planned-load.test.ts (15 tests) 59ms
+ ✓ app/utils/zone-equivalent.test.ts (43 tests) 104ms
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL rise and one notice
+swim pace backfill: corrected 30 pool swims {
+  count: 30,
+  swims: [
+    {
+      importId: 'cmwg3erfs00057dxwnb2mgib0',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3ergc000a7dxwovqb95r5',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3ergx000f7dxwwbon7w4c',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erhw000k7dxwjic3wm98',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erih000p7dxwk6p2kcdy',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erj0000u7dxwdv3nz9rj',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erjo000z7dxw9qocteok',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erk800147dxw455ai94o',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erkn00197dxwddx3w8ni',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erl5001e7dxw9354ft3d',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erma001j7dxw0d58sgwv',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3ermr001o7dxwco0eqyv3',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3ernl001t7dxwwvlcnuk5',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erod001y7dxwoubm309g',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erp100237dxwrhzd7wcb',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erpc00287dxw858a59jy',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erpl002d7dxw8cjc824d',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erpw002i7dxwhtdnyz8b',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erq6002n7dxwmg64k8hv',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erqi002s7dxwjicxqvre',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3err4002x7dxwwpmomk5r',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3errk00327dxwnbqsam7q',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erry00377dxwpkaokcu4',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3ersf003c7dxwf26x6myb',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erst003h7dxw6u9kggoq',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erta003m7dxweib9uzj2',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3ertp003r7dxwthzhmpz7',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erua003w7dxwbpdusu7a',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erur00417dxw8yhr4jno',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    },
+    {
+      importId: 'cmwg3erv700467dxwly9pba9l',
+      athleteId: 'cmwg3erfb00017dxwldyspyr9',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    }
+  ]
+}
+
+ ✓ app/utils/user-data-export.server.test.ts (6 tests) 1475ms
+   ✓ the export leaves out secrets and every other athlete  349ms
+   ✓ a moderator's export carries the reports they resolved, not the reporters' words  403ms
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL rise and one notice
+prisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL rise and one notice
+swim pace backfill: corrected 0 pool swims { count: 0, swims: [] }
+
+ ✓ app/routes/training/catalogue.route.test.tsx (16 tests) 1830ms
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a retry after the paces were written still recomputes the load
+swim pace backfill: corrected 0 pool swims { count: 0, swims: [] }
+
+stdout | app/utils/catalogue.constraints.test.ts > a system-authored Workout may not have an owner (the implication)
+prisma:error 
+Invalid `prisma.workout.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:29:24
+
+  26 		archetype?: string | null
+  27 	} = {},
+  28 ) {
+→ 29 	return prisma.workout.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: Workout_system_has_no_owner") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > authorship is a closed vocabulary
+prisma:error 
+Invalid `prisma.workout.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:29:24
+
+  26 		archetype?: string | null
+  27 	} = {},
+  28 ) {
+→ 29 	return prisma.workout.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: authorship") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > a Workout may not be its own source
+prisma:error 
+Invalid `		prisma.workout.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:113:18
+
+  110 test('a Workout may not be its own source', async () => {
+  111 	const workout = await createWorkout()
+  112 	await expect(
+→ 113 		prisma.workout.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: Workout_lineage_not_self") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > a Workout carries at most one Catalogue Entry
+prisma:error 
+Invalid `prisma.catalogueEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:131:31
+
+  128 	workoutId: string,
+  129 	data: Record<string, unknown> = {},
+  130 ) {
+→ 131 	return prisma.catalogueEntry.create(
+Unique constraint failed on the fields: (`workoutId`,`workoutAuthorship`,`archetype`)
+
+stdout | app/utils/catalogue.constraints.test.ts > the archetype and level vocabularies are closed
+prisma:error 
+Invalid `prisma.catalogueEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:131:31
+
+  128 	workoutId: string,
+  129 	data: Record<string, unknown> = {},
+  130 ) {
+→ 131 	return prisma.catalogueEntry.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: archetype") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > the archetype and level vocabularies are closed
+prisma:error 
+Invalid `prisma.catalogueEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:131:31
+
+  128 	workoutId: string,
+  129 	data: Record<string, unknown> = {},
+  130 ) {
+→ 131 	return prisma.catalogueEntry.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: level") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > the Workout archetype vocabulary is closed, and null means nobody stated one
+prisma:error 
+Invalid `prisma.workout.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:29:24
+
+  26 		archetype?: string | null
+  27 	} = {},
+  28 ) {
+→ 29 	return prisma.workout.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: archetype") }), transient: false })
+
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a swim with no kept FIT is left alone (Strava, Intervals.icu before the harvest)
+swim pace backfill: corrected 0 pool swims { count: 0, swims: [] }
+
+stdout | app/utils/catalogue.constraints.test.ts > a Catalogue Entry cannot disagree with its Workout about the archetype
+prisma:error 
+Invalid `prisma.catalogueEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:131:31
+
+  128 	workoutId: string,
+  129 	data: Record<string, unknown> = {},
+  130 ) {
+→ 131 	return prisma.catalogueEntry.create(
+Foreign key constraint violated on the foreign key
+
+stdout | app/utils/catalogue.constraints.test.ts > a Catalogue member’s Workout cannot have a null archetype
+prisma:error 
+Invalid `	prisma.workout.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:207:18
+
+  204 await createEntry(stock.id)
+  205 
+  206 await expect(
+→ 207 	prisma.workout.update(
+Null constraint violation on the fields: (`archetype`)
+
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a harvested swim keeps the provider's moving pace
+swim pace backfill: corrected 0 pool swims { count: 0, swims: [] }
+
+stdout | app/utils/catalogue.constraints.test.ts > the entry cannot claim an authorship its Workout does not have
+prisma:error 
+Invalid `prisma.catalogueEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:131:31
+
+  128 	workoutId: string,
+  129 	data: Record<string, unknown> = {},
+  130 ) {
+→ 131 	return prisma.catalogueEntry.create(
+Foreign key constraint violated on the foreign key
+
+stdout | app/utils/catalogue.constraints.test.ts > a Citation is available only to a system-authored row
+prisma:error 
+Invalid `prisma.catalogueEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:131:31
+
+  128 	workoutId: string,
+  129 	data: Record<string, unknown> = {},
+  130 ) {
+→ 131 	return prisma.catalogueEntry.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: CatalogueEntry_citation_is_system_only") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > a citation is whole or absent — a year with no work is a fragment
+prisma:error 
+Invalid `prisma.catalogueEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:131:31
+
+  128 	workoutId: string,
+  129 	data: Record<string, unknown> = {},
+  130 ) {
+→ 131 	return prisma.catalogueEntry.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: CatalogueEntry_citation_whole") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > a citation is whole or absent — a year with no work is a fragment
+prisma:error 
+Invalid `prisma.catalogueEntry.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:131:31
+
+  128 	workoutId: string,
+  129 	data: Record<string, unknown> = {},
+  130 ) {
+→ 131 	return prisma.catalogueEntry.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: CatalogueEntry_citation_whole") }), transient: false })
+
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a swimmer without CSS still gets the notice: the pace they read changed
+swim pace backfill: corrected 1 pool swim {
+  count: 1,
+  swims: [
+    {
+      importId: 'cmwg3ev3f00n47dxwvri7acac',
+      athleteId: 'cmwg3ev3400n07dxw04cjys9g',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    }
+  ]
+}
+
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a swimmer without CSS still gets the notice: the pace they read changed
+prisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a swimmer without CSS still gets the notice: the pace they read changed
+swim pace backfill: corrected 0 pool swims { count: 0, swims: [] }
+
+stdout | app/utils/catalogue.constraints.test.ts > a cited Workout cannot be demoted to athlete-authored
+prisma:error 
+Invalid `	prisma.workout.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:277:18
+
+  274 // citation CHECK rejects it — so the citation cannot be smuggled onto an
+  275 // athlete-authored row through the back door either.
+  276 await expect(
+→ 277 	prisma.workout.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: CatalogueEntry_citation_is_system_only") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > phase and goal-event vocabularies are closed and each appears once
+prisma:query - 20ms - INSERT INTO `main`.`CatalogueEntry` (`id`, `workoutId`, `workoutAuthorship`, `archetype`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?) RETURNING `id` AS `id`
+
+stdout | app/utils/catalogue.constraints.test.ts > phase and goal-event vocabularies are closed and each appears once
+prisma:error 
+Invalid `	prisma.catalogueEntryPhase.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:291:30
+
+  288 const entry = await createEntry(stock.id)
+  289 
+  290 await expect(
+→ 291 	prisma.catalogueEntryPhase.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: phase") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > phase and goal-event vocabularies are closed and each appears once
+prisma:error 
+Invalid `	prisma.catalogueEntryGoalEvent.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:296:34
+
+  293 	}),
+  294 ).rejects.toThrow()
+  295 await expect(
+→ 296 	prisma.catalogueEntryGoalEvent.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: goalEvent") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > phase and goal-event vocabularies are closed and each appears once
+prisma:error 
+Invalid `	prisma.catalogueEntryPhase.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:305:30
+
+  302 	data: { entryId: entry.id, phase: 'build' },
+  303 })
+  304 await expect(
+→ 305 	prisma.catalogueEntryPhase.create(
+Unique constraint failed on the fields: (`entryId`,`phase`)
+
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > a swimmer with no Load Snapshots gets an absent pair, never 0 → 0
+swim pace backfill: corrected 1 pool swim {
+  count: 1,
+  swims: [
+    {
+      importId: 'cmwg3evc500ny7dxwqpn1rxk6',
+      athleteId: 'cmwg3evbr00nw7dxwc0ydsah2',
+      paceBefore: 1134.666666666667,
+      paceAfter: 1014.6666666666666
+    }
+  ]
+}
+
+stdout | app/utils/catalogue.constraints.test.ts > a progression edge points somewhere else, and retiring one keeps the other
+prisma:error 
+Invalid `	prisma.catalogueEntry.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:320:25
+
+  317 )
+  318 
+  319 await expect(
+→ 320 	prisma.catalogueEntry.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: CatalogueEntry_progression_not_self") }), transient: false })
+
+stdout | app/utils/catalogue.constraints.test.ts > an athlete saves a Workout once
+prisma:error 
+Invalid `	prisma.catalogueSave.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/catalogue.constraints.test.ts:350:24
+
+  347 	data: { workoutId: stock.id, ownerId: athlete.id },
+  348 })
+  349 await expect(
+→ 350 	prisma.catalogueSave.create(
+Unique constraint failed on the fields: (`workoutId`,`ownerId`)
+
+ ✓ app/utils/catalogue.constraints.test.ts (19 tests) 1444ms
+stdout | app/utils/load/swim-pace-backfill.server.test.ts > the job row records which swims it corrected, with their old and new pace
+prisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+ ✓ app/utils/load/swim-pace-backfill.server.test.ts (10 tests) 7475ms
+   ✓ a month of uploaded pool swims is re-read: pace swum, higher sTSS, a CTL rise and one notice  2301ms
+   ✓ a retry after the paces were written still recomputes the load  1447ms
+   ✓ a swim with no kept FIT is left alone (Strava, Intervals.icu before the harvest)  894ms
+   ✓ a swimmer without CSS still gets the notice: the pace they read changed  307ms
+   ✓ the job row records which swims it corrected, with their old and new pace  2130ms
+ ✓ app/utils/strength-log.test.ts (22 tests) 57ms
+ ✓ app/routes/training/sessions.new.empty-state.route.test.tsx (8 tests) 3836ms
+   ✓ zero steps renders the honest composition: three ghost seeds + scratch, no chrome, no strip  462ms
+   ✓ the Easy seed materializes one block: 45 min with the easy zone chip  517ms
+   ✓ the Strength seed flips the header discipline and lands two set-notation steps  733ms
+   ✓ "or start from scratch ＋" opens the kind chooser; the chosen kind materializes the stanza  429ms
+   ✓ emptying the session out brings the identical composition back (§11.5)  417ms
+   ✓ saving with zero steps posts, lands the summary-line floor with focus + announcement, and clears when a step exists  757ms
+ ✓ app/routes/training/programs.run.route.test.tsx (12 tests) 1011ms
+ ✓ app/utils/workout-authoring.test.ts (28 tests) 79ms
+ ✓ app/routes/training/plan.season-edits.test.ts (10 tests) 1533ms
+ ✓ app/routes/_home/index.day-stamp.test.ts (10 tests) 1857ms
+ ✓ app/utils/first-run/draft.test.ts (36 tests) 207ms
+ ✓ app/routes/start/start-options.route.test.ts (11 tests) 2409ms
+   ✓ Velg denne keeps the Session Preferences on the Athlete Profile, and a skip as none  631ms
+   ✓ several sports: the cards lay every sport, carry them to Velg denne, and the plan made has a track for each  396ms
+ ✓ app/utils/workout-sentence.test.ts (33 tests) 126ms
+ ✓ app/routes/_home/timeline/anchoring.test.ts (33 tests) 153ms
+ ✓ app/routes/training/sessions.$sessionId_.log.outcome.route.test.tsx (12 tests) 1593ms
+   ✓ all four outcomes render with their own words  441ms
+ ✓ app/utils/first-run/simple-activities-plan.server.test.ts (6 tests) 2034ms
+   ✓ the plan made is the card shown, minute for minute, Simple Activities included, and nothing is marked done  388ms
+   ✓ the plan’s Simple Activities track asks for the same hours every week, through every phase  363ms
+   ✓ the horizon fill lays the Simple Activities in the weeks after the first two  441ms
+   ✓ the hard runs laid step around a middels Simple Activity, as the card shows  317ms
+ ✓ app/routes/_home/index.composer.test.ts (11 tests) 2917ms
+   ✓ every composer write lands by toast: the id and the week’s sum on the reply, nothing flashed  300ms
+   ✓ Allerede gjort writes a done session on a past day, however far back (owner decision 5)  462ms
+   ✓ Kopier copies one of the athlete’s own sessions to another day, and never another athlete’s  350ms
+   ✓ the sources: Bibliotek says each session as a line when it can; Kopier reads the week before, same weekday first  303ms
+ ✓ app/utils/strength/anchors.test.ts (19 tests) 64ms
+ ✓ app/utils/plan-outline/attach-event.test.ts (8 tests) 57ms
+ ✓ app/utils/profile-analysis/analyze.server.test.ts (10 tests) 1071ms
+ ✓ app/utils/plan-outline/day-rule.test.ts (21 tests) 51ms
+ ✓ app/utils/plan-outline/copy-week.test.ts (9 tests) 93ms
+ ✓ app/utils/plan-outline/starter-pattern.test.ts (20 tests) 67ms
+ ✓ app/utils/session-profile.test.ts (17 tests) 53ms
+ ✓ app/utils/athlete-calendar.test.ts (27 tests) 119ms
+ ✓ app/utils/first-run/start-simple-activities.test.ts (12 tests) 118ms
+ ✓ app/routes/training/sessions.new.route.test.tsx (9 tests) 6753ms
+   ✓ a new session is honestly empty — the §11 composition, nothing fabricated  556ms
+   ✓ strength is authorable from the start — no "add structure" gate  1683ms
+   ✓ a one-step submission posts structured blocks with the humane duration  871ms
+   ✓ submits the intent chosen via the Select  997ms
+   ✓ submits the discipline chosen via the Select  781ms
+   ✓ selecting an Exercise via the combobox submits its id (payload unchanged)  1094ms
+   ✓ the combobox groups the loader-provided recent exercises on top  665ms
+ ✓ app/routes/settings/training/lifts.$exerciseId.route.test.tsx (15 tests) 1561ms
+   ✓ saving a rep max posts the rep count it is at, because the number alone is ambiguous  804ms
+stderr | app/mcp/mcp.http.test.ts
+responseMode: 'json' drops mid-call notifications. subscriptions/listen streams are always served over SSE regardless; other notifications emitted before a result are dropped.
+
+ ✓ app/mcp/mcp.http.test.ts (8 tests) 2204ms
+   ✓ legacy era: initialize, list the tools, and call every read  976ms
+   ✓ modern era: initialize, list the tools, and call every read  624ms
+ ✓ app/utils/first-run/start-strength.server.test.ts (7 tests) 2841ms
+   ✓ with no lifting of their own, the lifting days copy the full-body Stock Workout the card named  481ms
+   ✓ without styrke there is no strength track and no answer is stored  321ms
+   ✓ an athlete who lifts copies their own most recent strength session  439ms
+   ✓ the start writes lifting slots, one per lift, on no weekday  393ms
+   ✓ every laid week lifts away from that week’s hard days  391ms
+   ✓ a beginner’s lifts still count inside the session cap, week after week  340ms
+   ✓ with several endurance sports, week 1 lifts on the card’s days  468ms
+ ✓ app/routes/training/sessions.new.step-kind.route.test.tsx (5 tests) 8107ms
+   ✓ every kind pair switches in both directions and lands as the target kind’s notation  3072ms
+   ✓ the Kind section checks the current kind inert and previews each switch’s consequences  1252ms
+   ✓ a distance is set aside for rest, previewed as a bring-back, and restored on switch back  1196ms
+   ✓ saving persists only the active kind’s fields — the stash never reaches the server  1046ms
+   ✓ the sheet’s Kind select routes through the same reconciliation as the ⋮ menu  1535ms
+stdout | app/utils/structure-detection/detect-job.server.test.ts > a steady import writes no WorkoutDetection and the session stays recorded and structureless
+prisma:query - 25ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+stdout | app/utils/structure-detection/detect-job.server.test.ts > a steady import writes no WorkoutDetection and the session stays recorded and structureless
+prisma:query - 20ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/utils/shape-strip.test.ts (20 tests) 111ms
+ ✓ app/routes/settings/training/lifts.$exerciseId_.propose.route.test.tsx (14 tests) 1204ms
+ ✓ app/utils/structure-detection/detect-job.server.test.ts (7 tests) 6847ms
+   ✓ a clearing detection materializes a detected Workout and stores the WorkoutDetection  1242ms
+   ✓ a steady import writes no WorkoutDetection and the session stays recorded and structureless  1420ms
+   ✓ a detection that lands before promotion is auto-imported at promotion time  1385ms
+   ✓ the Planned-TSS guard keeps a detected session at null even on recompute  1360ms
+   ✓ a TCX upload with laps reaches buildSegments with lap edges (#612)  1337ms
+ ✓ app/routes/training/sessions.new.server-errors.route.test.tsx (5 tests) 6765ms
+   ✓ the 400 paints every anchor level, lists the summary in document order, moves focus, and announces  1795ms
+   ✓ the offending token’s popover leads with the message; a summary item retargets the popover to its anchor  1097ms
+   ✓ the block gutter menu leads with the block’s message  1109ms
+   ✓ a marking clears locally the moment its value changes — no re-run of server rules — and the count follows  1688ms
+   ✓ the whole summary disappears when everything anchored is repaired  1067ms
+ ✓ app/utils/load/strength-tss-backfill.server.test.ts (9 tests) 1565ms
+   ✓ a hybrid athlete's stored snapshots drop their strength load and CTL falls  568ms
+   ✓ the backfill leaves one notice naming the CTL it moved  380ms
+   ✓ a lifter whose sessions carry no RPE never had a strength contribution, so gets no notice  316ms
+ ✓ app/utils/performance-result-writer.server.test.ts (17 tests) 514ms
+ ✓ app/utils/load/snapshot.server.test.ts (12 tests) 3853ms
+   ✓ recomputeLoadFrom: creates a snapshot for a day with a completed session  502ms
+   ✓ recomputeLoadFrom: Oslo 22:00 ride counts on Oslo calendar day  1400ms
+ ✓ app/routes/training/programs.start.route.test.tsx (13 tests) 757ms
+ ✓ app/utils/load/autopilot-for-everyone.server.test.ts (7 tests) 1802ms
+   ✓ the migration turns autopilot on for everyone, and marks only athletes it is news to  361ms
+   ✓ a next round applied at the close says its peak week before → after in hours, and Angre takes it back  308ms
+ ✓ app/integrations/intervalsicu/reconcile.server.test.ts (10 tests) 3400ms
+   ✓ a swept activity that auto-matches a planned session earns TSS from the load recompute  2651ms
+ ✓ app/utils/prescribed-duration.test.ts (17 tests) 51ms
+ ✓ app/routes/start/start-entry.route.test.ts (12 tests) 1911ms
+ ✓ app/utils/load/week-replan.test.ts (16 tests) 48ms
+ ✓ app/routes/_home/index.test.ts (9 tests) 1355ms
+ ✓ app/utils/session-title.test.ts (27 tests) 71ms
+ ✓ app/utils/structure-adherence.test.ts (14 tests) 53ms
+ ✓ app/utils/load/propose-week-change.test.ts (13 tests) 71ms
+ ✓ app/utils/strength/warmup.test.ts (16 tests) 70ms
+ ✓ app/routes/start/plan-ready.route.test.ts (6 tests) 2351ms
+   ✓ Velg denne takes the athlete to Planen er klar: the plain name, the family small and the day the plan begins  465ms
+   ✓ the curve is 12 weeks of hours: the round as laid from the hours given, and two rounds dashed, as the autopilot would append them if every week were done to plan  415ms
+   ✓ Planen er klar says how the plan moves each Sunday, and where to ask the app to check first  343ms
+   ✓ Under panseret reads what was made: the family, open-ended, the rhythm, the track with its starting volume, the Week Pattern and the level  314ms
+   ✓ Under panseret also says the strength sessions a week and the Session Preferences the athlete gave  437ms
+   ✓ reloading Planen er klar after the plan exists still shows it and never makes a second plan; with no plan it is the start  371ms
+ ✓ app/routes/training/programs.route.test.tsx (12 tests) 656ms
+ ✓ app/utils/workout-server-errors.test.ts (21 tests) 69ms
+ ✓ app/routes/training/plan.copy-week.test.ts (6 tests) 1198ms
+ ✓ app/integrations/shared/file-activity-import.server.test.ts (16 tests) 772ms
+ ✓ app/utils/structure-detection/eval/eval.test.ts (12 tests) 223ms
+ ✓ app/utils/load/planned-tss.test.ts (15 tests) 49ms
+ ✓ app/integrations/strava/ingest.server.test.ts (8 tests) 157ms
+ ✓ app/routes/training/plan.philosophy.test.ts (7 tests) 1226ms
+ ✓ app/utils/account-deletion.server.test.ts (6 tests) 1310ms
+   ✓ deleting an account erases every Workout it wrote, published ones included (#468)  307ms
+ ✓ app/integrations/strava/reconcile.server.test.ts (9 tests) 679ms
+ ✓ app/routes/training/plan.treningsform.test.ts (5 tests) 2056ms
+   ✓ Bytt treningsform shows the start’s own options for the stored level, preferences and days, the current family marked  442ms
+   ✓ an athlete who never said a level is shown a mosjonist’s options, and told so  381ms
+   ✓ Velg denne answers with the philosophy preview in the lead, and writes nothing  333ms
+   ✓ a refused preview is answered in the lead  332ms
+   ✓ the switch lands only from the preview’s confirm, and leaves the athlete’s own sessions as they were  561ms
+ ✓ app/utils/weather/forecast.server.test.ts (13 tests) 4131ms
+   ✓ a slow MET is cut at about 2 seconds  2007ms
+   ✓ MET down with nothing cached: one wait, then no call and no wait until the back-off ends  2007ms
+ ✓ app/routes/api.auth.$.test.ts (12 tests) 1576ms
+   ✓ in tests, /api/auth/ok answers 200  933ms
+ ✓ app/routes/_home/timeline/composer-model.test.ts (17 tests) 55ms
+ ✓ app/utils/dashboard.test.ts (32 tests) 102ms
+ ✓ app/utils/simple-activity.server.test.ts (8 tests) 1423ms
+ ✓ app/routes/imports.share-target.server.test.ts (9 tests) 2782ms
+   ✓ a share near local midnight auto-matches the planned session on the Oslo day  1420ms
+ ✓ app/routes/training/__strength-segment-editor.route.test.tsx (8 tests) 1191ms
+   ✓ a block the anchor opens in offers no boundary step, and says why  359ms
+stdout | app/integrations/polar/ingest.server.test.ts > a multisport exercise cut off after its first leg is completed from the kept FIT, without a second download
+prisma:query - 25ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/utils/catalogue-corpus.test.ts (167 tests) 533ms
+ ✓ app/routes/_auth/auth.$provider/callback.test.ts (8 tests) 395ms
+stdout | app/integrations/polar/ingest.server.test.ts > an exercise cut off before its FIT was kept is downloaded again and completed
+prisma:query - 23ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/utils/event.server.test.ts (11 tests) 1772ms
+ ✓ app/routes/training/events.new.test.ts (12 tests) 1237ms
+stdout | app/integrations/polar/ingest.server.test.ts > a token Polar no longer accepts revokes the connection and files nothing
+prisma:query - 28ms - INSERT INTO `main`.`AthleteProfile` (`id`, `preferredUnits`, `weekStartsOn`, `timezone`, `autopilot`, `autopilotIntroPending`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+ ✓ app/utils/load/adherence.test.ts (26 tests) 88ms
+ ✓ app/integrations/polar/ingest.server.test.ts (10 tests) 9755ms
+   ✓ a Polar exercise is filed from its FIT with Polar as its origin and credit  1215ms
+   ✓ the same exercise again is not downloaded twice  1173ms
+   ✓ a multisport exercise cut off after its first leg is completed from the kept FIT, without a second download  2652ms
+   ✓ an exercise cut off before its FIT was kept is downloaded again and completed  2235ms
+   ✓ an exercise the athlete already uploaded becomes an alias, not a second session (ADR 0096)  1092ms
+   ✓ the sync files what Polar lists and skips an exercise Polar no longer has  1158ms
+ ✓ app/routes/_home/index.calm.test.ts (5 tests) 1458ms
+   ✓ before the Plan Start Week the card says when the plan starts, and a session can still be added today  478ms
+   ✓ under autopilot I dag ships the Autopilot Notice; under Spør meg først it does not  417ms
+ ✓ app/utils/first-run/first-run.test.ts (9 tests) 45ms
+ ✓ app/utils/strength-program-seed.server.test.ts (8 tests) 1771ms
+   ✓ re-seeding refreshes the definitions in place and does not clobber an athlete’s run  434ms
+   ✓ a rule whose equipment half changes is refreshed rather than duplicated, because SQLite treats NULLs in a unique index as distinct  343ms
+ ✓ app/integrations/strava/defer.server.test.ts (8 tests) 403ms
+ ✓ app/integrations/shared/ingest-fit.server.test.ts (6 tests) 708ms
+ ✓ app/routes/training/events.$eventId.test.ts (7 tests) 1024ms
+ ✓ app/routes/me.test.tsx (11 tests) 1342ms
+   ✓ Form and Rekorder sit between the profile and the account sections  348ms
+ ✓ app/utils/plan-generation/generator.test.ts (6 tests) 58ms
+ ✓ app/utils/plan-outline/season-span.test.ts (16 tests) 52ms
+ ✓ app/utils/plan-outline/ramp-guard.test.ts (19 tests) 57ms
+ ✓ app/utils/plan-outline/commensurability.test.ts (16 tests) 47ms
+ ✓ app/utils/catalogue-seed.server.test.ts (9 tests) 7535ms
+   ✓ the corpus seeds as Stock Workouts with no owner at all  1236ms
+   ✓ re-seeding refreshes in place — ids, saves and lineage survive  2579ms
+   ✓ the strength corpus mints no orphan, and every row it adds has a variant to progress  1181ms
+   ✓ the strength corpus never overwrites an exercise an athlete authored and still owns  1127ms
+ ✓ app/integrations/strava/rate-limit.test.ts (11 tests) 57ms
+ ✓ app/utils/jobs/queue.server.test.ts (14 tests) 447ms
+ ✓ app/utils/first-run/start-strength.test.ts (13 tests) 103ms
+ ✓ app/routes/resources/strength-log.test.ts (6 tests) 1493ms
+   ✓ Angre after Som planlagt takes those sets back and says so; only the athlete’s own (ADR 0088)  392ms
+stdout | app/routes/resources/autopilot.test.ts > the notice having been seen is kept quietly, once, and only on the athlete’s own week
+prisma:query - 20ms - SELECT `main`.`AthleteProfile`.`id`, `main`.`AthleteProfile`.`timezone` FROM `main`.`AthleteProfile` WHERE (`main`.`AthleteProfile`.`userId` = ? AND 1=1) LIMIT ? OFFSET ?
+
+ ✓ app/routes/resources/autopilot.test.ts (6 tests) 1444ms
+   ✓ the notice having been seen is kept quietly, once, and only on the athlete’s own week  344ms
+stdout | app/utils/community.constraints.test.ts > visibility is a closed vocabulary of exactly two values
+prisma:error 
+Invalid `prisma.workout.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:28:24
+
+  25 		visibility?: string
+  26 	} = {},
+  27 ) {
+→ 28 	return prisma.workout.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: visibility") }), transient: false })
+
+stdout | app/utils/community.constraints.test.ts > visibility is a closed vocabulary of exactly two values
+prisma:error 
+Invalid `prisma.workout.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:28:24
+
+  25 		visibility?: string
+  26 	} = {},
+  27 ) {
+→ 28 	return prisma.workout.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: visibility") }), transient: false })
+
+stdout | app/utils/community.constraints.test.ts > an Attribution is structurally impossible on a Stock Workout
+prisma:error 
+Invalid `	prisma.attribution.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:61:22
+
+  58 // an Attribution cannot land on trainm8's. Community content can never look
+  59 // cited, and a trainm8-shipped session can never look like somebody's post.
+  60 await expect(
+→ 61 	prisma.attribution.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: Attribution_is_athlete_only") }), transient: false })
+
+ ✓ app/utils/tcx-stream-backfill.server.test.ts (4 tests) 714ms
+   ✓ the backfill heals an existing TCX import: stream, lap markers, and NP-based Coggan TSS  396ms
+stdout | app/utils/community.constraints.test.ts > promoting a published Workout to system authorship is rejected
+prisma:error 
+Invalid `	prisma.workout.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:84:18
+
+  81 // `ON UPDATE CASCADE` carries the new discriminator into the Attribution,
+  82 // where the CHECK refuses it — the back door the composite key closes.
+  83 await expect(
+→ 84 	prisma.workout.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: Attribution_is_athlete_only") }), transient: false })
+
+stdout | app/utils/community.constraints.test.ts > a takedown is whole or absent
+prisma:error 
+Invalid `	prisma.attribution.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:102:22
+
+   99 // An author told their session was removed and not told why has been told
+  100 // nothing.
+  101 await expect(
+→ 102 	prisma.attribution.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: Attribution_takedown_whole") }), transient: false })
+
+stdout | app/utils/community.constraints.test.ts > a takedown is whole or absent
+prisma:error 
+Invalid `	prisma.attribution.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:108:22
+
+  105 	}),
+  106 ).rejects.toThrow()
+  107 await expect(
+→ 108 	prisma.attribution.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: Attribution_takedown_whole") }), transient: false })
+
+stdout | app/utils/community.constraints.test.ts > a report reason is a closed vocabulary
+prisma:error 
+Invalid `	prisma.workoutReport.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:146:24
+
+  143 	}),
+  144 ).resolves.toBeTruthy()
+  145 await expect(
+→ 146 	prisma.workoutReport.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: reason") }), transient: false })
+
+stdout | app/utils/community.constraints.test.ts > a report resolution is whole or absent
+prisma:error 
+Invalid `	prisma.workoutReport.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:160:24
+
+  157 })
+  158 
+  159 await expect(
+→ 160 	prisma.workoutReport.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: WorkoutReport_resolution_whole") }), transient: false })
+
+stdout | app/utils/community.constraints.test.ts > a report resolution is whole or absent
+prisma:error 
+Invalid `	prisma.workoutReport.update()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:166:24
+
+  163 	}),
+  164 ).rejects.toThrow()
+  165 await expect(
+→ 166 	prisma.workoutReport.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: WorkoutReport_resolution_whole") }), transient: false })
+
+stdout | app/utils/community.constraints.test.ts > one athlete reports one Workout once
+prisma:error 
+Invalid `	prisma.workoutReport.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/community.constraints.test.ts:188:24
+
+  185 })
+  186 // A second report is the same person saying the same thing louder.
+  187 await expect(
+→ 188 	prisma.workoutReport.create(
+Unique constraint failed on the fields: (`workoutId`,`reporterId`)
+
+ ✓ app/utils/community.constraints.test.ts (9 tests) 877ms
+ ✓ app/utils/step-kind-reconciliation.test.ts (17 tests) 58ms
+ ✓ app/routes/training/plan.new.route.test.tsx (12 tests) 2243ms
+   ✓ the flow opens by asking what the athlete is building toward, as Plan’s landing (ADR 0083, ADR 0101)  450ms
+   ✓ setting a goal submits a named, dated goal in a discipline  639ms
+ ✓ app/routes/training/plan.attach-event.test.ts (6 tests) 1035ms
+ ✓ app/routes/start/start-simple-activities.route.test.ts (4 tests) 821ms
+   ✓ with no endurance sport the athlete is told plainly, sees one way, and Velg denne makes it  331ms
+ ✓ app/routes/training/__exercise-combobox.test.tsx (6 tests) 1966ms
+   ✓ typing filters the catalog by name  577ms
+   ✓ muscle and equipment chips narrow results and compose with the query  333ms
+   ✓ inline create posts to the exercises action and selects the result  389ms
+   ✓ the create row only appears when there is no exact name match  424ms
+ ✓ app/routes/start/start-strength.route.test.ts (6 tests) 1371ms
+   ✓ Velg denne with styrke makes the lifting and keeps the tap; Meg changes it  540ms
+ ✓ app/utils/load/formulas.test.ts (16 tests) 34ms
+ ✓ app/routes/__me-form-records-presenter.test.ts (16 tests) 84ms
+ ✓ app/utils/tcx-parser.server.test.ts (7 tests) 44ms
+ ✓ app/actions/run.test.ts (9 tests) 855ms
+ ✓ app/integrations/shared/origin-platform-backfill.server.test.ts (6 tests) 354ms
+ ✓ app/utils/load/eased-prescription.test.ts (10 tests) 54ms
+ ✓ app/routes/training/sessions.$sessionId.scheduled-strength.route.test.tsx (3 tests) 790ms
+   ✓ a scheduled session names the lift it prescribes, never an empty exercise picker  622ms
+ ✓ app/routes/training/__workout-detail-summary.test.ts (14 tests) 45ms
+ ✓ app/utils/training.test.ts (19 tests) 55ms
+ ✓ app/routes/integrations.strava.rate-limited.test.ts (4 tests) 174ms
+ ✓ app/routes/training/__workout-detail-telemetry.test.tsx (6 tests) 366ms
+ ✓ app/integrations/intervalsicu/telemetry-backfill.server.test.ts (5 tests) 2840ms
+   ✓ heals a stream-less import and the recompute upgrades its TSS to NP-based Coggan  2668ms
+ ✓ app/utils/fit-parser.server.test.ts (15 tests) 102ms
+ ✓ app/routes/integrations.strava.callback.test.ts (6 tests) 289ms
+ ✓ app/integrations/intervalsicu/ingest.server.test.ts (20 tests) 48ms
+ ✓ app/routes/training/__outcome-panel-presenter.test.ts (11 tests) 37ms
+ ✓ app/utils/exercise-variants.server.test.ts (3 tests) 398ms
+ ✓ app/utils/archetype-classification/read-session.test.ts (9 tests) 38ms
+ ✓ app/routes/settings/training/analyze.route.test.tsx (9 tests) 695ms
+   ✓ the derivation waits behind a tap, and names what it could not read  308ms
+ ✓ app/utils/strength-sets.test.ts (18 tests) 63ms
+ ✓ app/utils/archetype-classification/read-structure.test.ts (11 tests) 46ms
+ ✓ app/routes/integrations.intervalsicu.connect.test.ts (5 tests) 209ms
+ ✓ app/routes/settings/hjemsted.route.test.ts (6 tests) 847ms
+ ✓ app/routes/settings/profile/index.weekly-capacity.test.ts (5 tests) 763ms
+ ✓ app/routes/integrations.strava.sync.test.ts (6 tests) 662ms
+   ✓ syncs a connected athlete and reports success  353ms
+ ✓ app/utils/simple-activity.test.ts (16 tests) 43ms
+ ✓ app/integrations/intervalsicu/laps-backfill.server.test.ts (4 tests) 1672ms
+   ✓ never touches a promoted (frozen) Recording  1503ms
+ ✓ app/components/profile-bars.test.tsx (8 tests) 192ms
+ ✓ app/utils/session-review.test.ts (11 tests) 33ms
+ ✓ app/routes/settings/hjemsted.test.tsx (5 tests) 2339ms
+   ✓ matches carry municipality and county, and picking one saves it at once  708ms
+   ✓ a municipality is not named twice  401ms
+   ✓ no match says so and keeps the text; retyping asks again  720ms
+   ✓ a silent search says it does not answer, and the place stays  423ms
+ ✓ app/integrations/strava/laps-backfill.server.test.ts (4 tests) 1652ms
+   ✓ never touches a promoted (frozen) Recording  1448ms
+stdout | app/utils/session-log.server.test.ts > enforces one-to-one: cannot create two logs for the same session
+prisma:error 
+Invalid `prisma.sessionLog.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/session-log.server.ts:70:38
+
+  67 	content: string
+  68 	rpe?: number | null
+  69 }) {
+→ 70 	const log = await prisma.sessionLog.create(
+Unique constraint failed on the fields: (`sessionId`)
+
+ ✓ app/utils/session-log.server.test.ts (13 tests) 958ms
+ ✓ app/utils/plan-outline/strength-goal.test.ts (13 tests) 36ms
+ ✓ app/utils/plan-outline/fit-proposal.test.ts (12 tests) 44ms
+ ✓ app/routes/_home/season.test.ts (4 tests) 505ms
+ ✓ app/utils/plan-generation/provenance.test.ts (9 tests) 26ms
+ ✓ app/routes/settings/integrations.loader.test.ts (7 tests) 295ms
+ ✓ app/utils/plan-generation/retrieval.test.ts (11 tests) 33ms
+ ✓ app/utils/load/fitness-projection.test.ts (10 tests) 44ms
+ ✓ app/utils/activity-stream.test.ts (11 tests) 45ms
+ ✓ app/utils/load/np-tss-backfill.server.test.ts (3 tests) 788ms
+   ✓ runNpTssBackfill recomputes stream-backed rides to NP-based Coggan at high confidence  499ms
+stdout | app/utils/auth/erase.server.test.ts > an email code is erased with the account
+🔶 mocked email contents: {
+  from: 'onboarding@resend.dev',
+  to: 'yx_karl_hauck@example.com',
+  subject: 'Koden din',
+  text: 'Koden din er 361040. Den gjelder i fem minutter.',
+  html: '<p>Koden din er 361040. Den gjelder i fem minutter.</p>'
+}
+
+stdout | app/utils/auth/erase.server.test.ts > an email code is erased with the account
+🔶 mocked email contents: {
+  from: 'onboarding@resend.dev',
+  to: 'yx_karl_hauck@example.com',
+  subject: 'Koden din',
+  text: 'Koden din er 404226. Den gjelder i fem minutter.',
+  html: '<p>Koden din er 404226. Den gjelder i fem minutter.</p>'
+}
+
+stdout | app/utils/auth/erase.server.test.ts > an email code is erased with the account
+🔶 mocked email contents: {
+  from: 'onboarding@resend.dev',
+  to: '2s_astrid_bins@example.com',
+  subject: 'Koden din',
+  text: 'Koden din er 254639. Den gjelder i fem minutter.',
+  html: '<p>Koden din er 254639. Den gjelder i fem minutter.</p>'
+}
+
+stdout | app/utils/auth/erase.server.test.ts > a password reset is erased with the account
+🔶 mocked email contents: {
+  from: 'onboarding@resend.dev',
+  to: 'l2_adriana_nienow@example.com',
+  subject: 'Tilbakestill passordet',
+  text: 'Tilbakestill passordet ditt: http://localhost:3000/api/auth/reset-password/XfI2GMgF7SeFrVZRAwhklPvB?callbackURL=%2Freset-password',
+  html: '<p>Tilbakestill passordet ditt: http://localhost:3000/api/auth/reset-password/XfI2GMgF7SeFrVZRAwhklPvB?callbackURL=%2Freset-password</p>'
+}
+
+stdout | app/utils/auth/erase.server.test.ts > a password reset is erased with the account
+🔶 mocked email contents: {
+  from: 'onboarding@resend.dev',
+  to: 'ay_ronny_farrell_kau@example.com',
+  subject: 'Koden din',
+  text: 'Koden din er 882273. Den gjelder i fem minutter.',
+  html: '<p>Koden din er 882273. Den gjelder i fem minutter.</p>'
+}
+
+stdout | app/utils/auth/erase.server.test.ts > the two-factor cookie and its code are erased with the account
+🔶 mocked email contents: {
+  from: 'onboarding@resend.dev',
+  to: 'l4_candace_stiedeman@example.com',
+  subject: 'Koden din',
+  text: 'Koden din er 108020. Den gjelder i fem minutter.',
+  html: '<p>Koden din er 108020. Den gjelder i fem minutter.</p>'
+}
+
+stdout | app/utils/auth/erase.server.test.ts > the two-factor cookie and its code are erased with the account
+🔶 mocked email contents: {
+  from: 'onboarding@resend.dev',
+  to: 'ni_makayla_schmeler@example.com',
+  subject: 'Koden din',
+  text: 'Koden din er 521931. Den gjelder i fem minutter.',
+  html: '<p>Koden din er 521931. Den gjelder i fem minutter.</p>'
+}
+
+ ✓ app/utils/effort-word.test.ts (11 tests) 40ms
+stdout | app/utils/auth/erase.server.test.ts > a passkey challenge is erased with the account
+🔶 mocked email contents: {
+  from: 'onboarding@resend.dev',
+  to: 'qe_carolyn_dare94@example.com',
+  subject: 'Koden din',
+  text: 'Koden din er 972643. Den gjelder i fem minutter.',
+  html: '<p>Koden din er 972643. Den gjelder i fem minutter.</p>'
+}
+
+ ✓ app/utils/auth/erase.server.test.ts (5 tests) 1575ms
+   ✓ an email code is erased with the account  408ms
+   ✓ the two-factor cookie and its code are erased with the account  463ms
+   ✓ a passkey challenge is erased with the account  354ms
+ ✓ app/routes/resources/session-swap.test.ts (4 tests) 616ms
+ ✓ app/utils/structure-detection/mine.test.ts (5 tests) 20ms
+ ✓ app/utils/personal-records.test.ts (11 tests) 42ms
+ ✓ app/utils/load/elevate-fixtures.test.ts (4 tests) 30ms
+ ✓ app/routes/training/__copy-week.route.test.tsx (6 tests) 1147ms
+   ✓ the target week can be changed and the choice is what posts  615ms
+ ✓ app/routes/training/plan.new.test.ts (5 tests) 930ms
+ ✓ app/utils/structure-detection/classify.test.ts (8 tests) 54ms
+ ✓ app/components/return-key.test.tsx (10 tests) 427ms
+ ✓ app/routes/training/__season-edits.route.test.tsx (5 tests) 735ms
+   ✓ a week on the plan’s own target offers no way back to it  401ms
+ ✓ app/routes/training/__lift-chart.test.tsx (5 tests) 117ms
+stdout | app/utils/load/recompute-notice.migration.test.ts > the migration keeps every row and makes only the swim placeholders absent
+prisma:error 
+Invalid `	prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.migration.test.ts:161:30
+
+  158 // The rebuilt table kept its constraints: a half pair is refused, a second
+  159 // notice of one kind is refused.
+  160 await expect(
+→ 161 	prisma.loadRecomputeNotice.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: LoadRecomputeNotice_ctl_pair_both_or_neither") }), transient: false })
+
+stdout | app/utils/load/recompute-notice.migration.test.ts > the migration keeps every row and makes only the swim placeholders absent
+prisma:error 
+Invalid `	prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.migration.test.ts:166:30
+
+  163 	}),
+  164 ).rejects.toThrow()
+  165 await expect(
+→ 166 	prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+ ✓ app/utils/load/recompute-notice.migration.test.ts (1 test) 413ms
+   ✓ the migration keeps every row and makes only the swim placeholders absent  407ms
+ ✓ app/utils/auth.server.test.ts (7 tests) 1495ms
+     ✓ checkIsCommonPassword times out after 1 second  1005ms
+ ✓ app/utils/plan-generation/placed-hours.test.ts (8 tests) 52ms
+ ✓ app/routes/webhook.strava.test.ts (7 tests) 151ms
+ ✓ app/routes/integrations.sync.test.ts (3 tests) 330ms
+ ✓ app/routes/training/catalogue.report.route.test.tsx (6 tests) 1092ms
+   ✓ the screen states both halves of what a report does  333ms
+   ✓ a reason is picked from the closed vocabulary and sent with the report  367ms
+ ✓ app/routes/integrations.intervalsicu.sync.test.ts (5 tests) 585ms
+ ✓ app/routes/_home/timeline/strip.test.ts (10 tests) 48ms
+ ✓ app/routes/training/__intensity-editor.test.ts (19 tests) 81ms
+ ✓ app/utils/credential-crypto.server.test.ts (13 tests) 44ms
+ ✓ app/routes/training/sessions.$sessionId.simple-activity.route.test.tsx (2 tests) 266ms
+ ✓ app/utils/planned-discipline.test.ts (8 tests) 37ms
+ ✓ app/utils/profile-analysis/mean-maximal.test.ts (9 tests) 38ms
+stdout | app/utils/load/recompute-notice.server.test.ts > a second write for the same kind neither duplicates nor overwrites, pair or not
+prisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+stdout | app/utils/load/recompute-notice.server.test.ts > a second write for the same kind neither duplicates nor overwrites, pair or not
+prisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.server.ts:42:36
+
+  39 	ctl: CtlForKind<K>
+  40 }): Promise<boolean> {
+  41 	try {
+→ 42 		await prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+ ✓ app/utils/load/recompute-notice.server.test.ts (5 tests) 677ms
+ ✓ app/routes/training/__plan-chrome.test.tsx (5 tests) 311ms
+stdout | app/integrations/shared/every-ingest-path-dedupes.server.test.ts > the Intervals.icu backfill files an uploaded run as an alias, not a second session
+prisma:query - 33ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/routes/training/__phase-editor.route.test.tsx (3 tests) 786ms
+   ✓ an existing phase is edited in Endre sesongen, pre-filled, and not on the card  458ms
+ ✓ app/routes/settings/training/index.route.test.tsx (1 test) 704ms
+   ✓ saving only an FTP from the page leaves a defaulted recipe "Valgt for deg"  689ms
+ ✓ app/utils/load/discipline-allocation.test.ts (5 tests) 129ms
+ ✓ app/integrations/shared/every-ingest-path-dedupes.server.test.ts (3 tests) 5695ms
+   ✓ an Intervals.icu sync of a run the athlete uploaded becomes an alias  1361ms
+   ✓ a Strava sync of a run already held becomes an alias carrying Strava  1265ms
+   ✓ the Intervals.icu backfill files an uploaded run as an alias, not a second session  3064ms
+ ✓ app/routes/training/__treningsform.test.tsx (2 tests) 783ms
+   ✓ the options are closed until asked for, then each is a real week with the current one marked  603ms
+ ✓ app/utils/personal-records.server.test.ts (5 tests) 807ms
+ ✓ app/routes/_home/index.weather.test.ts (4 tests) 802ms
+ ✓ app/utils/load/coach.test.ts (15 tests) 42ms
+ ✓ app/utils/source-terms.test.ts (12 tests) 41ms
+ ✓ app/utils/load/normalized-power.test.ts (8 tests) 21ms
+ ✓ app/utils/event-schema.test.ts (18 tests) 73ms
+ ✓ app/utils/profile-analysis/cp-fit.test.ts (7 tests) 32ms
+ ✓ app/utils/source-attribution.test.ts (10 tests) 37ms
+ ✓ app/routes/training/catalogue.publish.route.test.tsx (6 tests) 590ms
+ ✓ app/utils/credential-backfill.server.test.ts (4 tests) 208ms
+ ✓ app/utils/juster.test.ts (9 tests) 29ms
+ ✓ app/utils/auth/schema-generate.server.test.ts (2 tests) 2188ms
+   ✓ `npx auth generate` for the configured auth matches prisma/schema.prisma  2173ms
+ ✓ app/utils/load/planned-tss.server.test.ts (3 tests) 528ms
+ ✓ app/routes/_marketing/privacy.test.tsx (4 tests) 409ms
+   ✓ the privacy page is a Norwegian Art. 13 notice marked as a draft  359ms
+ ✓ app/routes/settings/level.route.test.ts (4 tests) 774ms
+ ✓ app/utils/zones/words.test.ts (6 tests) 32ms
+ ✓ app/components/wordmark-row.test.tsx (10 tests) 648ms
+ ✓ app/routes/resources/session-annet.test.ts (4 tests) 696ms
+ ✓ app/utils/pattern-picker.server.test.ts (4 tests) 2580ms
+   ✓ a long history offers at most the cap per discipline, newest first, one per title  322ms
+   ✓ a busy discipline does not crowd another out of the picker  2028ms
+ ✓ app/routes/settings/training/resultater.route.test.tsx (3 tests) 816ms
+   ✓ a refused time is shown at the field and announced  441ms
+ ✓ app/utils/session-presenter.test.ts (11 tests) 63ms
+ ✓ app/utils/plan-outline/band-fit.test.ts (10 tests) 34ms
+ ✓ app/routes/training/__event-target.test.ts (6 tests) 40ms
+ ✓ app/utils/load/week-replan-demo-seed.test.ts (2 tests) 4690ms
+   ✓ the seeded overreaching athlete gets a proposed softening that silence applied: stored decision + softened sessions with Replan Notes  2422ms
+   ✓ the seeded no-planned-load athlete gets the explicit insufficient-data decline, no session touched  2257ms
+ ✓ app/routes/training/catalogue.place.route.test.tsx (6 tests) 544ms
+   ✓ placing sends the day the athlete picked  340ms
+ ✓ app/routes/me.loader.test.ts (3 tests) 269ms
+ ✓ app/actions/get-today.weather.test.ts (4 tests) 409ms
+ ✓ app/utils/luma-steps-lint.test.ts (13 tests) 17999ms
+     ✓ an off-scale corner and raw sizes fail in app/routes/training/__sets-popover.tsx, naming the step  413ms
+     ✓ an off-scale corner and raw sizes fail in app/components/page-header.tsx, naming the step  385ms
+     ✓ a template literal and a cn() argument are read too  339ms
+     ✓ app/components/ui/button.tsx sits outside the guard  362ms
+     ✓ app/routes/_auth/login.tsx sits outside the guard  316ms
+     ✓ app/routes/admin/moderation.tsx sits outside the guard  348ms
+     ✓ app/routes/training/__prototype-variant-l.tsx sits outside the guard  399ms
+     ✓ app/routes/training/plan.test.tsx sits outside the guard  2543ms
+ ✓ app/utils/activity-telemetry.server.test.ts (3 tests) 141ms
+ ✓ app/routes/training/exercises.test.ts (4 tests) 467ms
+ ✓ app/utils/weather/forecast-hour.test.ts (7 tests) 73ms
+ ✓ app/routes/imports.upload.test.tsx (3 tests) 940ms
+   ✓ the file input accepts many files across the supported formats  306ms
+   ✓ submits the chosen discipline as the override  473ms
+ ✓ app/routes/training/__catalogue-card.test.ts (6 tests) 31ms
+ ✓ app/utils/workout-reps.test.ts (5 tests) 32ms
+ ✓ app/utils/structure-detection/eval/fit.test.ts (4 tests) 67ms
+ ✓ app/mcp/dev-token.test.ts (5 tests) 36ms
+ ✓ app/utils/home-place.server.test.ts (5 tests) 260ms
+ ✓ app/integrations/shared/source-events-with-aliases.server.test.ts (4 tests) 309ms
+ ✓ app/utils/source-terms.server.test.ts (5 tests) 375ms
+ ✓ app/utils/labels.workout-detail.test.ts (7 tests) 51ms
+ ✓ app/integrations/reconcile-sweep.server.test.ts (3 tests) 178ms
+ ✓ app/utils/labels.token-editor.test.ts (7 tests) 30ms
+ ✓ app/routes/_home/index.error-boundary.test.tsx (2 tests) 90ms
+ ✓ app/utils/labels.plan-generate.test.ts (5 tests) 22ms
+ ✓ app/utils/fit-compressed-timestamps.server.test.ts (3 tests) 486ms
+   ✓ a large ordinary file with one compressed message is rewritten  365ms
+ ✓ app/utils/load/recompute-notice.test.ts (5 tests) 22ms
+ ✓ app/routes/admin/moderation.route.test.tsx (5 tests) 676ms
+   ✓ taking down carries the reason the author will be shown  427ms
+ ✓ app/utils/labels.plan-new.test.ts (3 tests) 19ms
+ ✓ app/utils/session-ledger-rows.test.ts (5 tests) 27ms
+ ✓ app/routes/resources/session-release.test.ts (3 tests) 626ms
+ ✓ app/routes/_seo/sitemap[.]xml.test.ts (1 test) 15ms
+stdout | app/utils/imports-events.server.test.ts > a failed insert (duplicate) does not emit
+prisma:error 
+Invalid `prisma.activityImport.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/activity-import.server.ts:191:46
+
+  188 	input: ActivityImportInput,
+  189 ) {
+  190 	const data = ActivityImportInputSchema.parse(input)
+→ 191 	const created = await prisma.activityImport.create(
+Unique constraint failed on the fields: (`athleteId`,`externalProvider`,`externalId`)
+
+ ✓ app/utils/imports-events.server.test.ts (5 tests) 182ms
+ ✓ app/utils/plan-outline/week-keys.test.ts (4 tests) 25ms
+ ✓ app/utils/plan-outline/session-placement.test.ts (3 tests) 46ms
+ ✓ app/utils/app-tabs.test.ts (7 tests) 35ms
+ ✓ app/utils/structure-detection/signal.test.ts (8 tests) 31ms
+ ✓ app/routes/resources/week-change.failure.test.ts (1 test) 181ms
+ ✓ app/utils/catalogue.test.ts (7 tests) 39ms
+ ✓ app/utils/load/trustworthiness.test.ts (11 tests) 45ms
+ ✓ app/utils/place-search/search.server.test.ts (5 tests) 64ms
+ ✓ app/integrations/strava/deferred-job.server.test.ts (1 test) 121ms
+ ✓ app/utils/exercise-search.test.ts (7 tests) 36ms
+ ✓ app/utils/session-comparison.test.ts (6 tests) 28ms
+ ✓ app/utils/misc.use-double-check.test.tsx (3 tests) 408ms
+ ✓ app/utils/strength/rest.test.ts (8 tests) 26ms
+ ✓ app/utils/outbound-privacy.test.ts (5 tests) 22ms
+ ✓ app/utils/exercise-aliases-nb.test.ts (3 tests) 46ms
+ ✓ app/routes/integrations.strava.connect.test.ts (1 test) 77ms
+ ✓ app/routes/resources/week-sum.test.ts (2 tests) 343ms
+stdout | app/utils/load/recompute-notice.constraints.test.ts > a notice with only ctlBefore is refused by the database
+prisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.constraints.test.ts:26:36
+
+  23 	kind: string,
+  24 	ctl: { ctlBefore: number | null; ctlAfter: number | null },
+  25 ) {
+→ 26 	return prisma.loadRecomputeNotice.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: LoadRecomputeNotice_ctl_pair_both_or_neither") }), transient: false })
+
+stdout | app/utils/load/recompute-notice.constraints.test.ts > a notice with only ctlAfter is refused by the database
+prisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.constraints.test.ts:26:36
+
+  23 	kind: string,
+  24 	ctl: { ctlBefore: number | null; ctlAfter: number | null },
+  25 ) {
+→ 26 	return prisma.loadRecomputeNotice.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: LoadRecomputeNotice_ctl_pair_both_or_neither") }), transient: false })
+
+ ✓ app/utils/zones/pace-unit.test.ts (4 tests) 15ms
+ ✓ app/components/shape-strip.test.tsx (4 tests) 82ms
+stdout | app/utils/load/recompute-notice.constraints.test.ts > the rebuild kept the unique (athlete, kind) and the cascade
+prisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/0ba56bfd-1724-5dc8-abef-47f0fb5bfc00/scratchpad/f691/wt/691-review2/app/utils/load/recompute-notice.constraints.test.ts:26:36
+
+  23 	kind: string,
+  24 	ctl: { ctlBefore: number | null; ctlAfter: number | null },
+  25 ) {
+→ 26 	return prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+ ✓ app/utils/load/recompute-notice.constraints.test.ts (4 tests) 557ms
+ ✓ app/utils/load/load-curve.test.ts (4 tests) 23ms
+ ✓ app/utils/day-stamp.test.ts (5 tests) 30ms
+ ✓ app/integrations/intervalsicu/laps.server.test.ts (3 tests) 33ms
+ ✓ app/routes/_home/timeline/composer-sentence.test.ts (10 tests) 49ms
+ ✓ app/utils/recording-profile.test.ts (3 tests) 21ms
+ ✓ app/routes/settings/profile/index.delete-data.test.ts (1 test) 141ms
+ ✓ app/utils/first-run/plan-start-options.test.ts (4 tests) 32ms
+ ✓ app/utils/credential-storage.server.test.ts (1 test) 96ms
+ ✓ app/utils/auth/handler.production.server.test.ts (3 tests) 31ms
+ ✓ app/utils/labels.token-sentence.test.ts (4 tests) 21ms
+ ✓ app/routes/training/__philosophy-switch.test.tsx (2 tests) 97ms
+ ✓ app/utils/weather/symbol.test.ts (4 tests) 22ms
+ ✓ app/utils/auth/password-hash.server.test.ts (2 tests) 554ms
+ ✓ app/utils/load/readiness.test.ts (8 tests) 28ms
+ ✓ app/utils/plan-outline/philosophy.test.ts (2 tests) 13ms
+ ✓ app/utils/plan-outline/quality-mix.test.ts (6 tests) 36ms
+stdout | app/utils/session-ownership.server.test.ts > the where-fragment selects exactly the sessions the predicate calls the machine’s
+prisma:query - 58ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `source`, `adoptedAt`, `releasedAt`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+stdout | app/utils/session-ownership.server.test.ts > the where-fragment selects exactly the sessions the predicate calls the machine’s
+prisma:query - 87ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `source`, `adoptedAt`, `releasedAt`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+stdout | app/utils/session-ownership.server.test.ts > the where-fragment selects exactly the sessions the predicate calls the machine’s
+prisma:query - 92ms - INSERT INTO `main`.`WorkoutSession` (`id`, `scheduledAt`, `status`, `source`, `adoptedAt`, `releasedAt`, `countsInNoTrack`, `createdAt`, `updatedAt`, `userId`) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING `id` AS `id`
+
+ ✓ app/utils/session-ownership.server.test.ts (1 test) 284ms
+ ✓ app/routes/library.test.ts (2 tests) 139ms
+ ✓ app/integrations/shared/fit-file-key.test.ts (6 tests) 38ms
+ ✓ app/integrations/polar/webhook.server.test.ts (3 tests) 21ms
+stdout | app/utils/jobs/handlers.server.test.ts > processing a strava-backfill job runs the backfill end-to-end
+prisma:query - 35ms - INSERT INTO `main`.`LoadSnapshot` (`id`, `athleteId`, `date`, `tssTotal`, `tssByDiscipline`, `ctl`, `atl`, `tsb`, `computedAt`) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT  (`athleteId`,`date`) DO UPDATE SET `tssTotal` = ?, `tssByDiscipline` = ?, `ctl` = ?, `atl` = ?, `tsb` = ?, `computedAt` = ? WHERE ((`main`.`LoadSnapshot`.`athleteId` = ? AND `main`.`LoadSnapshot`.`date` = ?) AND 1=1) RETURNING `id` AS `id`, `athleteId` AS `athleteId`, `date` AS `date`, `tssTotal` AS `tssTotal`, `tssByDiscipline` AS `tssByDiscipline`, `ctl` AS `ctl`, `atl` AS `atl`, `tsb` AS `tsb`, `computedAt` AS `computedAt`
+
+ ✓ app/routes/settings/__meg-text.test.ts (5 tests) 34ms
+ ✓ app/integrations/strava/sync-rate-limited.server.test.ts (1 test) 62ms
+ ✓ app/utils/performance-result.test.ts (4 tests) 30ms
+ ✓ app/utils/plan-outline/event-fit.test.ts (4 tests) 19ms
+ ✓ app/utils/plan-generation/planned-volume.test.ts (1 test) 17ms
+ ✓ app/utils/jobs/handlers.server.test.ts (2 tests) 3412ms
+   ✓ processing a strava-backfill job runs the backfill end-to-end  1778ms
+   ✓ processing a strava-reconcile job runs reconciliation end-to-end  1625ms
+ ✓ app/utils/strength/kilo-input.test.ts (4 tests) 25ms
+ ✓ app/routes/training/__preset-gallery.test.tsx (1 test) 67ms
+ ✓ app/routes/resources/download-user-data.test.ts (2 tests) 229ms
+ ✓ app/integrations/strava/oauth.server.test.ts (2 tests) 54ms
+ ✓ app/utils/labels.account-deletion.test.ts (2 tests) 39ms
+ ✓ app/utils/jobs/worker.server.test.ts (7 tests) 2498ms
+   ✓ the job worker loads under plain Node, as the server loads it  711ms
+   ✓ app/utils/zones/recipes.ts loads first under plain Node  327ms
+   ✓ app/utils/first-run/draft.ts loads first under plain Node  410ms
+   ✓ app/utils/first-run/start-draft.ts loads first under plain Node  345ms
+   ✓ app/utils/plan-outline/pinned-days.ts loads first under plain Node  340ms
+ ✓ app/utils/juster.server.test.ts (2 tests) 10ms
+ ✓ app/utils/imports-events.test.tsx (3 tests) 30ms
+ ✓ app/actions/run.failure.test.ts (2 tests) 69ms
+ ✓ app/components/ui/toggle-group.test.tsx (2 tests) 317ms
+ ✓ app/components/ui/select.test.tsx (2 tests) 271ms
+ ✓ app/actions/labels.test.ts (3 tests) 41ms
+ ✓ app/routes/training/__token-sentence-editor.test.ts (2 tests) 16ms
+ ✓ app/utils/load/snapshot-week-change.server.test.ts (1 test) 218ms
+ ✓ app/utils/weather/athlete-forecast.server.test.ts (2 tests) 69ms
+ ✓ app/utils/most-trained-discipline.test.ts (4 tests) 17ms
+ ✓ app/integrations/intervalsicu/pacer.test.ts (3 tests) 20ms
+ ✓ app/integrations/intervalsicu/discipline-map.test.ts (21 tests) 68ms
+ ✓ app/components/floating-toolbar.test.tsx (4 tests) 83ms
+ ✓ app/routes/training/__validation-summary.test.tsx (2 tests) 71ms
+ ✓ app/integrations/strava/discipline-map.test.ts (2 tests) 14ms
+ ✓ app/integrations/sync-summary.server.test.ts (2 tests) 10ms
+ ✓ app/utils/headers.server.test.ts (3 tests) 20ms
+ ✓ app/utils/env.server.test.ts (2 tests) 17ms
+ ✓ app/routes/settings/training/history.test.ts (4 tests) 16ms
+ ✓ app/utils/misc.cn.test.ts (3 tests) 34ms
+ ✓ app/utils/misc.error-message.test.ts (3 tests) 28ms
+ ✓ app/utils/polyline.test.ts (2 tests) 18ms
+ ✓ app/actions/vocabulary.test.ts (1 test) 13ms
+ ✓ app/components/create-menu.test.tsx (1 test) 248ms
+ ✓ app/utils/five-minutes.test.ts (6 tests) 34ms
+ ✓ app/utils/athlete-schema.test.ts (1 test) 10ms
+ ✓ app/components/page-header.test.tsx (1 test) 193ms
+ ✓ app/routes/training/index.test.ts (1 test) 12ms
+ ✓ app/routes/imports._index.test.ts (1 test) 9ms
+ ✓ app/routes/events.test.ts (1 test) 11ms
+ ✓ app/routes/_auth/verify.test.ts (1 test) 8ms
+ ✓ app/routes/settings/index.test.ts (1 test) 9ms
+
+ Test Files  433 passed (433)
+      Tests  6571 passed (6571)
+   Start at  07:32:42
+   Duration  473.69s (transform 27.00s, setup 318.68s, import 134.35s, tests 862.14s, environment 41.09s)
+
+exit 0
