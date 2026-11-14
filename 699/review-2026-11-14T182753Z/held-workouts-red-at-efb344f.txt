@@ -1,0 +1,31 @@
+ RUN  v4.0.18 /tmp/claude-0/-home-user-trainm8/1902b4b6-ca7a-5e59-8f05-a7a54bddd41a/scratchpad/f/wt/699-review
+ ❯ app/utils/first-run/activities-edit.server.test.ts (10 tests | 1 failed | 9 skipped) 796ms
+   ↓ made = shown: the boundary week laid is the week previewed, around an adopted lift and an authored hard session
+   ↓ lived weeks keep their targets and totals; from the boundary the plan lays the new activities
+   ↓ a confirm whose boundary week changed since the preview writes nothing, and says the preview is stale
+   ↓ a Season Anchor the athlete sets after the preview makes the confirm stale; one shown is cleared on Bekreft
+   ↓ a removed sport is never laid again by Bytt treningsform, and removing strength clears the frequency
+   ↓ the same activities, or none, write nothing; a plan toward an Event is not edited here
+   ↓ when the boundary week will not stamp, the old activities' sessions are cleared from it and the refusal is logged
+   ↓ the preview counts only the own sessions that stay: a skipped one is not counted
+   ↓ an edit that could not offer strength leaves the Strength Frequency as it was
+   × every Workout the edit's pattern days use is one the plan holds, and none is left unused (ADR 0113) 791ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  app/utils/first-run/activities-edit.server.test.ts > every Workout the edit's pattern days use is one the plan holds, and none is left unused (ADR 0113)
+AssertionError: expected null to be 'cmwgq23nj00037d3jmg8ytgpp' // Object.is equality
+- Expected: 
+"cmwgq23nj00037d3jmg8ytgpp"
++ Received: 
+null
+ ❯ app/utils/first-run/activities-edit.server.test.ts:586:40
+    584|  expect(days.some((day) => day.kind === 'fixed')).toBe(true)
+    585|  for (const day of days) {
+    586|   expect(day.workout?.heldByOutlineId).toBe(outlineId)
+       |                                        ^
+    587|  }
+    588|  // The second edit's yoga is gone, so the plan holds no row no day us…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 skipped (10)
+   Start at  18:11:08
+   Duration  3.66s (transform 1.52s, setup 971ms, import 1.31s, tests 796ms, environment 0ms)
