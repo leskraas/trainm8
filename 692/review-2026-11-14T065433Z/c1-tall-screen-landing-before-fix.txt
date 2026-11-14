@@ -1,0 +1,21 @@
+Running 1 test using 1 worker
+[1/1] [chromium] › tests/e2e/home-reading-position.test.ts:173:1 › on a screen taller than the weeks the server renders ahead, today is parked before the first paint and stays there
+  1) [chromium] › tests/e2e/home-reading-position.test.ts:173:1 › on a screen taller than the weeks the server renders ahead, today is parked before the first paint and stays there 
+    Error: expect(received).toEqual(expected) // deep equality
+    - Expected  - 0
+    + Received  + 2
+      Set {
+    +   284,
+    +   724,
+        755,
+      }
+      239 | 	)
+      240 | 	expect(tops.length).toBeGreaterThan(0)
+    > 241 | 	expect(new Set(tops)).toEqual(new Set([tops[0]]))
+          | 	                      ^
+      242 | })
+      243 |
+        at /tmp/claude-0/-home-user-trainm8/9974ed2a-6656-5e8a-8c22-46168623fc1d/scratchpad/run/wt/692-review/tests/e2e/home-reading-position.test.ts:241:24
+    Error Context: test-results/home-reading-position-on-a-d7f2f-first-paint-and-stays-there-chromium/error-context.md
+  1 failed
+    [chromium] › tests/e2e/home-reading-position.test.ts:173:1 › on a screen taller than the weeks the server renders ahead, today is parked before the first paint and stays there 

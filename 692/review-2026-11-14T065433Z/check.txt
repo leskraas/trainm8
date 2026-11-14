@@ -1,0 +1,9 @@
+head 2f7e3ec782d11a2967ba1dedde86664ed1736199
+check: npm run lint, npm run typecheck, vitest run (node_modules/.bin)
+✖ 149 problems (0 errors, 149 warnings)
+   ✓ the quantity popover leads with a Duration ⇄ Distance switch that seeds defaults and round-trips  1342ms
+   ✓ reintroducing the quantity via Duration lands the seed, even when it equals the field default  889ms
+ Test Files  406 passed (406)
+      Tests  6384 passed (6384)
+   Duration  384.30s (transform 22.92s, setup 273.51s, import 109.93s, tests 668.02s, environment 37.69s)
+EXIT 0
