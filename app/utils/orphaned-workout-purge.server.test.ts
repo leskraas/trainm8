@@ -114,6 +114,7 @@ test('the job erases the Orphaned Workouts and records counts only, on its own r
 	const { erasable, held } = await createOrphans()
 	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
 	const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+	onTestFinished(() => info.mockRestore())
 
 	expect(await processNextJob(jobHandlers)).toBe('processed')
 
@@ -139,7 +140,6 @@ test('the job erases the Orphaned Workouts and records counts only, on its own r
 	for (const needle of ['Kari', 'notater', 'terskel', ...erasable, held.id]) {
 		expect(recorded).not.toContain(needle)
 	}
-	info.mockRestore()
 })
 
 test('a run after one that committed keeps the first record, never zeros', async () => {
@@ -147,6 +147,7 @@ test('a run after one that committed keeps the first record, never zeros', async
 	await createOrphans()
 	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
 	const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+	onTestFinished(() => info.mockRestore())
 	await processNextJob(jobHandlers)
 	// A crash after the purge committed, before the worker marked it done.
 	await prisma.job.update({
@@ -163,7 +164,6 @@ test('a run after one that committed keeps the first record, never zeros', async
 	expect(info).toHaveBeenLastCalledWith(
 		'[orphaned-workout-purge] erased 0, kept unattributed 1, spliced 0',
 	)
-	info.mockRestore()
 })
 
 test('a record that is not three counts is not taken as the first run’s', async () => {
@@ -174,6 +174,7 @@ test('a record that is not three counts is not taken as the first run’s', asyn
 		payload: { purged: { erased: 'all' } },
 	})
 	const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+	onTestFinished(() => info.mockRestore())
 
 	await processNextJob(jobHandlers)
 
@@ -183,7 +184,6 @@ test('a record that is not three counts is not taken as the first run’s', asyn
 	expect(info).toHaveBeenCalledWith(
 		'[orphaned-workout-purge] erased 2, kept unattributed 1, spliced 0',
 	)
-	info.mockRestore()
 })
 
 test('a purge that fails partway erases nothing and is retried', async () => {
@@ -196,7 +196,11 @@ test('a purge that fails partway erases nothing and is retried', async () => {
 		`CREATE TRIGGER purge_record_fails BEFORE UPDATE OF payload ON Job
 		BEGIN SELECT RAISE(ABORT, 'disk full'); END`,
 	)
+	onTestFinished(async () => {
+		await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS purge_record_fails`)
+	})
 	const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+	onTestFinished(() => logged.mockRestore())
 
 	expect(await processNextJob(jobHandlers)).toBe('processed')
 
@@ -226,8 +230,6 @@ test('a purge that fails partway erases nothing and is retried', async () => {
 	for (const needle of ['Kari', 'notater', 'terskel', ...erasable, held.id]) {
 		expect(failure).not.toContain(needle)
 	}
-	logged.mockRestore()
-	await prisma.$executeRawUnsafe(`DROP TRIGGER purge_record_fails`)
 })
 
 test('a purge a crash stranded in running is retried by the next boot', async () => {
@@ -256,8 +258,8 @@ test('a purge a crash stranded in running is retried by the next boot', async ()
 		data: { runAt: new Date(0) },
 	})
 	const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+	onTestFinished(() => info.mockRestore())
 	expect(await processNextJob(jobHandlers)).toBe('processed')
-	info.mockRestore()
 
 	expect((await readJob(job.id)).status).toBe('completed')
 	expect(await prisma.workout.count({ where: { id: { in: erasable } } })).toBe(
@@ -323,9 +325,9 @@ test('the run writes its record on its own row, not on another of its kind', asy
 	})
 	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
 	const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+	onTestFinished(() => info.mockRestore())
 
 	expect(await processNextJob(jobHandlers)).toBe('processed')
-	info.mockRestore()
 
 	expect((await readJob(job.id)).payload).toEqual({
 		purged: { erased: 2, keptUnattributed: 1, spliced: 0 },
