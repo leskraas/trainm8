@@ -439,6 +439,23 @@ describe('jumps are instant writes the reader asked for', () => {
 		expect(writes).toEqual([weekOffset(27) - 2])
 	})
 
+	test('the sentinel firing while a jump ahead is still to render never unmounts the jump’s week', () => {
+		const { stream, getByTestId, text } = mount()
+		const sentinel = stream.querySelector(`[${AHEAD_SENTINEL_ATTR}]`)!
+		const ahead = aheadObserver()
+		act(() => {
+			fireEvent.click(getByTestId(`jump-${KEYS[27]}`))
+			ahead.callback(
+				[
+					{ target: sentinel, isIntersecting: true },
+				] as unknown as IntersectionObserverEntry[],
+				ahead as unknown as IntersectionObserver,
+			)
+		})
+		expect(Number(text('after'))).toBeGreaterThanOrEqual(27 - TODAY_INDEX)
+		expect(stream.querySelector(`[${WEEK_ATTR}="${KEYS[27]}"]`)).not.toBeNull()
+	})
+
 	test('a jump hands the position to the reader: late layout no longer re-lands', () => {
 		const { stream, getByTestId } = mount()
 		fireEvent.click(getByTestId(`jump-${KEYS[3]}`))

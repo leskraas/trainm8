@@ -145,9 +145,7 @@ export function useTimelineScroll({
 	// to hydrate and a tap the reader makes come first (ADR 0113).
 	useEffect(() => {
 		startTransition(() => {
-			setAfter((n) =>
-				Math.max(n, Math.min(maxAfterRef.current, AHEAD_INITIAL)),
-			)
+			setAfter((n) => Math.max(n, Math.min(maxAfterRef.current, AHEAD_INITIAL)))
 		})
 	}, [])
 
@@ -347,10 +345,13 @@ export function useTimelineScroll({
 			(entries) => {
 				if (!entries.some((entry) => entry.isIntersecting)) return
 				if (afterRef.current >= maxAfterRef.current) return
-				// A value, not an updater: on open the sentinel is in reach while the
-				// append after hydration (above) is still pending, and an updater
-				// would be replayed on top of it, mounting two chunks at once.
-				setAfter(nextAhead(afterRef.current, maxAfterRef.current))
+				// The next chunk counts from what is rendered, not from an update
+				// still pending: on open the sentinel is in reach while the append
+				// after hydration (above) is pending, and counting from it would
+				// mount two chunks at once. Never below a pending value, though: a
+				// jump ahead (`goToWeek`) still to render keeps its week mounted.
+				const want = nextAhead(afterRef.current, maxAfterRef.current)
+				setAfter((n) => Math.max(n, want))
 			},
 			{ root: el, rootMargin: `0px 0px ${AHEAD_PAD}px 0px` },
 		)
