@@ -456,13 +456,13 @@ export default function TelemetryOverlay({
 					))}
 					{bands.length > 0 ? (
 						<span className="flex items-center gap-1.5">
-							<span className="bg-primary/20 ring-primary/50 size-3 rounded-sm ring-1" />{' '}
+							<span className="bg-primary/20 ring-primary/50 size-3 rounded-[3px] ring-1" />{' '}
 							{L.plannedTarget}
 						</span>
 					) : null}
 					{pauseCount > 0 ? (
 						<span className="text-muted-foreground flex items-center gap-1.5">
-							<span className="bg-muted-foreground/20 size-3 rounded-sm" />{' '}
+							<span className="bg-muted-foreground/20 size-3 rounded-[3px]" />{' '}
 							{L.paused}
 						</span>
 					) : null}
@@ -513,14 +513,14 @@ export default function TelemetryOverlay({
 					)}
 				/>
 
-				<div className="text-caption text-muted-foreground flex items-center justify-between tabular-nums">
+				<div className="text-caption text-muted-foreground flex items-center justify-between font-normal tabular-nums">
 					<span>{L.start}</span>
 					<span>{L.total(formatClockDuration(totalSec))}</span>
 				</div>
 
 				{profile.bars.length > 0 ? (
 					<div className="space-y-1">
-						<p className="text-caption text-muted-foreground">
+						<p className="text-caption text-muted-foreground font-normal">
 							{L.plannedShape}
 						</p>
 						<ProfileBars
@@ -836,7 +836,7 @@ function TelemetryReading({
 				<span className="inline-flex items-center gap-1.5">
 					<span
 						aria-hidden
-						className="bg-primary/30 ring-primary/60 size-2 shrink-0 rounded-sm ring-1"
+						className="bg-primary/30 ring-primary/60 size-2 shrink-0 rounded-[3px] ring-1"
 					/>
 					{L.plannedRange(target.min, target.max, model.targetUnit)}
 				</span>

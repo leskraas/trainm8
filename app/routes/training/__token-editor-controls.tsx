@@ -15,6 +15,8 @@ import {
 	parseDuration,
 } from '#app/utils/format.ts'
 import { TOKEN_EDITOR_CONTROL_LABELS as C } from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
+import { POPOVER_FIELD_CLASS } from './__popover-field.ts'
 
 // Conform metadata is typed loosely here, matching the editor modules: only
 // names/keys/values are read, so the generics add noise without safety.
@@ -213,7 +215,7 @@ export function TypeToEditStepper({
 				aria-label={C.decrease(label)}
 				disabled={fieldValue == null || fieldValue <= config.min}
 				onClick={decrease}
-				className="size-11 shrink-0 rounded-lg text-lg"
+				className="text-heading size-11 shrink-0 rounded-3xl"
 			>
 				−
 			</Button>
@@ -223,7 +225,10 @@ export function TypeToEditStepper({
 				aria-label={C.value(label)}
 				value={text}
 				onChange={(event) => handleTyped(event.target.value)}
-				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-3 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
+				className={cn(
+					POPOVER_FIELD_CLASS,
+					'flex-1 px-3 text-center font-medium tabular-nums',
+				)}
 			/>
 			<Button
 				type="button"
@@ -233,7 +238,7 @@ export function TypeToEditStepper({
 					config.max != null && fieldValue != null && fieldValue >= config.max
 				}
 				onClick={increase}
-				className="size-11 shrink-0 rounded-lg text-lg"
+				className="text-heading size-11 shrink-0 rounded-3xl"
 			>
 				+
 			</Button>

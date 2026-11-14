@@ -263,10 +263,10 @@ Withdrawal would retain the athlete's text with no reader and no purpose.
 - **No recurring sweep; lint pins the one deletion path.** Orphaned Workouts
   stop being created only because `deleteAccount` is the one deletion path.
   Since
-  [ADR 0119](./0119-orphaned-workouts-are-erased-once-by-a-boot-job-and-lint-keeps-deleteaccount-the-one-path.md)
+  [ADR 0121](./0121-orphaned-workouts-are-erased-once-by-a-boot-job-and-lint-keeps-deleteaccount-the-one-path.md)
   `npm run lint` rejects a `.user.delete` / `.user.deleteMany` call anywhere in
   `app/` or `server/` outside `account-deletion.server.ts` and test files.
-- **Pre-existing Orphaned Workouts are purged once, by a boot job** (ADR 0119),
+- **Pre-existing Orphaned Workouts are purged once, by a boot job** (ADR 0121),
   not by the guarded cleanup migration this note first suggested: the job runs
   the same rules as `deleteAccount`, from the same module. Run this read-only
   count before the release that ships the job, to know what it will erase, and

@@ -140,7 +140,9 @@ function Specimen({
 		>
 			<header className="flex flex-wrap items-baseline justify-between gap-x-3">
 				<h3 className="text-heading">{name}</h3>
-				<code className="text-caption text-muted-foreground">ui/{file}</code>
+				<code className="text-caption text-muted-foreground font-normal">
+					ui/{file}
+				</code>
 				<p className="text-footnote text-muted-foreground w-full">{use}</p>
 			</header>
 			{children}

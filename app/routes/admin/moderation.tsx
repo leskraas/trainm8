@@ -115,12 +115,12 @@ export default function ModerationRoute({ loaderData }: Route.ComponentProps) {
 				back={{ to: '/', label: APP_TAB_LABELS.today }}
 				className="mb-2"
 			/>
-			<p className="text-muted-foreground mb-6 text-sm">
+			<p className="text-muted-foreground text-footnote mb-6">
 				Open reports on published sessions, oldest first.
 			</p>
 
 			{reports.length === 0 ? (
-				<p className="text-muted-foreground text-sm" data-empty-queue>
+				<p className="text-muted-foreground text-footnote" data-empty-queue>
 					No open reports.
 				</p>
 			) : (
@@ -130,7 +130,7 @@ export default function ModerationRoute({ loaderData }: Route.ComponentProps) {
 							<Card>
 								<CardHeader className="flex flex-wrap items-start justify-between gap-2">
 									<div className="min-w-0 space-y-1">
-										<CardTitle className="text-base font-bold tracking-tight">
+										<CardTitle className="text-heading">
 											{report.workout.title}
 										</CardTitle>
 										<p className="text-body-xs text-muted-foreground">
@@ -156,7 +156,7 @@ export default function ModerationRoute({ loaderData }: Route.ComponentProps) {
 										{formatDate(report.createdAt, timeZone)}
 									</p>
 									{report.detail ? (
-										<p className="text-body-sm rounded-xl border p-3">
+										<p className="text-body-sm bg-muted/50 rounded-3xl p-3">
 											{report.detail}
 										</p>
 									) : null}
@@ -206,7 +206,7 @@ export default function ModerationRoute({ loaderData }: Route.ComponentProps) {
 				</ul>
 			)}
 
-			<p className="text-muted-foreground mt-8 text-sm">
+			<p className="text-muted-foreground text-footnote mt-8">
 				<Link to="/training/catalogue" className="underline">
 					The Catalogue
 				</Link>

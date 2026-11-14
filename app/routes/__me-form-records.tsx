@@ -62,7 +62,7 @@ export function FormSection({
 								data-testid={`me-form-${stat.key}`}
 								className="flex min-w-0 flex-col-reverse gap-1"
 							>
-								<dt className="text-caption text-muted-foreground">
+								<dt className="text-caption text-muted-foreground font-normal">
 									{/* The plain word is what is written (`Kondisjon`, never
 									    `Kond`); the trigger's accessible name is the term with
 									    its abbreviation (#181), and a tap opens what it means. */}
@@ -178,7 +178,7 @@ export function RecordsSection({
 									</li>
 								))}
 							</ul>
-							<p className="text-caption text-muted-foreground mt-3">
+							<p className="text-caption text-muted-foreground mt-3 font-normal">
 								{ME_RECORD_LABELS.source}
 							</p>
 							<SourceCredits credits={credits} className="mt-1" />

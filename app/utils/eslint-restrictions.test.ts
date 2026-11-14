@@ -5,7 +5,7 @@ import { beforeAll, expect, test } from 'vitest'
 /**
  * The `no-restricted-syntax` restrictions in `eslint.config.js` share one rule,
  * and flat config replaces a rule's options per block instead of merging them
- * (ADR 0119 §5). These lint a snippet at each kind of path through the real
+ * (ADR 0121 §5). These lint a snippet at each kind of path through the real
  * config, so no restriction can silently shadow another again.
  */
 const eslint = new ESLint({ cwd: path.resolve(import.meta.dirname, '../..') })
@@ -17,7 +17,7 @@ const SERVER_FILE = 'server/index.ts'
 const ROUTE_FILE = 'app/routes/settings/profile/index.tsx'
 const TEST_FILE = 'app/utils/catalogue.server.test.ts'
 const ROUTE_TEST_FILE = 'app/routes/me.test.tsx'
-// Fixtures under `tests/` sit outside the rule's files (ADR 0119 §4).
+// Fixtures under `tests/` sit outside the rule's files (ADR 0121 §4).
 const FIXTURE_FILE = 'tests/playwright-utils.ts'
 
 const USER_DELETE = `

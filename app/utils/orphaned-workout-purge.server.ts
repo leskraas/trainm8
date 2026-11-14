@@ -12,11 +12,11 @@ import {
 
 /**
  * One-time purge of the **Orphaned Workouts** every account deleted before #641
- * left stored (#468, ADR 0119). It runs `eraseOrphanedWorkouts`, the same rules
+ * left stored (#468, ADR 0121). It runs `eraseOrphanedWorkouts`, the same rules
  * `deleteAccount` applies, so a row another athlete's training points at is kept
  * unattributed and every other one is erased.
  *
- * **Why a job and not a migration** (ADR 0119 §3): the rules exist once, in
+ * **Why a job and not a migration** (ADR 0121 §3): the rules exist once, in
  * tested TypeScript; a SQL copy of the lineage splice would drift from them.
  * Boot enqueues it exactly once, the job row is the marker, and the queue's
  * attempts are its retries.

@@ -1,14 +1,14 @@
 /**
  * **Account Erasure** — what "Slett kontoen din" does to the Workouts an athlete
  * wrote, and what the one-time purge does to the **Orphaned Workouts** every
- * deletion before #641 left behind (ADR 0051 §5 "Account erasure", ADR 0119).
+ * deletion before #641 left behind (ADR 0051 §5 "Account erasure", ADR 0121).
  *
  * `Workout.ownerId` is `SetNull` (ADR 0051 §2), so a bare `prisma.user.delete`
  * erases the account and leaves every Workout the athlete wrote behind as an
  * Orphaned Workout — their titles, descriptions and notes, and, for a published one, a
  * Shared Workout under the name they published as. This is the one place an
  * account is deleted, and it erases first; lint rejects any other
- * `user.delete` in `app/` and `server/` (ADR 0119 §4).
+ * `user.delete` in `app/` and `server/` (ADR 0121 §4).
  *
  * The rules live here once and run over an **erasure scope**: an account's own
  * Workouts (`deleteAccount`) or the Orphaned Workouts (`eraseOrphanedWorkouts`).
@@ -91,7 +91,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 
 /**
  * Erase the **Orphaned Workouts** with the rules `deleteAccount` applies, inside
- * the caller's transaction (the one-time purge, ADR 0119 §2). Idempotent: a row
+ * the caller's transaction (the one-time purge, ADR 0121 §2). Idempotent: a row
  * kept unattributed on one run is held by the same training on the next, so it
  * is kept again and never erased.
  */

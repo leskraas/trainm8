@@ -124,6 +124,14 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
    by construction. A rebuilt regeneration brings its own batch key rather than
    inheriting a column that never held one.
 
+   **Amended by
+   [ADR 0120](./0120-a-generated-plan-keeps-a-generation-record-and-its-weeks-are-laid-again-by-the-generator.md)
+   (#686).** The batch key is the plan's **Generation Record**, reached through
+   `planOutlineId`, not a session column. Laying a generated plan's weeks again
+   replaces only `REPLACEABLE_SESSION`s (the machine's, untrained, unlogged) in
+   weeks not yet begun, and keeps a placed session its week still has a slot
+   for.
+
 7. **Scheduling** — sessions are placed into concrete `scheduledAt` (UTC) from a
    new **Training Availability** on `AthleteProfile` (trainable weekdays +
    default time), reused across generations.

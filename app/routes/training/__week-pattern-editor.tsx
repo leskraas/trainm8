@@ -382,7 +382,7 @@ function PatternCard({
 				) : (
 					<ol
 						aria-label={SESONG_PATTERN_LABELS.days(pattern.name)}
-						className="divide-border divide-y"
+						className="divide-border/60 divide-y"
 					>
 						{pattern.days.map((day) => {
 							const resolved = dayReadings.get(day.dayId)
@@ -470,7 +470,7 @@ function PatternDayRow({
 	return (
 		<div className="space-y-2">
 			<div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-				<div className="text-sm">
+				<div className="text-footnote">
 					<span className="font-medium">
 						{NB_PATTERN_WEEKDAY_LABELS[day.weekday]}
 					</span>{' '}
@@ -493,7 +493,7 @@ function PatternDayRow({
 							: null}
 					</span>
 				</div>
-				<p className="text-sm font-medium tabular-nums">
+				<p className="text-callout tabular-nums">
 					{reading == null || reading.value == null || track == null ? (
 						<span className="text-muted-foreground font-normal">
 							{SESONG_PAGE_LABELS.unavailable}
@@ -507,7 +507,7 @@ function PatternDayRow({
 			</div>
 
 			{reading?.value == null && track ? (
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-footnote">
 					{dayUnavailableReason(day, track, trackReading)}
 				</p>
 			) : null}
