@@ -9,7 +9,7 @@
  * server, so it is there when the answer is, focused and brought into view
  * at once. Press feedback only (`pressable`, the buttons' own).
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useFetcher } from 'react-router'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
@@ -121,6 +121,9 @@ function ActivitiesEditor({
 			? reply.message
 			: ''
 
+	// The note says why a press wrote nothing; the chips' fieldset points at
+	// it, so a screen reader reads the refusal with the choices it refuses.
+	const noteId = useId()
 	const previewRef = useRef<HTMLElement>(null)
 	const staleRef = useRef<HTMLParagraphElement>(null)
 	const doneRef = useRef<HTMLParagraphElement>(null)
@@ -147,7 +150,11 @@ function ActivitiesEditor({
 		<MegSection id="meg-activities" title={M.activities}>
 			<div className="space-y-4" data-meg-activities>
 				<MegNote>{W.note}</MegNote>
-				<fieldset className="space-y-2" data-activities-editor>
+				<fieldset
+					className="space-y-2"
+					aria-describedby={note ? noteId : undefined}
+					data-activities-editor
+				>
 					<legend className="sr-only">
 						{SIMPLE_START_LABELS.activities.list}
 					</legend>
@@ -204,6 +211,7 @@ function ActivitiesEditor({
 						{W.show}
 					</StatusButton>
 					<p
+						id={noteId}
 						role="status"
 						className="text-footnote text-muted-foreground"
 						data-activities-note
