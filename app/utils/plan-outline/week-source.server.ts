@@ -10,7 +10,7 @@ import { prisma } from '../db.server.ts'
  */
 export type PlanWeekSource =
 	| { kind: 'pattern'; patternId: string }
-	| { kind: 'generated'; recordId: string }
+	| { kind: 'generated' }
 	| { kind: 'none' }
 
 export async function readPlanWeekSource(
@@ -24,10 +24,10 @@ export async function readPlanWeekSource(
 		}),
 		prisma.generationRecord.findUnique({
 			where: { outlineId },
-			select: { id: true },
+			select: { outlineId: true },
 		}),
 	])
 	if (pattern) return { kind: 'pattern', patternId: pattern.id }
-	if (record) return { kind: 'generated', recordId: record.id }
+	if (record) return { kind: 'generated' }
 	return { kind: 'none' }
 }

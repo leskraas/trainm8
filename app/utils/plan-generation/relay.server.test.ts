@@ -190,10 +190,7 @@ test('approving records the generator, shape, intent and days with the sessions 
 			{ discipline: 'run', weekday: 5, role: 'long' },
 		],
 	})
-	expect(await readPlanWeekSource(outlineId)).toEqual({
-		kind: 'generated',
-		recordId: expect.any(String),
-	})
+	expect(await readPlanWeekSource(outlineId)).toEqual({ kind: 'generated' })
 })
 
 test('placing an unedited stored plan places exactly what approval placed (AC 10)', async () => {
