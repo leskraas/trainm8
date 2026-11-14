@@ -1,0 +1,3 @@
+✖ 155 problems (0 errors, 155 warnings)
+  0 errors and 4 warnings potentially fixable with the `--fix` option.
+lint exit 0 (NODE_OPTIONS=--max-old-space-size=8192; default heap aborted with OOM)
