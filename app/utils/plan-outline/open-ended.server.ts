@@ -664,8 +664,9 @@ export async function relayPlanFrom(
  * machine sessions in such a week, which would keep that week at the old
  * plan's numbers beside a new plan. A plan Plan Generation made, with no
  * Week Pattern, is laid again by its generator instead (ADR 0117 §3, §4).
- * A week the plan no longer reaches (or a
- * plan with no pattern) has its machine sessions cleared and nothing laid.
+ * A week the plan no longer reaches, or a plan with nothing to lay (no
+ * pattern and no Generation Record), has its machine sessions cleared and
+ * nothing laid.
  * Returns how many weeks were touched.
  */
 async function relayFutureWeeks(
