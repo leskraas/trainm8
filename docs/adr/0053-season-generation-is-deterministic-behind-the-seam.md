@@ -11,7 +11,10 @@ amended by
 [ADR 0120](./0120-a-generated-plan-keeps-a-generation-record-and-its-weeks-are-laid-again-by-the-generator.md)**:
 the seam also places weeks (`placeWeeks`), a generated plan keeps a **Generation
 Record**, and its weeks are laid again through the seam; the athlete rebuilding
-the season stays unbuilt.
+the season stays unbuilt. · **§6 clarified by
+[ADR 0124](./0124-a-generated-weeks-planned-volume-is-read-outside-the-seam-as-sesong-will-read-it.md)**:
+the sum of a week's placed sessions is a reading of the payload, not a field on
+it.
 
 Resolves [#456](https://github.com/leskraas/trainm8/issues/456), the build
 ticket for the decision recorded on

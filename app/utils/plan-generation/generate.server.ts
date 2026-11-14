@@ -40,7 +40,8 @@
  * through it would silently strip exactly the fields the Catalogue exists to
  * express.
  */
-import { weekMonday } from '../athlete-calendar.ts'
+import { localDate, weekMonday } from '../athlete-calendar.ts'
+import { trainingTimeOf } from '../athlete-schema.ts'
 import { catalogueEntrySelect } from '../catalogue.server.ts'
 import { type CatalogueGoalEvent, type CataloguePhase } from '../catalogue.ts'
 import { prisma } from '../db.server.ts'
@@ -65,7 +66,12 @@ import {
 } from '../plan-outline/proposal.ts'
 import { readConversionContexts } from '../plan-outline/volume-conversion.server.ts'
 import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
-import { getDisciplineThresholds } from '../training.server.ts'
+import {
+	ledgerVolumeSessions,
+	placedVolumeSession,
+} from '../plan-outline/week-volumes.ts'
+import { getDisciplineThresholds, getLedgerWeeks } from '../training.server.ts'
+import { deriveLedgerStatus } from '../training.ts'
 import {
 	isCardioDiscipline,
 	type CardioDiscipline,
@@ -73,6 +79,10 @@ import {
 } from '../workout-schema.ts'
 import { generateSeason, type SeasonGenerator } from './generator.ts'
 import { goalEventFor } from './goal-event.ts'
+import {
+	previewWeekVolumes,
+	type PreviewWeekVolumes,
+} from './planned-volume.ts'
 import { type RetrievableEntry } from './retrieval.ts'
 import {
 	DEFAULT_GENERATION_INTENT,
@@ -82,7 +92,8 @@ import {
 	type SeasonRequest,
 } from './season.ts'
 import {
-	defaultTrainingTime,
+	PLACED_STATUS,
+	placedAt,
 	readStockWorkouts,
 	recomputeWrittenSessions,
 	writeGeneratedSessions,
@@ -160,6 +171,13 @@ export type SeasonPreview = {
 	proposals: TrackProposal[]
 	/** Hours per Training Week the athlete authored, or null where they never did. */
 	weeklyCapacityHours: number | null
+	/**
+	 * Per season week, the three numbers per track over the week as approval
+	 * would leave it (ADR 0124): the Week Target beside the **Planned Volume** of
+	 * the sessions placed and the athlete's sessions already there, read through
+	 * the week model _Sesong_ reads. Numbers and codes; the route words them.
+	 */
+	weekVolumes: PreviewWeekVolumes[]
 }
 
 /**
@@ -247,6 +265,8 @@ type GenerationContext = {
 	proposals: TrackProposal[]
 	trainableWeekdays: number[] | null
 	weeklyCapacityHours: number | null
+	/** The athlete's default training time: when a placed session is written. */
+	trainingTime: string
 	/** The session row's thresholds: what a placed session is timed by (ADR 0116). */
 	thresholds: DisciplineThresholdMap
 	corpus: RetrievableEntry[]
@@ -280,7 +300,11 @@ async function readContext(
 	)
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId: athleteId },
-		select: { trainableWeekdays: true, weeklyCapacityHours: true },
+		select: {
+			trainableWeekdays: true,
+			weeklyCapacityHours: true,
+			defaultTrainingTime: true,
+		},
 	})
 	const disciplines = parseEventDisciplines(event.disciplines)
 	const proposals = trackDisciplinesFor(disciplines, volumes).map(
@@ -296,6 +320,7 @@ async function readContext(
 		proposals,
 		trainableWeekdays: parseWeekdays(profile?.trainableWeekdays ?? null),
 		weeklyCapacityHours: profile?.weeklyCapacityHours ?? null,
+		trainingTime: trainingTimeOf(profile),
 		thresholds: await getDisciplineThresholds(athleteId),
 		corpus: await readGenerationCorpus(),
 		readContexts: (startWeekKey, disciplines) =>
@@ -425,11 +450,8 @@ export async function previewSeason(
 	answers: GenerationAnswers = {},
 	options: { now?: Date; generator?: SeasonGenerator } = {},
 ): Promise<PreviewResult> {
-	const context = await readContext(
-		athleteId,
-		eventId,
-		options.now ?? new Date(),
-	)
+	const now = options.now ?? new Date()
+	const context = await readContext(athleteId, eventId, now)
 	if (!context) return { ok: false, reason: 'event-not-found' }
 	const choice = resolveChoice(context, answers)
 	if (choice.tracks.length === 0) {
@@ -440,6 +462,12 @@ export async function previewSeason(
 		await buildRequest(context, choice),
 		context.corpus,
 		options.generator,
+	)
+	const weekVolumes = await readPreviewWeekVolumes(
+		athleteId,
+		season,
+		context,
+		now,
 	)
 
 	return {
@@ -458,8 +486,69 @@ export async function previewSeason(
 			timezone: context.timezone,
 			proposals: context.proposals,
 			weeklyCapacityHours: context.weeklyCapacityHours,
+			weekVolumes,
 		},
 	}
+}
+
+/**
+ * Read a generated season's weeks as _Sesong_ will read them once it is
+ * approved unchanged (ADR 0124). **Reads only.**
+ *
+ * Each placed session is read off the **Stock Workout** approval copies
+ * ({@link readStockWorkouts}, the one reader approval and a re-lay copy from
+ * too), on the day and with the status it will have once written
+ * ({@link placedAt}). The
+ * athlete's sessions already in the season's weeks come in one range read with
+ * the ledger's select and through `ledgerVolumeSessions`, as _Sesong_ reads them:
+ * approval deletes none of them, so the week's planned figure counts them. A
+ * placed session whose Stock Workout is gone is left out, as approval leaves it
+ * out. Nothing is resolved, rescaled or written (ADR 0053 §6, §8).
+ */
+async function readPreviewWeekVolumes(
+	athleteId: string,
+	season: GeneratedSeason,
+	{
+		timezone,
+		thresholds,
+		trainingTime,
+	}: Pick<GenerationContext, 'timezone' | 'thresholds' | 'trainingTime'>,
+	now: Date,
+): Promise<PreviewWeekVolumes[]> {
+	if (season.weeks.length === 0) return []
+	const [stock, existing] = await Promise.all([
+		readStockWorkouts(season.sessions),
+		getLedgerWeeks(
+			athleteId,
+			{
+				fromWeekKey: season.weeks[0]!.weekKey,
+				toWeekKey: season.weeks.at(-1)!.weekKey,
+			},
+			timezone,
+		),
+	])
+	return previewWeekVolumes({
+		season,
+		todayKey: localDate(now, timezone),
+		placed: season.sessions.flatMap((session) => {
+			const workout = stock.get(session.workoutId)
+			if (!workout) return []
+			const scheduledAt = placedAt(session, trainingTime, timezone)
+			return [
+				placedVolumeSession(workout, {
+					// The day as Sesong reads it off the row (`ledgerVolumeSessions`).
+					dayKey: localDate(scheduledAt, timezone),
+					status: deriveLedgerStatus(
+						{ status: PLACED_STATUS, scheduledAt },
+						now,
+						timezone,
+					),
+					thresholds,
+				}),
+			]
+		}),
+		existing: ledgerVolumeSessions(existing, { now, timezone, thresholds }),
+	})
 }
 
 /**
@@ -557,7 +646,7 @@ export async function approveSeason(
 		eventId,
 		planOutlineId: created.outlineId,
 		timezone: context.timezone,
-		trainingTime: await defaultTrainingTime(athleteId),
+		trainingTime: context.trainingTime,
 	}
 	const sources = await readStockWorkouts(season.sessions)
 	const sessionIds = await prisma.$transaction(async (tx) => {

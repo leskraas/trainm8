@@ -60,3 +60,19 @@ test('an empty day names what it asked for, joined the Norwegian way', () => {
 		L.nothingToPlace(['terskel', 'under terskel', 'tempo'], 'oppbygging'),
 	).toContain('terskel, under terskel eller tempo i oppbygging')
 })
+
+test('the gap between a week’s target and its sessions is named once, and holds its no-break spaces (#472)', () => {
+	expect(L.placedAsPublished(10)).toMatch(
+		/skaleres aldri for å treffe ukemålet/,
+	)
+	expect(L.placedAsPublished(10)).toContain('≠\u00a0betyr')
+	expect(L.placedAsPublished(10)).toContain('mer enn 10\u00a0% unna målet')
+	// The tolerance is the caller's (`DRIFT_TOLERANCE`), never a copy of it.
+	expect(L.placedAsPublished(15)).toContain('mer enn 15\u00a0% unna målet')
+	expect(L.alreadyInWeek(1)).toBe(
+		'Planlagt teller også med 1 økt du allerede har denne uka.',
+	)
+	expect(L.alreadyInWeek(3)).toBe(
+		'Planlagt teller også med 3 økter du allerede har denne uka.',
+	)
+})

@@ -129,6 +129,30 @@ export const PLAN_GENERATE_LABELS = {
 		`${count} av ukene her tar mer tid enn du har`,
 
 	seasonTitle: 'Sesongen',
+	/**
+	 * Said once under «Sesongen», never on a card (#472): why a week's target and
+	 * the sum of its sessions can be two numbers (ADR 0053 §6), and what `≠`
+	 * means, since the preview has no meter or tooltip to teach it. The percent
+	 * is the caller's (`DRIFT_TOLERANCE`, which this runtime leaf does not
+	 * import), so the sentence and the mark never disagree. `≠ betyr` and the
+	 * percent are held together by no-break spaces.
+	 */
+	placedAsPublished: (percent: number) =>
+		`Øktene legges inn slik kilden publiserte dem og skaleres aldri for å treffe ukemålet, så målet og summen av øktene kan være to ulike tall. ≠\u00a0betyr at planlagt er mer enn ${Math.round(percent)}\u00a0% unna målet.`,
+	/**
+	 * What a screen reader hears for a Week Target that is an **Unavailable
+	 * Metric**, where the card shows `—`, which is not spoken.
+	 */
+	targetUnavailable: 'ikke tilgjengelig',
+	/** The name of a week card's list of tracks, for a screen reader. */
+	weekFiguresLabel: 'Mål og planlagt per idrett',
+	/**
+	 * Under a week's figures, where the athlete already has sessions in it:
+	 * approval deletes none, so `planlagt` counts them too (ADR 0124 §4), and the
+	 * figure is never larger than the rows under it without a reason.
+	 */
+	alreadyInWeek: (count: number) =>
+		`Planlagt teller også med ${nbSessionCount(count)} du allerede har denne uka.`,
 	/** `Grunntrening 4 uker`, in the line of phases. */
 	phase: (name: string, weeks: number) => `${name} ${nbWeeks(weeks)}`,
 	/** A week by its ISO number, as every week on Sesong is named. */

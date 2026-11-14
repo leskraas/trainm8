@@ -40,19 +40,74 @@ export async function defaultTrainingTime(athleteId: string): Promise<string> {
 }
 
 /**
- * The Stock Workouts the sessions copy, read once before the writing
- * transaction (through the shared `workoutCopySelect`).
+ * The **Stock Workouts** the sessions copy, by id, read once before the writing
+ * transaction: the columns and rows `copyWorkout` writes (`workoutCopySelect`),
+ * plus the block and step ids the Workout Shape keys its bars by, which a copy
+ * never writes. One reader for the preview, the approval and a re-lay, so the
+ * figure the athlete reviews is read off the very rows the approval copies
+ * (ADR 0124 §2).
  */
 export async function readStockWorkouts(
-	sessions: readonly GeneratedSession[],
-): Promise<Map<string, CopyableWorkout>> {
-	const workoutIds = [...new Set(sessions.map((session) => session.workoutId))]
-	if (workoutIds.length === 0) return new Map()
-	const sources = await prisma.workout.findMany({
-		where: { id: { in: workoutIds } },
-		select: workoutCopySelect,
+	sessions: readonly Pick<GeneratedSession, 'workoutId'>[],
+): Promise<Map<string, StockWorkout>> {
+	const ids = [...new Set(sessions.map((session) => session.workoutId))]
+	if (ids.length === 0) return new Map()
+	const rows = await prisma.workout.findMany({
+		// Stock rows only, as the corpus read: an id the seam hands back is never
+		// trusted to be one, so no athlete's own Workout is read or copied.
+		where: { id: { in: ids }, authorship: 'system' },
+		select: stockWorkoutSelect,
 	})
-	return new Map(sources.map((source) => [source.id, source]))
+	const byId = new Map(rows.map((row) => [row.id, row]))
+	// A dropped session leaves the week's figure short of the rows under it, so
+	// the drop is said, with its ids, rather than left silent.
+	const dropped = ids.filter((id) => !byId.has(id))
+	if (dropped.length > 0) {
+		console.warn(
+			`Season generation: ${dropped.length} placed Workout id(s) are not Stock Workouts, so their sessions are left out: ${dropped.join(', ')}`,
+		)
+	}
+	return byId
+}
+
+const stockWorkoutSelect = {
+	...workoutCopySelect,
+	blocks: {
+		...workoutCopySelect.blocks,
+		select: {
+			...workoutCopySelect.blocks.select,
+			id: true,
+			steps: {
+				...workoutCopySelect.blocks.select.steps,
+				select: { ...workoutCopySelect.blocks.select.steps.select, id: true },
+			},
+		},
+	},
+} satisfies Prisma.WorkoutSelect
+
+export type StockWorkout = Prisma.WorkoutGetPayload<{
+	select: typeof stockWorkoutSelect
+}>
+
+/** The status a placed session is written with, and previewed as. */
+export const PLACED_STATUS = 'scheduled'
+
+/**
+ * When a placed session is written: its weekday in its week, at the athlete's
+ * training time. A pattern weekday is Monday-first and so is the Training Week,
+ * so the weekday *is* the offset from the week's own Monday (ADR 0019). The
+ * preview reads a session on the day and with the status this gives it.
+ */
+export function placedAt(
+	session: Pick<GeneratedSession, 'weekKey' | 'weekday'>,
+	trainingTime: string,
+	timezone: string,
+): Date {
+	return localTimeUTC(
+		addDays(session.weekKey, session.weekday),
+		trainingTime,
+		timezone,
+	)
 }
 
 /**
@@ -76,12 +131,8 @@ export async function writeGeneratedSessions(
 			data: {
 				userId: target.athleteId,
 				workoutId: copy.id,
-				scheduledAt: localTimeUTC(
-					addDays(session.weekKey, session.weekday),
-					target.trainingTime,
-					target.timezone,
-				),
-				status: 'scheduled',
+				scheduledAt: placedAt(session, target.trainingTime, target.timezone),
+				status: PLACED_STATUS,
 				source: 'generated',
 				targetEventId: target.eventId,
 				planOutlineId: target.planOutlineId,

@@ -26,10 +26,17 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
   `/training/events/new`, `/training/events/:id`.
 - Plan generation from an event: `/training/plan/generate/:eventId` (uses the
-  deterministic stub model client when `ANTHROPIC_API_KEY` is empty). With a
-  **Weekly Capacity** set on the Athlete Profile, the preview states **Placed
-  Hours** (ADR 0116): a week whose placed sessions alone take longer than the
-  capacity carries an amber line on its card (`[data-placed="over"]`,
+  deterministic stub model client when `ANTHROPIC_API_KEY` is empty). Each week
+  card has one row per track in the list _Mål og planlagt per idrett_:
+  `mål 32 km · planlagt 24 km +1 uten km ≠`, the Week Target beside the Planned
+  Volume Sesong will show after approval (#472). A week holding sessions the
+  athlete already had says _Planlagt teller også med N økter du allerede har
+  denne uka._ One sentence under «Sesongen» says sessions are placed as
+  published and what `≠` means. Pass anchors in the URL
+  (`?anchor-run=32&anchor-bike=5`) to see figures without typing. With a
+  **Weekly Capacity** set on the Athlete Profile, the preview also states
+  **Placed Hours** (ADR 0116): a week whose placed sessions alone take longer
+  than the capacity carries an amber line on its card (`[data-placed="over"]`,
   `Øktene alene tar minst ≈ 7,5 t, kapasiteten din er 6 t/uke.`), a line under
   _Sesongen_ names the weeks (`[data-placed="season"]`), and the closed _N uker
   til_ row names the hidden ones (`[data-placed="remaining"]`). To see it, set

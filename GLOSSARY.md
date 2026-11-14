@@ -2958,8 +2958,11 @@ strength track. A missed session still counts: it was planned. A session with no
 number in the currency is **counted apart with its reason** ("+2 uten km") and
 never added as zero, so a week whose sessions are all unmeasured has no Planned
 Volume rather than a planned zero. Writing, moving or editing a session moves
-this number and never the **Week Target**. _Avoid_: Planned load (that is
-Planned TSS, per session), week sum.
+this number and never the **Week Target**. A **Season Generation** preview reads
+it over the week as approval would leave it: the sessions it places and the
+athlete's sessions already in that week, so the preview and _Sesong_ state one
+number (ADR 0124). _Avoid_: Planned load (that is Planned TSS, per session),
+week sum.
 
 **Placed Hours**: How long one generated **Training Week**'s placed endurance
 sessions take **at least**, in hours: every step the **Workout Reading** can
