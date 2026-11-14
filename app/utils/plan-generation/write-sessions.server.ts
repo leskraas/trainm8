@@ -45,7 +45,7 @@ export async function defaultTrainingTime(athleteId: string): Promise<string> {
  * plus the block and step ids the Workout Shape keys its bars by, which a copy
  * never writes. One reader for the preview, the approval and a re-lay, so the
  * figure the athlete reviews is read off the very rows the approval copies
- * (ADR 0121 §2).
+ * (ADR 0124 §2).
  */
 export async function readStockWorkouts(
 	sessions: readonly Pick<GeneratedSession, 'workoutId'>[],

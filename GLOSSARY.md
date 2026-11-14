@@ -2961,7 +2961,7 @@ Volume rather than a planned zero. Writing, moving or editing a session moves
 this number and never the **Week Target**. A **Season Generation** preview reads
 it over the week as approval would leave it: the sessions it places and the
 athlete's sessions already in that week, so the preview and _Sesong_ state one
-number (ADR 0121). _Avoid_: Planned load (that is Planned TSS, per session),
+number (ADR 0124). _Avoid_: Planned load (that is Planned TSS, per session),
 week sum.
 
 **Placed Hours**: How long one generated **Training Week**'s placed endurance
