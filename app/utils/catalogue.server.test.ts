@@ -685,7 +685,7 @@ test('an adopted session keeps its Session Provenance through the adoption fork,
 	const adopted = await placedCopy(placed, athlete.id)
 
 	expect(
-		(await readPlacedProvenance(adopted, new Date()))?.provenance.kind,
+		(await readPlacedProvenance(adopted, new Date('2026-01-01T00:00:00Z')))?.provenance.kind,
 	).toBe('corpus')
 	// Without adoption the second hop is not taken: the Workout is the
 	// athlete's own fork, and the fork's content is theirs.
@@ -783,7 +783,7 @@ test('a community session reads its Attribution, never a Citation, and says when
 
 	await prisma.attribution.update({
 		where: { workoutId: shared.id },
-		data: { takenDownAt: new Date(), takedownReason: 'Unsafe to train' },
+		data: { takenDownAt: new Date('2026-01-01T00:00:00Z'), takedownReason: 'Unsafe to train' },
 	})
 	const takenDown = await readPlacedProvenance(placed, null)
 	expect(takenDown?.provenance.kind).toBe('community')
@@ -814,7 +814,7 @@ test('a placed session names its publisher only while the row is still published
 	})
 	await prisma.attribution.update({
 		where: { workoutId: shared.id },
-		data: { takenDownAt: new Date(), takedownReason: 'Unsafe to train' },
+		data: { takenDownAt: new Date('2026-01-01T00:00:00Z'), takedownReason: 'Unsafe to train' },
 	})
 	expect(await readPlacedProvenance(placed, null)).toEqual({
 		provenance: { kind: 'community', attribution: null },
@@ -839,7 +839,7 @@ test('a retired entry still gives a placed session its Citation', async () => {
 	const placed = await placedCopy(stock.id, athlete.id)
 	await prisma.catalogueEntry.update({
 		where: { workoutId: stock.id },
-		data: { retiredAt: new Date() },
+		data: { retiredAt: new Date('2026-01-01T00:00:00Z') },
 	})
 	expect((await readPlacedProvenance(placed, null))?.provenance.kind).toBe(
 		'corpus',
