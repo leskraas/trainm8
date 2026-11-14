@@ -53,6 +53,11 @@ export function sessionRowKey(session: GeneratedSession): string {
 	return `${session.weekIndex}-${session.weekday}-${session.discipline}-${session.entryId}`
 }
 
+/** The id of a row's provenance panel, while it is mounted. */
+function panelIdFor(key: string): string {
+	return `provenance-${key}`
+}
+
 export type OpenSessionRow = {
 	openKey: string | null
 	/** The panel that closes without animation, because it sat above the row
@@ -91,7 +96,7 @@ export function useOpenSessionRow(): OpenSessionRow {
 		openRef.current = { key, row }
 		setState({ openKey: key, snapKey: above ? previous.key : null })
 		if (above) holdInPlace(row)
-		revealWhenOpen(row)
+		revealWhenOpen(panelIdFor(key))
 	}, [])
 
 	const close = useCallback(() => {
@@ -136,11 +141,9 @@ export function holdInPlace(row: HTMLElement) {
  * A panel that opens past the fold scrolls into view, `block: 'nearest'`, so a
  * panel already on screen does not move. Instant under reduced motion.
  */
-function revealWhenOpen(row: HTMLElement) {
+function revealWhenOpen(panelId: string) {
 	window.setTimeout(() => {
-		const panel = row
-			.closest('[data-session-row]')
-			?.querySelector('[data-provenance-panel]')
+		const panel = document.getElementById(panelId)
 		// Optional calls: a browser without them (or a test DOM) just skips it.
 		const reduced =
 			typeof window.matchMedia === 'function' && prefersReducedMotion()
@@ -221,7 +224,7 @@ export function SessionRow({
 	const open = openRow.openKey === key
 	const snap = openRow.snapKey === key
 	const triggerRef = useRef<HTMLButtonElement>(null)
-	const panelId = `provenance-${key}`
+	const panelId = panelIdFor(key)
 
 	// Escape closes the open panel wherever focus is: Safari does not focus a
 	// clicked button, and a click elsewhere moves focus off the row. Focus goes
@@ -237,15 +240,14 @@ export function SessionRow({
 			const returnFocus =
 				active == null ||
 				active === document.body ||
-				Boolean(
-					triggerRef.current?.closest('[data-session-row]')?.contains(active),
-				)
+				Boolean(triggerRef.current?.contains(active)) ||
+				Boolean(document.getElementById(panelId)?.contains(active))
 			close()
 			if (returnFocus) triggerRef.current?.focus()
 		}
 		document.addEventListener('keydown', onKeyDown)
 		return () => document.removeEventListener('keydown', onKeyDown)
-	}, [open, close])
+	}, [open, close, panelId])
 
 	const extra = [
 		NB_SESSION_ARCHETYPE_LABELS[session.archetype],
