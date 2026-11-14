@@ -88,20 +88,19 @@ in pieces React can yield between.
    behaviour do not change; on the client the frame, the top line, the Week
    Strip and the Stream element hydrate first, and the weeks follow at idle
    priority. A tap on a week not yet hydrated hydrates that week first and React
-   replays the tap, so no tap is dropped. **Each week is a memoised
-   `StreamWeek` with the memo outside its boundary** (`memo` around the
-   `<Suspense>` around `WeekBlock`), and its props are stable, so a frame state
-   change during load stops at every unchanged week and never hands a pending
-   boundary a new element, which would force every boundary to hydrate in one
-   task (finding 6).
+   replays the tap, so no tap is dropped. **Each week is a memoised `StreamWeek`
+   with the memo outside its boundary** (`memo` around the `<Suspense>` around
+   `WeekBlock`), and its props are stable, so a frame state change during load
+   stops at every unchanged week and never hands a pending boundary a new
+   element, which would force every boundary to hydrate in one task (finding 6).
 
 ### If the budget is still missed
 
 #503 sets the budget against the seed season: the longest task within 15%, by
 URL and by navigation (median of 5), and "hydrated" by URL within 25%, each
-season's median over at least 20 interleaved runs. After 1–3 the build measures with
-`scripts/measure-home-stream.ts`, and only if a criterion is still over takes
-these, in order, re-measuring after each:
+season's median over at least 20 interleaved runs. After 1–3 the build measures
+with `scripts/measure-home-stream.ts`, and only if a criterion is still over
+takes these, in order, re-measuring after each:
 
 - **Server-render fewer weeks ahead.** The first chunk ahead in the server
   render shrinks to what a landing can show (this week and the next); the rest
@@ -135,11 +134,11 @@ these, in order, re-measuring after each:
 - **Move the presenter into a Web Worker or `requestIdleCallback`.** Rejected:
   hydration needs the same tree the server rendered on its first pass, so the
   data cannot arrive late without a mismatch or a second render.
-- **The week elements built in one `useMemo` over the visible weeks.**
-  Rejected while building it: one list is rebuilt whole when any of its inputs
-  changes (a week appended, the Ukeskiftet card), and every pending boundary is
-  then handed a new element. A memo per week, outside its boundary, stops at
-  each unchanged week.
+- **The week elements built in one `useMemo` over the visible weeks.** Rejected
+  while building it: one list is rebuilt whole when any of its inputs changes (a
+  week appended, the Ukeskiftet card), and every pending boundary is then handed
+  a new element. A memo per week, outside its boundary, stops at each unchanged
+  week.
 - **A virtualiser.** Rejected by ADR 0078 §1; the profile adds nothing for it:
   scrolling holds at 364 rows and the rows are not in the long task.
 
@@ -171,28 +170,28 @@ these, in order, re-measuring after each:
   `progressiveChunkSize` to infinity: a finished boundary goes out where it
   stands, and one still waiting for data streams as before.
 - **A row's profile bars are part of its days**, not the skeleton: the presenter
-  reads each session's ledger entry for the week's numbers
-  (`buildSessionRows`) and derives its bars (`sessionProfile`, the Session
-  Ledger's own rule) when the row is built.
+  reads each session's ledger entry for the week's numbers (`buildSessionRows`)
+  and derives its bars (`sessionProfile`, the Session Ledger's own rule) when
+  the row is built.
 - **In-app navigation is measured** by `scripts/measure-home-stream.ts --nav`,
   beside the load by URL; both take several servers and interleave them.
-- **Each stored intensity's zone is read once** (found on QA's return, #503).
-  On a quiet machine, after 1–3, the biggest piece left was `stepToZone`:
-  every rep of every step parsed its intensity again (`JSON.parse`, a zod
-  `safeParse`, and a thrown `SyntaxError` for a legacy plain word), for the
-  week's zone split in the skeleton and again for each row's bars.
-  `session-profile.ts` keeps each intensity's zone in a map bounded at 512
-  entries, and parses only what starts with `{`.
+- **Each stored intensity's zone is read once** (found on QA's return, #503). On
+  a quiet machine, after 1–3, the biggest piece left was `stepToZone`: every rep
+  of every step parsed its intensity again (`JSON.parse`, a zod `safeParse`, and
+  a thrown `SyntaxError` for a legacy plain word), for the week's zone split in
+  the skeleton and again for each row's bars. `session-profile.ts` keeps each
+  intensity's zone in a map bounded at 512 entries, and parses only what starts
+  with `{`.
 - **The fallback is built**: the server renders this week and the next
   (`AHEAD_LANDING`), and an effect appends the rest of `AHEAD_INITIAL` in a
-  transition once the frame has hydrated, below the reader. Until it lands,
-  the list ends in a screen's height of room (`h-dvh`): two weeks can be
-  shorter than the Stream on a tall screen or a late-week landing, and the
-  landing would be clamped short of its target and move once the weeks came.
+  transition once the frame has hydrated, below the reader. Until it lands, the
+  list ends in a screen's height of room (`h-dvh`): two weeks can be shorter
+  than the Stream on a tall screen or a late-week landing, and the landing would
+  be clamped short of its target and move once the weeks came.
 - **What is left is not the presenter or hydration.** After both, at 4×, the
   longest task is 1.6% longer than the seed season's by URL and 2.6% by
   navigation, and "hydrated" is 20.7% later pooled over 24 interleaved runs
-  (paired median 17%), which #503's 25% budget for it allows.
-  The profile has the presenter at 59ms against 40ms; the rest is the parse and
-  layout of the denser past's markup and the ledger's decode, the remainder this
-  ADR leaves to the spec rather than change what the loader ships.
+  (paired median 17%), which #503's 25% budget for it allows. The profile has
+  the presenter at 59ms against 40ms; the rest is the parse and layout of the
+  denser past's markup and the ledger's decode, the remainder this ADR leaves to
+  the spec rather than change what the loader ships.
