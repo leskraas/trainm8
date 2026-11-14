@@ -9,6 +9,11 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 ## Sub-features
 
 - The season plan at `/training/plan`, with its closed _Avansert_ section
+  holding the season editors (ADR 0101 §2).
+- The plan's **Guard Notices** (Ramp Guard, availability fit, band fit) in
+  _Plan_'s lead, under the card and before _Bibliotek_, as `role="note"`
+  notices in `[data-plan-guards]`, each closable by its button _Lukk merknaden
+  om …_ (ADR 0118). None renders inside _Avansert_.
   holding the season editors (ADR 0101 §2). Its Week Pattern editor: a day
   picks the Workout of one of the athlete's own sessions (fixed) or a shape for
   a share day (_formet etter <tittel>_).
@@ -58,6 +63,9 @@ await page.getByRole('heading', { name: 'Legg opp sesongen' }).waitFor()
 - The e2e spec creates a fresh user with no season. kody's seed may already have
   one, so `Plan` may land on the plan rather than on creation; check the URL
   before you drive creation.
+- A plan with no warnings shows no Guard Notice at all. To see them, author a
+  ramp over +8 %, few trainable weekdays, or a strength session outside its
+  block's band; `tests/e2e/mobile-overflow.test.ts` builds all three.
 - Season editors are inside _Avansert_, closed by default: open it with one tap
   on its heading (`openPlanAdvanced` in `tests/playwright-utils.ts`).
 - A Week Pattern day holds the plan's own copy of what it picked, a **Held
