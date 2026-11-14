@@ -19,6 +19,7 @@
  * So an edit that changes only targets writes nothing, and a phase edit
  * replaces exactly the sessions whose slots changed.
  */
+import { Prisma } from '@prisma/client'
 import {
 	localDate,
 	weekBoundsFromMondayUTC,
@@ -380,11 +381,27 @@ async function freezeRecordDays(
 		}
 	}
 
-	await prisma.generationRecordDay.createMany({
-		data: days.map((day) => ({
-			recordId: outline.generationRecord.id,
-			...day,
-		})),
-	})
+	try {
+		await prisma.generationRecordDay.createMany({
+			data: days.map((day) => ({
+				recordId: outline.generationRecord.id,
+				...day,
+			})),
+		})
+	} catch (error) {
+		// Two re-lays of one legacy plan can both find no days and both freeze
+		// them; the unique (record, discipline, weekday) key turns the second
+		// away. The days the first wrote are the plan's: read them back.
+		if (
+			error instanceof Prisma.PrismaClientKnownRequestError &&
+			error.code === 'P2002'
+		) {
+			return prisma.generationRecordDay.findMany({
+				where: { recordId: outline.generationRecord.id },
+				select: { discipline: true, weekday: true, role: true },
+			})
+		}
+		throw error
+	}
 	return days
 }

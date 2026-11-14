@@ -16,6 +16,7 @@ import {
 	type GenerationAnswers,
 } from './generate.server.ts'
 import { DETERMINISTIC_SEASON_GENERATOR } from './generator.ts'
+import { relayGeneratedPlan } from './relay.server.ts'
 
 // A generated plan keeps its sessions when its weeks are laid again (#686,
 // ADR 0117). Against the database: approval, the stored record, and
@@ -537,4 +538,23 @@ test('a session kept on another day leaves its own day one session, not two (AC 
 		(row) => row.weekKey === peakWeek,
 	)
 	expect(after.map((row) => row.weekday)).toEqual([0, 2, 4, 5])
+})
+
+test("two re-lays of a legacy plan at once both freeze its days without failing (AC 9)", async () => {
+	await seedCorpus()
+	const { athleteId, outlineId } = await approve()
+	const record = await prisma.generationRecord.update({
+		where: { outlineId },
+		data: { presetKey: null, intent: null, days: { deleteMany: {} } },
+		select: { id: true },
+	})
+	const before = await planSessions(athleteId)
+	await Promise.all([
+		relayGeneratedPlan(athleteId, outlineId, FIRST_UNBEGUN, 'UTC'),
+		relayGeneratedPlan(athleteId, outlineId, FIRST_UNBEGUN, 'UTC'),
+	])
+	expect(await planSessions(athleteId)).toEqual(before)
+	expect(
+		await prisma.generationRecordDay.count({ where: { recordId: record.id } }),
+	).toBe(4)
 })
