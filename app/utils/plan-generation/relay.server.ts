@@ -144,8 +144,9 @@ async function readGeneratedOutline(userId: string, outlineId: string) {
 		select: generatedOutlineSelect,
 	})
 	if (!outline?.generationRecord) return null
-	if (!generatorFor(outline.generationRecord.generatorId)) return null
-	return { ...outline, generationRecord: outline.generationRecord }
+	const generator = generatorFor(outline.generationRecord.generatorId)
+	if (!generator) return null
+	return { ...outline, generationRecord: outline.generationRecord, generator }
 }
 
 async function layWeeks(
@@ -155,7 +156,7 @@ async function layWeeks(
 ): Promise<GeneratedWeekLaid[]> {
 	if (weekKeys.length === 0) return []
 	const record = outline.generationRecord
-	const generator = generatorFor(record.generatorId)!
+	const generator = outline.generator
 	const corpus = await readGenerationCorpus()
 	const days =
 		record.days.length > 0
