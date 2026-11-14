@@ -1674,12 +1674,11 @@ export async function getLedgerWeek(
 	weekKey: string,
 	timezone: string,
 ): Promise<LedgerSession[]> {
-	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	return prisma.workoutSession.findMany({
-		where: { userId, scheduledAt: { gte: start, lte: end } },
-		orderBy: { scheduledAt: 'asc' },
-		select: ledgerSessionSelect,
-	})
+	return getLedgerWeeks(
+		userId,
+		{ fromWeekKey: weekKey, toWeekKey: weekKey },
+		timezone,
+	)
 }
 
 /**
