@@ -75,7 +75,7 @@ the four fail as text, which is why text never takes the mark.
 colour use the ink: I dag's week header and the large-screen season table's
 column heads.
 
-**Training Zones** (`zone-1…5`, ADR 0117 §3): the Z1–Z5 intensity ladder, blue →
+**Training Zones** (`zone-1…5`, ADR 0119 §3): the Z1–Z5 intensity ladder, blue →
 green → mustard → orange → red, on profile bars, the shape strip, the season
 chart and the score's chip tint. They are **marks, never text**: a bar, a strip
 cell, a chart fill or a tint. Each has a light and a dark value and reaches 3:1
@@ -105,7 +105,7 @@ popups and toggles `rounded-3xl` (~13px), menu items `rounded-2xl` (~11px), and
 luma's generated class names land on #505's numbers (cards 14–16, controls
 10–12+, pills full) without editing them.
 
-Page code takes the step by **what the element is** (ADR 0117), and the lint
+Page code takes the step by **what the element is** (ADR 0119), and the lint
 rule `trainm8/luma-steps` rejects `rounded-sm/md/lg/xl` in page code (its
 exemptions, `app/components/ui`, admin, marketing, SEO, auth, prototypes and
 tests, are listed in its block in `eslint.config.js`; admin still takes the
@@ -146,7 +146,7 @@ own `--text-*` namespace. Each step is a set: size, line height, weight and
 size-specific tracking (negative as type grows, slightly positive at caption
 sizes). Generated components keep their `text-sm`/`text-base`; page content uses
 these steps, and `trainm8/luma-steps` rejects a raw `text-xs`…`text-3xl` in page
-code (ADR 0117).
+code (ADR 0119).
 
 | Class           | Size/leading | Weight | Tracking | For                                |
 | --------------- | ------------ | ------ | -------- | ---------------------------------- |
@@ -159,7 +159,7 @@ code (ADR 0117).
 | `text-caption`  | 12/16        | 500    | +0.01em  | labels under figures               |
 | `text-overline` | 11/16        | 600    | +0.06em  | kickers; pair with `uppercase`     |
 
-**By role, not by nearest size** (ADR 0117): a page has **one** title, the
+**By role, not by nearest size** (ADR 0119): a page has **one** title, the
 content's name (a plan, a session, a lift's exercise), at `text-title`.
 `PageHeader`'s h1, `CardTitle`, the overlay header and sheet titles take
 `text-heading`. Row titles and labels over a figure take `text-callout` (was

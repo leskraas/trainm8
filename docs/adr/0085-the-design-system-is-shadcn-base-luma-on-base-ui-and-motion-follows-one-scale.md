@@ -3,7 +3,7 @@
 Status: Accepted
 
 > **Amended by
-> [ADR 0117](./0117-every-page-is-on-the-luma-steps-a-lint-rule-of-its-own-keeps-it-there-and-the-zone-hues-are-an-app-role.md)
+> [ADR 0119](./0119-every-page-is-on-the-luma-steps-a-lint-rule-of-its-own-keeps-it-there-and-the-zone-hues-are-an-app-role.md)
 > (#528).** `zone-1…5` is no longer temporary: it is the Training Zone app role,
 > with light and dark values. Every page, not only I dag, is on the luma steps.
 
@@ -74,7 +74,7 @@ style:
 There is no parallel naming. The older app tokens the timeline still reads
 (`ink-*`, `hairline*`, `warning`, `--shadow-pill`) are documented as temporary,
 to be removed when their call sites move to shadcn roles. (`zone-*` was on this
-list until ADR 0117 made it the Training Zone app role.)
+list until ADR 0119 made it the Training Zone app role.)
 
 **Radius.** There is one `--radius` and shadcn's derived scale (`sm` ×0.6 …
 `4xl` ×2.6). The base is set to **6px** so that luma's generated classes land on

@@ -297,7 +297,7 @@ function Wrapped({
 
 /**
  * The chip tint: the zone hue mixed ~22–26 % toward the card surface (§7.2),
- * which follows the zone's light or dark value per theme (ADR 0117 §3).
+ * which follows the zone's light or dark value per theme (ADR 0119 §3).
  * Static class strings for the Tailwind compiler. Exported so the intensity popover's zone chips (§7.3) share the
  * exact tint the line's chip renders.
  */
