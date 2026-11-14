@@ -36,6 +36,7 @@ import { upcomingSessionSelect } from '../ledger-session.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import { STARTER_PATTERN_NAME } from '../plan-outline/authoring.server.ts'
 import { phaseSpecs } from '../plan-outline/from-rows.ts'
+import { heldWorkouts } from '../plan-outline/held-workouts.server.ts'
 import {
 	closePendingRounds,
 	relayPlanFrom,
@@ -666,13 +667,22 @@ async function writeActivitiesEdit(
 				: [],
 		),
 	)
+	// Every Workout a day here takes is one the plan holds (ADR 0113): a
+	// Simple Activity's own, written held, and one copy of the session the
+	// lifts copy, so the athlete's own session stays theirs to edit or delete.
+	const held = heldWorkouts(tx, { outlineId, athleteId: userId })
 	const activityWorkouts = new Map<string, string>()
 	for (const activity of draft.simpleActivities) {
-		const workout = await createSimpleActivityWorkout(tx, userId, {
-			kind: activity.kind,
-			effortWord: activity.effortWord,
-			durationMin: activity.minutes,
-		})
+		const workout = await createSimpleActivityWorkout(
+			tx,
+			userId,
+			{
+				kind: activity.kind,
+				effortWord: activity.effortWord,
+				durationMin: activity.minutes,
+			},
+			{ heldByOutlineId: outlineId },
+		)
 		activityWorkouts.set(activity.workoutId, workout.id)
 	}
 	for (const day of draft.stampInput.days) {
@@ -697,7 +707,12 @@ async function writeActivitiesEdit(
 	}
 	const lifts = splice.strength.open?.sessionsPerWeek ?? 0
 	if (lifts > 0 && strengthChange) {
-		const workoutId = await readLiftingWorkoutId(tx, userId, now)
+		const source = await readLiftingWorkoutId(tx, userId, now)
+		const lifting = source ? await held.hold(source, 'strength') : null
+		if (lifting && !lifting.ok) {
+			throw new Error(`activities edit: ${lifting.reason}`)
+		}
+		const workoutId = lifting?.workoutId ?? null
 		for (let orderInDay = 0; orderInDay < lifts; orderInDay++) {
 			await tx.weekPatternDay.create({
 				data: {
@@ -711,6 +726,9 @@ async function writeActivitiesEdit(
 			})
 		}
 	}
+
+	// The rows the old days held and no day uses now go (ADR 0113 §4).
+	await held.sweep()
 
 	// A plan with no family follows the one laid from now on.
 	if (preview.familyTaken) {

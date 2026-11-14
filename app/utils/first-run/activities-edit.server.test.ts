@@ -9,7 +9,10 @@ import { trackRetiredAt } from '#app/utils/plan-outline/from-rows.ts'
 import type * as StampServer from '#app/utils/plan-outline/stamp.server.ts'
 import { plannedMinutes } from '#app/utils/prescribed-duration.ts'
 import { getSeasonForOutline } from '#app/utils/training.server.ts'
-import { buildBlocksCreate } from '#app/utils/workout.server.ts'
+import {
+	buildBlocksCreate,
+	deleteWorkoutSession,
+} from '#app/utils/workout.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { consoleError } from '#tests/setup/setup-test-env.ts'
 import {
@@ -545,4 +548,51 @@ test('an edit that could not offer strength leaves the Strength Frequency as it 
 		select: { strengthPerWeek: true },
 	})
 	expect(profile.strengthPerWeek).toBe(2)
+})
+
+test("every Workout the edit's pattern days use is one the plan holds, and none is left unused (ADR 0113)", async () => {
+	const { userId, outlineId } = await startPlan()
+	// The athlete lifted in the lived week: that session's own row is the one
+	// a lift copies, and it stays theirs to delete.
+	const lifted = (await sessionsIn(userId, PLAN_START)).find(
+		(session) => session.workout?.discipline === 'strength',
+	)!
+	await prisma.workoutSession.update({
+		where: { id: lifted.id },
+		data: {
+			status: 'completed',
+			scheduledAt: new Date('2030-01-15T06:00:00Z'),
+		},
+	})
+
+	for (const choice of [
+		SWIM_AND_YOGA,
+		{ ...SWIM_AND_YOGA, activities: ['hike' as const] },
+	]) {
+		const applied = await applyActivitiesEdit(userId, choice, NOW)
+		if (!applied.ok) throw new Error(applied.reason)
+	}
+
+	const days = await prisma.weekPatternDay.findMany({
+		where: { pattern: { outlineId }, workoutId: { not: null } },
+		select: {
+			kind: true,
+			workout: { select: { heldByOutlineId: true } },
+		},
+	})
+	expect(days.some((day) => day.kind === 'lifting')).toBe(true)
+	expect(days.some((day) => day.kind === 'fixed')).toBe(true)
+	for (const day of days) {
+		expect(day.workout?.heldByOutlineId).toBe(outlineId)
+	}
+	// The second edit's yoga is gone, so the plan holds no row no day uses.
+	expect(
+		await prisma.workout.count({
+			where: { heldByOutlineId: outlineId, patternDays: { none: {} } },
+		}),
+	).toBe(0)
+	// The athlete can still delete the session they lifted.
+	await expect(deleteWorkoutSession(userId, lifted.id)).resolves.toEqual({
+		id: lifted.id,
+	})
 })
