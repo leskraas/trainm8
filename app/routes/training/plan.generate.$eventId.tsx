@@ -900,7 +900,10 @@ function weekFigures(
 function TrackFigures({ figures }: { figures: WeekFigures }) {
 	return (
 		<div className="@container space-y-0.5">
+			{/* `role="list"` said outright: Tailwind's `list-style: none` makes
+			    WebKit drop the list role, and its name with it, for VoiceOver. */}
 			<ul
+				role="list"
 				aria-label={L.weekFiguresLabel}
 				className="text-footnote grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2.5 gap-y-0.5 tabular-nums @max-[300px]:grid-cols-1"
 			>

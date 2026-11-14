@@ -317,6 +317,8 @@ async function trackRows() {
 	const [list] = await screen.findAllByRole('list', {
 		name: PLAN_GENERATE_LABELS.weekFiguresLabel,
 	})
+	// Said outright: WebKit drops the list role of a `list-style: none` list.
+	expect(list).toHaveAttribute('role', 'list')
 	return within(list!)
 		.getAllByRole('listitem')
 		.map((item) => item.textContent?.replaceAll(/[\u00a0\u2009]/g, ' '))
