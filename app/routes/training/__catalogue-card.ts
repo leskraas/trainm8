@@ -8,11 +8,8 @@
  *
  * Pure: the loader hands over the Workout tree it read for the page's rows.
  */
-import {
-	CONVENTION_NOTICE,
-	HAND_WRITTEN_NOTICE,
-} from '#app/utils/catalogue-corpus.ts'
 import { CATALOGUE_LABELS } from '#app/utils/labels.ts'
+import { withoutProvenanceNotice } from '#app/utils/plan-generation/provenance.ts'
 import {
 	deriveWorkoutNotation,
 	notationSentence,
@@ -29,8 +26,8 @@ import { buildSessionSummary } from './__workout-detail-summary.ts'
 export function catalogueBlurb(description: string | null): string | null {
 	if (!description) return null
 	let text = description.trim()
-	for (const notice of [CONVENTION_NOTICE, HAND_WRITTEN_NOTICE]) {
-		if (text.startsWith(notice)) text = text.slice(notice.length)
+	for (const kind of ['convention', 'hand-written'] as const) {
+		text = withoutProvenanceNotice(text, { kind })
 	}
 	text = text
 		.replace(/\*\*([^*]+)\*\*/g, '$1')
