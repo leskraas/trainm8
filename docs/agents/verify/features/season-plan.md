@@ -9,14 +9,13 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 ## Sub-features
 
 - The season plan at `/training/plan`, with its closed _Avansert_ section
-  holding the season editors (ADR 0101 §2).
+  holding the season editors (ADR 0101 §2). Its Week Pattern editor: a day picks
+  the Workout of one of the athlete's own sessions (fixed) or a shape for a
+  share day (_formet etter <tittel>_).
 - The plan's **Guard Notices** (Ramp Guard, availability fit, band fit) in
   _Plan_'s lead, under the card and before _Bibliotek_, as `role="note"` notices
   in `[data-plan-guards]`, each closable by its button _Lukk merknaden om …_
-  (ADR 0118). None renders inside _Avansert_. holding the season editors (ADR
-  0101 §2). Its Week Pattern editor: a day picks the Workout of one of the
-  athlete's own sessions (fixed) or a shape for a share day (_formet etter
-  <tittel>_).
+  (ADR 0118). None renders inside _Avansert_.
 - Plan creation at `/training/plan/new`: a dated goal (_Mål_, _Dato_, _Lag målet
   og gå videre_), then _Legg opp sesongen_ (base, units, start volume).
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
