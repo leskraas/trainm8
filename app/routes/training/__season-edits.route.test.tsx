@@ -12,7 +12,7 @@
  * The rest of the card (previews, confirms, refusals) is covered in
  * `plan.route.test.tsx` and `plan.season-edits.test.ts`.
  */
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
@@ -265,6 +265,51 @@ test('a segment starting on the first unbegun week opens on its value; only late
 	expect(
 		screen.getByText(/Sesongstarten \(Fra uke 1 · 31\. des 2029 · 30 km\)/),
 	).toBeInTheDocument()
+})
+
+function anchorPreviewReply(value: number) {
+	const edit = {
+		kind: 'season-anchor' as const,
+		trackId: RUN,
+		action: 'add' as const,
+		fromWeekKey: '2030-01-14',
+		value,
+	}
+	return {
+		edit: 'season-anchor' as const,
+		preview: {
+			kind: 'season-anchor' as const,
+			weeks: [],
+			digest: 'digest-1',
+			message: `Løping fra uke 3: nytt startnivå ${value} km.`,
+			warnings: [],
+			edit,
+			anchor: {
+				unit: 'km',
+				changedWeeks: '1 uke får nytt mål',
+				rows: [],
+				held: [],
+			},
+		},
+	}
+}
+
+test('the preview stays while the field says the same number, however it is written', async () => {
+	renderAnchorEdit(
+		anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]),
+		anchorPreviewReply(45.5),
+	)
+	const field = await screen.findByLabelText('Starter på (km)')
+	expect(field).toHaveValue('45,5')
+	expect(document.querySelector('[data-season-edit-preview]')).not.toBeNull()
+
+	// A decimal point, a trailing zero: the number the preview was made from.
+	fireEvent.input(field, { target: { value: '45.50' } })
+	expect(document.querySelector('[data-season-edit-preview]')).not.toBeNull()
+
+	// Another number is another edit: the preview is someone else's.
+	fireEvent.input(field, { target: { value: '46' } })
+	expect(document.querySelector('[data-season-edit-preview]')).toBeNull()
 })
 
 test('a preview row names the track’s Volume Currency beside its figures', async () => {

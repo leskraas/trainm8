@@ -666,8 +666,20 @@ function previewStillShown(
 		// the form's to keep.
 		if (name === 'revert' || (shown.revert && name === 'value')) return true
 		const current = formValue?.[name]
-		return (typeof current === 'string' ? current : '') === value
+		const typed = typeof current === 'string' ? current : ''
+		if (typed === value) return true
+		// A figure is the number it says, not how it was typed: `45.5`, `45,50`
+		// and ` 45,5` are the `45,5` the preview was made from, as the schema
+		// reads them.
+		return /value$/i.test(name) && sameTypedNumber(typed, value)
 	})
+}
+
+function sameTypedNumber(typed: string, shown: string): boolean {
+	const read = (raw: string) =>
+		raw.trim() === '' ? NaN : Number(raw.trim().replace(',', '.'))
+	const a = read(typed)
+	return Number.isFinite(a) && a === read(shown)
 }
 
 /**
