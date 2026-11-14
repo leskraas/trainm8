@@ -229,7 +229,7 @@ function ActivitiesEditor({
 						ref={doneRef}
 						tabIndex={-1}
 						role="status"
-						className="focus:ring-ring text-footnote rounded-md outline-none focus:ring-2"
+						className="focus:ring-ring text-footnote rounded-2xl outline-none focus:ring-2"
 						data-activities-done
 					>
 						{reply?.kind === 'done' ? reply.message : null}{' '}
@@ -291,7 +291,7 @@ function ActivitiesPreview({
 					ref={staleRef}
 					tabIndex={-1}
 					role="alert"
-					className="focus:ring-ring text-footnote text-destructive rounded-md outline-none focus:ring-2"
+					className="focus:ring-ring text-footnote text-destructive rounded-2xl outline-none focus:ring-2"
 					data-activities-stale
 				>
 					{W.stale}
