@@ -112,7 +112,7 @@ test('the job worker knows how to run the backfill', async () => {
 	const athlete = await createAthlete()
 	const id = await insertLegacyConnection(athlete.id, 'strava', 'a', 'r')
 
-	await jobHandlers[CREDENTIAL_ENCRYPTION_BACKFILL_JOB_KIND]!({})
+	await jobHandlers[CREDENTIAL_ENCRYPTION_BACKFILL_JOB_KIND]!({}, { id: 'job' })
 
 	expect((await storedTokens(id)).accessToken).toMatch(/^enc:v1:/)
 })

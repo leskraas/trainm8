@@ -222,9 +222,9 @@ included** — then the account. What survives:
   cited Stock Workout keeps its citation.
 - **A row another athlete's session, Week Pattern slot or a Program day points
   at directly.** No shipped path writes one, but deleting it would cascade into
-  somebody else's training. It is kept, **withdrawn**: `private`, its entry
-  retired, its **Attribution** deleted because that row holds the published
-  name.
+  somebody else's training. It is kept **unattributed** (not a withdrawal; see
+  **Account Erasure** in the glossary): `private`, its entry retired, its
+  **Attribution** deleted because that row holds the published name.
 
 A `CatalogueSave` does not keep a row alive: it is a pointer, not a copy, and it
 cascades away with the row.
@@ -260,15 +260,20 @@ Withdrawal would retain the athlete's text with no reader and no purpose.
   cascades its open `WorkoutReport`s and its Attribution's takedown record, so
   an author can erase the evidence of a report by deleting their account. A
   de-identified tombstone (reason, dates, no content) would close it.
-- **No recurring sweep.** Orphans stop being created only because
-  `deleteAccount` is the one deletion path. A future path that deletes a `User`
-  directly re-creates them silently; the read path stays safe, but the data is
-  retained. Nothing pins the one-path rule yet.
-- **Pre-existing orphans are not yet purged in production.** The guarded cleanup
-  migration is not in this change; the read path makes them unreadable, but they
-  are still stored. Run this read-only count first. An orphan is an
+- **No recurring sweep; lint pins the one deletion path.** Orphaned Workouts
+  stop being created only because `deleteAccount` is the one deletion path.
+  Since
+  [ADR 0121](./0121-orphaned-workouts-are-erased-once-by-a-boot-job-and-lint-keeps-deleteaccount-the-one-path.md)
+  `npm run lint` rejects a `.user.delete` / `.user.deleteMany` call anywhere in
+  `app/` or `server/` outside `account-deletion.server.ts` and test files.
+- **Pre-existing Orphaned Workouts are purged once, by a boot job** (ADR 0121),
+  not by the guarded cleanup migration this note first suggested: the job runs
+  the same rules as `deleteAccount`, from the same module. Run this read-only
+  count before the release that ships the job, to know what it will erase, and
+  again after, as the check that it ran. An Orphaned Workout is an
   athlete-authored row with no owner; Stock Workouts are excluded by
-  `authorship`, never by `ownerId` (§2):
+  `authorship`, never by `ownerId` (§2). After the job, the only rows it counts
+  are kept ones, all `private`:
 
   ```sql
   SELECT "visibility", COUNT(*) AS orphans
