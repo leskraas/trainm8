@@ -66,15 +66,8 @@ import {
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { AutopilotHistoryCard } from '../__autopilot-notice.tsx'
-import {
-	buildLoadRecomputeLine,
-	type LoadRecomputeLine,
-} from '../presenter.ts'
-import {
-	AHEAD_INITIAL,
-	type AwayFromToday,
-	landingScript,
-} from './anchoring.ts'
+import { buildLoadRecomputeLine, type LoadRecomputeLine } from '../presenter.ts'
+import { type AwayFromToday, landingScript } from './anchoring.ts'
 import {
 	type ComposerContainer,
 	type ComposerTarget,
@@ -266,13 +259,6 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		() => season.weeks.slice(0, to + 1),
 		[season.weeks, to],
 	)
-	// Until the rest of the first chunk is appended (ADR 0119), the end of the
-	// list holds a screen's height of room, so the landing never runs out of
-	// room below today and stops short of its target, to move once the weeks
-	// arrive (#503 criterion 5).
-	const firstChunkPending =
-		to <
-		Math.min(season.weeks.length - 1, season.todayWeekIndex + AHEAD_INITIAL)
 	const notice = buildLoadRecomputeLine(loadRecomputeNotice)
 
 	// The first day the composer may write on: the loader's own window. It
@@ -543,7 +529,11 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 									<EndCap cap={season.endCap} />
 								) : (
 									<>
-										{firstChunkPending ? (
+										{/* Until the rest of the first chunk is appended (ADR
+										    0119), a screen of room below the list, so the landing
+										    never runs out of room below today and stops short of
+										    it, to move once the weeks arrive (#503 criterion 5). */}
+										{scroll.firstChunkPending ? (
 											<div aria-hidden className="h-dvh" />
 										) : null}
 										{/* In reach, the next weeks ahead mount below — which

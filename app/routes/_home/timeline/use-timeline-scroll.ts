@@ -97,6 +97,12 @@ export type TimelineScroll = {
 	away: AwayFromToday
 	/** How many weeks after today are mounted. Every week before it always is. */
 	after: number
+	/**
+	 * True until the rest of the first chunk ahead is appended after hydration
+	 * (ADR 0119): the frame holds a screen of room below the list meanwhile, so
+	 * the landing is never clamped short of today (#503 criterion 5).
+	 */
+	firstChunkPending: boolean
 	backToToday: () => void
 	/** Mount the week if it is ahead of the window, then jump the stream to it. */
 	goToWeek: (key: string) => void
@@ -463,6 +469,7 @@ export function useTimelineScroll({
 		frame,
 		away,
 		after,
+		firstChunkPending: after < Math.min(maxAfter, AHEAD_INITIAL),
 		backToToday,
 		goToWeek,
 		readerKey,

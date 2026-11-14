@@ -226,6 +226,9 @@ function Harness() {
 			<span data-testid="frame">{`${scroll.frame.from}/${scroll.frame.to}`}</span>
 			<span data-testid="away">{scroll.away}</span>
 			<span data-testid="after">{scroll.after}</span>
+			<span data-testid="first-chunk-pending">
+				{String(scroll.firstChunkPending)}
+			</span>
 			<button type="button" data-testid="back" onClick={scroll.backToToday} />
 			<button
 				type="button"
@@ -305,11 +308,14 @@ describe('landing on today', () => {
 		expect(html.match(new RegExp(`${WEEK_ATTR}=`, 'g'))).toHaveLength(
 			TODAY_INDEX + 1 + AHEAD_LANDING,
 		)
+		// The frame holds room below the list until the append (criterion 5).
+		expect(html).toMatch(/data-testid="first-chunk-pending">true</)
 		const { stream, text } = mount()
 		expect(stream.querySelectorAll(`[${WEEK_ATTR}]`)).toHaveLength(
 			TODAY_INDEX + 1 + AHEAD_INITIAL,
 		)
 		expect(text('after')).toBe(String(AHEAD_INITIAL))
+		expect(text('first-chunk-pending')).toBe('false')
 		// The one write is the landing's; the append below moves nothing.
 		expect(writes).toEqual([landing()])
 		expect(stream.scrollTop).toBe(landing())
