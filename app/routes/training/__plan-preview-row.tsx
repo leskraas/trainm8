@@ -77,8 +77,17 @@ export function usePlanPreviewOpenRow(): PlanPreviewOpenRow {
 		snapKey: string | null
 	}>({ openKey: null, snapKey: null })
 	const openRef = useRef<{ key: string; row: HTMLElement } | null>(null)
+	// The pending scroll to the panel being opened. Every toggle and close
+	// cancels it, so a panel that closes before it finished opening is never
+	// scrolled to.
+	const revealRef = useRef<number | null>(null)
+	const cancelReveal = useCallback(() => {
+		if (revealRef.current != null) window.clearTimeout(revealRef.current)
+		revealRef.current = null
+	}, [])
 
 	const toggle = useCallback((key: string, row: HTMLElement) => {
+		cancelReveal()
 		const previous = openRef.current
 		if (previous?.key === key) {
 			openRef.current = null
@@ -96,13 +105,14 @@ export function usePlanPreviewOpenRow(): PlanPreviewOpenRow {
 		openRef.current = { key, row }
 		setState({ openKey: key, snapKey: above ? previous.key : null })
 		if (above) holdInPlace(row)
-		revealWhenOpen(panelIdFor(key))
-	}, [])
+		revealRef.current = revealWhenOpen(panelIdFor(key))
+	}, [cancelReveal])
 
 	const close = useCallback(() => {
+		cancelReveal()
 		openRef.current = null
 		setState({ openKey: null, snapKey: null })
-	}, [])
+	}, [cancelReveal])
 
 	return { ...state, toggle, close }
 }
@@ -139,10 +149,11 @@ export function holdInPlace(row: HTMLElement) {
 
 /**
  * A panel that opens past the fold scrolls into view, `block: 'nearest'`, so a
- * panel already on screen does not move. Instant under reduced motion.
+ * panel already on screen does not move. Instant under reduced motion. Returns
+ * the timer, for the caller to cancel when the panel closes first.
  */
-function revealWhenOpen(panelId: string) {
-	window.setTimeout(() => {
+function revealWhenOpen(panelId: string): number {
+	return window.setTimeout(() => {
 		const panel = document.getElementById(panelId)
 		// Optional calls: a browser without them (or a test DOM) just skips it.
 		const reduced =
