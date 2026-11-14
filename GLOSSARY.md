@@ -2726,8 +2726,12 @@ effect in the same week — a unique index on `(track, fromWeekKey)` — and the
 the next re-anchor is derived from it, so it can be edited but not removed, and
 weeks before it read as an **Unavailable Metric** rather than a fabricated
 number. A **Week Volume Override** survives a re-anchor untouched, still marked
-and still revertible (ADR 0044 §5). _Avoid_: Starting volume (ambiguous once
-there are segments), baseline (overloaded with threshold baselines).
+and still revertible (ADR 0044 §5). Corrected behind a preview in _Endre
+sesongen_ (ADR 0122), or directly under _Avansert_, where a track's first anchor
+is added. A fresh start is pre-filled with the level the **Volume Ramp** has
+reached at that week, the number its next loading week gets, never a week's
+target. _Avoid_: Starting volume (ambiguous once there are segments), baseline
+(overloaded with threshold baselines).
 
 **Volume Ramp**: The per-week rate of volume increase a **Training Track**
 authors per segment — the app's _upward_ counterpart to **Week Replan**'s

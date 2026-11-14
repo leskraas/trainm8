@@ -126,14 +126,17 @@ export function PillLink({
 	to,
 	children,
 	className,
+	'aria-label': ariaLabel,
 }: {
 	to: string
 	children: ReactNode
 	className?: string
+	'aria-label'?: string
 }) {
 	return (
 		<Link
 			to={to}
+			aria-label={ariaLabel}
 			className={cn(
 				buttonVariants({ variant: 'secondary', size: 'sm' }),
 				'rounded-full px-4',

@@ -321,6 +321,20 @@ export const PLAN_LEAD_LABELS = {
 	nextEasyWeek: (week: number, from: string) =>
 		`Neste lette uke er uke ${week}, fra ${from}.`,
 	thisWeekEasy: 'Denne uka er en lett uke.',
+	/** The lead's group of endurance tracks' volume (#673). */
+	volume: 'Ukevolum',
+	/** `Uke 47 · lett uke: 25 km` — the first unbegun week's target. */
+	volumeWeek: (
+		week: number,
+		role: string,
+		figure: string | null,
+		handSet: boolean,
+	) =>
+		`Uke ${week} · ${role}: ${figure ?? 'kan ikke regnes ut'}${handSet ? ' · satt selv' : ''}`,
+	changeVolume: 'Endre volumet',
+	changeVolumeFor: (track: string) =>
+		`Endre volumet for ${track.toLowerCase()}`,
+	strengthVolume: 'Styrke planlegges i blokker under Avansert.',
 	advanced: 'Avansert',
 	advancedDetail:
 		'Filosofi, ukemål, faser, treningsspor, den typiske uka og sesongdiagrammet.',
