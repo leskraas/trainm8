@@ -4,7 +4,11 @@ import {
 	eraseOrphanedWorkouts,
 } from './account-deletion.server.ts'
 import { prisma } from './db.server.ts'
-import { enqueueJob, failStaleJobs } from './jobs/queue.server.ts'
+import {
+	enqueueJob,
+	failStaleJobs,
+	type JobContext,
+} from './jobs/queue.server.ts'
 
 /**
  * One-time purge of the **Orphaned Workouts** every account deleted before #641
@@ -59,23 +63,23 @@ export async function ensureOrphanedWorkoutPurgeEnqueued(): Promise<void> {
 }
 
 /**
- * Run the purge. `job` is the queue's row this run is (its id and the payload
- * it was claimed with); the record is written onto that row.
+ * Run the purge, with a job handler's arguments: the payload the row was claimed
+ * with and the row itself, which the record is written onto.
  *
  * The payload a run is claimed with carries the record of any earlier run
  * that committed, since the claim reads the row after that commit.
  */
-export async function runOrphanedWorkoutPurge(job: {
-	id: string
-	payload: Record<string, unknown>
-}): Promise<AccountErasure> {
+export async function runOrphanedWorkoutPurge(
+	payload: Record<string, unknown>,
+	job: JobContext,
+): Promise<AccountErasure> {
 	const erasure = await prisma
 		.$transaction(async (tx) => {
 			const erasure = await eraseOrphanedWorkouts(tx)
-			if (isErasureRecord(job.payload.purged)) return erasure
+			if (isErasureRecord(payload.purged)) return erasure
 			await tx.job.update({
 				where: { id: job.id },
-				data: { payload: JSON.stringify({ ...job.payload, purged: erasure }) },
+				data: { payload: JSON.stringify({ ...payload, purged: erasure }) },
 			})
 			return erasure
 		}, ERASURE_TRANSACTION_OPTIONS)
