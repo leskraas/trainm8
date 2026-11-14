@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { type Page } from '@playwright/test'
+import { type Locator, type Page } from '@playwright/test'
+import { AHEAD_INITIAL } from '#app/routes/_home/timeline/anchoring.ts'
 import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -53,6 +54,27 @@ async function seedReader(userId: string) {
 		})),
 	})
 	return { now, timezone }
+}
+
+/**
+ * Until the rest of the first chunk ahead has been appended below today
+ * (ADR 0119): the server renders this week and the next, the rest mounts once
+ * the frame has hydrated. Every season here reaches past the first chunk.
+ */
+async function untilFirstChunk(stream: Locator) {
+	await expect
+		.poll(
+			() =>
+				stream.evaluate((el) => {
+					const weeks = [...el.querySelectorAll('[data-timeline-week]')]
+					const today = weeks.findIndex((week) =>
+						week.querySelector('[data-timeline-today]'),
+					)
+					return weeks.length - 1 - today
+				}),
+			{ timeout: 30_000 },
+		)
+		.toBeGreaterThanOrEqual(AHEAD_INITIAL)
 }
 
 /** Where the day row `key` sits from the stream's visible top, in px. */
@@ -152,7 +174,8 @@ test('weeks that mount after the first paint never move the row the reader is re
 	await navigate(HOME_TIMELINE_HREF)
 	const stream = page.getByTestId('timeline-stream')
 	await expect(stream).toBeVisible()
-	await page.waitForTimeout(1500)
+	await untilHydrated(stream)
+	await untilFirstChunk(stream)
 	const weeks = () => stream.locator('[data-timeline-week]').count()
 	const mounted = await weeks()
 
@@ -226,13 +249,10 @@ test('on a screen taller than the weeks the server renders ahead, today is parke
 	await navigate(HOME_TIMELINE_HREF)
 	const stream = page.getByTestId('timeline-stream')
 	await expect(stream).toBeVisible()
-	// Until the rest of the first chunk has been appended below.
-	await expect
-		.poll(() => stream.locator('[data-timeline-week]').count(), {
-			timeout: 30_000,
-		})
-		.toBeGreaterThan(0)
+	// Until the rest of the first chunk has been appended below, and a moment
+	// after, for anything that would move today once it has.
 	await untilHydrated(stream)
+	await untilFirstChunk(stream)
 	await page.waitForTimeout(1000)
 	const tops = await page.evaluate(
 		() => (window as unknown as { __todayTops: number[] }).__todayTops,
