@@ -1,0 +1,60 @@
+    [90m 33| [39m [90m// primary instance to avoid writing to a read-only replica[39m
+    [90m 34| [39m [35mawait[39m [34mensurePrimary[39m()
+    [90m   | [39m       [31m^[39m
+    [90m 35| [39m
+    [90m 36| [39m [35mconst[39m providerName [33m=[39m [33mProviderNameSchema[39m[33m.[39m[34mparse[39m(params[33m.[39mprovider)
+[90m [2m❯[22m app/routes/_auth/auth.$provider/callback.test.ts:[2m128:25[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m app/routes/_auth/auth.$provider/callback.test.ts[2m > [22mgives an error if the account is already connected to another user
+[31m[1mError[22m: litefs-js: LITEFS_DIR is not defined. You must either set the LITEFS_DIR environment variable or pass the litefsDir argument to getInstanceInfo[39m
+[90m [2m❯[22m getInstanceInfo node_modules/litefs-js/dist/index.js:[2m27:15[22m[39m
+[90m [2m❯[22m ensurePrimary node_modules/litefs-js/dist/remix.js:[2m17:57[22m[39m
+[36m [2m❯[22m loader app/routes/_auth/auth.$provider/callback.ts:[2m34:8[22m[39m
+    [90m 32| [39m // this loader performs mutations, so we need to make sure we're on t…
+    [90m 33| [39m [90m// primary instance to avoid writing to a read-only replica[39m
+    [90m 34| [39m [35mawait[39m [34mensurePrimary[39m()
+    [90m   | [39m       [31m^[39m
+    [90m 35| [39m
+    [90m 36| [39m [35mconst[39m providerName [33m=[39m [33mProviderNameSchema[39m[33m.[39m[34mparse[39m(params[33m.[39mprovider)
+[90m [2m❯[22m app/routes/_auth/auth.$provider/callback.test.ts:[2m175:25[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m app/routes/_auth/auth.$provider/callback.test.ts[2m > [22mif a user is not logged in, but the connection exists, make a session
+[31m[1mError[22m: litefs-js: LITEFS_DIR is not defined. You must either set the LITEFS_DIR environment variable or pass the litefsDir argument to getInstanceInfo[39m
+[90m [2m❯[22m getInstanceInfo node_modules/litefs-js/dist/index.js:[2m27:15[22m[39m
+[90m [2m❯[22m ensurePrimary node_modules/litefs-js/dist/remix.js:[2m17:57[22m[39m
+[36m [2m❯[22m loader app/routes/_auth/auth.$provider/callback.ts:[2m34:8[22m[39m
+    [90m 32| [39m // this loader performs mutations, so we need to make sure we're on t…
+    [90m 33| [39m [90m// primary instance to avoid writing to a read-only replica[39m
+    [90m 34| [39m [35mawait[39m [34mensurePrimary[39m()
+    [90m   | [39m       [31m^[39m
+    [90m 35| [39m
+    [90m 36| [39m [35mconst[39m providerName [33m=[39m [33mProviderNameSchema[39m[33m.[39m[34mparse[39m(params[33m.[39mprovider)
+[90m [2m❯[22m app/routes/_auth/auth.$provider/callback.test.ts:[2m201:25[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m app/routes/_auth/auth.$provider/callback.test.ts[2m > [22mif a user is not logged in, but the connection exists and they have enabled 2FA, send them to verify their 2FA and do not make a session
+[31m[1mError[22m: litefs-js: LITEFS_DIR is not defined. You must either set the LITEFS_DIR environment variable or pass the litefsDir argument to getInstanceInfo[39m
+[90m [2m❯[22m getInstanceInfo node_modules/litefs-js/dist/index.js:[2m27:15[22m[39m
+[90m [2m❯[22m ensurePrimary node_modules/litefs-js/dist/remix.js:[2m17:57[22m[39m
+[36m [2m❯[22m loader app/routes/_auth/auth.$provider/callback.ts:[2m34:8[22m[39m
+    [90m 32| [39m // this loader performs mutations, so we need to make sure we're on t…
+    [90m 33| [39m [90m// primary instance to avoid writing to a read-only replica[39m
+    [90m 34| [39m [35mawait[39m [34mensurePrimary[39m()
+    [90m   | [39m       [31m^[39m
+    [90m 35| [39m
+    [90m 36| [39m [35mconst[39m providerName [33m=[39m [33mProviderNameSchema[39m[33m.[39m[34mparse[39m(params[33m.[39mprovider)
+[90m [2m❯[22m app/routes/_auth/auth.$provider/callback.test.ts:[2m228:25[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/12]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m429 passed[39m[22m[90m (431)[39m
+[2m      Tests [22m [1m[31m12 failed[39m[22m[2m | [22m[1m[32m6545 passed[39m[22m[90m (6557)[39m
+[2m   Start at [22m 06:59:36
+[2m   Duration [22m 350.39s[2m (transform 20.77s, setup 241.49s, import 98.18s, tests 617.60s, environment 29.88s)[22m
+
