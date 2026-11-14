@@ -86,7 +86,11 @@ import {
 	type SeasonEditPreview,
 } from '#app/utils/plan-outline/season-edit.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
-import { COLLAPSIBLE_CHEVRON, CollapsibleSection } from './__plan-chrome.tsx'
+import {
+	COLLAPSIBLE_CHEVRON,
+	CollapsibleSection,
+	ROW_PRESS,
+} from './__plan-chrome.tsx'
 
 /** The preview as the page shows it: the diff, worded, and its digest. */
 export type SeasonEditPreviewView = Pick<
@@ -1641,7 +1645,12 @@ function SeasonAnchorPreviewRow({
 			data-season-anchor-row={row.weekKey}
 		>
 			<Collapsible>
-				<CollapsibleTrigger className="-mx-2 flex min-h-11 w-[calc(100%+1rem)] touch-manipulation items-center gap-3 rounded-2xl px-2 py-2 text-left select-none">
+				<CollapsibleTrigger
+					className={cn(
+						'-mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center gap-3 rounded-2xl px-2 py-2 text-left select-none',
+						ROW_PRESS,
+					)}
+				>
 					{week}
 					{figures}
 					<Icon name="chevron-down" size="sm" className={COLLAPSIBLE_CHEVRON} />
