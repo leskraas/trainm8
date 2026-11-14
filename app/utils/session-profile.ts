@@ -1,4 +1,3 @@
-import { z } from 'zod/v3'
 import { type LedgerSession } from './ledger-session.ts'
 import { perStep, stepDurationSec, workoutReps } from './workout-reps.ts'
 import {
@@ -19,21 +18,21 @@ export type TrainingZone = 1 | 2 | 3 | 4 | 5
 const isTrainingZone = (value: unknown): value is TrainingZone =>
 	value === 1 || value === 2 || value === 3 || value === 4 || value === 5
 
-export const ProfileBarSchema = z.object({
-	id: z.string(),
+/** One bar of a Workout Shape or a recording's stored profile. */
+export type ProfileBar = {
+	id: string
 	/** The derived training zone, or null when intensity can't be truthfully mapped to a zone. */
-	zone: z.custom<TrainingZone>(isTrainingZone).nullable(),
+	zone: TrainingZone | null
 	/** Relative weight for bar width — the segment's duration in seconds (0 when unquantified). */
-	durationSec: z.number(),
-})
-export type ProfileBar = z.infer<typeof ProfileBarSchema>
+	durationSec: number
+}
 
 /**
- * {@link ProfileBarSchema}'s check, written out: every completed session's
- * stored profile is read on opening I dag's full view, twice (its week's
- * volumes and its row's bars), and zod's object and union parsing was the
- * biggest piece of the season presenter after its formatters (#503). Like the
- * schema it keeps only the three fields.
+ * The one check of a stored {@link ProfileBar}, written by hand rather than as
+ * a zod schema: every completed session's stored profile is read on opening
+ * I dag's full view, twice (its week's volumes and its row's bars), and zod's
+ * object and union parsing was the biggest piece of the season presenter after
+ * its formatters (#503). It keeps only the three fields.
  */
 function readProfileBar(value: unknown): ProfileBar | null {
 	if (typeof value !== 'object' || value === null) return null
