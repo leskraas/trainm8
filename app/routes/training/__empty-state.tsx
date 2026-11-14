@@ -184,7 +184,7 @@ export function WorkoutEmptyState({
 					onClick={() => onSeed(seed)}
 					className="hover:bg-accent/40 focus-visible:ring-ring group flex min-h-11 w-full cursor-pointer flex-col items-start gap-0.5 rounded-2xl px-2 py-1.5 text-left outline-none focus-visible:ring-2"
 				>
-					<span className="text-muted-foreground group-hover:text-foreground text-caption font-medium">
+					<span className="text-muted-foreground group-hover:text-foreground text-caption font-normal">
 						{seed.name}
 					</span>
 					{seed.lines.map((line, index) => (
