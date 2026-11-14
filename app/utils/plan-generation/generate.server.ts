@@ -40,7 +40,7 @@
  * through it would silently strip exactly the fields the Catalogue exists to
  * express.
  */
-import { addDays, localDate, weekMonday } from '../athlete-calendar.ts'
+import { localDate, weekMonday } from '../athlete-calendar.ts'
 import { trainingTimeOf } from '../athlete-schema.ts'
 import { catalogueEntrySelect } from '../catalogue.server.ts'
 import { type CatalogueGoalEvent, type CataloguePhase } from '../catalogue.ts'
@@ -536,7 +536,8 @@ async function readPreviewWeekVolumes(
 			const scheduledAt = placedAt(session, trainingTime, timezone)
 			return [
 				placedVolumeSession(workout, {
-					dayKey: addDays(session.weekKey, session.weekday),
+					// The day as Sesong reads it off the row (`ledgerVolumeSessions`).
+					dayKey: localDate(scheduledAt, timezone),
 					status: deriveLedgerStatus(
 						{ status: PLACED_STATUS, scheduledAt },
 						now,
