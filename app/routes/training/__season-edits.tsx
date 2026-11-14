@@ -4,10 +4,12 @@
  * the plan's own), a phase's name, length and rhythm, and which week of a
  * block is the easy one — each behind a _Forhåndsvisning_ that shows the
  * weeks that change, warns where a target would rise more than 10 % over the
- * hard week before it, and says which numbers stay. (The fourth Sesong edit,
+ * hard week before it, and says which numbers stay. (The fifth Sesong edit,
  * the philosophy, is `__philosophy-switch.tsx`, built the same way.)
  *
- * This is the **only** place those numbers are edited: the Blocks and Weeks
+ * This is the only place a week's target, a phase and the easy week are
+ * edited, and the previewed one for a Season Anchor (the direct anchor editor
+ * under _Avansert_ stays beside it, ADR 0121 §3): the Blocks and Weeks
  * readings show them and link here with {@link SeasonEditLink}, which opens
  * the matching edit pre-filled through the URL (`?edit=…`).
  *

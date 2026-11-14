@@ -1,10 +1,9 @@
 // _Sesong_ edits, version 1 (#505 stories 72–77): a week's target (or back to
 // the plan's own), a phase's name, length and rhythm, which week of a block is
 // the easy one, and a track's **Season Anchor** (#673, ADR 0121) — each worked
-// out
-// before anything is written, so the preview the athlete approves and the edit
-// that lands are one computation. (The fourth Sesong edit, the philosophy, is
-// `philosophy.ts`, built the same way.)
+// out before anything is written, so the preview the athlete approves and the
+// edit that lands are one computation. (The fifth Sesong edit, the philosophy,
+// is `philosophy.ts`, built the same way.)
 //
 // Pure: stored rows in, a preview out. Both sides of every week come from
 // `weekViews` — the derivation every surface reads — run over the rows as they
