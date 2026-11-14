@@ -20,7 +20,8 @@
  *     and the blocking time over 50ms;
  *   - **todayTop**, where the landing parked today's row from the stream's
  *     top edge, and **todayDrift**, how far it moved, frame by frame, from
- *     first paint until the page is quiet (0 when it never moved);
+ *     the first frame that paints the list until the page is quiet (0 when it
+ *     never moved);
  *
  *   then scroll the stream from its top to its end, 40px a frame (as in ADR
  *   0086 §4) with instant writes, appended weeks included, recording every
@@ -97,11 +98,14 @@ const PROBE = `
 		if (stream) {
 			const today = stream.querySelector('[data-timeline-today]')
 			const top = today ? today.getBoundingClientRect().top - stream.getBoundingClientRect().top : null
-			if (top !== null && window.__firstTodayTop === undefined && performance.getEntriesByName('first-contentful-paint').length) {
+			// A list held unpainted until the landing has parked it (\`landingHoldScript\`)
+			// is not a painted frame.
+			const painted = getComputedStyle(stream).visibility !== 'hidden'
+			if (top !== null && painted && window.__firstTodayTop === undefined && performance.getEntriesByName('first-contentful-paint').length) {
 				window.__firstTodayTop = top
 				window.__todayDrift = 0
 			}
-			if (top !== null && window.__firstTodayTop !== undefined && !window.__reading) {
+			if (top !== null && painted && window.__firstTodayTop !== undefined && !window.__reading) {
 				window.__todayDrift = Math.max(window.__todayDrift, Math.abs(top - window.__firstTodayTop))
 			}
 			if (window.__hydrated === undefined && isReacts(stream)) window.__hydrated = performance.now()

@@ -370,6 +370,36 @@ export function compensatedScrollTop(
 	return before.scrollTop + delta
 }
 
+/** The `<style>` that holds the list unpainted until the landing has run. */
+export const LANDING_HOLD_ID = 'timeline-landing-hold'
+
+/**
+ * The script the server renders right **before** the stream: it holds the list
+ * unpainted until {@link landingScript} has parked it (#503 criterion 5).
+ *
+ * The browser paints whatever it has parsed whenever its parser yields, and on
+ * a long page it yields many times between today's row and the landing script
+ * after the list: those frames showed the top of the season, and the list then
+ * jumped to today. `content-visibility: hidden` keeps the list's rows out of
+ * those frames, and out of their style and layout work too, so a frame painted
+ * mid-parse is cheaper as well; `visibility: hidden` holds browsers without it.
+ *
+ * A style the script adds rather than one the page renders: a client
+ * navigation never runs a script React inserts, so the list it renders is
+ * never held, and the hook's landing parks it. Without JS nothing is held.
+ */
+export function landingHoldScript(): string {
+	return [
+		'(function(){',
+		"var c=document.createElement('style');",
+		`c.id=${JSON.stringify(LANDING_HOLD_ID)};`,
+		'var n=document.currentScript&&document.currentScript.nonce;if(n)c.nonce=n;',
+		"c.textContent='[data-timeline-stream]{content-visibility:hidden;visibility:hidden}';",
+		'document.head.appendChild(c);',
+		'})();',
+	].join('')
+}
+
 /**
  * The landing script the server renders right after the stream (ADR 0086):
  * {@link landingTop}, written out in plain ES5 and run by the browser as it
@@ -387,6 +417,9 @@ export function compensatedScrollTop(
 export function landingScript(streamId: string): string {
 	return [
 		'(function(){',
+		// The hold goes first, whatever follows: removed and measured in this one
+		// task, so the frame after it is the first that paints the list.
+		`var k=document.getElementById(${JSON.stringify(LANDING_HOLD_ID)});if(k)k.remove();`,
 		`var s=document.getElementById(${JSON.stringify(streamId)});if(!s)return;`,
 		// The frame's height first, as `home-timeline.tsx` measures it once it
 		// hydrates (the viewport less the chrome above it and the tab bar): with

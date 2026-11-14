@@ -57,6 +57,7 @@ import {
 	awayOf,
 	compensatedScrollTop,
 	frameOf,
+	LANDING_HOLD_ID,
 	landingTop,
 	nextAhead,
 	offsetWithin,
@@ -265,6 +266,9 @@ export function useTimelineScroll({
 	// nothing. Without it (no-JS-script cases, a client navigation) this is the
 	// landing.
 	useLayoutEffect(() => {
+		// The landing script lifts its hold on the list as it parks it; should it
+		// not have run, the list is never left held (`landingHoldScript`).
+		document.getElementById(LANDING_HOLD_ID)?.remove()
 		land()
 	}, [land])
 

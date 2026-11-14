@@ -73,6 +73,13 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
 - The server renders this week and the next ahead only; the rest of the first
   chunk ahead mounts after hydration (ADR 0122). Wait for a week further ahead
   rather than reading it off the first HTML.
+- Opened by URL, the list stays unpainted until the landing script has parked it
+  on today (`landingHoldScript`, #503 criterion 5): a check of where today sits
+  must read only frames where the stream is not `visibility: hidden`, and must
+  watch every frame from the first, since a check made once the document is
+  parsed cannot see a jump. Serving the document slowly (CDP
+  `Network.emulateNetworkConditions`) makes the parser yield where it would on a
+  phone.
 - How fast the full view opens on a long season is measured, not driven:
   `scripts/measure-home-stream.ts` (by URL, and `--nav` from _Se hele sesongen_)
   against a database prepared with `scripts/home-stream-fixture.ts`.

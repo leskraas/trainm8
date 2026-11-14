@@ -2,11 +2,11 @@ import { type Locator, type Page } from '@playwright/test'
 import sharp from 'sharp'
 import { landingTop } from '#app/routes/_home/timeline/anchoring.ts'
 import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import {
 	horizonWeekKey,
 	lastClosedWeekKey,
 } from '#app/utils/load/week-change.ts'
-import { prisma } from '#app/utils/db.server.ts'
 import { type Theme } from '#app/utils/theme.server.ts'
 import {
 	expect,
@@ -373,16 +373,59 @@ test('opens parked on today before the first paint: no hero, no jump, and the li
 	// hydrated at all. The server's landing script (ADR 0086, #505 P6) has
 	// already parked it; the old screen showed the top of the season here and
 	// jumped to today a moment later.
+	//
+	// And where today's row is in **every frame the browser paints the list**,
+	// from the first one on: the browser paints whatever it has parsed each
+	// time its parser yields, so a list painted before the landing script has
+	// run opens on the top of the season and jumps (#503 criterion 5). A frame
+	// in which the list is held unpainted (`landingHoldScript`) is skipped. The
+	// document is served slowly, so the parser does yield between today's row
+	// and the landing script, as it does on a phone's CPU and network; a check
+	// made only once the document is parsed cannot see those frames.
 	await page.addInitScript(() => {
+		const w = window as unknown as {
+			__parsedAt: number | null
+			__paintedTops: number[]
+		}
+		w.__paintedTops = []
+		const frame = () => {
+			const el = document.querySelector('[data-timeline-stream]')
+			const today = el?.querySelector('[data-timeline-today]')
+			if (el && today && getComputedStyle(el).visibility !== 'hidden') {
+				w.__paintedTops.push(
+					Math.round(
+						today.getBoundingClientRect().top - el.getBoundingClientRect().top,
+					),
+				)
+			}
+			if (document.readyState === 'loading' || w.__paintedTops.length < 30)
+				requestAnimationFrame(frame)
+		}
+		requestAnimationFrame(frame)
 		document.addEventListener('DOMContentLoaded', () => {
 			const el = document.querySelector('[data-timeline-stream]')
-			;(window as unknown as { __parsedAt: number | null }).__parsedAt = el
-				? Math.round(el.scrollTop)
-				: null
+			w.__parsedAt = el ? Math.round(el.scrollTop) : null
 		})
 	})
+	// Warm the route first (the dev server's cold transform), then open it
+	// again with the document trickling in.
 	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	const cdp = await page.context().newCDPSession(page)
+	await cdp.send('Network.emulateNetworkConditions', {
+		offline: false,
+		latency: 0,
+		downloadThroughput: 16 * 1024,
+		uploadThroughput: -1,
+	})
+	await page.reload()
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await cdp.send('Network.emulateNetworkConditions', {
+		offline: false,
+		latency: 0,
+		downloadThroughput: -1,
+		uploadThroughput: -1,
+	})
 	await page.waitForTimeout(1500)
 
 	const state = await streamState(page)
@@ -400,6 +443,16 @@ test('opens parked on today before the first paint: no hero, no jump, and the li
 	expect(parsedAt).not.toBeNull()
 	expect(parsedAt).toBeGreaterThan(0)
 	expect(Math.abs(parsedAt! - state.scrollTop)).toBeLessThanOrEqual(2)
+	// Parked from the first painted frame on, and never moved after it.
+	const paintedTops = await page.evaluate(
+		() => (window as unknown as { __paintedTops: number[] }).__paintedTops,
+	)
+	expect(paintedTops.length).toBeGreaterThan(0)
+	const parkedTop = (await streamState(page)).todayOffset! - state.scrollTop
+	expect(
+		paintedTops.filter((top) => Math.abs(top - parkedTop) > 2),
+		`today's row painted away from where it is parked (${parkedTop}px)`,
+	).toEqual([])
 	// Today lands *below* its week's sticky header, never under it — right
 	// against it when today opens the week (a Monday), and with room to spare
 	// on any later day.

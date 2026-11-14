@@ -67,7 +67,11 @@ import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { AutopilotHistoryCard } from '../__autopilot-notice.tsx'
 import { buildLoadRecomputeLine, type LoadRecomputeLine } from '../presenter.ts'
-import { type AwayFromToday, landingScript } from './anchoring.ts'
+import {
+	type AwayFromToday,
+	landingHoldScript,
+	landingScript,
+} from './anchoring.ts'
 import {
 	type ComposerContainer,
 	type ComposerTarget,
@@ -469,6 +473,16 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 						</div>
 					</header>
 
+					{/*
+					 * Hold the list unpainted until the landing script below has parked
+					 * it (#503 criterion 5): a frame the browser paints while it is
+					 * still parsing the list would show the top of the season.
+					 */}
+					<script
+						nonce={nonce}
+						suppressHydrationWarning
+						dangerouslySetInnerHTML={{ __html: landingHoldScript() }}
+					/>
 					<div
 						ref={streamRef}
 						id={streamId}

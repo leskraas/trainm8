@@ -23,7 +23,9 @@ import {
 	LANDING_ROOM,
 	landingOffsetFor,
 	landingPosition,
+	landingHoldScript,
 	landingScript,
+	LANDING_HOLD_ID,
 	landingTop,
 	nextAhead,
 	offsetWithin,
@@ -166,6 +168,34 @@ describe('the landing script the server renders', () => {
 		document.body.innerHTML = '<div id="s"></div>'
 		expect(() => new Function(landingScript('s'))()).not.toThrow()
 		expect(() => new Function(landingScript('missing'))()).not.toThrow()
+	})
+
+	test('the list is held unpainted until the landing has parked it, and only that long', () => {
+		const stream = layout({
+			weekOffset: 2000,
+			todayOffset: 2240,
+			todayHeight: 120,
+			headerHeight: 80,
+			clientHeight: VIEWPORT,
+		})
+		new Function(landingHoldScript())()
+		const hold = document.getElementById(LANDING_HOLD_ID)
+		expect(hold?.parentElement).toBe(document.head)
+		expect(hold?.textContent).toContain('[data-timeline-stream]')
+		expect(hold?.textContent).toContain('visibility:hidden')
+		new Function(landingScript('s'))()
+		expect(document.getElementById(LANDING_HOLD_ID)).toBeNull()
+		expect(stream.scrollTop).toBeGreaterThan(0)
+	})
+
+	test('the hold is lifted even where there is nothing to park', () => {
+		new Function(landingHoldScript())()
+		document.body.innerHTML = '<div id="s"></div>'
+		new Function(landingScript('s'))()
+		expect(document.getElementById(LANDING_HOLD_ID)).toBeNull()
+		new Function(landingHoldScript())()
+		new Function(landingScript('missing'))()
+		expect(document.getElementById(LANDING_HOLD_ID)).toBeNull()
 	})
 
 	test('the stream id is quoted, never spliced in raw', () => {
