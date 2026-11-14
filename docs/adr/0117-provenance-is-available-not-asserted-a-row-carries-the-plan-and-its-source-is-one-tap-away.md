@@ -3,9 +3,9 @@
 Status: Accepted (agent decision on delegated issue #475, 2026-11-13) · Records
 #437's rule · Narrows
 [ADR 0053](./0053-season-generation-is-deterministic-behind-the-seam.md) §7's
-walk for the session page · Narrows
-[ADR 0030](./0030-interactive-chart-contract.md) rule 3's hover parity to fixed
-panels · Answers #434's "shape of the review surface"
+and [ADR 0051](./0051-the-catalogue-has-four-axes.md) §5's walk for the session
+page · Narrows [ADR 0030](./0030-interactive-chart-contract.md) rule 3's hover
+parity to fixed panels · Answers #434's "shape of the review surface"
 
 ## Context
 
@@ -58,8 +58,9 @@ reached the calendar.
    or left without an owner, the line says an athlete published it, with the
    non-vouch, and names nobody.
 
-   This narrows ADR 0053 §7's "by walking the chain and never assuming one hop"
-   for this one reading. A full walk would cite a Stock Workout on a session the
+   This narrows ADR 0053 §7's "by walking the chain and never assuming one hop",
+   and ADR 0051 §5's "a reader walks it … rather than assuming one hop", for
+   this one reading. A full walk would cite a Stock Workout on a session the
    athlete built from their own fork of it, and the fork's content is the
    athlete's, not the source's. The full walk (`resolveCatalogueOrigin`) stays
    the rule for the Catalogue's "adapted from" line on a Shared Workout (ADR
