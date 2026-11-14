@@ -2409,10 +2409,8 @@ would now silently delete about a third of the corpus — the **Convention Rows*
 the **Hand-Written Rows**, and with them the only sessions that exist for race
 week. Nothing may claim a source it does not have, which is the rule that
 survives intact. **Available, not asserted** (ADR 0117): a row carries the plan
-and the provenance is one tap away, below the row on the **Plan Preview** and on
-the session page for a lived plan; it is read from the Workout the session was
-placed from, and only a source ever waits behind that tap, never an absence or a
-warning. _Avoid_: Citation (one of the four), source (overloaded with **Session
+and its provenance is one tap away; an absence or a warning never waits behind
+that tap. _Avoid_: Citation (one of the four), source (overloaded with **Session
 Source**), attribution (that is the community one)
 
 **Plan Preview**: The transient, un-persisted result of a **Plan Generation**,

@@ -6,8 +6,8 @@
  * archetype · zone) and the title. The whole row is one button, with a hairline
  * chevron as its only extra mark, and it opens the session's **Session
  * Provenance** in a panel directly below it, inside the week card (ADR 0030 rule
- * 3: a panel below the thing tapped, never a floating tooltip). Only a source
- * waits behind the tap; an unfilled slot, an absence, the capacity fit and a
+ * 3: a panel below the thing tapped, never a floating tooltip). Only the
+ * provenance waits behind the tap; an unfilled slot, an absence, the capacity fit and a
  * week's numbers stay on the page (#429).
  *
  * One panel is open across the whole season. Tapping the same row, pressing

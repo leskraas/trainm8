@@ -23,7 +23,7 @@
  * carries the plan and nothing else; tapping it opens the session's **Session
  * Provenance** — a **Citation** on a corpus row, the convention or hand-written
  * notice on the two uncited kinds — in a panel directly below it
- * (`__plan-preview-row.tsx`). Only a source waits behind the tap.
+ * (`__plan-preview-row.tsx`). Only the provenance waits behind the tap.
  *
  * The season is long: 27 weeks × 4 days is over a hundred rows at 390 px (ADR
  * 0028). The first four weeks are open and the rest sit behind one tap — the same
