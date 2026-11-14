@@ -276,7 +276,7 @@ test('an unknown timezone still throws on every call, and is never cached', () =
 	expect(() => localDate(new Date(), 'Nowhere/Atlantis')).toThrow(RangeError)
 })
 
-test('a timezone written in another letter case reuses the same formatter, so the cache stays bounded by IANA', () => {
+test('a timezone written in another letter case reuses the same formatter, so the cache keeps one formatter per zone', () => {
 	// Intl reads a zone name in any case (`asia/kathmandu` is Asia/Kathmandu),
 	// and the Athlete Timezone is stored as typed: keyed on the raw string, a
 	// user rewriting their zone in new casings would grow the process-lifetime

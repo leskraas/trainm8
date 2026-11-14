@@ -20,6 +20,7 @@
  *   form boundaries (#176 simple-mode form, #177 mm:ss threshold pace entry).
  */
 
+import { localDate, localTimeOfDay } from './athlete-calendar.ts'
 import {
 	NB_MONTHS_SHORT,
 	NB_QUALITY_ZONE_LABELS,
@@ -280,25 +281,13 @@ export function formatDayOfMonth(instant: DateInput, timeZone: string): string {
 // Norwegian dates — I dag's own (#505, ADR 0081 as amended by ADR 0082)
 // ---------------------------------------------------------------------------
 
-const NB_PART_FORMATTERS = new Map<string, Intl.DateTimeFormat>()
-
 /**
  * The calendar day of `instant` in `timeZone` as numbers — the day of month,
  * the month (0-based) and the weekday (0 = Monday) — so the Norwegian words
  * come from `labels.ts` and never from the runtime's ICU data.
  */
 function nbParts(instant: DateInput, timeZone: string) {
-	let formatter = NB_PART_FORMATTERS.get(timeZone)
-	if (!formatter) {
-		formatter = new Intl.DateTimeFormat('en-CA', {
-			timeZone,
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit',
-		})
-		NB_PART_FORMATTERS.set(timeZone, formatter)
-	}
-	const key = formatter.format(new Date(instant))
+	const key = localDate(new Date(instant), timeZone)
 	const [year, month, day] = key.split('-').map(Number) as [
 		number,
 		number,
@@ -1010,8 +999,6 @@ export function formatNbRepRange(reps: RepRange): string {
 // Round 2 · first run and integrations (branch claude/r2-firstrun-meg-finish)
 // ---------------------------------------------------------------------------
 
-const NB_CLOCK_FORMATTERS = new Map<string, Intl.DateTimeFormat>()
-
 /**
  * `ons 7. okt kl. 17.00` — a moment the athlete reads back, like when the app
  * last synced. The clock is 24-hour with a full stop (Norwegian practice);
@@ -1021,16 +1008,6 @@ export function formatNbDayDateTime(
 	instant: DateInput,
 	timeZone: string,
 ): string {
-	let formatter = NB_CLOCK_FORMATTERS.get(timeZone)
-	if (!formatter) {
-		formatter = new Intl.DateTimeFormat('en-GB', {
-			timeZone,
-			hour: '2-digit',
-			minute: '2-digit',
-			hourCycle: 'h23',
-		})
-		NB_CLOCK_FORMATTERS.set(timeZone, formatter)
-	}
-	const clock = formatter.format(new Date(instant)).replace(':', '.')
+	const clock = localTimeOfDay(new Date(instant), timeZone).replace(':', '.')
 	return `${formatNbDayDate(instant, timeZone)} kl. ${clock}`
 }

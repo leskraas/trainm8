@@ -14,8 +14,46 @@
  */
 
 /**
+ * The shapes the Athlete Calendar formats an instant in, each with its locale
+ * and options in one place, so a cache key can never name one shape and build
+ * another.
+ */
+const SHAPES = {
+	/** `YYYY-MM-DD`: the calendar day. */
+	date: {
+		locale: 'en-CA',
+		options: { year: 'numeric', month: '2-digit', day: '2-digit' },
+	},
+	/** The full wall clock, to the second: the zone's offset. */
+	'wall-clock': {
+		locale: 'en-US',
+		options: {
+			hourCycle: 'h23',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+		},
+	},
+	/** `HH:MM`: the time of day. */
+	'time-of-day': {
+		locale: 'en-US',
+		options: { hourCycle: 'h23', hour: '2-digit', minute: '2-digit' },
+	},
+} satisfies Record<
+	string,
+	{ locale: string; options: Intl.DateTimeFormatOptions }
+>
+
+type Shape = keyof typeof SHAPES
+
+/**
  * One `Intl.DateTimeFormat` per timezone and shape, built on first use and kept
- * for the life of the process (ADR 0119 §1).
+ * for the life of the process (ADR 0119 §1). The app's one formatter cache for
+ * a zone's calendar day and clock: `format.ts` reads the day and the clock
+ * through `localDate` and `localTimeOfDay` rather than keeping its own.
  *
  * Constructing a formatter is the expensive part of a call — it resolves the
  * locale and loads the zone's rules — and the timeline's presenter calls these
@@ -23,22 +61,23 @@
  * two thirds of the longest task on opening the full view of a 52-week season.
  * Formatting with a reused instance gives the same answer, so server and client
  * still agree. Keyed on the zone name lower-cased, because Intl reads a zone
- * in any letter case and the Athlete Timezone is stored as typed: so the set of
- * keys is bounded by IANA, and nothing is evicted.
+ * in any letter case and the Athlete Timezone is stored as typed. Nothing is
+ * evicted: the keys are the distinct zones Intl accepts, which are the IANA
+ * names plus fixed offsets (`+01:00`), a few thousand per shape at most.
  */
 const FORMATTERS = new Map<string, Intl.DateTimeFormat>()
 
-function cachedFormatter(
-	shape: string,
-	timezone: string,
-	build: () => Intl.DateTimeFormat,
-): Intl.DateTimeFormat {
+function cachedFormatter(shape: Shape, timezone: string): Intl.DateTimeFormat {
 	const key = `${shape} ${timezone.toLowerCase()}`
 	let formatter = FORMATTERS.get(key)
 	if (!formatter) {
 		// An unknown zone throws here, before anything is cached, exactly as an
 		// uncached construction would.
-		formatter = build()
+		const { locale, options } = SHAPES[shape]
+		formatter = new Intl.DateTimeFormat(locale, {
+			...options,
+			timeZone: timezone,
+		})
 		FORMATTERS.set(key, formatter)
 	}
 	return formatter
@@ -46,17 +85,7 @@ function cachedFormatter(
 
 /** Format an instant as YYYY-MM-DD in `timezone`. */
 export function localDate(instant: Date, timezone: string): string {
-	return cachedFormatter(
-		'date',
-		timezone,
-		() =>
-			new Intl.DateTimeFormat('en-CA', {
-				timeZone: timezone,
-				year: 'numeric',
-				month: '2-digit',
-				day: '2-digit',
-			}),
-	).format(instant)
+	return cachedFormatter('date', timezone).format(instant)
 }
 
 /**
@@ -65,21 +94,7 @@ export function localDate(instant: Date, timezone: string): string {
  * zone and comparing it to the same wall-clock read as UTC.
  */
 function tzOffsetMs(instant: Date, timezone: string): number {
-	const parts = cachedFormatter(
-		'wall-clock',
-		timezone,
-		() =>
-			new Intl.DateTimeFormat('en-US', {
-				timeZone: timezone,
-				hourCycle: 'h23',
-				year: 'numeric',
-				month: '2-digit',
-				day: '2-digit',
-				hour: '2-digit',
-				minute: '2-digit',
-				second: '2-digit',
-			}),
-	).formatToParts(instant)
+	const parts = cachedFormatter('wall-clock', timezone).formatToParts(instant)
 	const get = (t: string) => Number(parts.find((p) => p.type === t)!.value)
 	const wallAsUTC = Date.UTC(
 		get('year'),
@@ -153,17 +168,7 @@ export function localTimeUTC(
  * takes: a session is scheduled to a minute, so seconds carry nothing to preserve.
  */
 export function localTimeOfDay(instant: Date, timezone: string): string {
-	const parts = cachedFormatter(
-		'time-of-day',
-		timezone,
-		() =>
-			new Intl.DateTimeFormat('en-US', {
-				timeZone: timezone,
-				hourCycle: 'h23',
-				hour: '2-digit',
-				minute: '2-digit',
-			}),
-	).formatToParts(instant)
+	const parts = cachedFormatter('time-of-day', timezone).formatToParts(instant)
 	const get = (type: string) =>
 		Number(parts.find((part) => part.type === type)!.value)
 	// `% 24` because a formatter that answers in the h24 cycle writes midnight as
