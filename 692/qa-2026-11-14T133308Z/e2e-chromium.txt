@@ -1,0 +1,266 @@
+(node:9894) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 41 tests using 2 workers
+
+(node:9912) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9911) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › tests/e2e/home-reading-position.test.ts:165:1 › weeks that mount after the first paint never move the row the reader is reading (1.6s)
+  ✓   2 [chromium] › tests/e2e/home-reading-position.test.ts:102:1 › a live import on a day the reader has scrolled past does not move the row they are reading (3.3s)
+  ✓   3 [chromium] › tests/e2e/home-reading-position.test.ts:196:1 › on a screen taller than the weeks the server renders ahead, today is parked before the first paint and stays there (2.8s)
+  ✓   4 [chromium] › tests/e2e/home-reading-position.test.ts:265:2 › a strip tap made the moment the full view appears lands on the oldest week, and stays there (1.3s)
+  ✓   5 [chromium] › tests/e2e/home-reading-position.test.ts:265:2 › a strip tap made the moment the full view appears lands on the four ahead week, and stays there (1.4s)
+  ✓   7 [chromium] › tests/e2e/home-timeline.test.ts:460:1 › Se hele sesongen opens on this week, not on a long empty history (#562) (747ms)
+prisma:query - [32m21ms[39m - DELETE FROM `main`.`User` WHERE `main`.`User`.`id` = ?
+  ✓   6 [chromium] › tests/e2e/home-timeline.test.ts:362:1 › opens parked on today before the first paint: no hero, no jump, and the list gets the screen (2.4s)
+  ✓   8 [chromium] › tests/e2e/home-timeline.test.ts:546:1 › the reader’s own scroll is never taken back: no snap-back to today (2.8s)
+  ✓   9 [chromium] › tests/e2e/home-timeline.test.ts:574:1 › the whole past is mounted on open, and scrolling up through it writes no scroll position (3.0s)
+  ✓  10 [chromium] › tests/e2e/home-timeline.test.ts:618:1 › the pill appears with the direction back to today, and takes you there (3.7s)
+  ✓  11 [chromium] › tests/e2e/home-timeline.test.ts:660:1 › reading forwards loads later weeks, and the far end states itself (3.6s)
+  ✓  13 [chromium] › tests/e2e/home-timeline.test.ts:801:1 › a season too long for a phone shows a window around the reader, and the rest is one tap away (S10) (2.8s)
+  ✓  12 [chromium] › tests/e2e/home-timeline.test.ts:683:1 › tapping a week in the strip jumps the stream there, and the frame follows the scroll (4.8s)
+  ✓  14 [chromium] › tests/e2e/home-timeline.test.ts:863:1 › a comparable session names its basis and its band; an unplanned one refuses to (4.2s)
+  ✘  16 [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in dark theme (3.4s)
+(node:10545) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [chromium] › tests/e2e/home-timeline.test.ts:1256:1 › today still to come: today’s row is that session, with its action on it (5.2s)
+(node:10621) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  18 [chromium] › tests/e2e/home-timeline.test.ts:1286:1 › today completed: today’s row is the done session, and nothing later is headlined as today’s (5.2s)
+(node:10695) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  19 [chromium] › tests/e2e/home-timeline.test.ts:1304:1 › today empty: today’s row says so, and is the cell that writes one (5.2s)
+(node:10767) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  20 [chromium] › tests/e2e/home-timeline.test.ts:1345:2 › a sideways swipe over the strip moves nothing, and the list scrolls (light) (5.3s)
+(node:10839) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  21 [chromium] › tests/e2e/home-timeline.test.ts:1345:2 › a sideways swipe over the strip moves nothing, and the list scrolls (dark) (5.3s)
+(node:10915) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  22 [chromium] › tests/e2e/home-timeline.test.ts:1396:2 › a lifting session states what it lifted, and its shortfall (light) (5.2s)
+(node:10989) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  23 [chromium] › tests/e2e/home-timeline.test.ts:1396:2 › a lifting session states what it lifted, and its shortfall (dark) (769ms)
+  ✓  24 [chromium] › tests/e2e/home-timeline.test.ts:1548:2 › the grid has no holes forward of today — a rest day the plan left in a written week (3.3s)
+  ✓  25 [chromium] › tests/e2e/home-timeline.test.ts:1548:2 › the grid has no holes forward of today — a day in a week nobody has written (3.2s)
+  ✓  26 [chromium] › tests/e2e/home-timeline.test.ts:1613:1 › with nothing on today the stream still lands on today, and the pill still comes back (2.7s)
+  ✓  27 [chromium] › tests/e2e/home-timeline.test.ts:1665:1 › a day holding two sessions is one row under one gutter, between the cells around it (3.1s)
+  ✓  28 [chromium] › tests/e2e/home-timeline.test.ts:1739:1 › a planned row says whose it is, and its title is never cut short (#505) (2.6s)
+  ✓  29 [chromium] › tests/e2e/home-timeline.test.ts:1862:1 › today’s row wraps the session’s title, never cutting it (#505 story 32) (607ms)
+  ✓  30 [chromium] › tests/e2e/home-timeline.test.ts:1927:2 › an empty cell is legible in light theme (4.3s)
+  ✓  31 [chromium] › tests/e2e/home-timeline.test.ts:1927:2 › an empty cell is legible in dark theme (4.4s)
+  ✓  32 [chromium] › tests/e2e/home-timeline.test.ts:2038:1 › the near end states how far home reads, never how far the athlete has trained (3.6s)
+  ✘  33 [chromium] › tests/e2e/home-timeline.test.ts:2094:1 › tapping an empty day opens the composer on it: the sport derived, the stamp its empty state, and the row lands in place (14.6s)
+Testing stopped early after 8 maximum allowed failures.
+  ✘  15 [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in light theme (1.5m)
+
+
+  1) [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in dark theme 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m0[39m
+    Received: [31m401[39m
+
+      1096 | 		await page.waitForTimeout(150)
+      1097 | 		const hovered = await pixelAt(page, probe!.x, probe!.y)
+    > 1098 | 		expect(apart(atRest, hovered)).toBe(0)
+           | 		                               ^
+      1099 | 		await page.mouse.move(1, 1)
+      1100 |
+      1101 | 		// The season strip's marks (#505): a planned bar, and what was done
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:1098:34
+
+    Error Context: test-results/home-timeline-every-state--9fc86-ne-is-legible-in-dark-theme-chromium/error-context.md
+
+  2) [chromium] › tests/e2e/home-timeline.test.ts:1256:1 › today still to come: today’s row is that session, with its action on it 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('timeline-stream')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('timeline-stream')[22m
+
+
+      1264 |
+      1265 | 	await navigate(HOME_TIMELINE_HREF)
+    > 1266 | 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+           | 	                                                  ^
+      1267 |
+      1268 | 	const row = todayRow(page)
+      1269 | 	await expect(row).toBeInViewport()
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:1266:52
+
+    Error Context: test-results/home-timeline-today-still--22c40-ssion-with-its-action-on-it-chromium/error-context.md
+
+  3) [chromium] › tests/e2e/home-timeline.test.ts:1286:1 › today completed: today’s row is the done session, and nothing later is headlined as today’s 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('timeline-stream')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('timeline-stream')[22m
+
+
+      1294 |
+      1295 | 	await navigate(HOME_TIMELINE_HREF)
+    > 1296 | 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+           | 	                                                  ^
+      1297 |
+      1298 | 	const row = todayRow(page)
+      1299 | 	await expect(row.getByRole('link', { name: /Tempo Run/ })).toBeVisible()
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:1296:52
+
+    Error Context: test-results/home-timeline-today-comple-1ca5d-ter-is-headlined-as-today’s-chromium/error-context.md
+
+  4) [chromium] › tests/e2e/home-timeline.test.ts:1304:1 › today empty: today’s row says so, and is the cell that writes one 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('timeline-stream')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('timeline-stream')[22m
+
+
+      1312 |
+      1313 | 	await navigate(HOME_TIMELINE_HREF)
+    > 1314 | 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+           | 	                                                  ^
+      1315 |
+      1316 | 	const row = todayRow(page)
+      1317 | 	await expect(row).toContainText('Ingenting i dag')
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:1314:52
+
+    Error Context: test-results/home-timeline-today-empty--afff0-is-the-cell-that-writes-one-chromium/error-context.md
+
+  5) [chromium] › tests/e2e/home-timeline.test.ts:1345:2 › a sideways swipe over the strip moves nothing, and the list scrolls (light) 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('timeline-stream')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('timeline-stream')[22m
+
+
+      1354 |
+      1355 | 		await navigate(HOME_TIMELINE_HREF)
+    > 1356 | 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
+           | 		                                                  ^
+      1357 | 		await page.waitForTimeout(1500)
+      1358 |
+      1359 | 		const strip = page.getByTestId('week-strip')
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:1356:53
+
+    Error Context: test-results/home-timeline-a-sideways-s-eb292-and-the-list-scrolls-light--chromium/error-context.md
+
+  6) [chromium] › tests/e2e/home-timeline.test.ts:1345:2 › a sideways swipe over the strip moves nothing, and the list scrolls (dark) 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('timeline-stream')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('timeline-stream')[22m
+
+
+      1354 |
+      1355 | 		await navigate(HOME_TIMELINE_HREF)
+    > 1356 | 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
+           | 		                                                  ^
+      1357 | 		await page.waitForTimeout(1500)
+      1358 |
+      1359 | 		const strip = page.getByTestId('week-strip')
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:1356:53
+
+    Error Context: test-results/home-timeline-a-sideways-s-d14d9--and-the-list-scrolls-dark--chromium/error-context.md
+
+  7) [chromium] › tests/e2e/home-timeline.test.ts:1396:2 › a lifting session states what it lifted, and its shortfall (light) 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('timeline-stream')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('timeline-stream')[22m
+
+
+      1414 | 		await navigate(HOME_TIMELINE_HREF)
+      1415 | 		const stream = page.getByTestId('timeline-stream')
+    > 1416 | 		await expect(stream).toBeVisible()
+           | 		                     ^
+      1417 |
+      1418 | 		// What the row used to spell out on lines of its own is in the
+      1419 | 		// session's details, which the row opens in the composer's Drawer
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:1416:24
+
+    Error Context: test-results/home-timeline-a-lifting-se-d4a17-ed-and-its-shortfall-light--chromium/error-context.md
+
+  8) [chromium] › tests/e2e/home-timeline.test.ts:2094:1 › tapping an empty day opens the composer on it: the sport derived, the stamp its empty state, and the row lands in place 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32mtrue[39m
+    Received: [31mfalse[39m
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+       at ../playwright-utils.ts:72
+
+      70 |  */
+      71 | export async function untilHydrated(control: Locator) {
+    > 72 | 	await expect
+         | 	^
+      73 | 		.poll(
+      74 | 			() =>
+      75 | 				control.evaluate((el) =>
+        at untilHydrated (/tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/playwright-utils.ts:72:2)
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:2109:2
+
+    Error Context: test-results/home-timeline-tapping-an-e-64ef4--and-the-row-lands-in-place-chromium/error-context.md
+
+  8 failed
+    [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in dark theme 
+    [chromium] › tests/e2e/home-timeline.test.ts:1256:1 › today still to come: today’s row is that session, with its action on it 
+    [chromium] › tests/e2e/home-timeline.test.ts:1286:1 › today completed: today’s row is the done session, and nothing later is headlined as today’s 
+    [chromium] › tests/e2e/home-timeline.test.ts:1304:1 › today empty: today’s row says so, and is the cell that writes one 
+    [chromium] › tests/e2e/home-timeline.test.ts:1345:2 › a sideways swipe over the strip moves nothing, and the list scrolls (light) 
+    [chromium] › tests/e2e/home-timeline.test.ts:1345:2 › a sideways swipe over the strip moves nothing, and the list scrolls (dark) 
+    [chromium] › tests/e2e/home-timeline.test.ts:1396:2 › a lifting session states what it lifted, and its shortfall (light) 
+    [chromium] › tests/e2e/home-timeline.test.ts:2094:1 › tapping an empty day opens the composer on it: the sport derived, the stamp its empty state, and the row lands in place 
+  1 interrupted
+    [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in light theme 
+  8 did not run
+  24 passed (1.8m)
+  1 error was not a part of any test, see above for details

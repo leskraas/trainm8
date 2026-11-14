@@ -1,0 +1,39 @@
+(node:11885) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:11902) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in light theme (5.5s)
+  ✘  2 [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in dark theme (10.0s)
+
+
+  1) [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in dark theme 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('button', { name: 'Gå opp til i dag' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByRole('button', { name: 'Gå opp til i dag' })[22m
+
+
+      1160 | 		}
+      1161 | 		const pill = page.getByRole('button', { name: 'Gå opp til i dag' })
+    > 1162 | 		await expect(pill).toBeVisible()
+           | 		                   ^
+      1163 | 		const fill = await inkPaint(pill)
+      1164 | 		const page_ = await pixelAt(
+      1165 | 			page,
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:1162:22
+
+    Error Context: test-results/home-timeline-every-state--9fc86-ne-is-legible-in-dark-theme-chromium/error-context.md
+
+  1 failed
+    [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in dark theme 
+  1 passed (17.3s)

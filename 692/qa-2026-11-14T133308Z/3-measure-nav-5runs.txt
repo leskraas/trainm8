@@ -1,0 +1,13 @@
+{"label":"seed","mode":"nav","run":1,"shown":1059.3999999999069,"longTasks":5,"longTaskMs":453,"blockingMs":203,"longestTask":188,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":1,"shown":1192.1000000000931,"longTasks":6,"longTaskMs":611,"blockingMs":311,"longestTask":197,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":2,"shown":1042,"longTasks":5,"longTaskMs":445,"blockingMs":195,"longestTask":178,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":2,"shown":1235,"longTasks":6,"longTaskMs":599,"blockingMs":299,"longestTask":192,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":3,"shown":977.2999999998137,"longTasks":4,"longTaskMs":374,"blockingMs":174,"longestTask":164,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":3,"shown":1078.7000000001863,"longTasks":6,"longTaskMs":582,"blockingMs":282,"longestTask":159,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":4,"shown":1100.8000000000466,"longTasks":5,"longTaskMs":474,"blockingMs":224,"longestTask":189,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":4,"shown":1369.8000000000466,"longTasks":6,"longTaskMs":643,"blockingMs":343,"longestTask":197,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":5,"shown":1023.6999999999534,"longTasks":5,"longTaskMs":467,"blockingMs":217,"longestTask":184,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":5,"shown":1128.8000000000466,"longTasks":6,"longTaskMs":597,"blockingMs":297,"longestTask":196,"todayTop":122,"weeks":32}
+seed: median of 5 runs by navigation, 4× CPU, 390×844: {"shown":1042,"longTasks":5,"longTaskMs":453,"blockingMs":203,"longestTask":184,"todayTop":122,"weeks":28}
+long: median of 5 runs by navigation, 4× CPU, 390×844: {"shown":1192.1,"longTasks":6,"longTaskMs":599,"blockingMs":299,"longestTask":196,"todayTop":122,"weeks":32}
+long against seed: {"longestTask":"6.5%","shown":"14.4%"}

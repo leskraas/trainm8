@@ -1,0 +1,49 @@
+(node:11421) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 10 tests using 1 worker
+
+(node:11438) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in light theme (5.3s)
+(node:11510) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   2 [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in dark theme (5.5s)
+  ✓   3 [chromium] › tests/e2e/home-timeline.test.ts:1256:1 › today still to come: today’s row is that session, with its action on it (601ms)
+  ✓   4 [chromium] › tests/e2e/home-timeline.test.ts:1286:1 › today completed: today’s row is the done session, and nothing later is headlined as today’s (538ms)
+  ✓   5 [chromium] › tests/e2e/home-timeline.test.ts:1304:1 › today empty: today’s row says so, and is the cell that writes one (783ms)
+  ✓   6 [chromium] › tests/e2e/home-timeline.test.ts:1345:2 › a sideways swipe over the strip moves nothing, and the list scrolls (light) (2.9s)
+  ✓   7 [chromium] › tests/e2e/home-timeline.test.ts:1345:2 › a sideways swipe over the strip moves nothing, and the list scrolls (dark) (2.8s)
+  ✓   8 [chromium] › tests/e2e/home-timeline.test.ts:1396:2 › a lifting session states what it lifted, and its shortfall (light) (774ms)
+  ✓   9 [chromium] › tests/e2e/home-timeline.test.ts:1396:2 › a lifting session states what it lifted, and its shortfall (dark) (677ms)
+  ✓  10 [chromium] › tests/e2e/home-timeline.test.ts:2094:1 › tapping an empty day opens the composer on it: the sport derived, the stamp its empty state, and the row lands in place (2.7s)
+
+
+  1) [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in light theme 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('timeline-stream')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('timeline-stream')[22m
+
+
+      1037 |
+      1038 | 		await navigate(HOME_TIMELINE_HREF)
+    > 1039 | 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
+           | 		                                                  ^
+      1040 | 		await page.waitForTimeout(2500)
+      1041 | 		// The theme is the one asked for, not whatever the machine prefers.
+      1042 | 		expect(
+        at /tmp/claude-0/-home-user-trainm8/42856599-2f93-516d-b2b9-18ea148a8928/scratchpad/run/wt/692-qa/tests/e2e/home-timeline.test.ts:1039:53
+
+    Error Context: test-results/home-timeline-every-state--e0ec5-e-is-legible-in-light-theme-chromium/error-context.md
+
+  1 failed
+    [chromium] › tests/e2e/home-timeline.test.ts:1027:2 › every state mark on the timeline is legible in light theme 
+  9 passed (25.9s)
