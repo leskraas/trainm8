@@ -67,20 +67,21 @@ export async function runOrphanedWorkoutPurge(job?: {
 	id: string
 	payload: Record<string, unknown>
 }): Promise<AccountErasure> {
-	const record = await prisma.$transaction(async (tx) => {
+	const erasure = await prisma.$transaction(async (tx) => {
 		const erasure = await eraseOrphanedWorkouts(tx)
-		if (!job) return erasure
-		if (isErasureRecord(job.payload.purged)) return job.payload.purged
+		if (!job || isErasureRecord(job.payload.purged)) return erasure
 		await tx.job.update({
 			where: { id: job.id },
 			data: { payload: JSON.stringify({ ...job.payload, purged: erasure }) },
 		})
 		return erasure
 	}, ERASURE_TRANSACTION_OPTIONS)
+	// This run's counts: a later run keeps the first record on the row, but
+	// logs what it did itself.
 	console.info(
-		`[orphaned-workout-purge] erased ${record.erased}, kept unattributed ${record.keptUnattributed}, spliced ${record.spliced}`,
+		`[orphaned-workout-purge] erased ${erasure.erased}, kept unattributed ${erasure.keptUnattributed}, spliced ${erasure.spliced}`,
 	)
-	return record
+	return erasure
 }
 
 /** The record a committed run left: three counts, nothing else counts as one. */

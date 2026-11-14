@@ -146,6 +146,10 @@ test('a run after one that committed keeps the first record, never zeros', async
 	expect((await readJob(job.id)).payload).toEqual({
 		purged: { erased: 2, keptUnattributed: 1, spliced: 0 },
 	})
+	// The log says what this run did, not the first run's counts.
+	expect(info).toHaveBeenLastCalledWith(
+		'[orphaned-workout-purge] erased 0, kept unattributed 1, spliced 0',
+	)
 	info.mockRestore()
 })
 
