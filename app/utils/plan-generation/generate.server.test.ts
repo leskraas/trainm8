@@ -432,7 +432,7 @@ test('approving under a Weekly Capacity writes the lowered season, and the planâ
 	expect(season?.hoursWarnings).toEqual([])
 })
 
-// The generate preview's Planned Volume (#472, ADR 0119): read outside the seam,
+// The generate preview's Planned Volume (#472, ADR 0120): read outside the seam,
 // off the Stock Workouts approval copies, over the week as approval leaves it.
 
 /** A corpus whose easy and long rows carry a km figure and the rest do not. */

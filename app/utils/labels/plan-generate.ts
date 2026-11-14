@@ -146,7 +146,7 @@ export const PLAN_GENERATE_LABELS = {
 	weekFiguresLabel: 'Mål og planlagt per idrett',
 	/**
 	 * Under a week's figures, where the athlete already has sessions in it:
-	 * approval deletes none, so `planlagt` counts them too (ADR 0119 §4), and the
+	 * approval deletes none, so `planlagt` counts them too (ADR 0120 §4), and the
 	 * figure is never larger than the rows under it without a reason.
 	 */
 	alreadyInWeek: (count: number) =>

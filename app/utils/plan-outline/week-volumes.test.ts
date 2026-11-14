@@ -847,7 +847,7 @@ describe('strength reported honestly when the data is partial (story 85)', () =>
 	})
 })
 
-// A prescription read with no session (#472, ADR 0119 §3): the generate preview
+// A prescription read with no session (#472, ADR 0120 §3): the generate preview
 // reads a Stock Workout it has only placed, through the reading every ledger row
 // goes through.
 describe('a prescription read on its own', () => {
