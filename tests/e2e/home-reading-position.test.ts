@@ -2,8 +2,15 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { type Page } from '@playwright/test'
 import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
+import { localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { expect, middayTimezone, test } from '#tests/playwright-utils.ts'
+import { IMPORTS_EVENTS_PATH } from '#app/utils/imports-events.ts'
+import {
+	expect,
+	middayTimezone,
+	scrollStreamTo,
+	test,
+} from '#tests/playwright-utils.ts'
 
 /**
  * The row the reader is reading never moves when content arrives above it
@@ -31,44 +38,20 @@ async function seedReader(userId: string) {
 	// ahead: every day the reader passes has height, and the season reaches
 	// well past the weeks mounted on open (`AHEAD_INITIAL`), so more mount as
 	// the reader nears the end.
-	for (let days = -21; days <= 84; days += days < 0 ? 1 : 2) {
-		await prisma.workoutSession.create({
-			data: {
-				userId,
-				scheduledAt: new Date(now.getTime() + days * DAY),
-				status: days < 0 ? 'completed' : 'scheduled',
-				tssValue: days < 0 ? 40 : null,
-				plannedTssValue: 45,
-				plannedTssConfidence: 'full',
-				source: 'authored',
-			},
-		})
-	}
+	const offsets: number[] = []
+	for (let days = -21; days <= 84; days += days < 0 ? 1 : 2) offsets.push(days)
+	await prisma.workoutSession.createMany({
+		data: offsets.map((days) => ({
+			userId,
+			scheduledAt: new Date(now.getTime() + days * DAY),
+			status: days < 0 ? 'completed' : 'scheduled',
+			tssValue: days < 0 ? 40 : null,
+			plannedTssValue: 45,
+			plannedTssConfidence: 'full',
+			source: 'authored',
+		})),
+	})
 	return { now, timezone }
-}
-
-/** `YYYY-MM-DD` in `timezone`. */
-function dayKeyOf(instant: Date, timezone: string) {
-	return new Intl.DateTimeFormat('en-CA', {
-		timeZone: timezone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-	}).format(instant)
-}
-
-/**
- * Scroll the stream as a reader does: an input first, then the position,
- * instantly (the same rule as `home-timeline.test.ts`).
- */
-async function scrollStreamTo(page: Page, top: number) {
-	await page.getByTestId('timeline-stream').evaluate((el, to) => {
-		el.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1 }))
-		const previous = el.style.scrollBehavior
-		el.style.scrollBehavior = 'auto'
-		el.scrollTop = to
-		el.style.scrollBehavior = previous
-	}, top)
 }
 
 /** Where the day row `key` sits from the stream's visible top, in px. */
@@ -102,11 +85,15 @@ test('a live import on a day the reader has scrolled past does not move the row 
 	const user = await login()
 	const { now, timezone } = await seedReader(user.id)
 
+	// The import below must reach an open live import stream (ADR 0049), so
+	// wait for it to answer rather than guess when the page has hydrated.
+	const live = page.waitForResponse((response) =>
+		response.url().includes(IMPORTS_EVENTS_PATH),
+	)
 	await navigate(HOME_TIMELINE_HREF)
 	const stream = page.getByTestId('timeline-stream')
 	await expect(stream).toBeVisible()
-	// The live import stream is open once the page has hydrated.
-	await page.waitForTimeout(2000)
+	await live
 
 	// Read on into next week, so last week's days are well above the reader.
 	const landed = await stream.evaluate((el) => el.scrollTop)
@@ -119,7 +106,7 @@ test('a live import on a day the reader has scrolled past does not move the row 
 	// Eight days back: a day the reader has passed. The import auto-saves a
 	// session there, and the open tab revalidates (ADR 0049).
 	const at = new Date(now.getTime() - 8 * DAY)
-	const passed = dayKeyOf(at, timezone)
+	const passed = localDate(at, timezone)
 	const fixture = await readFile(
 		path.join(process.cwd(), 'tests/fixtures/tcx/run-with-hr.tcx'),
 		'utf8',

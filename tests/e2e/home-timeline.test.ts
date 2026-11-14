@@ -11,6 +11,7 @@ import { type Theme } from '#app/utils/theme.server.ts'
 import {
 	expect,
 	middayTimezone,
+	scrollStreamTo,
 	test,
 	untilHydrated,
 } from '#tests/playwright-utils.ts'
@@ -84,24 +85,6 @@ async function landingOf(page: Page) {
 			clientHeight: state.clientHeight,
 		}),
 	)
-}
-
-/**
- * Scroll the stream the way a reader does: an input first (a wheel), then the
- * position, **instantly**. The input matters (ADR 0086): until the reader's
- * first input the landing still follows late layout, and a probe that only
- * assigns `scrollTop` is not a reader. The scroller carries `scroll-behavior:
- * smooth` for the keyboard, which native gestures ignore and an assignment
- * does not, so it is switched off around the write.
- */
-async function scrollStreamTo(page: Page, top: number | 'end') {
-	await page.getByTestId('timeline-stream').evaluate((el, to) => {
-		el.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1 }))
-		const previous = el.style.scrollBehavior
-		el.style.scrollBehavior = 'auto'
-		el.scrollTop = to === 'end' ? el.scrollHeight : to
-		el.style.scrollBehavior = previous
-	}, top)
 }
 
 /**
