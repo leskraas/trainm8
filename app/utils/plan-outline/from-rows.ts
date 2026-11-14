@@ -21,6 +21,7 @@ import {
 } from './derive.ts'
 import { isQualityZone, type QualitySessionMixEntry } from './quality-mix.ts'
 import { rampWarnings, type RampWarning } from './ramp-guard.ts'
+import { anchorInForceAt } from './season-anchors.ts'
 import {
 	loadingWeekTargets,
 	openingAnchor,
@@ -475,12 +476,7 @@ export function trackRetiredAt(
 	track: { anchors: ReadonlyArray<{ fromWeekKey: string; value: number }> },
 	weekKey: string,
 ): boolean {
-	let inForce: { fromWeekKey: string; value: number } | null = null
-	for (const anchor of track.anchors) {
-		if (anchor.fromWeekKey > weekKey) continue
-		if (!inForce || anchor.fromWeekKey > inForce.fromWeekKey) inForce = anchor
-	}
-	return inForce?.value === 0
+	return anchorInForceAt(track.anchors, weekKey)?.value === 0
 }
 
 /** Whether a track is the Simple Activities' track on `other`. */

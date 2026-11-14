@@ -97,7 +97,8 @@ export function editAnchorList(
 	if (edit.action === 'set' && !held) {
 		return { ok: false, reason: 'anchor-not-found' }
 	}
-	// The retirement anchor itself, and every week after it, read as retired.
+	// The retirement anchor itself, and every week after it, read as retired:
+	// `trackRetiredAt`'s rule (from-rows.ts), which reads this same function.
 	if (anchorInForceAt(anchors, edit.fromWeekKey)?.value === 0) {
 		return { ok: false, reason: 'retired-track' }
 	}
