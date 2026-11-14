@@ -1,0 +1,1 @@
+Settled by probe: S9 asks the fails-partway test to assert 'disk full' instead of 'tx.job.update'. Run at bbb8060+: Prisma reports the trigger's RAISE(ABORT, 'disk full') as 'Invalid `tx.job.update()` invocation ... Foreign key constraint violated on the foreign key'; the SQLite message never reaches lastError, so the assertion stays.

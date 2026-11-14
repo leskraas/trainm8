@@ -1,0 +1,15 @@
+Checks at the head after this review's fixes (worktree agent/468-purge-orphaned-workouts).
+The sandbox forbids reading or creating .env, so the test env was set by hand from
+app/utils/env.server.ts's required keys (dummy values), VITEST_DB_TAG=r677fix.
+
+npm run lint (NODE_OPTIONS=--max-old-space-size=8192): exit 0, 0 errors, 146 warnings (check-lint.txt)
+npm run typecheck: exit 0 (check-typecheck.txt)
+vitest run (full): 6407 passed, 9 failed in 2 files (check-vitest.txt):
+  - app/routes/_auth/auth.$provider/callback.test.ts (8)
+  - app/routes/integrations.strava.connect.test.ts (1)
+  Neither file nor anything it imports is in the PR's diff. With mock GITHUB_*/STRAVA_* set,
+  the Strava test passes and the callback test still fails 8/8 (check-vitest-oauth-rerun.txt);
+  it fails 8/8 the same way at the PR's merge base 96eb561 in the same env, so it is the
+  hand-made env, not this PR.
+Changed files' tests (account-deletion, orphaned-workout-purge, jobs/queue, eslint-restrictions): all pass.
+      Tests  37 passed (37)
