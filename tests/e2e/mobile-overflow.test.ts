@@ -227,7 +227,9 @@ test('a session page carrying the longest Citation and a URL locator does not ov
 	test.setTimeout(120_000)
 	const user = await login()
 	// Denadai 2017 is the corpus's longest work; a URL is the locator that
-	// cannot break at a space.
+	// cannot break at a space. The Stock Workout is nobody's, so the user's
+	// cleanup never reaches it: it is retired from the start (a retired entry
+	// still cites, and nothing can retrieve it) and deleted when the test ends.
 	const stock = await prisma.workout.create({
 		select: { id: true },
 		data: {
@@ -250,37 +252,42 @@ test('a session page carrying the longest Citation and a URL locator does not ov
 			citationYear: 2017,
 			citationLocator:
 				'https://runningwritings.com/2023/12/percentage-based-training-for-distance-runners-a-very-long-address.html',
+			retiredAt: new Date(),
 		},
 	})
-	const placed = await prisma.workout.create({
-		select: { id: true },
-		data: {
-			title: 'Eksplosiv styrke for løpsøkonomi',
-			discipline: 'run',
-			intent: 'threshold',
-			ownerId: user.id,
-			copiedFromId: stock.id,
-		},
-	})
-	const session = await prisma.workoutSession.create({
-		select: { id: true },
-		data: {
-			userId: user.id,
-			workoutId: placed.id,
-			scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-			status: 'scheduled',
-			source: 'generated',
-			adoptedAt: new Date(),
-		},
-	})
-	await navigate('/training/sessions/:sessionId', { sessionId: session.id })
-	const line = page.locator('[data-provenance]')
-	await expect(line).toContainText('Endret av deg · Kilde: Denadai BS')
-	await expect(line.getByRole('link')).toHaveAttribute(
-		'href',
-		/^https:\/\/runningwritings\.com\//,
-	)
-	await expectNoHorizontalOverflow(page)
+	try {
+		const placed = await prisma.workout.create({
+			select: { id: true },
+			data: {
+				title: 'Eksplosiv styrke for løpsøkonomi',
+				discipline: 'run',
+				intent: 'threshold',
+				ownerId: user.id,
+				copiedFromId: stock.id,
+			},
+		})
+		const session = await prisma.workoutSession.create({
+			select: { id: true },
+			data: {
+				userId: user.id,
+				workoutId: placed.id,
+				scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+				status: 'scheduled',
+				source: 'generated',
+				adoptedAt: new Date(),
+			},
+		})
+		await navigate('/training/sessions/:sessionId', { sessionId: session.id })
+		const line = page.locator('[data-provenance]')
+		await expect(line).toContainText('Endret av deg · Kilde: Denadai BS')
+		await expect(line.getByRole('link')).toHaveAttribute(
+			'href',
+			/^https:\/\/runningwritings\.com\//,
+		)
+		await expectNoHorizontalOverflow(page)
+	} finally {
+		await prisma.workout.delete({ where: { id: stock.id } })
+	}
 })
 
 test('the Bibliotek and Meg tabs do not overflow, and the tab bar covers no content', async ({
