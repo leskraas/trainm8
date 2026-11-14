@@ -419,3 +419,13 @@ test('a refused value change names only the lived weeks its segment covers', asy
 	const refusal = await screen.findByText(/Startnivået fra uke 51/)
 	expect(refusal).toHaveTextContent('gjelder også uke 51–52, som du har trent')
 })
+
+test('every picker in the edit labels its weeks “Fra uke”', async () => {
+	renderAnchorEdit(anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]))
+	await screen.findByRole('form', { name: 'Endre startnivået' })
+	// The fresh start's picker, on the first unbegun week (uke 2).
+	const picker = document.querySelector(
+		'[data-season-anchor-act="add"] [role="combobox"]',
+	)
+	expect(picker?.textContent).toMatch(/^Fra uke 2 · /)
+})

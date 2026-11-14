@@ -1020,18 +1020,17 @@ function weekBefore(weekKey: string): string {
 
 /**
  * One label for a week in every picker of the edit (#673's design):
- * `Uke 7 · 15. feb · 128,5 km`, with the year when the plan crosses New Year,
+ * `Fra uke 7 · 15. feb · 128,5 km`, with the year when the plan crosses New Year,
  * so `uke 7` after `uke 53` never needs a second look.
  */
 function weekPickLabel(
 	weekKey: string,
 	figure: string,
 	withYear: boolean,
-	prefix: string = SEASON_ANCHOR_EDIT_LABELS.week,
 ): string {
 	const day = formatNbDayMonth(dayOf(weekKey), 'UTC')
 	const year = withYear ? ` ${weekKey.slice(0, 4)}` : ''
-	return `${prefix} ${isoWeekNumber(weekKey)} · ${day}${year} · ${figure}`
+	return `${SEASON_ANCHOR_EDIT_LABELS.fromWeek} ${isoWeekNumber(weekKey)} · ${day}${year} · ${figure}`
 }
 
 /** The segments a remove may take, as the domain marks them. */
@@ -1184,7 +1183,6 @@ function SeasonAnchorEdit({
 					anchor.fromWeekKey,
 					figureOf(anchor.value, track.currency),
 					withYear,
-					SEASON_ANCHOR_EDIT_LABELS.fromWeek,
 				)
 			: `${SEASON_EDIT_LABELS.ended} · ${figureOf(anchor.value, track.currency)}`
 	const removable = removableSegments(track)
