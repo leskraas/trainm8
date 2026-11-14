@@ -105,6 +105,7 @@ import { ChoiceCard } from './__plan-new-parts.tsx'
 import {
 	DayLine,
 	SessionRow,
+	sessionRowKey,
 	useOpenSessionRow,
 	type OpenSessionRow,
 } from './__plan-preview-row.tsx'
@@ -829,7 +830,7 @@ function WeekCard({
 				<ul className="divide-border/60 divide-y px-(--card-spacing)">
 					{sessions.map((session) => (
 						<li
-							key={`${session.weekday}-${session.discipline}-${session.entryId}`}
+							key={sessionRowKey(session)}
 							// The row is its own 44 px button with its own padding.
 							className="py-1 first:pt-0 last:pb-0"
 						>
