@@ -1,6 +1,6 @@
 /**
  * **The provenance slot** — one component, one wording, three surfaces (ADR
- * 0117 §4): the Catalogue card, the Plan Preview's row panel and the session
+ * 0121 §4): the Catalogue card, the Plan Preview's row panel and the session
  * page. It words a `SessionProvenance` itself, from `labels.ts`, so the same
  * Catalogue row cannot read differently on any of them (#475).
  *

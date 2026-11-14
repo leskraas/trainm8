@@ -658,7 +658,7 @@ async function placedCopy(sourceId: string, ownerId: string) {
 	return copy!.id
 }
 
-test('a placed session reads its Citation from the row it was copied from (ADR 0117 §5)', async () => {
+test('a placed session reads its Citation from the row it was copied from (ADR 0121 §5)', async () => {
 	const athlete = await createAthlete()
 	const stock = await createCitedStock('doi:10.1/x')
 	const placed = await placedCopy(stock.id, athlete.id)

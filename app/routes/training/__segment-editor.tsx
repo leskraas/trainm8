@@ -192,7 +192,7 @@ function RateField({
 				}}
 				errors={meta.errors as string[] | undefined}
 			/>
-			<p className="text-muted-foreground mt-1 text-sm">{meaning}</p>
+			<p className="text-muted-foreground text-footnote mt-1">{meaning}</p>
 		</div>
 	)
 }
@@ -338,7 +338,7 @@ export function SegmentProgressionForm({
 			<input type="hidden" name="intent" value="set-segment-rates" />
 			<input type="hidden" name="segmentId" value={segment.segmentId} />
 			{trackLabel ? (
-				<p className="text-sm font-medium">
+				<p className="text-callout">
 					{SESONG_SEGMENT_LABELS.progression(trackLabel)}
 				</p>
 			) : null}
@@ -381,7 +381,7 @@ export function SegmentProgressionForm({
 							meta={fields.boundaryStep}
 							fraction={segment.boundaryStep}
 						/>
-						<p className="text-muted-foreground self-end text-sm">
+						<p className="text-muted-foreground text-footnote self-end">
 							{NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS[boundaryStep.reason]}
 						</p>
 					</>
@@ -513,10 +513,8 @@ export function SegmentMixForm({
 		<Form method="POST" {...getFormProps(form)} className="space-y-4">
 			<input type="hidden" name="intent" value="set-quality-mix" />
 			<input type="hidden" name="segmentId" value={segment.segmentId} />
-			<p className="text-sm font-medium">
-				{SESONG_SEGMENT_LABELS.mix(trackLabel)}
-			</p>
-			<p className="text-muted-foreground text-sm">
+			<p className="text-callout">{SESONG_SEGMENT_LABELS.mix(trackLabel)}</p>
+			<p className="text-muted-foreground text-footnote">
 				{SESONG_SEGMENT_LABELS.mixIntro}
 			</p>
 
@@ -558,7 +556,7 @@ export function SegmentMixForm({
 			    (ADR 0042 §5) and nobody can hand-set a sum. Marked in the words rather
 			    than in new chrome — the same way the Season Span says where it is read
 			    from. */}
-			<dl className="text-sm">
+			<dl className="text-footnote">
 				<div className="flex flex-wrap gap-x-2">
 					<dt className="text-muted-foreground">
 						{SESONG_SEGMENT_LABELS.emphasis}
@@ -572,7 +570,7 @@ export function SegmentMixForm({
 					<dd className="font-medium tabular-nums">{count}</dd>
 				</div>
 			</dl>
-			<p className="text-muted-foreground text-sm">
+			<p className="text-muted-foreground text-footnote">
 				{SESONG_SEGMENT_LABELS.derivedNote}
 			</p>
 

@@ -1,10 +1,14 @@
 import { prisma } from '#app/utils/db.server.ts'
-import { type LoadRecomputeKind } from './recompute-notice.ts'
+import {
+	type CtlForKind,
+	type LoadRecomputeKind,
+	type LoadRecomputeNoticeRecord,
+} from './recompute-notice.ts'
 
 /**
  * The **Load Recompute Notice** (GLOSSARY.md): the one-time, athlete-visible
- * explanation for a correction that moved a **Load Snapshot** number the athlete
- * had already read.
+ * explanation for a correction that moved a number the athlete had already
+ * read: a **Load Snapshot** number, or one a session prescribes (ADR 0117).
  *
  * It exists because ADR 0008 forbids switching an athlete's numbers _silently_.
  * Where the athlete's own data has not changed there is nothing for them to opt
@@ -15,32 +19,34 @@ import { type LoadRecomputeKind } from './recompute-notice.ts'
  * is the only other mutation.
  */
 
-export type LoadRecomputeNoticeRecord = {
-	kind: string
-	/**
-	 * The athlete's CTL on either side of the recompute, taken from the day the
-	 * correction moved it *most* — not from today. A lifter whose gym block ended
-	 * months ago has an unchanged current CTL and a visibly rewritten history
-	 * chart, and it is the chart that needs explaining.
-	 */
-	ctlBefore: number
-	ctlAfter: number
-}
-
 /**
- * Record that a recompute moved this athlete's numbers. Create-only on the
- * unique `(athlete, kind)`: a retry after a partial run must not overwrite the
- * first run's `ctlBefore` with the already-corrected value, which would silently
- * rewrite the notice into "nothing changed". Returns whether it wrote.
+ * Record that a recompute moved this athlete's numbers. `ctl` is typed by what
+ * the kind declares it moved: a load kind passes its movement or `null`, a
+ * prescription kind only `null` (ADR 0117 §3).
+ *
+ * Create-only on the unique `(athlete, kind)`: a retry after a partial run must
+ * not overwrite the first run's `ctlBefore` with the already-corrected value,
+ * which would silently rewrite the notice into "nothing changed", nor give an
+ * absent pair one. Returns whether it wrote.
  */
-export async function recordLoadRecomputeNotice(input: {
+export async function recordLoadRecomputeNotice<K extends LoadRecomputeKind>({
+	athleteId,
+	kind,
+	ctl,
+}: {
 	athleteId: string
-	kind: LoadRecomputeKind
-	ctlBefore: number
-	ctlAfter: number
+	kind: K
+	ctl: CtlForKind<K>
 }): Promise<boolean> {
 	try {
-		await prisma.loadRecomputeNotice.create({ data: input })
+		await prisma.loadRecomputeNotice.create({
+			data: {
+				athleteId,
+				kind,
+				ctlBefore: ctl?.ctlBefore ?? null,
+				ctlAfter: ctl?.ctlAfter ?? null,
+			},
+		})
 		return true
 	} catch {
 		// Already notified — the athlete has been told once, which is the whole
@@ -63,15 +69,27 @@ export async function readCtlByDate(
 	return new Map(rows.map((r) => [r.date, r.ctl]))
 }
 
-/** The athlete's outstanding notice for the Dashboard, or null. */
+/**
+ * The athlete's outstanding notice for the Dashboard, or null. The one read
+ * seam: it folds the two columns into one `ctl` value, so no caller handles two
+ * nullable numbers.
+ */
 export async function getLoadRecomputeNotice(
 	athleteId: string,
 ): Promise<LoadRecomputeNoticeRecord | null> {
-	return prisma.loadRecomputeNotice.findFirst({
+	const row = await prisma.loadRecomputeNotice.findFirst({
 		where: { athleteId, dismissedAt: null },
 		orderBy: { createdAt: 'desc' },
 		select: { kind: true, ctlBefore: true, ctlAfter: true },
 	})
+	if (!row) return null
+	// The CHECK keeps the two columns both-or-neither; reading either as null
+	// as "no pair" keeps a half pair from ever printing a number.
+	const { kind, ctlBefore, ctlAfter } = row
+	return {
+		kind,
+		ctl: ctlBefore == null || ctlAfter == null ? null : { ctlBefore, ctlAfter },
+	}
 }
 
 /**

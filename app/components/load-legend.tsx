@@ -38,7 +38,7 @@ export function LoadLegendLabel({
 				aria-label={legend.term}
 				className={cn(
 					// The word is small; the hit area is not (`after:`, 44px tall).
-					'decoration-muted-foreground/50 aria-expanded:text-foreground relative cursor-help rounded-sm underline decoration-dotted underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3.5',
+					'decoration-muted-foreground/50 aria-expanded:text-foreground relative cursor-help rounded-2xl underline decoration-dotted underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3.5',
 					className,
 				)}
 			>

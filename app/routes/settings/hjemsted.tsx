@@ -226,7 +226,7 @@ export default function HomePlaceRoute({ loaderData }: Route.ComponentProps) {
 							inputMode="search"
 							enterKeyHint="search"
 							aria-describedby="home-place-helper"
-							className="h-full min-w-0 flex-1 bg-transparent pr-3 text-base outline-none"
+							className="text-body h-full min-w-0 flex-1 bg-transparent pr-3 outline-none"
 						/>
 					</InputGroup>
 					<MegNote id="home-place-helper">{L.helper}</MegNote>

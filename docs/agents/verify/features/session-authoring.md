@@ -16,7 +16,7 @@ Token Sentence editor behind it (ADR 0027, ADR 0088). Spec to copy from:
   is edited inline, and its log page `/training/sessions/:id/log`.
 - A session copied from a Catalogue row (generated, placed from the Catalogue,
   or swapped) states its **Session Provenance** in one line at the end of the
-  card's prose block (`[data-provenance]`, ADR 0117 §5): _Kilde: …_ for a corpus
+  card's prose block (`[data-provenance]`, ADR 0121 §5): _Kilde: …_ for a corpus
   row, _Publisert av …_ with the non-vouch for a community row (and _Fjernet av
   en moderator_ once taken down), led by _Endret av deg ·_ when `adoptedAt` is
   set. A session not copied from a Catalogue row shows no line. To see one,

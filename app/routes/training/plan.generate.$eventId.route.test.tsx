@@ -80,6 +80,7 @@ function preview(overrides: Partial<SeasonPreview['season']> = {}) {
 			weeks: [week()],
 			sessions: [session()],
 			unfilled: [],
+			days: [],
 			unavailable: [],
 			weekdaySource: 'default',
 			levelFloor: 'intermediate',
@@ -157,7 +158,7 @@ function row(title: RegExp | string) {
 	})
 }
 
-test('a row carries the plan and no Session Provenance until it is tapped (ADR 0117)', async () => {
+test('a row carries the plan and no Session Provenance until it is tapped (ADR 0121)', async () => {
 	renderScreen()
 	const button = await row('5 × 1 km @ T')
 	// Day, sport, kind, zone and title name the row.

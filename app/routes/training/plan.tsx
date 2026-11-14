@@ -156,7 +156,10 @@ import { seasonFitnessOf } from './__season-chart.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditsCard } from './__season-edits.tsx'
 import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
-import { UnavailableReadingsNotice } from './__season-notices.tsx'
+import {
+	PlanGuardNotices,
+	UnavailableReadingsNotice,
+} from './__season-notices.tsx'
 import { readSeasonPicture } from './__season-picture.server.ts'
 import { SeasonPicture } from './__season-picture.tsx'
 import {
@@ -756,6 +759,11 @@ export default function PlanRoute({
 						</p>
 					) : null
 				}
+				// The plan's Guard Notices, under the card and before Bibliotek (ADR
+				// 0118). Keyed by the plan, so a dismissal belongs to one plan: the
+				// next `?outline=` or `?event=` page brings its notices back open
+				// even where their words match.
+				notices={<PlanGuardNotices key={season.outlineId} season={season} />}
 				className="lg:mx-auto lg:max-w-2xl"
 			>
 				{/* Bytt treningsform, after Legg til et løp (ADR 0101 §2): the Start
@@ -1113,7 +1121,7 @@ function SeasonSpanHeadline({
 				return (
 					<li key={group.key} className="space-y-1">
 						{named ? (
-							<p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+							<p className="text-callout flex flex-wrap items-center gap-2">
 								<span>
 									{SESONG_PAGE_LABELS.spanTracks(
 										group.disciplines.map(nbTrackName),
@@ -1128,15 +1136,15 @@ function SeasonSpanHeadline({
 								) : null}
 							</p>
 						) : null}
-						{/* `text-xl`, not the page title's size: two spans sit side by side on
+						{/* `text-heading`, not the page title's size: two spans sit side by side on
 						    this card, and at 24px a figure like `55.0 km/wk → 73.8 km/wk` wraps
 						    mid-arrow in a half-width column — which reads as two numbers rather
 						    than as one span. */}
-						<p className="text-xl font-semibold tracking-tight text-balance tabular-nums">
+						<p className="text-heading text-balance tabular-nums">
 							{formatNbWeeklyVolume(group.span.anchor, group.currency)} →{' '}
 							{formatNbWeeklyVolume(group.span.peak, group.currency)}
 						</p>
-						<p className="text-muted-foreground text-sm">
+						<p className="text-muted-foreground text-footnote">
 							{group.marker === 'derived' &&
 							accumulatesAcrossDisciplines(group.currency)
 								? `${NB_ACCUMULATED_SPAN_LABELS[group.currency]} `

@@ -101,7 +101,7 @@ export function LibrarySection({
 					{LIBRARY_LABELS.recentLifts}
 				</h3>
 				{lifts.length > 0 ? (
-					<ul className="bg-card divide-border/60 divide-y overflow-hidden rounded-4xl shadow-xs">
+					<ul className="bg-card divide-border/60 ring-foreground/5 dark:ring-foreground/10 divide-y overflow-hidden rounded-4xl shadow-md ring-1">
 						{lifts.map((lift) => (
 							<li key={lift.id}>
 								<Link

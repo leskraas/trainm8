@@ -246,7 +246,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			}),
 			// The reading itself, not pre-worded strings: the shared slot words it,
 			// so this card, the Plan Preview and the session page say one sentence
-			// for one row (ADR 0117 §4).
+			// for one row (ADR 0121 §4).
 			provenance: {
 				reading: sourcing,
 				adaptedFrom,
@@ -652,7 +652,7 @@ export default function CatalogueRoute({ loaderData }: Route.ComponentProps) {
 						{CATALOGUE_LABELS.noOwn}
 					</p>
 				) : (
-					<ul className="bg-card divide-border/60 mt-2 divide-y rounded-4xl px-4 shadow-xs">
+					<ul className="bg-card divide-border/60 ring-foreground/5 dark:ring-foreground/10 mt-2 divide-y rounded-4xl px-4 shadow-md ring-1">
 						{own.map((workout) => (
 							<OwnRow key={workout.id} workout={workout} />
 						))}

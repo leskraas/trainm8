@@ -212,7 +212,7 @@ function AnnetAction({
 				// The 44px floor is the control's (ADR 0028 §2); the words are as
 				// quiet as the row's own facts, so the action never outranks the
 				// session it belongs to.
-				className="text-muted-foreground text-caption pressable flex min-h-11 items-center underline decoration-dotted underline-offset-[3px]"
+				className="text-muted-foreground text-caption pressable flex min-h-11 items-center font-normal underline decoration-dotted underline-offset-[3px]"
 			>
 				{pending == null
 					? label

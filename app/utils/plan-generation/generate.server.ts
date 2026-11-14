@@ -40,19 +40,12 @@
  * through it would silently strip exactly the fields the Catalogue exists to
  * express.
  */
-import { type Prisma } from '@prisma/client'
-import { addDays, localTimeUTC, weekMonday } from '../athlete-calendar.ts'
-import { trainingTimeOf } from '../athlete-schema.ts'
+import { weekMonday } from '../athlete-calendar.ts'
 import { catalogueEntrySelect } from '../catalogue.server.ts'
-import {
-	CATALOGUE_GOAL_EVENTS,
-	type CatalogueGoalEvent,
-	type CataloguePhase,
-} from '../catalogue.ts'
+import { type CatalogueGoalEvent, type CataloguePhase } from '../catalogue.ts'
 import { prisma } from '../db.server.ts'
-import { parseEventDisciplines, parseEventTarget } from '../event-schema.ts'
+import { parseEventDisciplines } from '../event-schema.ts'
 import { type DisciplineThresholdMap } from '../intensity-target.ts'
-import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import {
 	createPlanOutline,
 	type CreateOutlineRefusal,
@@ -75,20 +68,25 @@ import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
 import { getDisciplineThresholds } from '../training.server.ts'
 import {
 	isCardioDiscipline,
-	RACE_ANCHOR_DISTANCE_M,
 	type CardioDiscipline,
 	type Discipline,
-	type RaceAnchor,
 } from '../workout-schema.ts'
-import { copyWorkout, workoutCopySelect } from '../workout.server.ts'
 import { generateSeason, type SeasonGenerator } from './generator.ts'
+import { goalEventFor } from './goal-event.ts'
 import { type RetrievableEntry } from './retrieval.ts'
 import {
+	DEFAULT_GENERATION_INTENT,
 	type GeneratedSeason,
 	type GenerationIntent,
 	type GenerationTrack,
 	type SeasonRequest,
 } from './season.ts'
+import {
+	defaultTrainingTime,
+	readStockWorkouts,
+	recomputeWrittenSessions,
+	writeGeneratedSessions,
+} from './write-sessions.server.ts'
 
 /**
  * What the athlete has said, where they have said anything.
@@ -232,32 +230,6 @@ export async function readGenerationCorpus(): Promise<RetrievableEntry[]> {
 		citationLocator: entry.citationLocator,
 		blocks: entry.workout.blocks,
 	}))
-}
-
-/**
- * The **Catalogue** goal event an Event names, or `null`.
- *
- * Only an **Event Target** of kind `distance` says a distance at all, and it is
- * matched **exactly** against the race anchors' metres — nothing rounds, so a
- * 4.8 km parkrun is not a 5k, on the rule `RACE_ANCHOR_DISTANCE_M` already states.
- * `trail` and `ultra` are in the vocabulary and are not produced here: no field on
- * an Event says a race is a trail race, and reading one off a distance would be a
- * guess wearing a filter's clothes.
- *
- * `null` does not narrow retrieval (see `matchesCriteria`), which is what keeps a
- * bike season — whose rows are unscoped by goal event — retrievable at all.
- */
-export function goalEventFor(target: string | null): CatalogueGoalEvent | null {
-	const parsed = parseEventTarget(target)
-	if (parsed?.kind !== 'distance') return null
-	for (const anchor of Object.keys(RACE_ANCHOR_DISTANCE_M) as RaceAnchor[]) {
-		if (RACE_ANCHOR_DISTANCE_M[anchor] === parsed.meters) {
-			return (CATALOGUE_GOAL_EVENTS as readonly string[]).includes(anchor)
-				? (anchor as CatalogueGoalEvent)
-				: null
-		}
-	}
-	return null
 }
 
 /** The shape the request needs, read once and shared by preview and approve. */
@@ -423,7 +395,7 @@ export function resolveChoice(
 			answers.presetKey ??
 			defaultPresetFor(startWeekKey, context.eventWeekKey, PRESET_KEYS),
 		startWeekKey,
-		intent: answers.intent ?? 'deliberately-building',
+		intent: answers.intent ?? DEFAULT_GENERATION_INTENT,
 		tracks: context.proposals.flatMap((proposal) => {
 			if (!isCardioDiscipline(proposal.discipline)) return []
 			const currency = proposal.currency ?? FALLBACK_CURRENCY
@@ -578,89 +550,35 @@ export async function approveSeason(
 	)
 	if (!created.ok) return { ok: false, reason: created.reason }
 
-	const sessionIds = await writeSessions(
+	// The placed sessions and the plan's Generation Record in one transaction,
+	// so a plan never holds a generated season without its record (ADR 0120 §1).
+	const target = {
 		athleteId,
 		eventId,
-		created.outlineId,
-		season,
-		context.timezone,
-		await defaultTrainingTime(athleteId),
-	)
-
-	// Planned TSS is materialized per session (ADR 0019), and a retrieved corpus
-	// row resolves against *this* athlete's thresholds — so a runner with none gets
-	// an honest `null` rather than a figure computed from a threshold nobody set.
-	for (const sessionId of sessionIds) {
-		await recomputePlannedTssForSession(athleteId, sessionId)
+		planOutlineId: created.outlineId,
+		timezone: context.timezone,
+		trainingTime: await defaultTrainingTime(athleteId),
 	}
+	const sources = await readStockWorkouts(season.sessions)
+	const sessionIds = await prisma.$transaction(async (tx) => {
+		await tx.generationRecord.create({
+			data: {
+				outlineId: created.outlineId,
+				generatorId: season.generatorId,
+				presetKey: choice.presetKey,
+				intent: choice.intent,
+				days: {
+					create: season.days.map((day) => ({
+						discipline: day.discipline,
+						weekday: day.weekday,
+						role: day.role,
+					})),
+				},
+			},
+		})
+		return writeGeneratedSessions(tx, target, season.sessions, sources)
+	})
+	await recomputeWrittenSessions(athleteId, sessionIds)
 
 	return { ok: true, outlineId: created.outlineId, sessions: sessionIds.length }
-}
-
-/** The athlete's default training time, or the documented default. */
-async function defaultTrainingTime(athleteId: string): Promise<string> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId: athleteId },
-		select: { defaultTrainingTime: true },
-	})
-	return trainingTimeOf(profile)
-}
-
-/**
- * Write the placed sessions, each on a fresh copy of its **Stock Workout**.
- *
- * A row the corpus no longer has is skipped rather than failing the whole
- * approval: the corpus can be re-seeded between a preview and its approval, and an
- * athlete losing a whole season because one row was retired mid-review would be a
- * worse answer than a season one session short.
- */
-async function writeSessions(
-	athleteId: string,
-	eventId: string,
-	planOutlineId: string,
-	season: GeneratedSeason,
-	timezone: string,
-	trainingTime: string,
-): Promise<string[]> {
-	const workoutIds = [...new Set(season.sessions.map((s) => s.workoutId))]
-	const sources = await prisma.workout.findMany({
-		where: { id: { in: workoutIds } },
-		select: workoutCopySelect,
-	})
-	const byId = new Map(sources.map((source) => [source.id, source]))
-
-	return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-		const ids: string[] = []
-		for (const session of season.sessions) {
-			const source = byId.get(session.workoutId)
-			if (!source) continue
-			// A fresh Workout per session, back-pointing at the corpus row. Never a
-			// reference to the stock row itself: `Workout.sessions` is one-to-many, so
-			// a shared Workout would make editing one week edit every other.
-			const copy = await copyWorkout(tx, source, athleteId, {
-				copiedFromId: source.id,
-			})
-			const created = await tx.workoutSession.create({
-				data: {
-					userId: athleteId,
-					workoutId: copy.id,
-					// A pattern weekday is Monday-first and so is the Training Week, so
-					// the weekday *is* the offset from the week's own Monday (ADR 0019).
-					scheduledAt: localTimeUTC(
-						addDays(session.weekKey, session.weekday),
-						trainingTime,
-						timezone,
-					),
-					status: 'scheduled',
-					source: 'generated',
-					targetEventId: eventId,
-					// The plan that laid it: what clearing and counting scope by (ADR 0079).
-					planOutlineId,
-				},
-				select: { id: true },
-			})
-			ids.push(created.id)
-		}
-		return ids
-	})
 }

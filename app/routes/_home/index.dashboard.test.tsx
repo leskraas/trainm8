@@ -28,6 +28,7 @@ import {
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
+import { type LoadRecomputeNoticeRecord } from '#app/utils/load/recompute-notice.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -188,11 +189,7 @@ function dashboardLoader(
 		activePlan?: ActivePlan | null
 		sustained?: SustainedDeviation | null
 		thresholds?: DisciplineThresholdMap
-		loadRecomputeNotice?: {
-			kind: string
-			ctlBefore: number
-			ctlAfter: number
-		} | null
+		loadRecomputeNotice?: LoadRecomputeNoticeRecord | null
 		sourceCredits?: string[]
 	} = {},
 ) {
@@ -1168,10 +1165,9 @@ test('the tabbed dashboard is gone — home is one stream, not three panels', as
 
 // ── the Load Recompute Notice (ADR 0046 §2): explaining the CTL drop ───────
 
-const STRENGTH_NOTICE = {
+const STRENGTH_NOTICE: LoadRecomputeNoticeRecord = {
 	kind: 'strength-left-the-triad',
-	ctlBefore: 62.4,
-	ctlAfter: 47.8,
+	ctl: { ctlBefore: 62.4, ctlAfter: 47.8 },
 }
 
 test('an outstanding notice explains the drop above the timeline', async () => {
@@ -1200,8 +1196,7 @@ test('the swim notice says CTL rose, and why (ADR 0107)', async () => {
 			ledger: [TODAY_SESSION],
 			loadRecomputeNotice: {
 				kind: 'swim-rest-left-the-pace',
-				ctlBefore: 21.3,
-				ctlAfter: 23.8,
+				ctl: { ctlBefore: 21.3, ctlAfter: 23.8 },
 			},
 		}),
 	)
@@ -1218,8 +1213,7 @@ test('a swim notice whose CTL did not visibly move names no movement', async () 
 			ledger: [TODAY_SESSION],
 			loadRecomputeNotice: {
 				kind: 'swim-rest-left-the-pace',
-				ctlBefore: 0,
-				ctlAfter: 0,
+				ctl: { ctlBefore: 21.3, ctlAfter: 21.4 },
 			},
 		}),
 	)
@@ -1227,6 +1221,32 @@ test('a swim notice whose CTL did not visibly move names no movement', async () 
 	const callout = await screen.findByTestId('load-recompute-notice')
 	expect(callout).toHaveTextContent(/bare lengdene du svømte/i)
 	expect(callout).not.toHaveTextContent(/kondisjonen (steg|falt)/i)
+})
+
+test('a notice with no CTL pair shows its words and Skjønner, and no movement (ADR 0117)', async () => {
+	// No CTL movement to name: nothing stands in for the movement line, not a
+	// zero, not a placeholder, not an empty line.
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			loadRecomputeNotice: { kind: 'swim-rest-left-the-pace', ctl: null },
+		}),
+	)
+
+	const callout = await screen.findByTestId('load-recompute-notice')
+	expect(
+		within(callout).getByRole('heading', {
+			name: /svømmeøktene er regnet ut på nytt/i,
+		}),
+	).toBeInTheDocument()
+	expect(callout).toHaveTextContent(/bare lengdene du svømte/i)
+	expect(
+		within(callout).getByRole('button', { name: /skjønner/i }),
+	).toBeInTheDocument()
+	expect(callout).not.toHaveTextContent(/kondisjonen (steg|falt)/i)
+	expect(callout).not.toHaveTextContent(/\d|NaN|null|undefined|→/)
+	// Kicker, explanation, the form: no empty paragraph where the movement was.
+	expect(callout.querySelectorAll('p')).toHaveLength(1)
 })
 
 test('no notice renders nothing — a dismissed correction stays dismissed', async () => {

@@ -1571,7 +1571,7 @@ test('a done session with no Workout and no Recording opens a readable detail, n
 	expect(screen.queryByText(/404|not found|fant ikke/i)).not.toBeInTheDocument()
 })
 
-/** The real loader's `placedProvenance` beside the rest (ADR 0117 §5). */
+/** The real loader's `placedProvenance` beside the rest (ADR 0121 §5). */
 function withPlacedProvenance(
 	loader: (args: LoaderFunctionArgs) => Promise<Record<string, unknown>>,
 	provenance: SessionProvenance,

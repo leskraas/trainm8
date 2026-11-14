@@ -52,7 +52,7 @@ export function PageHeader({
 					<Icon name="arrow-left" size="md" />
 				</Link>
 			) : null}
-			<h1 className="min-w-0 flex-1 basis-40 truncate text-lg font-semibold">
+			<h1 className="text-heading min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]">
 				{title}
 			</h1>
 			{actions ? (

@@ -118,6 +118,7 @@ import {
 } from './__empty-state.tsx'
 import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
 import { IntensityPopoverEditor, UnitToggle } from './__intensity-popover.tsx'
+import { POPOVER_FIELD_CLASS } from './__popover-field.ts'
 import {
 	QUIET_TEXT_BUTTON_CLASS,
 	StrengthSetsEditor,
@@ -523,7 +524,7 @@ export function sentenceBlockOfKind(kind: StepKind) {
  * never shifts, and a visible focus ring — every mark is a native tab stop.
  */
 const CHROME_MARK_CLASS =
-	'text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground active:bg-accent active:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring relative -my-1.5 inline-flex min-h-[22px] min-w-[22px] cursor-pointer items-center justify-center self-center rounded-sm px-0.5 text-[0.85em] leading-none select-none outline-none after:absolute after:inset-x-0 after:-inset-y-2 focus-visible:ring-2 max-sm:min-h-[30px] max-sm:min-w-[30px]'
+	'text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground active:bg-accent active:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring relative -my-1.5 inline-flex min-h-[22px] min-w-[22px] cursor-pointer items-center justify-center self-center rounded-2xl px-0.5 text-[0.85em] leading-none select-none outline-none after:absolute after:inset-x-0 after:-inset-y-2 focus-visible:ring-2 max-sm:min-h-[30px] max-sm:min-w-[30px]'
 
 // ——— The editor ————————————————————————————————————————————————————————
 
@@ -1545,7 +1546,7 @@ export function TokenSentenceEditor({
 												<span className="flex max-w-64 flex-col">
 													<span>{M.makeKind(NB_STEP_KIND_LABELS[kind])}</span>
 													{draftStep ? (
-														<span className="text-muted-foreground text-xs text-wrap">
+														<span className="text-muted-foreground text-caption font-normal text-wrap">
 															{previewKindSwitch(draftStep, kind, {
 																exerciseNames,
 															})}
@@ -1854,7 +1855,7 @@ function BlockNameEditor({
 				placeholder={BLOCK_SHEET_LABELS.namePlaceholder}
 				maxLength={60}
 				// 16 px text so mobile browsers never zoom the field (§9.2).
-				className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-lg border px-3 text-base outline-none focus-visible:ring-2"
+				className={cn(POPOVER_FIELD_CLASS, 'px-3')}
 				onChange={(event) => {
 					control.change(event.target.value)
 					announce(
@@ -2132,7 +2133,7 @@ function ActiveTokenEditor({
 						rows={3}
 						defaultValue={rawValue}
 						// 16 px text so mobile browsers never zoom the field (§9.2).
-						className="text-base"
+						className="text-body"
 						onChange={(event) => {
 							control.change(event.target.value)
 							announce(C.noteUpdated)
@@ -2271,7 +2272,9 @@ function QuantityEditor({
 					}
 				/>
 			) : (
-				<p className="text-muted-foreground text-xs">{C.noQuantity}</p>
+				<p className="text-muted-foreground text-caption font-normal">
+					{C.noQuantity}
+				</p>
 			)}
 			{unit != null ? (
 				<div className="flex justify-center">
@@ -2351,7 +2354,9 @@ function StepDisciplineSelect({
 			data-slot="step-discipline"
 			className="flex items-center gap-2 self-start"
 		>
-			<span className="text-muted-foreground text-xs">{C.discipline}</span>
+			<span className="text-muted-foreground text-caption font-normal">
+				{C.discipline}
+			</span>
 			<Select value={selected} onValueChange={(value) => select(value)}>
 				<SelectTrigger aria-label={C.stepDiscipline} size="sm">
 					<SelectValue>

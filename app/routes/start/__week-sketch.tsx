@@ -268,7 +268,7 @@ export function WeekBlocks({
 					</span>
 					<span
 						aria-hidden
-						className="text-caption text-muted-foreground text-center"
+						className="text-caption text-muted-foreground text-center font-normal"
 					>
 						{FIRST_RUN_LABELS.dayShort[day.weekday]}
 					</span>
