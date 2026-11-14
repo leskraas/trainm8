@@ -297,6 +297,8 @@ type GenerationContext = {
 	proposals: TrackProposal[]
 	trainableWeekdays: number[] | null
 	weeklyCapacityHours: number | null
+	/** The athlete's default training time: when a placed session is written. */
+	trainingTime: string
 	/** The session row's thresholds: what a placed session is timed by (ADR 0116). */
 	thresholds: DisciplineThresholdMap
 	corpus: RetrievableEntry[]
@@ -330,7 +332,11 @@ async function readContext(
 	)
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId: athleteId },
-		select: { trainableWeekdays: true, weeklyCapacityHours: true },
+		select: {
+			trainableWeekdays: true,
+			weeklyCapacityHours: true,
+			defaultTrainingTime: true,
+		},
 	})
 	const disciplines = parseEventDisciplines(event.disciplines)
 	const proposals = trackDisciplinesFor(disciplines, volumes).map(
@@ -346,6 +352,7 @@ async function readContext(
 		proposals,
 		trainableWeekdays: parseWeekdays(profile?.trainableWeekdays ?? null),
 		weeklyCapacityHours: profile?.weeklyCapacityHours ?? null,
+		trainingTime: trainingTimeOf(profile),
 		thresholds: await getDisciplineThresholds(athleteId),
 		corpus: await readGenerationCorpus(),
 		readContexts: (startWeekKey, disciplines) =>
@@ -491,8 +498,7 @@ export async function previewSeason(
 	const weekVolumes = await readPreviewWeekVolumes(
 		athleteId,
 		season,
-		context.timezone,
-		context.thresholds,
+		context,
 		now,
 	)
 
@@ -533,12 +539,15 @@ export async function previewSeason(
 async function readPreviewWeekVolumes(
 	athleteId: string,
 	season: GeneratedSeason,
-	timezone: string,
-	thresholds: DisciplineThresholdMap,
+	{
+		timezone,
+		thresholds,
+		trainingTime,
+	}: Pick<GenerationContext, 'timezone' | 'thresholds' | 'trainingTime'>,
 	now: Date,
 ): Promise<PreviewWeekVolumes[]> {
 	if (season.weeks.length === 0) return []
-	const [stock, existing, trainingTime] = await Promise.all([
+	const [stock, existing] = await Promise.all([
 		readStockWorkouts(season.sessions.map((session) => session.workoutId)),
 		getLedgerWeeks(
 			athleteId,
@@ -548,7 +557,6 @@ async function readPreviewWeekVolumes(
 			},
 			timezone,
 		),
-		defaultTrainingTime(athleteId),
 	])
 	return previewWeekVolumes({
 		season,
@@ -676,7 +684,7 @@ export async function approveSeason(
 		created.outlineId,
 		season,
 		context.timezone,
-		await defaultTrainingTime(athleteId),
+		context.trainingTime,
 	)
 
 	// Planned TSS is materialized per session (ADR 0019), and a retrieved corpus
@@ -687,15 +695,6 @@ export async function approveSeason(
 	}
 
 	return { ok: true, outlineId: created.outlineId, sessions: sessionIds.length }
-}
-
-/** The athlete's default training time, or the documented default. */
-async function defaultTrainingTime(athleteId: string): Promise<string> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId: athleteId },
-		select: { defaultTrainingTime: true },
-	})
-	return trainingTimeOf(profile)
 }
 
 /**
