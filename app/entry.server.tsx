@@ -109,7 +109,7 @@ export default async function handleRequest(...args: DocRequestArgs) {
 				// never as a hidden segment swapped in later by script. React's
 				// default outlines every finished boundary once 12.8KB of the page
 				// has flushed, which on the full Home Timeline is most of its weeks
-				// (each its own boundary, ADR 0122 §3): the landing script that parks
+				// (each its own boundary, ADR 0125 §3): the landing script that parks
 				// the Stream on today before the first paint (ADR 0086) would run
 				// before today's row was in the document, and the Stream would jump
 				// to it after. A boundary still waiting for data streams as before.

@@ -67,11 +67,11 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
 - What I dag shows depends on today's date against kody's seeded history and
   plan, so a journey that needs a session today should create one first (see
   `session-authoring.md`).
-- Each week of the stream hydrates on its own, after the frame (ADR 0122): a
+- Each week of the stream hydrates on its own, after the frame (ADR 0125): a
   week's controls answer once the week carries React's props. Wait with
   `untilHydrated` on the control before a tap that writes.
 - The server renders this week and the next ahead only; the rest of the first
-  chunk ahead mounts after hydration (ADR 0122). Wait for a week further ahead
+  chunk ahead mounts after hydration (ADR 0125). Wait for a week further ahead
   rather than reading it off the first HTML.
 - Opened by URL, the list stays unpainted until the landing script has parked it
   on today (`landingHoldScript`, #503 criterion 5): a check of where today sits

@@ -31,7 +31,7 @@ export default defineConfig({
 		},
 		// Safari has no scroll anchoring, so the reading position is held by
 		// the app there (`ReadingHold`, ADR 0086 §4). Only the file that pins
-		// it runs in WebKit as well (#503, ADR 0122): the rest of the suite
+		// it runs in WebKit as well (#503, ADR 0125): the rest of the suite
 		// would double CI for no criterion. CI installs WebKit and always runs
 		// it, so a missing browser fails there instead of skipping criterion 7's
 		// WebKit half unseen; locally it runs wherever WebKit is installed

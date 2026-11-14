@@ -1,5 +1,5 @@
 /**
- * A week's days are built when the week is read, once (ADR 0122 §2). The
+ * A week's days are built when the week is read, once (ADR 0125 §2). The
  * season presenter builds only the week skeleton — what the Week Strip and
  * the headers read — so opening the full view does work in proportion to
  * what it mounts, not to the length of the season.
