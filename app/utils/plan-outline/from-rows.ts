@@ -21,6 +21,7 @@ import {
 } from './derive.ts'
 import { isQualityZone, type QualitySessionMixEntry } from './quality-mix.ts'
 import { rampWarnings, type RampWarning } from './ramp-guard.ts'
+import { anchorInForceAt } from './season-anchors.ts'
 import {
 	loadingWeekTargets,
 	openingAnchor,
@@ -461,6 +462,22 @@ export const SIMPLE_ACTIVITY_SEGMENT = {
 	recoveryCut: 0,
 	taperCut: 0,
 } as const
+
+/**
+ * Whether a track is **retired** at a week (ADR 0109 §3): the **Season
+ * Anchor** in force there is 0. The one rule that says so: editing the
+ * activities retires a track the athlete stopped training by anchoring it at
+ * 0 from the first unbegun week, never by deleting it, and nothing else
+ * writes an anchor of 0 (authoring refuses one). Every reader of "the plan's
+ * activities" skips a track retired at the week it reads. A week before the
+ * track's first anchor has none in force, and is not retired.
+ */
+export function trackRetiredAt(
+	track: { anchors: ReadonlyArray<{ fromWeekKey: string; value: number }> },
+	weekKey: string,
+): boolean {
+	return anchorInForceAt(track.anchors, weekKey)?.value === 0
+}
 
 /** Whether a track is the Simple Activities' track on `other`. */
 export function isSimpleActivityTrack(discipline: string): boolean {

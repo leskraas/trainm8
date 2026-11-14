@@ -1,9 +1,9 @@
 # Editing the activities in _Meg_ re-lays the plan from the first unbegun week
 
-Status: Proposed · Issue #587 (follow-up to #558 / #571, owner decision
-2026-10-18) · Decisions delegated to the implementer; the calls marked
-**Proposed, owner to confirm** are the owner's · Design only: the code is not
-built yet (see "State" at the end)
+Status: Accepted · Issue #587 (follow-up to #558 / #571, owner decision
+2026-10-18) · The seven open items were settled on #587 by the factory under
+`autonomy: full` (spec and architecture runs, 2026-11-07); §7 and the amendments
+to §3 and §5 were added when it was accepted · Built on #587 (see "State")
 
 **Follows**
 [ADR 0102](./0102-the-first-run-shows-up-to-three-start-options-as-real-weeks-and-stor-base-starts-all-easy.md)
@@ -87,11 +87,35 @@ is made only when there is none.
   Reconciling them with the new activities is not as simple: an hour count typed
   for one sport mix has no meaning in another. The preview names each cleared
   week, by track and Monday. Overrides before the boundary stay as they are.
+- Season Anchors from the boundary on are **cleared** on every track the edit
+  re-anchors or retires, for the same reason: a later anchor is a new base (ADR
+  0040 §5) and would change the hours laid after it. Only the athlete writes an
+  anchor dated after the first unbegun week (_Plan_ → _Avansert_, or the Sesong
+  edit, ADR 0122), so the preview names each one dated **after** the boundary
+  Monday, by track and Monday. One on the boundary Monday itself may be the
+  plan's own first anchor or an earlier edit's re-anchor, which the rows cannot
+  tell apart (`SeasonAnchorSegment` has no source); the edit's re-anchor
+  replaces it unnamed.
 - Strength: its dated blocks are cut at the boundary; when the edit lifts, a new
   block opens there at the lifts laid (keeping the goal of the block it cuts,
   else the general goal), with that many lifting slots on the session
-  `readLiftingWorkoutId` names. Removing _styrke_ clears the athlete's Strength
-  Frequency answer: they said they no longer lift.
+  `readLiftingWorkoutId` names. Removing _styrke_ retires the strength track as
+  any other (anchored at 0 from the boundary, no block and no lifting slot after
+  it) and clears the athlete's Strength Frequency answer: they said they no
+  longer lift.
+- **A retired track is read by one rule**: its anchor in force at the week asked
+  about is 0 (`trackRetiredAt` in `app/utils/plan-outline/from-rows.ts`, the
+  module the targets are derived in). An anchor of 0 is written by nothing else:
+  authoring and the anchor editor refuse one (`anchorValue` is positive), so it
+  cannot be mistaken for an athlete's own number. Every reader of the plan's
+  activities goes through it: _Meg_'s list and the editor's pre-fill, and
+  `planStartAnswers`, so _Bytt treningsform_ never lays a sport the athlete
+  removed. The Season Anchor list's own rule (`editAnchorList` in
+  `season-anchors.ts`, ADR 0122 §1), which the anchor editor
+  (`__season-anchor-editor`) and the Sesong edit both read, refuses to remove or
+  move a retirement anchor, and to re-anchor a retired track after it; the
+  Sesong edit does not offer a retired track. A track comes back by being taken
+  up again here, which writes its days as well as its hours.
 
 ### 4. Days: the draft's pattern, written as drawn
 
@@ -114,15 +138,24 @@ own `planStamp` and slot filling. The slot filling, now inline in
 out into a pure step both callers use. With nothing kept, the result is the
 draft's week.
 
+The week is laid from **the rows as the apply will store them** (the lived rows
+with the draft's spliced on at the boundary, read through `resolvedTracks`),
+never from the draft's own standalone rows. The two agree only because a
+re-anchor makes its week the new base (ADR 0040 §5); laying from the
+stored-to-be rows makes "made = shown" a property of one computation rather than
+of that agreement, and a pure test holds the boundary week of the spliced rows
+equal to the draft's week 1 for a plan cut mid-phase.
+
 The preview writes nothing. It shows that week with the start's card week
 (`StartOptionWeekView`), the kept sessions on their actual days and marked as
 the athlete's, the start's notes (_Fikk ikke plass_, short of the hours, lifting
 capped), the Monday it begins, how many of the athlete's own or adopted sessions
 from then on stay where they are, which Pinned days are handed back to the app,
-and which hand-set weeks are cleared (§3). The confirm posts the preview's
-digest, which covers the laid week, the kept sessions it was laid around (id,
-day, Discipline) and the cleared overrides; the apply recomputes inside its
-transaction and refuses with `preview-stale` when it differs, as
+which hand-set weeks are cleared, and which of the athlete's later Season
+Anchors are cleared (§3). The confirm posts the preview's digest, which covers
+the laid week, the kept sessions it was laid around (id, day, Discipline), the
+cleared overrides and the cleared anchors (week and value); the apply recomputes
+inside its transaction and refuses with `preview-stale` when it differs, as
 `switchPhilosophy` does. A session added, moved or adopted in the boundary week
 after the preview therefore makes it stale. After commit the weeks from the
 boundary are re-laid through `relayPlanFrom`, whose clearing is the gated
@@ -139,30 +172,66 @@ lifts off its neighbours, and a kept lift fills a lifting slot whatever day it
 is on, so no second lift is laid. The week laid is the one §5 computed and
 showed, kept sessions included.
 
-## Open for the owner (Proposed, owner to confirm)
+## Settled on #587
+
+The seven calls this record left to the owner were settled on #587 (autonomy
+`full`), each as proposed here:
 
 1. **A removed track's adopted sessions stay** on their days, as the athlete's,
-   and the preview counts them. The alternative, removing them with the track,
-   would break ADR 0100 §3.
+   and the preview counts them (ADR 0100 §3).
 2. **The preview is a server round trip** (_Vis ny uke_), as _Bytt
-   treningsform_'s is, not a live _Uka di_ as the start's question screens are.
-3. **The round restarts at the boundary.** The hours carry over (they are read
-   from the plan's next ordinary week), but the rhythm's position restarts at a
-   loading week 1. The alternative, keeping the phases and only re-anchoring,
-   would lay a recovery week where the preview showed a loading one.
-4. **Pinned days are handed back.** Editing the activities re-deals every
-   track's days, so pinned endurance, Simple Activity and strength days go back
-   to _La appen velge_, and the preview says so by name.
-5. **Plans toward an Event stay read-only** in _Meg_ in this version: their
-   run-up is fitted to the race, so the start's open-ended first week is not the
-   week that would be laid. They keep _Plan_ → _Avansert_.
-6. **Hand-set weeks from the boundary on are cleared**, and the preview names
-   each one. _Bytt treningsform_ keeps them; here they would override the new
-   activities' hours, and a hand-set week on a removed sport would keep it
-   alive. The alternative, keeping them and warning, would lay a week that is
-   not the one shown.
-7. **Hours and days are not edited here.** The hours stay the plan's; adding a
-   sport shares them out. The days stay the athlete's Training Availability.
+   treningsform_'s is: only the server can read the kept sessions the boundary
+   week is laid around.
+3. **The round restarts at the boundary** at a loading week 1; the hours carry
+   over. Keeping the phases could lay a recovery week where a loading one was
+   shown.
+4. **Pinned days are handed back** to _La appen velge_ on every track, each
+   named in the preview.
+5. **Plans toward an Event, plans in km or TSS, and lifting-only plans stay
+   read-only** in _Meg_, with one line saying why.
+6. **Week Volume Overrides from the boundary on are cleared**, each named in the
+   preview by track and Monday.
+7. **Hours and days are not edited here.** The hours stay the plan's; the days
+   stay the athlete's Training Availability.
+
+Review on #699 added one: **the athlete's later Season Anchors are cleared**
+from the boundary on and each one dated after the boundary Monday is named in
+the preview by track and Monday (§3), as overrides and Pinned days are.
+
+## 7. What the build draws out, and where
+
+Each of these is one rule with two callers today or after this change, so it
+moves to where both read it rather than being copied:
+
+- **`draftStart`** (`app/utils/first-run/start-draft.ts`): the per-family laying
+  inside its loop, with the caps computed before it (the _Nybegynner_ cap that
+  counts lifts), becomes `layStartFamily(answers, family)`, which returns the
+  same `StartDraft` shape with one option, unranked and unmerged. `draftStart`
+  is that function over the level's families, then ranks and merges. The edit
+  calls it for the plan's own family, _Masters 2:1_ included.
+- **`previewPhilosophySwitch`** (`app/utils/plan-outline/philosophy.ts`): the
+  phase cut (kept, resized, removed at the boundary, the plan's end handled)
+  becomes `cutPhasesAt(rows, boundary)`. `rowsAfter` takes the new phases'
+  segments per track from its caller instead of laying the round's mix on every
+  endurance track; the switch and adding an Event pass what they lay today, so
+  their output does not change, and the edit passes the draft's segments (the
+  family's mix on the main sport, none on the others, none on a retired track).
+- **`stamp.server.ts`**: `stampWeekInput` is exported as it stands (it is
+  already pure). The slot filling becomes a pure `fillKeptSlots(sessions, kept)`
+  returning the sessions to write, and the kept-slot read becomes one query, the
+  plan's own sessions that are not `authored` and not `REPLACEABLE_SESSION`,
+  which reads the same before the gated clearing (the preview) as after it (the
+  write). It and `readHeldSessions` take the database client, so the apply reads
+  them inside its transaction.
+- **`readPlanStartOptions`**
+  (`app/utils/first-run/plan-start-options.server.ts`): reading the plan back as
+  the start's answers becomes `readPlanStartAnswers`, returning the answers or
+  why the plan has none (toward an Event, km or TSS, lifting only, no plan).
+  _Bytt treningsform_, _Meg_'s list and the editor's pre-fill all read it.
+- **`draftFirstRunPlan`** (`app/utils/first-run/draft.ts`) returns the
+  `planStamp` input it lays its weeks from (its pattern days, Simple Activity
+  days and lifting slots under draft ids), so the edit lays the boundary week
+  from the draft's own pattern rather than rebuilding it.
 
 ## Deferred hardening
 
@@ -186,10 +255,9 @@ showed, kept sessions included.
 
 ## State
 
-Only this record is written (#587, 2026-10-24). The build follows it: the pure
-per-family lay and edit reading (`app/utils/first-run/activities-edit.ts`), the
-server read, preview and apply (`activities-edit.server.ts`) with a "made =
-shown" test against the database that keeps an adopted lift and an authored hard
-session in the boundary week, the slot filling drawn out of `stamp.server.ts`,
-the Meg editor in `level.tsx` with its words in `labels.ts`, and an e2e at 390
-× 844.
+Accepted on #587 (2026-11-07), and built on #587 (PR #699): the pure splice and
+edit reading (`app/utils/first-run/activities-edit.ts`), the server read,
+preview and apply (`activities-edit.server.ts`) with a "made = shown" test
+against the database that keeps an adopted lift and an authored hard session in
+the boundary week, the extractions in §7, the Meg editor in `level.tsx` with its
+words in `labels.ts`, and an e2e at 390 × 844.

@@ -917,6 +917,8 @@ export const SESONG_REFUSAL_LABELS = {
 	workoutMismatch:
 		'Den økta er en annen sport enn sporet til dagen, og en dag tar volumet fra sitt eget spor. Velg en økt på det sporet.',
 	atEdge: 'Den er allerede ytterst i den enden av rekkefølgen.',
+	retiredTrack:
+		'Du tok bort denne aktiviteten under Meg, og fra den uka legger planen ikke ut noe på den. Vil du ha den tilbake, velger du den igjen under Meg, Nivå og økter, så får den både timer og dager.',
 	earliestAnchor:
 		'Sesongen beholder det første startnivået – hver uke fram til neste nye startnivå regnes ut fra det. Endre tallet i stedet, eller fjern et senere startnivå.',
 	sameWeek: 'Det er samme uke to ganger. Velg en annen uke å kopiere til.',

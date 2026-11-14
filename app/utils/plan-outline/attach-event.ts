@@ -35,6 +35,7 @@ import {
 	type WeekView,
 } from './outline-preview.ts'
 import {
+	familySegments,
 	phaseViews,
 	rowsAfter,
 	type LaidPhase,
@@ -170,6 +171,7 @@ export function previewAttachEvent(
 		[{ phaseId: ending.id, weeks: lived }],
 		remove,
 		add,
+		familySegments,
 	)
 
 	const thisWeekKey = weekKeyAt(outline.startWeekKey, current)

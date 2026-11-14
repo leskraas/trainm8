@@ -46,6 +46,7 @@ import {
 import {
 	phaseSpecs,
 	resolvedTracks,
+	trackRetiredAt,
 	trackSpec,
 	type OutlineRows,
 } from './from-rows.ts'
@@ -142,6 +143,11 @@ export type SeasonEditRefusal =
 	| 'no-season-anchor'
 	/** Strength and the Simple Activities' track have no Season Anchor edit. */
 	| 'not-endurance-track'
+	/**
+	 * A **Retired track**'s retirement anchor, or a re-anchor after it (ADR
+	 * 0109 §3): it comes back by being taken up again in _Meg_.
+	 */
+	| 'retired-track'
 
 /**
  * The numbers an edit leaves where they were — the message names them (story
@@ -601,6 +607,9 @@ export function seasonAnchorChoices(
 	return outline.tracks.flatMap((track, trackIndex) => {
 		if (!isCardioDiscipline(track.discipline as Discipline)) return []
 		if (track.anchors.length === 0) return []
+		// A **Retired track** is no activity of the plan's (ADR 0109 §3): it
+		// comes back in _Meg_, not here.
+		if (trackRetiredAt(track, firstUnbegunWeekKey)) return []
 		const spec = trackSpec(outline, track)
 		const earliest = earliestAnchor(track.anchors)
 		return [

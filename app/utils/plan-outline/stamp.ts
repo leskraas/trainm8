@@ -40,7 +40,12 @@ import { effortWordOfZone, type EffortWord } from '../effort-word.ts'
 import { type TrainingZone } from '../session-profile.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import { liftingDaysFor, readDays, type PlacedSession } from './day-rule.ts'
-import { type VolumeCurrency } from './derive.ts'
+import {
+	phaseIndexForWeek,
+	type PhaseSpec,
+	type VolumeCurrency,
+} from './derive.ts'
+import { type ResolvedTrack } from './from-rows.ts'
 import {
 	isQualityZone,
 	QUALITY_ZONES,
@@ -722,6 +727,37 @@ function scaleFor(day: StampDay, value: number | null): number {
 	if (day.kind !== 'share' || day.workoutId == null) return 1
 	if (day.shapeVolume == null || day.shapeVolume <= 0 || value == null) return 1
 	return value / day.shapeVolume
+}
+
+/**
+ * One plan week as the planner reads it: its targets and its mixes. Pure, so a
+ * preview reads a week off rows not yet written exactly as the stamp will
+ * read them once they are (ADR 0109 §5).
+ */
+export function stampWeekInput(
+	weekKey: string,
+	index: number,
+	specs: PhaseSpec[],
+	resolved: readonly ResolvedTrack[],
+): StampWeekInput {
+	const phaseIndex = phaseIndexForWeek(specs, index)
+	return {
+		weekKey,
+		weekInPlan: index + 1,
+		targets: resolved.map((track) => ({
+			trackId: track.trackId,
+			value: track.targets[index]?.value ?? null,
+		})),
+		// The week's segment's **Quality Session Mix**, which the planner lays
+		// on the bare share days (round 2): a plan that says two hard sessions
+		// a week lays two.
+		mixes: resolved.map((track) => ({
+			trackId: track.trackId,
+			mix:
+				track.segments.find((segment) => segment.phaseIndex === phaseIndex)
+					?.mix ?? [],
+		})),
+	}
 }
 
 /**

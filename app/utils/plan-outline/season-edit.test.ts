@@ -922,6 +922,22 @@ describe('a Season Anchor (#673, ADR 0122)', () => {
 		).toEqual([])
 	})
 
+	test('a retired track is not offered, and its retirement anchor is refused (ADR 0109 §3)', () => {
+		const { rows } = withTrack({
+			anchors: [
+				{ fromWeekKey: START, value: 40 },
+				{ fromWeekKey: '2026-10-19', value: 0 },
+			],
+		})
+		expect(seasonAnchorChoices(rows, '2026-10-19')).toEqual([])
+		expect(
+			previewSeasonEdit(rows, anchorEdit('add', '2026-11-02', 30), UNBEGUN),
+		).toEqual({ ok: false, reason: 'retired-track' })
+		expect(
+			previewSeasonEdit(rows, anchorEdit('set', '2026-10-19', 30), UNBEGUN),
+		).toEqual({ ok: false, reason: 'retired-track' })
+	})
+
 	test('the choices say which segments a remove may take: never the first, never one begun', () => {
 		const { rows } = withTrack({
 			anchors: [

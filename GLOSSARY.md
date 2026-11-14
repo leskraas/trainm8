@@ -2406,9 +2406,9 @@ non-vouch says it does not. What it cannot do it **names**: no preset carries a
 the payload, and a slot the corpus has nothing for is left empty and said out
 loud rather than backfilled. A season is reviewed on the **Plan Preview** before
 approval and on _Plan_ after it; there is no separate review screen (ADR 0123).
-The plan it writes keeps a **Generation Record**, and its weeks are laid again by
-the generator until the athlete gives it a **Week Pattern** with days (ADR 0120).
-_Avoid_: AI plan, auto-plan.
+The plan it writes keeps a **Generation Record**, and its weeks are laid again
+by the generator until the athlete gives it a **Week Pattern** with days (ADR
+0120). _Avoid_: AI plan, auto-plan.
 
 **Generation Record**: What a **Plan Outline** made by **Plan Generation** keeps
 of its approval: the generator that made it, the **Periodization Preset** and
@@ -2643,6 +2643,13 @@ and TSS, only an assumption. _Avoid_: Discipline (the same word at workout scope
 stream, side-car, parallel plan (there is no `Plan` entity to run in parallel —
 ADR 0039).
 
+**Retired track**: A **Training Track** the athlete stopped training, kept in
+the plan at 0 from the first week not yet begun so the weeks already lived still
+read as they did (ADR 0109). It is no longer one of the plan's activities: _Meg_
+does not list it and no start answer lays it. Taking the activity up again in
+_Meg_ brings the same track back. _Avoid_: Deleted track, archived track,
+inactive track.
+
 **Volume Currency**: The unit a **Training Track** authors its volume in — km,
 hours, TSS, or sets for strength — where `sets` means **total working sets per
 week**, a systemic scalar and never per muscle group or per movement (ADR 0047).
@@ -2733,8 +2740,12 @@ and still revertible (ADR 0044 §5). Corrected behind a preview in _Endre
 sesongen_ (ADR 0122), or directly under _Avansert_, where a track's first anchor
 is added. A fresh start is pre-filled with the level the **Volume Ramp** has
 reached at that week, the number its next loading week gets, never a week's
-target. _Avoid_: Starting volume (ambiguous once there are segments), baseline
-(overloaded with threshold baselines).
+target. An activities edit in _Meg_ re-anchors each track it keeps at its
+boundary and clears the segments after it, naming each one dated after the
+boundary Monday in its preview (ADR 0109 §3); an anchor of 0 is a **Retired
+track**, which neither editor removes or moves. _Avoid_: Starting volume
+(ambiguous once there are segments), baseline (overloaded with threshold
+baselines).
 
 **Volume Ramp**: The per-week rate of volume increase a **Training Track**
 authors per segment — the app's _upward_ counterpart to **Week Replan**'s
@@ -2900,9 +2911,11 @@ Tuesday and Thursday, _langrenn_ on Saturday — always one of their **Training
 Availability** days. A track with pinned days trains only on them and the other
 tracks are laid around them; a track without (_La appen velge_, the default) is
 laid by the day rule. A pinned day stays where the athlete put it even when it
-clashes, and the fit check says so. On the strength track the number of pinned
-days is the **Strength Frequency** (ADR 0104). _Avoid_: Fixed day (a **Week
-Pattern** day kind), locked day, preferred day.
+clashes, and the fit check says so, until the athlete edits the activities in
+_Meg_, which deals every track's days again and hands its pinned days back to
+_La appen velge_, naming each in its preview (ADR 0109). On the strength track
+the number of pinned days is the **Strength Frequency** (ADR 0104). _Avoid_:
+Fixed day (a **Week Pattern** day kind), locked day, preferred day.
 
 **Pattern Preview**: What each day of a **Week Pattern** resolves to against one
 chosen **Training Week**, read before anything is stamped — "Tuesday 6.7 km,
@@ -2926,10 +2939,12 @@ never folded forward, so the following week still computes from the **Season
 Anchor** and the ramps and the derivation stays indexed rather than sequential
 (ADR 0040 §3, ADR 0044). Marks itself, and survives a later re-anchor rather
 than being silently discarded. Set, and handed back to the rule ("Tilbake til
-planens mål"), only in _Endre sesongen_, behind a preview (ADR 0084). `0`
-expresses a week without training and needs no separate flag. _Avoid_: Manual
-week (every week is authored), exception, adjustment (that is **Week Replan**'s
-word).
+planens mål"), in _Endre sesongen_, behind a preview (ADR 0084); the one other
+change that hands overrides back is editing the activities in _Meg_, which
+clears every one from the first week not yet begun and names each in its preview
+(ADR 0109). `0` expresses a week without training and needs no separate flag.
+_Avoid_: Manual week (every week is authored), exception, adjustment (that is
+**Week Replan**'s word).
 
 **Week Target**: The volume a **Training Track** aims at in one **Training
 Week**, in its **Volume Currency** — derived from the **Plan Outline**, or a
@@ -3027,10 +3042,11 @@ Availability**'s trainable weekdays, which needs no conversion. It comes from
 history or from the athlete's own answer, never invented: the **First Run**'s
 one tap (_1_, _2_ or _3_ a week, pre-set from history or the **Training Level**)
 is the athlete's answer, stored on the **Athlete Profile** and changed in _Meg_
-(ADR 0103). It does **not** make calendar cost in hours derivable — that needs a
-per-session duration too, so ADR 0046 §3's **Unavailable Metric** stands.
-_Avoid_: Sessions per week (the field name, not the concept), gym days, training
-frequency (unqualified — endurance frequency is the **Quality Session Mix**'s).
+(ADR 0103); taking _styrke_ out of the activities there clears it (ADR 0109). It
+does **not** make calendar cost in hours derivable — that needs a per-session
+duration too, so ADR 0046 §3's **Unavailable Metric** stands. _Avoid_: Sessions
+per week (the field name, not the concept), gym days, training frequency
+(unqualified — endurance frequency is the **Quality Session Mix**'s).
 
 **Intensity Emphasis**: The **derived** label naming a **Training Track
 segment**'s character — for an endurance segment, read off its **Quality Session
