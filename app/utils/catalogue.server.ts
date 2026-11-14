@@ -444,7 +444,10 @@ type PlacedProvenanceRow = Prisma.WorkoutGetPayload<{
  * ({@link isPublished}, ADR 0051 §5): a taken-down row (ADR 0052 §2) or an
  * orphan reads as "an athlete published it", with the non-vouch, and no name.
  *
- * One query, two levels of nested select.
+ * One Prisma call, two levels of nested select. Without the `relationJoins`
+ * preview feature Prisma reads each nested relation in its own SQL query, so
+ * this is a constant handful of round trips per session page, not one; it runs
+ * inside the loader's `Promise.all`, so it adds no waterfall.
  */
 export async function readPlacedProvenance(
 	workoutId: string | null | undefined,
