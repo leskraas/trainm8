@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react'
 import { type ReactNode } from 'react'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
-import { NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
+import { CATALOGUE_LABELS, NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
 import { type SessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import {
 	locatorHref,
@@ -33,11 +33,20 @@ const COMMUNITY: SessionProvenance = {
 }
 
 /** The slot reads the athlete's timezone off the root route. */
-async function renderSlot(node: ReactNode) {
+function renderSlot(node: ReactNode) {
 	const App = createRoutesStub([{ path: '/', Component: () => node }])
 	render(<App initialEntries={['/']} />)
-	return screen.findByTestId('slot')
 }
+
+/** The slot's line, read as the athlete reads it: one paragraph's words. */
+function line(pattern: RegExp) {
+	return screen.findByText(
+		(_, element) =>
+			element?.tagName === 'P' && pattern.test(element.textContent ?? ''),
+	)
+}
+
+const TAKEN_DOWN = CATALOGUE_LABELS.publishState['taken-down']
 
 test('the slot speaks Norwegian, and only a community row disclaims', () => {
 	expect(
@@ -70,42 +79,31 @@ test('a locator links where it resolves: a DOI through doi.org, a URL as itself'
 })
 
 test('a corpus row carries its Citation and locator, and never an Attribution or the non-vouch', async () => {
-	const slot = await renderSlot(
-		<ProvenanceSlot data-testid="slot" provenance={DENADAI} />,
-	)
-	expect(slot).toHaveTextContent(/^Kilde: Denadai BS.*\(2017\) · doi:10/)
+	renderSlot(<ProvenanceSlot provenance={DENADAI} />)
+	await line(/^Kilde: Denadai BS.*\(2017\) · doi:10/)
 	expect(
 		screen.getByRole('link', { name: 'doi:10.1007/s40279-016-0604-z' }),
 	).toHaveAttribute('href', 'https://doi.org/10.1007/s40279-016-0604-z')
-	expect(slot).not.toHaveTextContent(/Publisert av/)
-	expect(slot.querySelector('[data-non-vouch]')).toBeNull()
+	expect(screen.queryByText(/Publisert av/)).toBeNull()
+	expect(screen.queryByText(NB_PROVENANCE_LABELS.nonVouch)).toBeNull()
 })
 
 test('an adopted session leads its line with «Endret av deg» and keeps its Session Provenance', async () => {
-	const slot = await renderSlot(
-		<ProvenanceSlot data-testid="slot" provenance={DENADAI} adopted />,
-	)
-	expect(slot.querySelector('p')).toHaveTextContent(
-		/^Endret av deg · Kilde: Denadai BS/,
-	)
+	renderSlot(<ProvenanceSlot provenance={DENADAI} adopted />)
+	await line(/^Endret av deg · Kilde: Denadai BS/)
 })
 
 test('a community row carries its byline, date and non-vouch, never a Citation, and says it was taken down', async () => {
-	const slot = await renderSlot(
-		<ProvenanceSlot data-testid="slot" provenance={COMMUNITY} takenDown />,
-	)
-	expect(slot.querySelector('p')).toHaveTextContent(
+	renderSlot(<ProvenanceSlot provenance={COMMUNITY} takenDown />)
+	await line(
 		/^Publisert av Jo Kraas · 1\. aug\.? 2026 · Fjernet av en moderator$/,
 	)
-	expect(slot.querySelector('[data-non-vouch]')).toHaveTextContent(
-		NB_PROVENANCE_LABELS.nonVouch,
-	)
-	expect(slot).not.toHaveTextContent(/Kilde:/)
+	expect(screen.getByText(NB_PROVENANCE_LABELS.nonVouch)).toBeInTheDocument()
+	expect(screen.queryByText(/Kilde:/)).toBeNull()
 })
 
 test('a taken-down mark never lands on a corpus row', async () => {
-	const slot = await renderSlot(
-		<ProvenanceSlot data-testid="slot" provenance={DENADAI} takenDown />,
-	)
-	expect(slot.querySelector('[data-taken-down]')).toBeNull()
+	renderSlot(<ProvenanceSlot provenance={DENADAI} takenDown />)
+	await line(/^Kilde: Denadai BS/)
+	expect(screen.queryByText(TAKEN_DOWN)).toBeNull()
 })
