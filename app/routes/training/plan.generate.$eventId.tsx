@@ -936,24 +936,24 @@ function TrackFigures({ figures }: { figures: WeekFigures }) {
 
 /** `mål 32 km · planlagt 24 km +1 uten km ≠`, broken only between its parts. */
 function TrackFigureLine({ track }: { track: TimelineTrackWeek }) {
-	const withUnit = (figure: string) => `${figure}\u00a0${track.unit}`
 	// `—` alone is not spoken, so an Unavailable target says so to a screen
 	// reader and shows the dash to the eye.
 	const target =
-		track.figures.target == null ? (
+		track.target == null ? (
 			<>
 				<span aria-hidden>—</span>
 				<span className="sr-only">{L.targetUnavailable}</span>
 			</>
 		) : (
-			withUnit(track.figures.target)
+			formatNbVolumeTotal(track.target, track.currency)
 		)
 	// A sum, or, where every planned session lacks a number, what stands in its
-	// place (`2 økter uten km`); never `0 km` for sessions that are there.
+	// place (`2 økter uten km`); never `0 km` for sessions that are there. The
+	// sum is null only when that note is set (`total`, `wordTrackWeek`).
 	const planned =
-		track.figures.planned != null
-			? withUnit(track.figures.planned)
-			: (track.figureNotes.planned ?? '—')
+		track.planned != null
+			? formatNbVolumeTotal(track.planned, track.currency)
+			: track.figureNotes.planned
 	// When a count goes beside the sum is `wordTrackWeek`'s rule; the preview
 	// says it unsided (`+1 uten km`), as the design asks, since `planlagt` is
 	// already named on this line.
@@ -982,7 +982,7 @@ function TrackFigureLine({ track }: { track: TimelineTrackWeek }) {
 			<span
 				className={cn(
 					'font-medium',
-					track.figures.planned != null && 'whitespace-nowrap',
+					track.planned != null && 'whitespace-nowrap',
 				)}
 			>
 				{planned}
