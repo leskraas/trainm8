@@ -1,0 +1,21 @@
+Longest main-thread task, opening the full view, 4x CPU, 390x844, production build.
+Read from PR #692's implement evidence (692-implement), per-run values, ms.
+
+set                                   season    runs  median  min  max
+head 3fd6e86, 20 runs by URL          seed      20    106.5    88  151
+                                      52-week   20    151.5   117  173   ratio +42.1%
+head 3fd6e86, first 20-run set by URL seed      20     98.5    85  158
+                                      52-week   20    143.5   116  156   ratio +45.5%
+head 3fd6e86, by navigation           seed       5    177     138  199
+                                      52-week    5    179     174  189   ratio +1.1%
+QA head aeb0e4f, 5 runs by URL        seed       5    143     130  162
+                                      52-week    5    167     143  182   ratio +16.8%
+main, 5 runs by URL                   seed       5    637     611  684
+                                      52-week    5   1563    1411 1604
+
+Traced runs after the fix (2-task-kinds-after.txt): the seed season's longest task
+is the first task of the load (at 6-11ms, before any parse of the Stream) in 3 of 4
+runs (101, 127, 127ms); the 52-week season has the same first task (106-151ms).
+So the ratio's denominator is mostly a cost both seasons share, not the season.
+
+No 52-week run in either 20-run set reached 200ms (max 173ms).
