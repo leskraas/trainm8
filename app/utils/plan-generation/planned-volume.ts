@@ -94,28 +94,33 @@ export function previewWeekVolumes({
 	}
 	const placedByWeek = byWeek(placed)
 	const existingByWeek = byWeek(existing)
-	// The sessions a track's planned figure reads, by the week model's own rule:
-	// on a season track, not put in Annet, and with a prescription. Only those
-	// are what the card's "already in this week" line says `planlagt` counts.
-	const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
-	const countsInPlanned = (session: VolumeSession) =>
-		!session.countsInNoTrack &&
-		trackDisciplines.has(session.discipline) &&
-		session.prescribed != null
 	return season.weeks.map((week) => {
 		const theirs = existingByWeek.get(week.weekKey) ?? []
 		const sessions = [...(placedByWeek.get(week.weekKey) ?? []), ...theirs]
-		return {
-			weekKey: week.weekKey,
-			volumes: buildWeekVolumes({
+		const volumesOf = (over: readonly VolumeSession[]) =>
+			buildWeekVolumes({
 				weekKey: week.weekKey,
 				todayKey,
 				planStartWeekKey: season.startWeekKey,
 				tracks,
-				sessions,
-			}),
+				sessions: over,
+			})
+		// The athlete's sessions a track's planned figure reads, counted by the
+		// week model itself (each track's `sessions.planned`), so the card's
+		// "already in this week" line follows the model's rule for which sessions
+		// `planlagt` counts, and never a copy of it.
+		const existingSessions =
+			theirs.length === 0
+				? 0
+				: volumesOf(theirs).tracks.reduce(
+						(n, track) => n + track.sessions.planned,
+						0,
+					)
+		return {
+			weekKey: week.weekKey,
+			volumes: volumesOf(sessions),
 			hasSessions: sessions.length > 0,
-			existingSessions: theirs.filter(countsInPlanned).length,
+			existingSessions,
 		}
 	})
 }
