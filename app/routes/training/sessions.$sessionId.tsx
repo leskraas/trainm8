@@ -1011,19 +1011,6 @@ export default function SessionDetailRoute({
 										{description}
 									</p>
 								) : null}
-								{/* Session Provenance, last in the prose block, after the
-								    numbers (ADR 0117 §2): the session page is the tap from
-								    the row, so it is stated here, not behind a disclosure.
-								    "Endret av deg" reads `adoptedAt`. Nothing renders where
-								    the session came from no Catalogue row. */}
-								{placedProvenance ? (
-									<ProvenanceSlot
-										data-provenance
-										provenance={placedProvenance.provenance}
-										adopted={session.adoptedAt != null}
-										takenDown={placedProvenance.takenDown}
-									/>
-								) : null}
 								{isUnadoptedDetected(session) || archetype?.kind === 'read' ? (
 									<div className="flex flex-wrap gap-1.5">
 										{isUnadoptedDetected(session) ? (
@@ -1049,6 +1036,19 @@ export default function SessionDetailRoute({
 											</Badge>
 										) : null}
 									</div>
+								) : null}
+								{/* Session Provenance, last in the prose block, after the
+								    numbers (ADR 0117 §2): the session page is the tap from
+								    the row, so it is stated here, not behind a disclosure.
+								    "Endret av deg" reads `adoptedAt`. Nothing renders where
+								    the session came from no Catalogue row. */}
+								{placedProvenance ? (
+									<ProvenanceSlot
+										data-provenance
+										provenance={placedProvenance.provenance}
+										adopted={session.adoptedAt != null}
+										takenDown={placedProvenance.takenDown}
+									/>
 								) : null}
 							</CardContent>
 						) : null}

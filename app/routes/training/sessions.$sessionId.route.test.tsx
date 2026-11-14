@@ -1604,3 +1604,32 @@ test('a placed convention session states its notice once, in Norwegian, not agai
 		screen.queryByText(/Widely-used coaching convention/),
 	).not.toBeInTheDocument()
 })
+
+test('the Session Provenance is the last item in the prose block, after the read archetype (#475)', async () => {
+	const session = makeSession({
+		status: 'completed',
+		recording: makeRecording(),
+	})
+	renderRoute(
+		withPlacedProvenance(
+			sessionDetailLoader(session, {}, null, {
+				kind: 'read',
+				reading: {
+					kind: 'archetype',
+					archetype: 'threshold',
+					modifiers: [],
+					confidence: 'medium',
+					reasons: ['4 × 8 min at threshold intensity'],
+					caveat: null,
+				},
+			}),
+			{ kind: 'convention' },
+		),
+	)
+
+	const line = await screen.findByText(/^Vanlig trenerpraksis/)
+	const badge = screen.getByText('lest · middels')
+	expect(
+		badge.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+})
