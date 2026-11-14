@@ -273,7 +273,7 @@ export type VolumeSession = {
  * stored block and step rows. Any select that carries what the four readings
  * need fits: the ledger's (`ledgerSessionSelect`) and a Stock Workout's
  * (`workoutCopySelect` plus its row ids), so a session that is only previewed
- * reads as it will once it is written (ADR 0120 §3).
+ * reads as it will once it is written (ADR 0121 §3).
  */
 export type PrescriptionWorkout = ShapeWorkout &
 	SimpleActivityWorkout & {
@@ -348,7 +348,7 @@ export function prescriptionVolumeOf(
  * A session not yet written, as the week model will read it once it is: its
  * Workout through {@link prescriptionVolumeOf}, on its day and with its status,
  * nothing recorded and in no Annet by choice. The generate preview reads each
- * session it places through it (ADR 0120 §3), with no fake ledger row.
+ * session it places through it (ADR 0121 §3), with no fake ledger row.
  */
 export function placedVolumeSession(
 	workout: PrescriptionWorkout,

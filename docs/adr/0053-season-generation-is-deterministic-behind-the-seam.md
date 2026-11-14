@@ -7,7 +7,7 @@ Status: Accepted · **§1 amended by
 stays in trainm8 and still regenerates (§2), so §2 and §8 hold. A model
 implementation is ADR 0095's, and then §2's approval binds to the stored
 preview. · **§6 clarified by
-[ADR 0120](./0120-a-generated-weeks-planned-volume-is-read-outside-the-seam-as-sesong-will-read-it.md)**:
+[ADR 0121](./0121-a-generated-weeks-planned-volume-is-read-outside-the-seam-as-sesong-will-read-it.md)**:
 the sum of a week's placed sessions is a reading of the payload, not a field
 on it.
 
