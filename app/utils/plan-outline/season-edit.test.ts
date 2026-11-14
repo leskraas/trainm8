@@ -125,6 +125,21 @@ describe('a week target', () => {
 		expect(preview.weeks[0]!.after?.targets[0]!.overridden).toBe(true)
 	})
 
+	test('a preview made before a week began does not confirm after it', () => {
+		// The same edit, the same weeks changing: only the week the athlete is in
+		// moved on. Criterion 4 refuses that confirm, so the digest tells them apart.
+		const edit = {
+			kind: 'week-target' as const,
+			trackId: 'run',
+			weekKey: '2026-10-26',
+			value: 44,
+		}
+		const before = ok(previewSeasonEdit(outline(), edit, UNBEGUN))
+		const after = ok(previewSeasonEdit(outline(), edit, '2026-10-19'))
+		expect(after.weeks).toEqual(before.weeks)
+		expect(after.digest).not.toBe(before.digest)
+	})
+
 	test('warns when it rises more than 10 % over the loading week before it', () => {
 		const preview = ok(
 			previewSeasonEdit(

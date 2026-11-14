@@ -868,6 +868,8 @@ function finish(
 		heldWeeks,
 		relayWeekKeys,
 		write,
+		// The first unbegun week too: a week begun since the preview refuses
+		// its confirm (#673, criterion 4), even when the same weeks change.
 		digest: digestOf({
 			summary: counted,
 			weeks,
@@ -875,6 +877,7 @@ function finish(
 			held: heldNumbers,
 			heldWeeks,
 			write,
+			firstUnbegunWeekKey,
 		}),
 	}
 }
