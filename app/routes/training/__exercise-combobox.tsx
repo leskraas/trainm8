@@ -59,7 +59,7 @@ function FilterChip({
 			size="sm"
 			pressed={pressed}
 			onPressedChange={onToggle}
-			className="text-caption aria-pressed:border-foreground/20 aria-pressed:text-foreground text-muted-foreground h-7 rounded-full px-2.5"
+			className="text-caption aria-pressed:border-foreground/20 aria-pressed:text-foreground text-muted-foreground h-7 rounded-full px-2.5 font-normal"
 		>
 			{label}
 		</Toggle>
@@ -75,7 +75,8 @@ function FilterChip({
  * select. No scale: it owns a popup (`pressable`'s `aria-haspopup` rule).
  */
 const TRIGGER_CLASS =
-	'bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 duration-press flex h-11 w-full items-center justify-between gap-1.5 rounded-3xl border border-transparent px-3 py-2 text-base whitespace-nowrap transition-[color,box-shadow,background-color] ease-out outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm'
+	// eslint-disable-next-line trainm8/luma-steps -- mirrors the ui/select trigger beside it (`text-base md:text-sm`)
+	'bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 duration-press flex min-h-11 w-full items-center justify-between gap-1.5 rounded-3xl border border-transparent px-3 py-2 text-base transition-[color,box-shadow,background-color] ease-out outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm'
 
 /**
  * Searchable exercise picker for strength steps (ADR 0027 §8, PRD R8):
@@ -240,7 +241,7 @@ export function ExerciseCombobox({
 				onBlur={onBlur}
 				className={cn(TRIGGER_CLASS, !selected && 'text-muted-foreground')}
 			>
-				<span className="line-clamp-1 flex-1 text-left">
+				<span className="flex-1 text-left [overflow-wrap:anywhere]">
 					{selected ? selected.name : L.placeholder}
 				</span>
 				<Icon
@@ -293,9 +294,7 @@ export function ExerciseCombobox({
 							</div>
 						) : null}
 						<CommandList>
-							{!showCreateRow ? (
-								<CommandEmpty>{L.empty}</CommandEmpty>
-							) : null}
+							{!showCreateRow ? <CommandEmpty>{L.empty}</CommandEmpty> : null}
 							{recentExercises.length > 0 ? (
 								<CommandGroup heading={L.recent}>
 									{recentExercises.map((ex) => (
@@ -306,7 +305,7 @@ export function ExerciseCombobox({
 											onSelect={() => selectExercise(ex.id)}
 										>
 											<span className="flex-1">{ex.name}</span>
-											<span className="text-caption text-muted-foreground">
+											<span className="text-caption text-muted-foreground font-normal">
 												{formatMuscleLabel(ex.primaryMuscle)}
 											</span>
 										</CommandItem>
@@ -318,9 +317,7 @@ export function ExerciseCombobox({
 							) : null}
 							{otherExercises.length > 0 ? (
 								<CommandGroup
-									heading={
-										recentExercises.length > 0 ? L.all : undefined
-									}
+									heading={recentExercises.length > 0 ? L.all : undefined}
 								>
 									{otherExercises.map((ex) => (
 										<CommandItem
@@ -330,7 +327,7 @@ export function ExerciseCombobox({
 											onSelect={() => selectExercise(ex.id)}
 										>
 											<span className="flex-1">{ex.name}</span>
-											<span className="text-caption text-muted-foreground">
+											<span className="text-caption text-muted-foreground font-normal">
 												{formatMuscleLabel(ex.primaryMuscle)}
 											</span>
 										</CommandItem>
@@ -353,7 +350,7 @@ export function ExerciseCombobox({
 					</Command>
 				) : (
 					<Command key="muscle-pick" loop>
-						<div className="text-caption text-muted-foreground px-3 pt-2">
+						<div className="text-caption text-muted-foreground px-3 pt-2 font-normal">
 							{L.muscleFor(createName)}
 						</div>
 						<CommandInput
@@ -387,7 +384,7 @@ export function ExerciseCombobox({
 								{L.back}
 							</Button>
 							{creating ? (
-								<span className="text-caption text-muted-foreground px-2">
+								<span className="text-caption text-muted-foreground px-2 font-normal">
 									{L.saving}
 								</span>
 							) : createFetcher.data?.error ? (

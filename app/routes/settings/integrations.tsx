@@ -243,7 +243,7 @@ function ProviderTile({ entry }: { entry: ProviderDirectoryEntry }) {
 		<span
 			aria-hidden="true"
 			className={cn(
-				'grid size-10 flex-none place-items-center rounded-2xl text-sm font-bold',
+				'text-footnote grid size-10 flex-none place-items-center rounded-2xl font-bold',
 				entry.monogramClassName,
 			)}
 		>

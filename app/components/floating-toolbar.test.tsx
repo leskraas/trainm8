@@ -15,7 +15,7 @@ test('applies base toolbar classes', () => {
 	const el = screen.getByTestId('toolbar')
 	expect(el.className).toContain('absolute')
 	expect(el.className).toContain('bottom-3')
-	expect(el.className).toContain('rounded-lg')
+	expect(el.className).toContain('rounded-4xl')
 })
 
 test('merges caller className via cn()', () => {

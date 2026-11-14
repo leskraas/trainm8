@@ -131,7 +131,7 @@ export function WeekChangeCard({
 			{...{ [WEEK_CHANGE_ATTR]: '' }}
 			data-week-change-open={card.open}
 			aria-labelledby="week-change-heading"
-			className="border-border bg-card mx-4 my-3 flex flex-col gap-4 rounded-[14px] border px-4 py-4"
+			className="border-border bg-card mx-4 my-3 flex flex-col gap-4 rounded-4xl border px-4 py-4"
 		>
 			<header className="flex flex-col gap-1">
 				<h2
@@ -172,7 +172,7 @@ export function WeekChangeCard({
 					<button
 						type="button"
 						onClick={() => setClosed(true)}
-						className="border-border text-foreground hover:border-primary min-h-11 flex-none rounded-[10px] border px-4 text-[12.5px]/[1] font-semibold"
+						className="border-border text-foreground hover:border-primary min-h-11 flex-none rounded-3xl border px-4 text-[12.5px]/[1] font-semibold"
 					>
 						{WEEK_CHANGE_LABELS.close}
 					</button>
@@ -334,20 +334,20 @@ function Proposal({
 			data-proposal-kind={proposal.kind}
 			data-proposal-state={pending ? 'saving' : proposal.state}
 			aria-label={proposal.headline}
-			className="border-border/70 flex flex-col gap-2 rounded-[12px] border px-3 py-3"
+			className="bg-muted/50 flex flex-col gap-2 rounded-3xl px-3 py-3"
 		>
 			<div className="flex flex-wrap items-start gap-x-2 gap-y-1">
 				<h4 className="text-foreground min-w-0 flex-1 text-[14px]/[1.3] font-semibold [text-wrap:pretty]">
 					{proposal.headline}
 				</h4>
 				{proposal.ownLabel ? (
-					<span className="border-border text-muted-foreground flex flex-none items-center gap-1 rounded-[6px] border px-[6px] text-[10.5px]/[1.6] font-semibold">
+					<span className="border-border text-muted-foreground flex flex-none items-center gap-1 rounded-full border px-[6px] text-[10.5px]/[1.6] font-semibold">
 						<Icon name="lock-closed" size="xs" />
 						{proposal.ownLabel}
 					</span>
 				) : null}
 				{proposal.addsLoad ? (
-					<span className="border-border text-muted-foreground flex-none rounded-[6px] border px-[6px] text-[10.5px]/[1.6] font-semibold">
+					<span className="border-border text-muted-foreground flex-none rounded-full border px-[6px] text-[10.5px]/[1.6] font-semibold">
 						{WEEK_CHANGE_LABELS.addsLoad}
 					</span>
 				) : null}
@@ -397,7 +397,7 @@ function Proposal({
 									{proposal.scope.options.map((option) => (
 										<label
 											key={option.value}
-											className="border-border has-[:checked]:border-primary has-[:checked]:bg-primary/8 has-[:focus-visible]:ring-ring flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border px-3 text-[12.5px]/[1.2] has-[:focus-visible]:ring-2"
+											className="border-border has-[:checked]:border-primary has-[:checked]:bg-primary/8 has-[:focus-visible]:ring-ring flex min-h-11 cursor-pointer items-center gap-2 rounded-2xl border px-3 text-[12.5px]/[1.2] has-[:focus-visible]:ring-2"
 										>
 											<input
 												{...getInputProps(fields.scope, {
@@ -418,7 +418,7 @@ function Proposal({
 								type="submit"
 								name={round ? undefined : 'answer'}
 								value={round ? undefined : 'accepted'}
-								className="bg-primary text-primary-foreground hover:bg-primary/85 min-h-11 flex-1 rounded-[10px] px-4 text-[13px]/[1] font-bold"
+								className="bg-primary text-primary-foreground hover:bg-primary/85 min-h-11 flex-1 rounded-3xl px-4 text-[13px]/[1] font-bold"
 							>
 								{WEEK_CHANGE_LABELS.ok}
 							</button>
@@ -427,7 +427,7 @@ function Proposal({
 								form={round ? declineForm.id : undefined}
 								name="answer"
 								value="declined"
-								className="border-border text-foreground hover:border-primary min-h-11 flex-1 rounded-[10px] border px-4 text-[13px]/[1] font-semibold"
+								className="border-border text-foreground hover:border-primary min-h-11 flex-1 rounded-3xl border px-4 text-[13px]/[1] font-semibold"
 							>
 								{WEEK_CHANGE_LABELS.no}
 							</button>
@@ -562,7 +562,7 @@ export function Ease({
 					<button
 						type="submit"
 						disabled={saving}
-						className="border-border text-foreground hover:border-primary min-h-11 rounded-[10px] border px-4 text-[13px]/[1] font-semibold disabled:opacity-60"
+						className="border-border text-foreground hover:border-primary min-h-11 rounded-3xl border px-4 text-[13px]/[1] font-semibold disabled:opacity-60"
 					>
 						{saving ? WEEK_CHANGE_LABELS.saving : WEEK_CHANGE_LABELS.ease}
 					</button>
