@@ -76,7 +76,8 @@ future `prisma.user.delete` from making new ones.
   unattributed Orphaned Workout. If that training later lets go of it, nothing
   collects it: the job does not run again. No shipped path writes such a pointer
   (ADR 0051 §5).
-- Open reports on an erased orphan go with it, as on Account Erasure (#639 H24).
+- Open reports on an erased Orphaned Workout go with it, as on Account Erasure
+  (#639 H24).
 - The read-only SQL count in ADR 0051 §5 stays as the owner's check that the job
   ran: after it, only kept rows remain, all `private`.
 - `git grep` stays the backstop for shapes lint does not see: the delegate
@@ -89,15 +90,15 @@ future `prisma.user.delete` from making new ones.
   sweep is not built; when it is, it exempts them.
 - A purge a machine stopped mid-run (a deploy, a crash) rolls back but leaves
   its row `running`. Boot fails such a row when it started before this process
-  did (one node runs the worker), so the queue's attempts retry it on the
-  first boot after the stop, however soon; without that its row would block
-  every later enqueue.
+  did (one node runs the worker), so the queue's attempts retry it on the first
+  boot after the stop, however soon; without that its row would block every
+  later enqueue.
 - A purge that fails on every attempt ends `failed`, and no later boot enqueues
   another. Each failed attempt logs `[orphaned-workout-purge] attempt failed`
   with the job id and the error's class and code, never its message (a Prisma
-  validation error prints the query's arguments). The message is still stored
-  in the row's `lastError` and printed by Prisma's own error log, where it can
-  carry Workout ids, never a title or name. The owner's check is therefore
-  two reads: the `Job` of kind `orphaned-workout-purge` is `completed` (its
+  validation error prints the query's arguments). The message is still stored in
+  the row's `lastError` and printed by Prisma's own error log, where it can
+  carry Workout ids, never a title or name. The owner's check is therefore two
+  reads: the `Job` of kind `orphaned-workout-purge` is `completed` (its
   `lastError` says why if not), and ADR 0051 §5's SQL count shows only kept
   rows.
