@@ -28,6 +28,7 @@ import {
 	formatRepRange,
 	formatSessionCounts,
 	formatSigned,
+	formatNbSignedRate,
 	formatSignedPercent,
 	formatSignedTsb,
 	formatSpeed,
@@ -79,6 +80,13 @@ test('formatSignedPercent signs a ramp, a boundary step and a cut', () => {
 	expect(formatSignedPercent(-0.126)).toBe('−13%')
 	// An authored zero is a real authored rate — "flat" — not an absent one.
 	expect(formatSignedPercent(0)).toBe('+0%')
+})
+
+test('formatNbSignedRate signs a rate to a tenth, a no-break space before %', () => {
+	expect(formatNbSignedRate(0.05)).toBe('+5\u00a0%')
+	expect(formatNbSignedRate(0.025)).toBe('+2,5\u00a0%')
+	expect(formatNbSignedRate(-0.1)).toBe('−10\u00a0%')
+	expect(formatNbSignedRate(0)).toBe('+0\u00a0%')
 })
 
 test('formatSignedTsb uses a real minus sign and an explicit +0 (coach/replan copy)', () => {

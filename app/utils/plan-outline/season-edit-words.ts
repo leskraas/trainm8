@@ -5,7 +5,7 @@
  * athlete reads the same sentence before and after.
  */
 
-import { formatNbVolumeFigure } from '../format.ts'
+import { formatNbSignedRate, formatNbVolumeFigure } from '../format.ts'
 import {
 	NB_VOLUME_UNITS,
 	nbTrackName,
@@ -71,11 +71,6 @@ export function seasonEditWarningMessage(warning: SeasonEditWarning): string {
 	)
 }
 
-/** A percent the Norwegian way: `5`, `2,5`, `-10`. */
-function nbPercent(fraction: number): string {
-	return String(Math.round(fraction * 1000) / 10).replace('.', ',')
-}
-
 /**
  * How a changed week's target was worked out (ADR 0121 §1), the "regnet ut"
  * a preview row opens: `Startnivå 40 km fra uke 41, så +5 % for hver av de 3
@@ -92,12 +87,12 @@ export function seasonEditDerivationMessage(
 			weekNumber: derivation.anchor.weekNumber,
 		},
 		ramps: derivation.ramps.map((ramp) => ({
-			percent: nbPercent(ramp.ramp),
+			percent: formatNbSignedRate(ramp.ramp),
 			loadingWeeks: ramp.loadingWeeks,
 			phaseName: ramp.phaseName,
 		})),
 		boundarySteps: derivation.boundarySteps.map((step) => ({
-			percent: nbPercent(step.step),
+			percent: formatNbSignedRate(step.step),
 			phaseName: step.phaseName,
 		})),
 		role: derivation.role,

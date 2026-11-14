@@ -502,6 +502,7 @@ export const SEASON_ANCHOR_EDIT_LABELS = {
 /** How a changed week's target was worked out (ADR 0121 §1), worded. */
 export type SeasonAnchorDerivationWords = {
 	anchor: { figure: string; weekNumber: number }
+	/** `percent`: signed, with its sign, `+2,5 %` (`formatNbSignedRate`). */
 	ramps: Array<{ percent: string; loadingWeeks: number; phaseName: string }>
 	boundarySteps: Array<{ percent: string; phaseName: string }>
 	role: WeekRole
@@ -522,11 +523,10 @@ export function seasonAnchorDerivationSentence(
 	const steps = [
 		...words.ramps.map(
 			(ramp) =>
-				`+${ramp.percent} % for ${ramp.loadingWeeks === 1 ? 'den harde uka' : `hver av de ${ramp.loadingWeeks} harde ukene`} i ${nbPhaseName(ramp.phaseName)}`,
+				`${ramp.percent} for ${ramp.loadingWeeks === 1 ? 'den harde uka' : `hver av de ${ramp.loadingWeeks} harde ukene`} i ${nbPhaseName(ramp.phaseName)}`,
 		),
 		...words.boundarySteps.map(
-			(step) =>
-				`${step.percent.startsWith('-') ? step.percent.replace('-', '−') : `+${step.percent}`} % inn i ${nbPhaseName(step.phaseName)}`,
+			(step) => `${step.percent} inn i ${nbPhaseName(step.phaseName)}`,
 		),
 	]
 	const start = `Startnivå ${words.anchor.figure} fra uke ${words.anchor.weekNumber}`
@@ -546,7 +546,7 @@ export function seasonAnchorDerivationSentence(
 	}`
 	return words.role === 'loading'
 		? `${climb} ${where}.`
-		: `${climb} ${where}: ${words.factorPercent} % av ${from}.`
+		: `${climb} ${where}: ${words.factorPercent} % av ${from}.`
 }
 
 /**

@@ -100,6 +100,18 @@ export function formatSignedPercent(fraction: number): string {
 }
 
 /**
+ * A signed rate to a tenth of a percent, in the prose the athlete reads (a
+ * **Volume Ramp**, a **Block Boundary Step**): `+5 %`, `+2,5 %`,
+ * `−10 %`. A decimal comma, a real minus sign, and a no-break space before
+ * the sign like {@link formatNbPercent}, so the figure and its sign never part.
+ */
+export function formatNbSignedRate(fraction: number): string {
+	const tenths = Math.round(fraction * 1000) / 10
+	const figure = String(Math.abs(tenths)).replace('.', ',')
+	return `${tenths < 0 ? '−' : '+'}${figure} %`
+}
+
+/**
  * A rate as the **whole percent a form field carries** — the inverse of the
  * `percent / 100` a rate form does on the way in, and the reason it lives beside
  * {@link formatSignedPercent} rather than in a route (ADR 0023 §6: parsers live
