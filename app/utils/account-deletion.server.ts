@@ -88,46 +88,50 @@ export async function eraseOrphanedWorkouts(
 	return erase(tx, { kind: 'orphanedWorkouts' })
 }
 
-/** The Workouts a scope may erase. Carries `authorship` for the Orphaned Workout scope. */
-function candidateWhere(scope: ErasureScope): Prisma.WorkoutWhereInput {
-	return scope.kind === 'account'
-		? { ownerId: scope.userId }
-		: { ownerId: null, authorship: 'athlete' }
-}
-
 /**
- * The training that keeps a candidate. An account's own sessions and slots go
- * with it, so they do not count; an Orphaned Workout's author's training already went
- * with their account, so any session, slot or Program day still on it is
- * somebody else's.
+ * What a scope reads, decided in one place: its **candidates**, the Workouts it
+ * may erase (carrying `authorship` for the Orphaned Workout scope), and the
+ * training that keeps a candidate (**heldElsewhere**). An account's own
+ * sessions and slots go with it, so they do not count; an Orphaned Workout's
+ * author's training already went with their account, so any session, slot or
+ * Program day still on it is somebody else's.
  *
  * The `patternDays` clauses cannot match on a migrated database: since ADR
  * 0113 a day uses only its own plan's Held Workout (§3), and its migration
  * re-pointed every existing day at one (§8), so no slot points at another
- * athlete's row or at an Orphaned Workout. They stay as the guard the rule states, for a
- * row a future path or an unmigrated database could still hold.
+ * athlete's row or at an Orphaned Workout. They stay as the guard the rule
+ * states, for a row a future path or an unmigrated database could still hold.
  */
-function heldElsewhereWhere(scope: ErasureScope): Prisma.WorkoutWhereInput {
+function scopeQueries(scope: ErasureScope): {
+	candidates: Prisma.WorkoutWhereInput
+	heldElsewhere: Prisma.WorkoutWhereInput
+} {
 	if (scope.kind === 'orphanedWorkouts') {
 		return {
-			OR: [
-				{ sessions: { some: {} } },
-				{ patternDays: { some: {} } },
-				{ programDays: { some: {} } },
-			],
+			candidates: { ownerId: null, authorship: 'athlete' },
+			heldElsewhere: {
+				OR: [
+					{ sessions: { some: {} } },
+					{ patternDays: { some: {} } },
+					{ programDays: { some: {} } },
+				],
+			},
 		}
 	}
 	const { userId } = scope
 	return {
-		OR: [
-			{ sessions: { some: { userId: { not: userId } } } },
-			{
-				patternDays: {
-					some: { pattern: { outline: { athleteId: { not: userId } } } },
+		candidates: { ownerId: userId },
+		heldElsewhere: {
+			OR: [
+				{ sessions: { some: { userId: { not: userId } } } },
+				{
+					patternDays: {
+						some: { pattern: { outline: { athleteId: { not: userId } } } },
+					},
 				},
-			},
-			{ programDays: { some: {} } },
-		],
+				{ programDays: { some: {} } },
+			],
+		},
 	}
 }
 
@@ -135,13 +139,13 @@ async function erase(
 	tx: Prisma.TransactionClient,
 	scope: ErasureScope,
 ): Promise<AccountErasure> {
-	const candidates = candidateWhere(scope)
+	const { candidates, heldElsewhere: held } = scopeQueries(scope)
 	const rows = await tx.workout.findMany({
 		where: candidates,
 		select: { id: true, copiedFromId: true },
 	})
 	const heldElsewhere = await tx.workout.findMany({
-		where: { AND: [candidates, heldElsewhereWhere(scope)] },
+		where: { AND: [candidates, held] },
 		select: { id: true },
 	})
 	const kept = new Set(heldElsewhere.map((row) => row.id))
