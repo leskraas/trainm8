@@ -448,7 +448,11 @@ export function useTimelineScroll({
 			if (index < 0) return
 			// A jump is the reader's own act: the landing has no more say.
 			releaseRef.current()
-			if (index > todayIndex + afterRef.current) setAfter(index - todayIndex)
+			// Never below an update still pending: a jump made while the first
+			// chunk's append waits in its transition keeps the whole chunk.
+			if (index > todayIndex + afterRef.current) {
+				setAfter((n) => Math.max(n, index - todayIndex))
+			}
 			pendingJumpRef.current = key
 			drainJump()
 		},

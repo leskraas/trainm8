@@ -260,3 +260,53 @@ test('on a screen taller than the weeks the server renders ahead, today is parke
 	expect(tops.length).toBeGreaterThan(0)
 	expect(new Set(tops)).toEqual(new Set([tops[0]]))
 })
+
+for (const target of ['oldest', 'four ahead'] as const) {
+	test(`a strip tap made the moment the full view appears lands on the ${target} week, and stays there`, async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		// #503 criterion 6. The tap comes before the frame has hydrated, and the
+		// week four ahead is not yet mounted (the server renders this week and
+		// the next, ADR 0119): the tap must not be dropped, and nothing may
+		// re-land the reader once it has jumped.
+		test.setTimeout(120_000)
+		const user = await login()
+		await seedReader(user.id)
+
+		await navigate(HOME_TIMELINE_HREF)
+		const stream = page.getByTestId('timeline-stream')
+		await expect(stream).toBeVisible()
+		const cells = page.getByTestId('week-strip').locator('[data-timeline-cell]')
+		const keys = await cells.evaluateAll((all) =>
+			all.map((cell) => ({
+				key: cell.getAttribute('data-timeline-cell')!,
+				now: cell.hasAttribute('data-now'),
+			})),
+		)
+		const today = keys.findIndex((cell) => cell.now)
+		const index = target === 'oldest' ? 0 : today + 4
+		const key = keys[index]!.key
+		await cells.nth(index).click()
+
+		const weekTop = () =>
+			stream.evaluate((el, key) => {
+				const week = el.querySelector(`[data-timeline-week="${key}"]`)
+				return week
+					? Math.round(
+							week.getBoundingClientRect().top - el.getBoundingClientRect().top,
+						)
+					: null
+			}, key)
+		await expect
+			.poll(async () => Math.abs((await weekTop()) ?? Infinity), {
+				timeout: 15_000,
+			})
+			.toBeLessThanOrEqual(4)
+		await untilHydrated(stream)
+		await untilFirstChunk(stream)
+		await page.waitForTimeout(500)
+		expect(Math.abs((await weekTop())!)).toBeLessThanOrEqual(4)
+	})
+}
