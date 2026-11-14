@@ -103,8 +103,10 @@ reached the calendar.
 - A session written by a copy that sets no `copiedFromId` has no line, even when
   its Workout came from a Catalogue row: a **Week Replan** make-up or add,
   copy-week and stamping all copy without the back-pointer. Those writers are
-  older than this ADR; carrying `copiedFromId` through them is owed when the
-  project leaves `poc`.
+  older than this ADR, and they copy the session's own Workout, which is itself
+  a placed copy: setting `copiedFromId` to that Workout would still leave the
+  Catalogue row out of §5's reach. The fix, owed when the project leaves `poc`,
+  is to carry the copied Workout's own `copiedFromId` onto the new copy.
 - Account erasure splices `copiedFromId` past the erased rows (ADR 0051). If a
   Shared Workout was itself adapted from a Stock Workout, a session placed from
   it then reads the Stock Workout's Citation once its publisher deletes their
