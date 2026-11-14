@@ -1,0 +1,42 @@
+
+ RUN  v4.0.18 /tmp/claude-0/-home-user-trainm8/7f1f63ae-64fa-5ddd-acd8-8a82a72f7d74/scratchpad/f/wt/720-review
+
+ × app/utils/catalogue.server.test.ts > a placed session names its publisher only while the row is still published (ADR 0051 §5, ADR 0052 §2) 214ms
+   → expected { provenance: { …(2) }, …(1) } to deeply equal { provenance: { …(2) }, …(1) }
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  app/utils/catalogue.server.test.ts > a placed session names its publisher only while the row is still published (ADR 0051 §5, ADR 0052 §2)
+AssertionError: expected { provenance: { …(2) }, …(1) } to deeply equal { provenance: { …(2) }, …(1) }
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[2m    "provenance": {[22m
+[32m-     "attribution": null,[39m
+[31m+     "attribution": {[39m
+[31m+       "displayName": "Erased Author",[39m
+[31m+       "publishedAt": 2026-08-01T10:00:00.000Z,[39m
+[31m+     },[39m
+[2m      "kind": "community",[22m
+[2m    },[22m
+[2m    "takenDown": true,[22m
+[2m  }[22m
+
+ ❯ app/utils/catalogue.server.test.ts:769:51
+    767|   data: { takenDownAt: new Date(), takedownReason: 'Unsafe to train' },
+    768|  })
+    769|  expect(await readPlacedProvenance(placed, null)).toEqual({
+       |                                                   ^
+    770|   provenance: { kind: 'community', attribution: null },
+    771|   takenDown: true,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 25 skipped (26)
+   Start at  06:17:23
+   Duration  2.48s (transform 1.05s, setup 971ms, import 730ms, tests 219ms, environment 0ms)
+

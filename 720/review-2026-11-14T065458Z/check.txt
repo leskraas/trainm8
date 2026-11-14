@@ -1,0 +1,16 @@
+## npm run lint (NODE_OPTIONS=--max-old-space-size=8192; default heap OOMs in this container)
+✖ 154 problems (0 errors, 154 warnings)
+  0 errors and 5 warnings potentially fixable with the `--fix` option.
+
+
+## npm run typecheck
+> typecheck
+> react-router typegen && tsc
+
+exit 0
+
+## npx vitest run
+   ✓ the quantity popover leads with a Duration ⇄ Distance switch that seeds defaults and round-trips  1418ms
+   ✓ reintroducing the quantity via Duration lands the seed, even when it equals the field default  782ms
+ Test Files  427 passed (427)
+   Duration  397.68s (transform 23.84s, setup 269.58s, import 115.30s, tests 718.69s, environment 34.29s)

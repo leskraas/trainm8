@@ -1,0 +1,5 @@
+BEFORE {"provenance":{"kind":"community","attribution":{"displayName":"Jo","publishedAt":"2026-11-14T06:18:00.985Z"}},"takenDown":false}
+AFTER {"provenance":{"kind":"corpus","citation":{"author":"Daniels","work":"Daniels' Running Formula","year":2013,"locator":null}},"takenDown":false}
+   × PROBE: a session placed from a community fork of a Stock Workout, after the publisher erases their account 259ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed (1)

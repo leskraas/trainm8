@@ -1,0 +1,31 @@
+
+ RUN  v4.0.18 /tmp/claude-0/-home-user-trainm8/7f1f63ae-64fa-5ddd-acd8-8a82a72f7d74/scratchpad/f/wt/720-review
+
+ ❯ app/routes/training/plan.generate.$eventId.route.test.tsx (28 tests | 1 failed | 27 skipped) 678ms
+   × Escape closes the open panel wherever focus is, and returns focus to its row 672ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  app/routes/training/plan.generate.$eventId.route.test.tsx > Escape closes the open panel wherever focus is, and returns focus to its row
+Error: [2mexpect([22m[31melement[39m[2m).toHaveAttribute([22m[32m[32m"aria-expanded"[32m[39m[2m, [22m[32m[32m"false"[32m[39m[2m) // element.getAttribute("aria-expanded") === "false"[22m
+
+Expected the element to have attribute:
+[32m  aria-expanded="false"[39m
+Received:
+[31m  aria-expanded="true"[39m
+ ❯ app/routes/training/plan.generate.$eventId.route.test.tsx:242:17
+    240| 
+    241|  await user.keyboard('{Escape}')
+    242|  expect(button).toHaveAttribute('aria-expanded', 'false')
+       |                 ^
+    243|  expect(button).toHaveFocus()
+    244| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 27 skipped (28)
+   Start at  06:27:43
+   Duration  4.47s (transform 1.48s, setup 963ms, import 1.79s, tests 678ms, environment 443ms)
+
