@@ -49,7 +49,7 @@ const HOLD_FRAMES = Math.ceil(COLLAPSE_OPEN_MS / (1000 / 60))
 const ATHLETE_SCROLL = ['pointerdown', 'wheel', 'keydown'] as const
 
 /** One key per placed session across the season. */
-export function sessionRowKey(session: GeneratedSession): string {
+export function planPreviewRowKey(session: GeneratedSession): string {
 	return `${session.weekIndex}-${session.weekday}-${session.discipline}-${session.entryId}`
 }
 
@@ -58,7 +58,7 @@ function panelIdFor(key: string): string {
 	return `provenance-${key}`
 }
 
-export type OpenSessionRow = {
+export type PlanPreviewOpenRow = {
 	openKey: string | null
 	/** The panel that closes without animation, because it sat above the row
 	 * being opened. */
@@ -71,7 +71,7 @@ export type OpenSessionRow = {
  * The season's one open row. Lives at the season, so opening a row in one week
  * closes the panel in another.
  */
-export function useOpenSessionRow(): OpenSessionRow {
+export function usePlanPreviewOpenRow(): PlanPreviewOpenRow {
 	const [state, setState] = useState<{
 		openKey: string | null
 		snapKey: string | null
@@ -213,14 +213,14 @@ export function DayLine({
 	)
 }
 
-export function SessionRow({
+export function PlanPreviewRow({
 	session,
 	openRow,
 }: {
 	session: GeneratedSession
-	openRow: OpenSessionRow
+	openRow: PlanPreviewOpenRow
 }) {
-	const key = sessionRowKey(session)
+	const key = planPreviewRowKey(session)
 	const open = openRow.openKey === key
 	const snap = openRow.snapKey === key
 	const triggerRef = useRef<HTMLButtonElement>(null)

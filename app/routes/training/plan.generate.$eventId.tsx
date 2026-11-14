@@ -104,10 +104,10 @@ import { CollapsibleSection, PlanCard } from './__plan-chrome.tsx'
 import { ChoiceCard } from './__plan-new-parts.tsx'
 import {
 	DayLine,
-	SessionRow,
-	sessionRowKey,
-	useOpenSessionRow,
-	type OpenSessionRow,
+	PlanPreviewRow,
+	planPreviewRowKey,
+	usePlanPreviewOpenRow,
+	type PlanPreviewOpenRow,
 } from './__plan-preview-row.tsx'
 import {
 	LoadProfile,
@@ -223,7 +223,7 @@ export default function GenerateSeasonRoute({
 	const { preview, refusal, nearestFit } = loaderData
 	const [searchParams] = useSearchParams()
 	// The season's one open provenance panel (ADR 0117 §2).
-	const openRow = useOpenSessionRow()
+	const openRow = usePlanPreviewOpenRow()
 
 	if (!preview) {
 		return (
@@ -755,7 +755,7 @@ function WeekCard({
 }: {
 	week: SeasonPreview['season']['weeks'][number]
 	season: SeasonPreview['season']
-	openRow: OpenSessionRow
+	openRow: PlanPreviewOpenRow
 }) {
 	const phase = season.phases[week.phaseIndex]!
 	const sessions = season.sessions.filter(
@@ -830,11 +830,11 @@ function WeekCard({
 				<ul className="divide-border/60 divide-y px-(--card-spacing)">
 					{sessions.map((session) => (
 						<li
-							key={sessionRowKey(session)}
+							key={planPreviewRowKey(session)}
 							// The row is its own 44 px button with its own padding.
 							className="py-1 first:pt-0 last:pb-0"
 						>
-							<SessionRow session={session} openRow={openRow} />
+							<PlanPreviewRow session={session} openRow={openRow} />
 						</li>
 					))}
 					{unfilled.map((slot) => (
