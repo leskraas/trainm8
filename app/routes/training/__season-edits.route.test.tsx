@@ -484,5 +484,5 @@ test('a stale confirm moves focus to what to do next', async () => {
 	const refresh = await screen.findByRole('button', {
 		name: 'Vis ny forhåndsvisning',
 	})
-	await waitFor(() => expect(document.activeElement).toBe(refresh))
+	await waitFor(() => expect(refresh).toHaveFocus())
 })
