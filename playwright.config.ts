@@ -32,10 +32,11 @@ export default defineConfig({
 		// Safari has no scroll anchoring, so the reading position is held by
 		// the app there (`ReadingHold`, ADR 0086 §4). Only the file that pins
 		// it runs in WebKit as well (#503, ADR 0119): the rest of the suite
-		// would double CI for no criterion. It runs wherever WebKit is installed
-		// (`npm run test:e2e:install`); CI installs only Chromium until its
-		// workflow's install line names WebKit too.
-		...(existsSync(webkit.executablePath())
+		// would double CI for no criterion. CI installs WebKit and always runs
+		// it, so a missing browser fails there instead of skipping criterion 7's
+		// WebKit half unseen; locally it runs wherever WebKit is installed
+		// (`npm run test:e2e:install`).
+		...(process.env.CI || existsSync(webkit.executablePath())
 			? [
 					{
 						name: 'webkit',
