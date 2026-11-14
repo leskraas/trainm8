@@ -65,6 +65,13 @@ export const GENERATION_INTENTS = [
 export type GenerationIntent = (typeof GENERATION_INTENTS)[number]
 
 /**
+ * The intent approval uses when none was asked, and a Generation Record without
+ * one is read as (ADR 0117 §5).
+ */
+export const DEFAULT_GENERATION_INTENT: GenerationIntent =
+	'deliberately-building'
+
+/**
  * The **level floor** each intent retrieves at — a **stated convention**, worded
  * as one wherever it is shown, in the same register as the presets' `+5 %` ramp.
  *

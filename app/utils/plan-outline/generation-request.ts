@@ -12,6 +12,7 @@
  */
 import { goalEventFor } from '../plan-generation/goal-event.ts'
 import {
+	DEFAULT_GENERATION_INTENT,
 	GENERATION_INTENTS,
 	INTENT_LEVEL_FLOOR,
 	type GenerationIntent,
@@ -20,10 +21,6 @@ import {
 import { isCardioDiscipline } from '../workout-schema.ts'
 import { phaseSpecs, resolvedTracks, type OutlineRows } from './from-rows.ts'
 import { isPatternWeekday } from './week-pattern.ts'
-
-/** The intent a record without one is read as (ADR 0117 §5). */
-export const DEFAULT_GENERATION_INTENT: GenerationIntent =
-	'deliberately-building'
 
 /** A Generation Record as the placement reads it. */
 export type GenerationRecordRows = {

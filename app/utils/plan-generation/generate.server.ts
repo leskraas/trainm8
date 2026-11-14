@@ -75,6 +75,7 @@ import { generateSeason, type SeasonGenerator } from './generator.ts'
 import { goalEventFor } from './goal-event.ts'
 import { type RetrievableEntry } from './retrieval.ts'
 import {
+	DEFAULT_GENERATION_INTENT,
 	type GeneratedSeason,
 	type GenerationIntent,
 	type GenerationTrack,
@@ -396,7 +397,7 @@ export function resolveChoice(
 			answers.presetKey ??
 			defaultPresetFor(startWeekKey, context.eventWeekKey, PRESET_KEYS),
 		startWeekKey,
-		intent: answers.intent ?? 'deliberately-building',
+		intent: answers.intent ?? DEFAULT_GENERATION_INTENT,
 		tracks: context.proposals.flatMap((proposal) => {
 			if (!isCardioDiscipline(proposal.discipline)) return []
 			const currency = proposal.currency ?? FALLBACK_CURRENCY
