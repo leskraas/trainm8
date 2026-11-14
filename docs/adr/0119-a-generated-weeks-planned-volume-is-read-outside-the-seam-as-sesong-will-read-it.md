@@ -77,6 +77,20 @@ from, and which sessions it covers.
   second source of truth beside the blocks, and a schema change and corpus
   migration.
 - **Sum only the placed sessions.** Rejected, see §4.
+- **Read it inside the generator and carry it on the payload, as
+  [ADR 0116](./0116-a-generated-weeks-placed-hours-are-a-floor-carried-on-the-payload.md)
+  §2 does for Placed Hours.** ADR 0116 rejected pricing placed sessions
+  "after generation, from a second query" for Placed Hours, and its
+  Consequences say #472 reads Planned Volume "from the same per-session
+  reading". This ADR keeps that reading (`prescribedDuration` through the
+  athlete's thresholds, inside `fixedDayVolume`) and departs from ADR 0116 on
+  the layer only, for two reasons that do not hold for Placed Hours. Placed
+  Hours is a statement the generation makes about its own placement, checked
+  against the capacity inside the seam (`hoursFitWarnings`); Planned Volume is
+  _Sesong_'s figure, and it covers the athlete's own sessions (§4), which the
+  pure generator never sees. So the two sibling figures sit in different
+  layers on purpose; ADR 0116 is not superseded, and its rejected option
+  still holds for Placed Hours.
 
 ## Consequences
 
