@@ -351,3 +351,15 @@ test('a preview row names the track’s Volume Currency beside its figures', asy
 	const row = await screen.findByText('Uke 3')
 	expect(row.closest('li')?.textContent).toMatch(/39,3.*→.*42\s*km/)
 })
+
+test('the preview heading focus lands on reads the headline with it', async () => {
+	renderAnchorEdit(
+		anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]),
+		anchorPreviewReply(42),
+	)
+	// The live region mounts holding its text, which a screen reader does not
+	// announce; the heading focus moves to carries it as its description.
+	expect(
+		await screen.findByRole('heading', { name: 'Forhåndsvisning' }),
+	).toHaveAccessibleDescription('Løping fra uke 3: nytt startnivå 42 km.')
+})

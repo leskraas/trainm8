@@ -1459,6 +1459,7 @@ function SeasonAnchorPreviewPanel({
 			<h3
 				id={titleId}
 				ref={heading}
+				aria-describedby={messageId}
 				tabIndex={-1}
 				className="text-callout font-semibold outline-none"
 			>
