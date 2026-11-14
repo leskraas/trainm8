@@ -455,10 +455,10 @@ export function weekDays(week: TimelineWeek): readonly TimelineDay[] {
  * goes through. Returns the week, so a builder can say `withWeekDays({...},
  * () => days)`.
  */
-export function withWeekDays<Week extends TimelineWeek>(
-	week: Week,
+export function withWeekDays(
+	week: TimelineWeek,
 	build: () => TimelineDay[],
-): Week {
+): TimelineWeek {
 	WEEK_DAYS.set(week, { build, days: null })
 	return week
 }

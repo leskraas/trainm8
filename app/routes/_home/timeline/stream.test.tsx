@@ -59,7 +59,7 @@ function week(
 	rows: TimelineDay[],
 	overrides: Partial<TimelineWeek> = {},
 ): TimelineWeek {
-	return withWeekDays<TimelineWeek>(
+	return withWeekDays(
 		{
 			key: '2030-02-18',
 			rangeLabel: '18–24 February',
