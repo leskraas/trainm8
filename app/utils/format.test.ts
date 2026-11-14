@@ -473,7 +473,7 @@ test('formatNbDayDateTime reads a moment back in Norwegian, in the athlete timez
 	)
 })
 
-test('the Norwegian day and clock read the Athlete Calendar’s formatters, never their own (ADR 0121 §1)', async () => {
+test('the Norwegian day and clock read the Athlete Calendar’s formatters, never their own (ADR 0122 §1)', async () => {
 	// One per-zone formatter cache: a zone the calendar has formatted builds no
 	// second formatter here.
 	const { formatNbDayDateTime } = await import('./format.ts')

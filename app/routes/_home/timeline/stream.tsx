@@ -180,7 +180,7 @@ export const WeekBlock = memo(function WeekBlock({
 	today?: TodayRowExtras | null
 }) {
 	// The week's days are built here, in this block's own render, the first
-	// time the week mounts (ADR 0121 §2): during hydration that is one week's
+	// time the week mounts (ADR 0122 §2): during hydration that is one week's
 	// work at a time, which React can yield between.
 	const days = weekDays(week)
 	return (
@@ -237,7 +237,7 @@ export const WeekBlock = memo(function WeekBlock({
 
 /**
  * A week of the Stream in its own `<Suspense>` boundary, so the weeks hydrate
- * one by one (ADR 0121 §3).
+ * one by one (ADR 0122 §3).
  *
  * The server renders every mounted week as before. On the client the frame,
  * the top line, the Week Strip and the Stream element hydrate first; each week

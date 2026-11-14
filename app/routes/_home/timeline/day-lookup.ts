@@ -14,7 +14,7 @@ import {
 /**
  * The day `key` and the week it sits in, or null where the season has none.
  * Only the week whose Monday-to-Sunday holds `key` has its days read, so a
- * lookup builds one week's days at most (ADR 0121 §2).
+ * lookup builds one week's days at most (ADR 0122 §2).
  */
 export function findDay(
 	weeks: readonly TimelineWeek[],

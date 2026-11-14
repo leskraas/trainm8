@@ -301,7 +301,7 @@ describe('landing on today', () => {
 	})
 
 	test('the server renders this week and the next; the rest of the first chunk mounts below after hydration, with no write', () => {
-		// ADR 0121 "If the budget is still missed": fewer weeks ahead in the
+		// ADR 0122 "If the budget is still missed": fewer weeks ahead in the
 		// server render, the rest of the first chunk appended once the frame has
 		// hydrated, below the reader.
 		const html = renderToString(<Harness />)

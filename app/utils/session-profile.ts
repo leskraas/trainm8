@@ -190,7 +190,7 @@ function stepToZone(step: WorkoutStep): TrainingZone | null {
  * Each stored intensity's zone, read once. A season reads the same few
  * intensities thousands of times (every rep of every step, for the week's zone
  * split and again for a row's bars), and parsing one each time was the biggest
- * piece left of opening the 52-week Stream (#503, ADR 0121). Bounded, because
+ * piece left of opening the 52-week Stream (#503, ADR 0122). Bounded, because
  * an intensity is text the athlete may have written: past the cap it starts
  * over.
  */

@@ -51,7 +51,7 @@ type Shape = keyof typeof SHAPES
 
 /**
  * One `Intl.DateTimeFormat` per timezone and shape, built on first use and kept
- * for the life of the process (ADR 0121 §1). The app's one formatter cache for
+ * for the life of the process (ADR 0122 §1). The app's one formatter cache for
  * a zone's calendar day and clock: `format.ts` reads the day and the clock
  * through `localDate` and `localTimeOfDay` rather than keeping its own.
  *
