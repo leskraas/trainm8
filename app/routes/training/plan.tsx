@@ -1142,7 +1142,7 @@ function SeasonSpanHeadline({
 				return (
 					<li key={group.key} className="space-y-1">
 						{named ? (
-							<p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+							<p className="text-callout flex flex-wrap items-center gap-2">
 								<span>
 									{SESONG_PAGE_LABELS.spanTracks(
 										group.disciplines.map(nbTrackName),
@@ -1157,15 +1157,15 @@ function SeasonSpanHeadline({
 								) : null}
 							</p>
 						) : null}
-						{/* `text-xl`, not the page title's size: two spans sit side by side on
+						{/* `text-heading`, not the page title's size: two spans sit side by side on
 						    this card, and at 24px a figure like `55.0 km/wk → 73.8 km/wk` wraps
 						    mid-arrow in a half-width column — which reads as two numbers rather
 						    than as one span. */}
-						<p className="text-xl font-semibold tracking-tight text-balance tabular-nums">
+						<p className="text-heading text-balance tabular-nums">
 							{formatNbWeeklyVolume(group.span.anchor, group.currency)} →{' '}
 							{formatNbWeeklyVolume(group.span.peak, group.currency)}
 						</p>
-						<p className="text-muted-foreground text-sm">
+						<p className="text-muted-foreground text-footnote">
 							{group.marker === 'derived' &&
 							accumulatesAcrossDisciplines(group.currency)
 								? `${NB_ACCUMULATED_SPAN_LABELS[group.currency]} `

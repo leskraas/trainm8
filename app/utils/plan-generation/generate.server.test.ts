@@ -8,7 +8,6 @@ import { getSeasonForEvent } from '../training.server.ts'
 import {
 	approveSeason,
 	defaultPresetFor,
-	goalEventFor,
 	previewSeason,
 	readGenerationCorpus,
 	type GenerationAnswers,
@@ -17,6 +16,7 @@ import {
 	DETERMINISTIC_SEASON_GENERATOR,
 	type SeasonGenerator,
 } from './generator.ts'
+import { goalEventFor } from './goal-event.ts'
 import { type GeneratedSeason, type SeasonRequest } from './season.ts'
 
 async function createAthlete() {
@@ -436,6 +436,7 @@ function recordingGenerator() {
 			seen.push({ request, season })
 			return season
 		},
+		placeWeeks: DETERMINISTIC_SEASON_GENERATOR.placeWeeks,
 	}
 	return { generator, seen }
 }

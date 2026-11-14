@@ -71,6 +71,7 @@ import { isOutlineResting } from './active-outline.server.ts'
 import { type PlacedSession } from './day-rule.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
+import { fillKeptSlots } from './kept-slots.ts'
 import { parsePinnedDays } from './pinned-days.ts'
 import { type QualityZone } from './quality-mix.ts'
 import {
@@ -99,7 +100,11 @@ import {
 	isPatternWeekday,
 	type PatternWeekday,
 } from './week-pattern.ts'
-import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
+import {
+	clearPlanWeek,
+	readKeptSlots,
+	readWeekOccupancy,
+} from './week-sessions.server.ts'
 
 /**
  * Why a stamp was refused. Every one is a state the athlete can act on, so none is
@@ -358,20 +363,13 @@ export async function stampWeekPattern(
 				plan.weekKey,
 				timezone,
 			)
-			const filled = aroundKeptSessions
-				? await filledSlots(tx, userId, outline.id, plan.weekKey, timezone)
-				: new Map<string, number>()
-			for (const session of plan.sessions) {
-				const slot =
-					filled.get(slotKey(session.weekday, session.discipline)) ||
-					session.kind !== 'lifting'
-						? slotKey(session.weekday, session.discipline)
-						: keptLiftElsewhere(filled, plan.sessions, session.discipline)
-				const taken = slot == null ? 0 : (filled.get(slot) ?? 0)
-				if (slot != null && taken > 0) {
-					filled.set(slot, taken - 1)
-					continue
-				}
+			const toLay = aroundKeptSessions
+				? fillKeptSlots(
+						plan.sessions,
+						await readKeptSlots(tx, userId, outline.id, plan.weekKey, timezone),
+					)
+				: plan.sessions
+			for (const session of toLay) {
 				const workoutId = await workoutForSession(
 					tx,
 					userId,
@@ -566,69 +564,6 @@ async function readHeldSessions(
 		const weekday = weekdayIndex(localDate(row.scheduledAt, timezone))
 		return isPatternWeekday(weekday) ? [placedOn(shape, weekday)] : []
 	})
-}
-
-/** A pattern slot: the weekday (Monday-first) and the Discipline laid there. */
-function slotKey(weekday: number, discipline: string): string {
-	return `${weekday}|${discipline}`
-}
-
-/**
- * A kept session of a lifting slot's Discipline on a day this week's laying
- * puts no lift of it on, where there is one. A lifting slot falls on no
- * weekday of its own (ADR 0104 §3), so a lift the athlete kept fills the slot
- * whatever day it is on, and the re-lay does not lay a second lift beside it.
- */
-function keptLiftElsewhere(
-	filled: ReadonlyMap<string, number>,
-	sessions: readonly StampSession[],
-	discipline: string,
-): string | null {
-	const laid = new Set(
-		sessions
-			.filter((session) => session.discipline === discipline)
-			.map((session) => slotKey(session.weekday, discipline)),
-	)
-	for (const [slot, count] of filled) {
-		if (count > 0 && slot.endsWith(`|${discipline}`) && !laid.has(slot)) {
-			return slot
-		}
-	}
-	return null
-}
-
-/**
- * The slots the plan's own sessions still fill in one week after its clearing
- * — the ones it kept: adopted, or trained — counted per weekday and
- * Discipline. Read inside the stamp's transaction, after the clearing.
- */
-async function filledSlots(
-	tx: Prisma.TransactionClient,
-	userId: string,
-	planOutlineId: string,
-	weekKey: string,
-	timezone: string,
-): Promise<Map<string, number>> {
-	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	const kept = await tx.workoutSession.findMany({
-		where: {
-			userId,
-			planOutlineId,
-			scheduledAt: { gte: start, lte: end },
-			source: { not: 'authored' },
-		},
-		select: { scheduledAt: true, workout: { select: { discipline: true } } },
-	})
-	const filled = new Map<string, number>()
-	for (const session of kept) {
-		if (!session.workout) continue
-		const slot = slotKey(
-			weekdayIndex(localDate(session.scheduledAt, timezone)),
-			session.workout.discipline,
-		)
-		filled.set(slot, (filled.get(slot) ?? 0) + 1)
-	}
-	return filled
 }
 
 /**

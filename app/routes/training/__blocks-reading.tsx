@@ -113,7 +113,7 @@ export function BlocksReading({
 	return (
 		<div className="space-y-6" data-blocks-reading>
 			{error ? (
-				<p role="alert" className="text-destructive text-sm">
+				<p role="alert" className="text-foreground-destructive text-footnote">
 					{error}
 				</p>
 			) : null}
@@ -259,10 +259,8 @@ export function BlocksReading({
 							className="border-border/70 space-y-1 border-t py-3"
 							data-preset-gallery-begun
 						>
-							<p className="text-sm font-medium">
-								{SESONG_PAGE_LABELS.shapeTitle}
-							</p>
-							<p className="text-muted-foreground text-sm">
+							<p className="text-callout">{SESONG_PAGE_LABELS.shapeTitle}</p>
+							<p className="text-muted-foreground text-footnote">
 								{PRESET_GALLERY_LABELS.begun}
 							</p>
 							{/* A line of text and the only way there, so it carries an

@@ -62,7 +62,7 @@ export function MegRows({
 	return (
 		<ul
 			aria-label={label}
-			className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/70 divide-y rounded-4xl px-4 shadow-xs ring-1"
+			className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/60 divide-y rounded-4xl px-4 shadow-md ring-1"
 		>
 			{children}
 		</ul>
@@ -251,7 +251,7 @@ export function MegField({
 				id={id}
 				aria-invalid={words.length ? true : undefined}
 				aria-describedby={describedBy}
-				className={cn('md:text-base', inputProps.className)}
+				className={cn('md:text-body', inputProps.className)}
 			/>
 			<FieldErrors id={errorId} errors={words} />
 			{hint ? <MegNote id={hintId}>{hint}</MegNote> : null}
@@ -294,7 +294,7 @@ export function MegSelectField({
 			>
 				<SelectTrigger
 					id={id}
-					className="w-full md:text-base"
+					className="md:text-body w-full"
 					aria-invalid={words.length ? true : undefined}
 					aria-describedby={words.length ? errorId : undefined}
 					onFocus={() => control.focus()}

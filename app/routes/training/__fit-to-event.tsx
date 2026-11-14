@@ -36,7 +36,7 @@ export function FitToEventOffer({
 		<Form method="POST" className="space-y-2">
 			<input type="hidden" name="intent" value="fit-to-event" />
 			<input type="hidden" name="outlineId" value={outlineId} />
-			<p className="text-muted-foreground text-sm">
+			<p className="text-muted-foreground text-footnote">
 				{fitProposalSentence(proposal)}
 			</p>
 			<Button type="submit" variant="outline" size="sm">
