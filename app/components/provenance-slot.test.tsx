@@ -61,6 +61,14 @@ test('the slot speaks Norwegian, and only a community row disclaims', () => {
 		}),
 	).toBe('Kilde: Daniels — Running Formula (2014)')
 	expect(nbProvenanceSentence({ kind: 'convention' })).toMatch(/trenerpraksis/)
+	// The two uncited stock kinds each say so in their own words (criterion 2).
+	expect(nbProvenanceSentence({ kind: 'hand-written' })).toBe(
+		NB_PROVENANCE_LABELS.handWritten,
+	)
+	expect(nbProvenanceSentence({ kind: 'hand-written' })).not.toBe(
+		nbProvenanceSentence({ kind: 'convention' }),
+	)
+	expect(nbProvenanceNonVouch({ kind: 'hand-written' })).toBeNull()
 	expect(nbProvenanceSentence(COMMUNITY)).toBe('Publisert av Jo Kraas')
 	expect(nbProvenanceNonVouch({ kind: 'convention' })).toBeNull()
 	expect(
