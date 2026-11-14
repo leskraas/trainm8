@@ -231,7 +231,8 @@ export function SessionRow({
 		<Collapsible open={open} data-session-row>
 			<CollapsibleTrigger
 				ref={triggerRef}
-				aria-controls={panelId}
+				// No `aria-controls` here: Base UI sets it to the panel's `id` only
+				// while the panel is mounted, so a closed row never points at nothing.
 				onClick={(event) => {
 					// The open state is the season's, not this row's.
 					event.preventDefault()

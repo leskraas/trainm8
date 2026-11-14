@@ -188,6 +188,19 @@ test('tapping a corpus row opens its Citation below it; tapping again closes it'
 	expect(button).toHaveAttribute('aria-expanded', 'false')
 })
 
+test('a row controls its panel only while the panel exists', async () => {
+	const user = userEvent.setup()
+	renderScreen()
+	const button = await row('5 × 1 km @ T')
+	// The panel unmounts when closed, so a closed row points at nothing.
+	expect(button).not.toHaveAttribute('aria-controls')
+
+	await user.click(button)
+	const panelId = button.getAttribute('aria-controls')
+	expect(panelId).toBeTruthy()
+	expect(document.getElementById(panelId!)).toHaveTextContent(/Kilde:/)
+})
+
 test('one panel is open across the season, and Escape closes it back onto the row', async () => {
 	const user = userEvent.setup()
 	renderScreen({
