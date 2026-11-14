@@ -43,7 +43,9 @@ export type SessionRow = {
 export function buildSessionRows(
 	sessions: LedgerSession[],
 	now: Date = new Date(),
+	/** The Athlete Timezone: today's sessions stay planned (`deriveLedgerStatus`). */
 	timezone?: string,
+	/** What a distance step's duration is timed against (#615). */
 	thresholds: DisciplineThresholdMap = {},
 ): SessionRow[] {
 	const nowMs = now.getTime()
