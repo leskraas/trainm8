@@ -80,33 +80,36 @@ export function usePlanPreviewOpenRow(): PlanPreviewOpenRow {
 	// The pending scroll to the panel being opened. Every toggle and close
 	// cancels it, so a panel that closes before it finished opening is never
 	// scrolled to.
-	const revealRef = useRef<number | null>(null)
+	const cancelRevealRef = useRef<(() => void) | null>(null)
 	const cancelReveal = useCallback(() => {
-		if (revealRef.current != null) window.clearTimeout(revealRef.current)
-		revealRef.current = null
+		cancelRevealRef.current?.()
+		cancelRevealRef.current = null
 	}, [])
 
-	const toggle = useCallback((key: string, row: HTMLElement) => {
-		cancelReveal()
-		const previous = openRef.current
-		if (previous?.key === key) {
-			openRef.current = null
-			setState({ openKey: null, snapKey: null })
-			return
-		}
-		// A panel above the tapped row: close it at once and hold the row still.
-		const above =
-			previous != null &&
-			previous.row.isConnected &&
-			Boolean(
-				previous.row.compareDocumentPosition(row) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-			)
-		openRef.current = { key, row }
-		setState({ openKey: key, snapKey: above ? previous.key : null })
-		if (above) holdInPlace(row)
-		revealRef.current = revealWhenOpen(panelIdFor(key))
-	}, [cancelReveal])
+	const toggle = useCallback(
+		(key: string, row: HTMLElement) => {
+			cancelReveal()
+			const previous = openRef.current
+			if (previous?.key === key) {
+				openRef.current = null
+				setState({ openKey: null, snapKey: null })
+				return
+			}
+			// A panel above the tapped row: close it at once and hold the row still.
+			const above =
+				previous != null &&
+				previous.row.isConnected &&
+				Boolean(
+					previous.row.compareDocumentPosition(row) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
+				)
+			openRef.current = { key, row }
+			setState({ openKey: key, snapKey: above ? previous.key : null })
+			if (above) holdInPlace(row)
+			cancelRevealRef.current = revealWhenOpen(panelIdFor(key))
+		},
+		[cancelReveal],
+	)
 
 	const close = useCallback(() => {
 		cancelReveal()
@@ -148,21 +151,51 @@ export function holdInPlace(row: HTMLElement) {
 }
 
 /**
- * A panel that opens past the fold scrolls into view, `block: 'nearest'`, so a
- * panel already on screen does not move. Instant under reduced motion. Returns
- * the timer, for the caller to cancel when the panel closes first.
+ * A panel that opens past the fold scrolls into view, by just enough that a
+ * panel already on screen does not move. On a phone the fold is the top of the
+ * fixed tab bar, not the bottom of the viewport, so a panel is never parked
+ * behind the bar. Instant under reduced motion. It waits for the panel's
+ * opening to finish, so it scrolls to the panel's full height rather than to a
+ * box still growing. Returns how to cancel it, for the caller to call when the
+ * panel closes first.
+ *
+ * Measured by hand rather than with `scrollIntoView`: the week card clips its
+ * content (`overflow: hidden`), and Chrome then ignores the panel's scroll
+ * margin, so it cannot be told about the bar.
  */
-function revealWhenOpen(panelId: string): number {
-	return window.setTimeout(() => {
-		const panel = document.getElementById(panelId)
-		// Optional calls: a browser without them (or a test DOM) just skips it.
+function revealWhenOpen(panelId: string): () => void {
+	let cancelled = false
+	const reveal = (panel: HTMLElement) => {
+		if (cancelled || !panel.isConnected) return
+		const { top, bottom } = panel.getBoundingClientRect()
+		const tabBar = document.querySelector('[data-tab-bar]')
+		const fold =
+			tabBar != null && getComputedStyle(tabBar).position === 'fixed'
+				? tabBar.getBoundingClientRect().top
+				: window.innerHeight
+		// Never past the panel's own top, so a tall panel shows its start.
+		const by = Math.ceil(Math.min(bottom - fold, top))
+		if (by <= 0) return
+		// Optional call: a browser without it (or a test DOM) answers instantly.
 		const reduced =
 			typeof window.matchMedia === 'function' && prefersReducedMotion()
-		panel?.scrollIntoView?.({
-			block: 'nearest',
-			behavior: reduced ? 'instant' : 'smooth',
-		})
+		window.scrollBy({ top: by, behavior: reduced ? 'instant' : 'smooth' })
+	}
+	const timer = window.setTimeout(() => {
+		const panel = document.getElementById(panelId)
+		if (panel == null) return
+		const opening = panel.getAnimations?.() ?? []
+		if (opening.length === 0) return reveal(panel)
+		// A cancelled animation (the panel closed) rejects: then nothing scrolls.
+		Promise.all(opening.map((animation) => animation.finished)).then(
+			() => reveal(panel),
+			() => {},
+		)
 	}, COLLAPSE_OPEN_MS)
+	return () => {
+		cancelled = true
+		window.clearTimeout(timer)
+	}
 }
 
 /**

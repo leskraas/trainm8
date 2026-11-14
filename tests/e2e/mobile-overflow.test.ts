@@ -220,6 +220,60 @@ test('the Plan Preview with a provenance panel open does not overflow at 390px (
 	await expectNoHorizontalOverflow(page)
 })
 
+test('a Plan Preview panel opened just above the tab bar scrolls clear of it, with no request (#475)', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(150_000)
+	const user = await login()
+	const event = await prisma.event.create({
+		data: {
+			athleteId: user.id,
+			name: `Race ${faker.string.alphanumeric(8)}`,
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date(Date.now() + 17 * 7 * 24 * 60 * 60 * 1000),
+			disciplines: JSON.stringify(['run']),
+		},
+	})
+	await page.goto(`/training/plan/generate/${event.id}?anchor-run=40`)
+	// A placed row is one button (ADR 0122).
+	const target = page.locator('[data-session-row]').getByRole('button').nth(3)
+	await untilHydrated(target)
+	const tabBar = page.locator('[data-tab-bar]')
+	// Put the row's bottom 16 px above the tab bar: on screen, so tapping it
+	// scrolls nothing, while its panel would open behind the bar.
+	const barTop = (await tabBar.boundingBox())!.y
+	const rowBox = (await target.boundingBox())!
+	await page.evaluate(
+		(by) => window.scrollBy({ top: by, behavior: 'instant' }),
+		rowBox.y + rowBox.height - (barTop - 16),
+	)
+
+	const requests: string[] = []
+	page.on('request', (request) => {
+		if (['document', 'fetch', 'xhr'].includes(request.resourceType())) {
+			requests.push(request.url())
+		}
+	})
+	await target.click()
+	await expect(target).toHaveAttribute('aria-expanded', 'true')
+	const panel = page.locator('[data-provenance-panel]')
+	await expect(panel).toBeVisible()
+	// The panel opens (200 ms), then scrolls into view.
+	await expect
+		.poll(async () => {
+			const bottom = await panel.evaluate(
+				(el) => el.getBoundingClientRect().bottom,
+			)
+			const top = await tabBar.evaluate((el) => el.getBoundingClientRect().top)
+			return bottom - top
+		}, 'the open panel ends above the tab bar, not behind it')
+		.toBeLessThanOrEqual(0)
+	// The panel renders from the payload already on the page.
+	expect(requests, 'opening a row makes no request').toEqual([])
+})
+
 test('the season plan with all three Guard Notices in its lead does not overflow at 390px', async ({
 	page,
 	navigate,
