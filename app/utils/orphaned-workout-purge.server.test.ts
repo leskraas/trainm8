@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-router'
 import { expect, onTestFinished, test, vi } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { saveToCatalogueList } from './catalogue.server.ts'
@@ -9,6 +10,12 @@ import {
 	ensureOrphanedWorkoutPurgeEnqueued,
 	ORPHANED_WORKOUT_PURGE_JOB_KIND,
 } from './orphaned-workout-purge.server.ts'
+
+// A failed attempt reaches Sentry, not only the server log (Insight).
+vi.mock('@sentry/react-router', async (original) => ({
+	...(await original<typeof Sentry>()),
+	captureMessage: vi.fn(),
+}))
 
 async function createAthlete() {
 	const userData = createUser()
@@ -226,7 +233,19 @@ test('a purge that fails partway erases nothing and is retried', async () => {
 		'[orphaned-workout-purge] attempt failed',
 		expect.objectContaining({ jobId: job.id, error: expect.any(String) }),
 	)
-	const failure = JSON.stringify(logged.mock.calls)
+	// …and the same reaches Sentry, so a purge that spends its attempts is
+	// seen without anyone reading the logs.
+	expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith(
+		'[orphaned-workout-purge] attempt failed',
+		expect.objectContaining({
+			level: 'error',
+			extra: { jobId: job.id, error: expect.any(String) },
+		}),
+	)
+	const failure = JSON.stringify([
+		logged.mock.calls,
+		vi.mocked(Sentry.captureMessage).mock.calls,
+	])
 	for (const needle of ['Kari', 'notater', 'terskel', ...erasable, held.id]) {
 		expect(failure).not.toContain(needle)
 	}

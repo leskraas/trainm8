@@ -100,8 +100,9 @@ future `prisma.user.delete` from making new ones.
   boot after the stop, however soon; without that its row would block every
   later enqueue.
 - A purge that fails on every attempt ends `failed`, and no later boot enqueues
-  another. Each failed attempt logs `[orphaned-workout-purge] attempt failed`
-  with the job id and the error's class and code, never its message (a Prisma
+  another. Each failed attempt logs `[orphaned-workout-purge] attempt failed`,
+  and sends the same to Sentry, with the job id and the error's class and code,
+  never its message (a Prisma
   validation error prints the query's arguments). The message is still stored in
   the row's `lastError` and printed by Prisma's own error log, where it can
   carry Workout ids, never a title or name. The owner's check is therefore two

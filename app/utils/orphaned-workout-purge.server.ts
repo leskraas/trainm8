@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-router'
 import {
 	type AccountErasure,
 	ERASURE_TRANSACTION_OPTIONS,
@@ -85,15 +86,17 @@ export async function runOrphanedWorkoutPurge(
 		}, ERASURE_TRANSACTION_OPTIONS)
 		.catch((error: unknown) => {
 			// The queue records the error on the row and logs nothing, and a spent
-			// one-time job is never enqueued again: this line is how a failed purge
-			// shows. The error's class and code only, never its message, which for
-			// a Prisma validation error prints the query's arguments. The message
-			// still reaches the row's `lastError` (the queue stores it) and Prisma's
-			// own `prisma:error` output: there it can carry Workout ids, never a
-			// title or name.
-			console.error('[orphaned-workout-purge] attempt failed', {
-				jobId: job.id,
-				error: describeError(error),
+			// one-time job is never enqueued again: this line, and the same in
+			// Sentry, is how a failed purge shows. The error's class and code only,
+			// never its message, which for a Prisma validation error prints the
+			// query's arguments. The message still reaches the row's `lastError`
+			// (the queue stores it) and Prisma's own `prisma:error` output: there
+			// it can carry Workout ids, never a title or name.
+			const failure = { jobId: job.id, error: describeError(error) }
+			console.error('[orphaned-workout-purge] attempt failed', failure)
+			Sentry.captureMessage('[orphaned-workout-purge] attempt failed', {
+				level: 'error',
+				extra: failure,
 			})
 			throw error
 		})
