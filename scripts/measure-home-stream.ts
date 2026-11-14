@@ -125,12 +125,18 @@ type Probe = {
 }
 
 async function quiet(page: Page) {
-	// No long task in the last 2s.
+	// No long task in the last 2s, and 2s since the click when one was made: a
+	// `longtask` entry reaches the observer after its task ends, so an empty
+	// list right after the click is not yet quiet.
 	await page.waitForFunction(
 		() => {
-			const tasks = (window as unknown as Probe).__longTasks
-			const last = tasks.at(-1)
-			return performance.now() - (last ? last.start + last.duration : 0) > 2000
+			const w = window as unknown as Probe
+			const last = w.__longTasks.at(-1)
+			const since = Math.max(
+				last ? last.start + last.duration : 0,
+				w.__clickAt ?? 0,
+			)
+			return performance.now() - since > 2000
 		},
 		null,
 		{ timeout: 90_000, polling: 250 },
