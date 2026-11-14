@@ -37,6 +37,7 @@ import { COLLAPSE_OPEN_MS, prefersReducedMotion } from '#app/utils/motion.ts'
 import { type GeneratedSession } from '#app/utils/plan-generation/season.ts'
 import { type PatternWeekday } from '#app/utils/plan-outline/week-pattern.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
+import { COLLAPSIBLE_CHEVRON, ROW_PRESS } from './__plan-chrome.tsx'
 
 /** How many frames the tapped row is held in place while the panel above closes. */
 const HOLD_FRAMES = 12
@@ -130,7 +131,11 @@ function revealWhenOpen(row: HTMLElement) {
 	}, COLLAPSE_OPEN_MS)
 }
 
-/** The hairline chevron: Tabler `chevron-down` at 16 px, stroke 1.25. */
+/**
+ * The hairline chevron: Tabler `chevron-down` at 16 px, stroke 1.25, turned by
+ * the same rule as every collapsible's chevron. Inline because the sprite's
+ * path hard-codes stroke 2, which `<use>` cannot override.
+ */
 function Chevron() {
 	return (
 		<svg
@@ -141,7 +146,7 @@ function Chevron() {
 			strokeWidth={1.25}
 			strokeLinecap="round"
 			strokeLinejoin="round"
-			className="text-muted-foreground motion-safe:duration-press size-4 shrink-0 motion-safe:transition-transform motion-safe:ease-out [[data-panel-open]>&]:rotate-180"
+			className={cn(COLLAPSIBLE_CHEVRON, 'size-4')}
 		>
 			<path d="m6 9l6 6l6-6" />
 		</svg>
@@ -238,7 +243,11 @@ export function SessionRow({
 					event.preventDefault()
 					openRow.toggle(key, event.currentTarget)
 				}}
-				className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center gap-2 rounded-2xl px-2 py-2 text-left motion-safe:transition-colors motion-safe:ease-out motion-safe:active:duration-0"
+				className={cn(
+					'-mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center gap-2 rounded-2xl px-2 py-2 text-left',
+					ROW_PRESS,
+					'motion-safe:active:duration-0',
+				)}
 			>
 				<span className="min-w-0 flex-1 space-y-0.5">
 					<DayLine
