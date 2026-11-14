@@ -150,12 +150,11 @@ test('nothing reaches the calendar until the athlete says so', async () => {
 /** A placed session's row: one button, named by its day line and title. */
 function row(title: RegExp | string) {
 	return screen.findByRole('button', {
-		name: typeof title === 'string' ? new RegExp(escapeRegExp(title)) : title,
+		name:
+			typeof title === 'string'
+				? (accessibleName: string) => accessibleName.includes(title)
+				: title,
 	})
-}
-
-function escapeRegExp(text: string) {
-	return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 test('a row carries the plan and no Session Provenance until it is tapped (ADR 0117)', async () => {
