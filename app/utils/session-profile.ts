@@ -16,22 +16,33 @@ type WorkoutStep = Workout['blocks'][number]['steps'][number]
 /** A normalized training zone, 1 (easiest) through 5 (hardest). */
 export type TrainingZone = 1 | 2 | 3 | 4 | 5
 
+const isTrainingZone = (value: unknown): value is TrainingZone =>
+	value === 1 || value === 2 || value === 3 || value === 4 || value === 5
+
 export const ProfileBarSchema = z.object({
 	id: z.string(),
 	/** The derived training zone, or null when intensity can't be truthfully mapped to a zone. */
-	zone: z
-		.union([
-			z.literal(1),
-			z.literal(2),
-			z.literal(3),
-			z.literal(4),
-			z.literal(5),
-		])
-		.nullable(),
+	zone: z.custom<TrainingZone>(isTrainingZone).nullable(),
 	/** Relative weight for bar width — the segment's duration in seconds (0 when unquantified). */
 	durationSec: z.number(),
 })
 export type ProfileBar = z.infer<typeof ProfileBarSchema>
+
+/**
+ * {@link ProfileBarSchema}'s check, written out: every completed session's
+ * stored profile is read on opening I dag's full view, twice (its week's
+ * volumes and its row's bars), and zod's object and union parsing was the
+ * biggest piece of the season presenter after its formatters (#503). Like the
+ * schema it keeps only the three fields.
+ */
+function readProfileBar(value: unknown): ProfileBar | null {
+	if (typeof value !== 'object' || value === null) return null
+	const { id, zone, durationSec } = value as Record<string, unknown>
+	if (typeof id !== 'string') return null
+	if (zone !== null && !isTrainingZone(zone)) return null
+	if (typeof durationSec !== 'number' || Number.isNaN(durationSec)) return null
+	return { id, zone, durationSec }
+}
 
 /**
  * Parse the JSON profile stored on a recording (`ActivityImport.phaseBarsJson`),
@@ -42,12 +53,20 @@ export function parseRecordingPhaseBars(
 	json: string | null | undefined,
 ): ProfileBar[] {
 	if (!json) return []
+	let parsed: unknown
 	try {
-		const parsed = z.array(ProfileBarSchema).safeParse(JSON.parse(json))
-		return parsed.success ? parsed.data : []
+		parsed = JSON.parse(json)
 	} catch {
 		return []
 	}
+	if (!Array.isArray(parsed)) return []
+	const bars: ProfileBar[] = []
+	for (const item of parsed) {
+		const bar = readProfileBar(item)
+		if (!bar) return []
+		bars.push(bar)
+	}
+	return bars
 }
 
 /**

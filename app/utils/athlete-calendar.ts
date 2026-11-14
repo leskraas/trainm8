@@ -66,8 +66,23 @@ type Shape = keyof typeof SHAPES
  * names plus fixed offsets (`+01:00`), a few thousand per shape at most.
  */
 const FORMATTERS = new Map<string, Intl.DateTimeFormat>()
+/**
+ * The same formatters by the zone exactly as given, so the hot path, called
+ * per day and per session, builds no key string and lower-cases nothing.
+ * A zone may be given in any letter case, so this one starts over past
+ * {@link GIVEN_ZONES_MAX} spellings; `FORMATTERS` keeps the instances.
+ */
+const GIVEN_ZONES_MAX = 512
+const BY_GIVEN_ZONE: Record<Shape, Map<string, Intl.DateTimeFormat>> = {
+	date: new Map(),
+	'wall-clock': new Map(),
+	'time-of-day': new Map(),
+}
 
 function cachedFormatter(shape: Shape, timezone: string): Intl.DateTimeFormat {
+	const given = BY_GIVEN_ZONE[shape]
+	const known = given.get(timezone)
+	if (known) return known
 	const key = `${shape} ${timezone.toLowerCase()}`
 	let formatter = FORMATTERS.get(key)
 	if (!formatter) {
@@ -80,6 +95,8 @@ function cachedFormatter(shape: Shape, timezone: string): Intl.DateTimeFormat {
 		})
 		FORMATTERS.set(key, formatter)
 	}
+	if (given.size >= GIVEN_ZONES_MAX) given.clear()
+	given.set(timezone, formatter)
 	return formatter
 }
 

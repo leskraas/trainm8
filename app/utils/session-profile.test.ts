@@ -3,6 +3,7 @@ import {
 	deriveRepeatGroups,
 	deriveSessionProfile,
 	intensityTargetToZone,
+	parseRecordingPhaseBars,
 	shapeZone,
 } from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
@@ -416,4 +417,35 @@ test('an intensity is read once, however many steps and reps carry it (#503)', (
 	} finally {
 		parse.mockRestore()
 	}
+})
+
+test("a recording's stored profile is read whole, or not at all", () => {
+	const bars = [
+		{ id: 'a', zone: 2, durationSec: 600 },
+		{ id: 'b', zone: null, durationSec: 0 },
+		{ id: 'c', zone: 5, durationSec: 60 },
+	]
+	expect(parseRecordingPhaseBars(JSON.stringify(bars))).toEqual(bars)
+	expect(parseRecordingPhaseBars(null)).toEqual([])
+	expect(parseRecordingPhaseBars('')).toEqual([])
+	expect(parseRecordingPhaseBars('not json')).toEqual([])
+	expect(parseRecordingPhaseBars('{"id":"a"}')).toEqual([])
+	// A zone outside 1–5, or one written as text, sinks the whole profile.
+	for (const zone of [0, 6, 2.5, '2']) {
+		expect(
+			parseRecordingPhaseBars(
+				JSON.stringify([...bars, { id: 'd', zone, durationSec: 1 }]),
+			),
+		).toEqual([])
+	}
+	expect(
+		parseRecordingPhaseBars(JSON.stringify([{ id: 'e', zone: 1 }])),
+	).toEqual([])
+	// What the schema would keep: the three fields, never anything stored beside them.
+	expect(
+		parseRecordingPhaseBars(
+			JSON.stringify([{ id: 'f', zone: 3, durationSec: 30, note: 'x' }]),
+		),
+	).toEqual([{ id: 'f', zone: 3, durationSec: 30 }])
+	expect(parseRecordingPhaseBars('{"0":1}')).toEqual([])
 })
