@@ -101,6 +101,29 @@ export function readSessionProvenance(
 }
 
 /**
+ * A description without the notice its **Session Provenance** already states.
+ * A convention or hand-written row's description opens with that notice in
+ * English (it is how {@link readSessionProvenance} reads the kind), and every
+ * copy carries it; where the slot says it in Norwegian, it is not said twice.
+ * Any other reading leaves the description as it is.
+ */
+export function withoutProvenanceNotice(
+	description: string,
+	kind: SessionProvenance['kind'],
+): string {
+	const notice =
+		kind === 'convention'
+			? CONVENTION_NOTICE
+			: kind === 'hand-written'
+				? HAND_WRITTEN_NOTICE
+				: null
+	const text = description.trim()
+	return notice && text.startsWith(notice)
+		? text.slice(notice.length).trim()
+		: description
+}
+
+/**
  * May generation place this row? Everything but `unsourced`.
  *
  * The predicate exists so the rule reads as one word at the retrieval site.
@@ -116,7 +139,10 @@ export function isPlaceable(provenance: SessionProvenance): boolean {
  * The **Convention Row**'s slot line. Short where the description's notice is
  * long, and it does not restate it: the notice is the row's own words in the
  * session's description, and this is the slot saying which of the four kinds it
- * is. Both are shown, and neither is a substitute for the other.
+ * is. Neither is a substitute for the other. Where a surface shows the slot in
+ * Norwegian beside the description (the Catalogue card, the session page), it
+ * strips the English notice with {@link withoutProvenanceNotice}, so the kind
+ * is said once.
  */
 export const CONVENTION_SLOT_LINE =
 	'Coaching convention — trainm8 claims no published source for this session.'

@@ -1674,7 +1674,26 @@ export async function getLedgerWeek(
 	weekKey: string,
 	timezone: string,
 ): Promise<LedgerSession[]> {
-	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	return getLedgerWeeks(
+		userId,
+		{ fromWeekKey: weekKey, toWeekKey: weekKey },
+		timezone,
+	)
+}
+
+/**
+ * The ledger rows of a run of Training Weeks, from the Monday of `fromWeekKey`
+ * to the Sunday of `toWeekKey` in the Athlete Timezone, in one read and the
+ * select {@link getLedgerWeek} reads — so a season previewed week by week sees
+ * the rows _Sesong_ will see in each of those weeks (#472).
+ */
+export async function getLedgerWeeks(
+	userId: string,
+	{ fromWeekKey, toWeekKey }: { fromWeekKey: string; toWeekKey: string },
+	timezone: string,
+): Promise<LedgerSession[]> {
+	const { start } = weekBoundsFromMondayUTC(fromWeekKey, timezone)
+	const { end } = weekBoundsFromMondayUTC(toWeekKey, timezone)
 	return prisma.workoutSession.findMany({
 		where: { userId, scheduledAt: { gte: start, lte: end } },
 		orderBy: { scheduledAt: 'asc' },

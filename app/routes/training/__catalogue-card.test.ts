@@ -3,12 +3,7 @@ import {
 	CONVENTION_NOTICE,
 	HAND_WRITTEN_NOTICE,
 } from '#app/utils/catalogue-corpus.ts'
-import {
-	buildCatalogueCard,
-	catalogueBlurb,
-	nbProvenanceNonVouch,
-	nbProvenanceSentence,
-} from './__catalogue-card.ts'
+import { buildCatalogueCard, catalogueBlurb } from './__catalogue-card.ts'
 
 test('the prose loses its markdown asterisks, not its words', () => {
 	expect(
@@ -23,31 +18,6 @@ test('a notice the provenance slot already states is not said twice', () => {
 	expect(catalogueBlurb(HAND_WRITTEN_NOTICE)).toBeNull()
 	expect(catalogueBlurb('   ')).toBeNull()
 	expect(catalogueBlurb(null)).toBeNull()
-})
-
-test('the provenance slot speaks Norwegian, and only a community row disclaims', () => {
-	expect(
-		nbProvenanceSentence({
-			kind: 'corpus',
-			citation: {
-				author: 'Daniels',
-				work: 'Running Formula',
-				year: 2014,
-				locator: null,
-			},
-		}),
-	).toBe('Kilde: Daniels — Running Formula (2014)')
-	expect(nbProvenanceSentence({ kind: 'convention' })).toMatch(/trenerpraksis/)
-	expect(
-		nbProvenanceSentence({
-			kind: 'community',
-			attribution: { displayName: 'Kari', publishedAt: new Date(0) },
-		}),
-	).toBe('Publisert av Kari')
-	expect(nbProvenanceNonVouch({ kind: 'convention' })).toBeNull()
-	expect(
-		nbProvenanceNonVouch({ kind: 'community', attribution: null }),
-	).toMatch(/ikke gått gjennom/)
 })
 
 const intervals = {

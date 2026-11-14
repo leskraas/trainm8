@@ -55,7 +55,15 @@ test('athlete builds a season from the catalogue, answers its question, and adds
 	await expect(
 		page.getByText(/Ingenting i treningen din de siste ukene/),
 	).toBeVisible()
-	await expect(page.getByText('Løping —').first()).toBeVisible()
+	// The first week's run row: its target, and what its sessions plan (#472).
+	const runRow = page
+		.getByRole('list', { name: 'Mål og planlagt per idrett' })
+		.first()
+		.getByRole('listitem')
+		.first()
+	await expect(runRow).toHaveText(
+		/^Løping\s*mål —ikke tilgjengelig\s*·\s*planlagt\s/,
+	)
 
 	// Nothing reaches the calendar without a size: the approval says why.
 	const approve = page.getByRole('button', {
@@ -81,7 +89,7 @@ test('athlete builds a season from the catalogue, answers its question, and adds
 			name: 'Dette er min første strukturerte sesong',
 		}),
 	).toBeChecked()
-	await expect(page.getByText(/^Løping \d/).first()).toBeVisible()
+	await expect(runRow).toHaveText(/^Løping\s*mål \d+\s*km\s*·\s*planlagt\s/)
 	await expect(page.getByText(/Ditt eget tall/)).toBeVisible()
 
 	// The shape is pre-selected and says so; another is one tap away.

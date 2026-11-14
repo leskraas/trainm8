@@ -26,6 +26,11 @@ export type TargetView = {
 	currency: VolumeCurrency
 	/** In the track's own currency; null is an Unavailable week. */
 	value: number | null
+	/**
+	 * Hand-set by a **Week Volume Override** rather than derived (ADR 0044 §5):
+	 * the `authored | derived` marker every after-value keeps (ADR 0122 §1).
+	 */
+	overridden: boolean
 }
 
 /** One week as the plan reads it on one side of an edit. */
@@ -49,6 +54,7 @@ export function weekViews(rows: OutlineRows): WeekView[] {
 			discipline: track.discipline,
 			currency: track.currency,
 			value: track.targets[week]?.value ?? null,
+			overridden: track.targets[week]?.overridden ?? false,
 		})),
 	}))
 }

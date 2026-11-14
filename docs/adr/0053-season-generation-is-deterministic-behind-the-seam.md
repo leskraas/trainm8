@@ -11,7 +11,10 @@ amended by
 [ADR 0120](./0120-a-generated-plan-keeps-a-generation-record-and-its-weeks-are-laid-again-by-the-generator.md)**:
 the seam also places weeks (`placeWeeks`), a generated plan keeps a **Generation
 Record**, and its weeks are laid again through the seam; the athlete rebuilding
-the season stays unbuilt.
+the season stays unbuilt. · **§6 clarified by
+[ADR 0124](./0124-a-generated-weeks-planned-volume-is-read-outside-the-seam-as-sesong-will-read-it.md)**:
+the sum of a week's placed sessions is a reading of the payload, not a field on
+it.
 
 Resolves [#456](https://github.com/leskraas/trainm8/issues/456), the build
 ticket for the decision recorded on
@@ -163,7 +166,10 @@ already existed:
   one-to-many, so a shared Workout would make one edit twelve (ADR 0044 §6);
 - the **Citation** is _reached_ rather than copied, by walking the chain and
   never assuming one hop, so correcting a mis-cited row corrects every plan that
-  used it and `retiredAt` keeps working (ADR 0051 §5, #460);
+  used it and `retiredAt` keeps working (ADR 0051 §5, #460). **Narrowed by
+  [ADR 0123](./0123-provenance-is-available-not-asserted-a-row-carries-the-plan-and-its-provenance-is-one-tap-away.md)
+  §5** for the session page, which reads the placed copy and at most one hop
+  past an adoption fork, never the whole chain;
 - **Session Adoption** already means the right thing: the session stays
   `generated` forever and `adoptedAt` records the takeover.
 

@@ -101,6 +101,41 @@ export function formatSignedPercent(fraction: number): string {
 }
 
 /**
+ * A signed rate to a tenth of a percent, in the prose the athlete reads (a
+ * **Volume Ramp**, a **Block Boundary Step**): `+5 %`, `+2,5 %`,
+ * `−10 %`. A decimal comma, a real minus sign, and a no-break space before
+ * the sign like {@link formatNbPercent}, so the figure and its sign never part.
+ */
+export function formatNbSignedRate(fraction: number): string {
+	const tenths = Math.round(fraction * 1000) / 10
+	const figure = String(Math.abs(tenths)).replace('.', ',')
+	return `${tenths < 0 ? '−' : '+'}${figure} %`
+}
+
+/**
+ * A number as a form field carries it, the Norwegian way: a decimal comma, no
+ * grouping, and to `decimals` places when given (`45,5`, `75,981`). The
+ * inverse of {@link parseNbDecimal}.
+ */
+export function formatNbFieldNumber(value: number, decimals?: number): string {
+	const shown =
+		decimals == null
+			? value
+			: Math.round(value * 10 ** decimals) / 10 ** decimals
+	return String(shown).replace('.', ',')
+}
+
+/**
+ * A number as typed in a field: a decimal comma or point, spaces around it
+ * ignored (`45,5`, ` 45.50`). Blank or not a number reads as `NaN`, for the
+ * caller's schema to refuse. Beside {@link formatNbFieldNumber} (ADR 0023 §6).
+ */
+export function parseNbDecimal(input: string): number {
+	const raw = input.trim()
+	return raw === '' ? NaN : Number(raw.replace(',', '.'))
+}
+
+/**
  * A rate as the **whole percent a form field carries** — the inverse of the
  * `percent / 100` a rate form does on the way in, and the reason it lives beside
  * {@link formatSignedPercent} rather than in a route (ADR 0023 §6: parsers live

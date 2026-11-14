@@ -12,7 +12,8 @@
  * The rest of the card (previews, confirms, refusals) is covered in
  * `plan.route.test.tsx` and `plan.season-edits.test.ts`.
  */
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
@@ -162,4 +163,326 @@ test('a text link into an edit reaches 44 px without growing its line', async ()
 	expect(link.classList).toContain('after:absolute')
 	expect(link.classList).toContain('after:-inset-y-3')
 	expect(link.classList).toContain('touch-manipulation')
+})
+
+// _Endre startnivået_ (#673): opened from the lead on the act that will not
+// be refused, pre-filled with the ramp's level, and never offering to remove
+// the season's first Season Anchor.
+
+type Choice = Parameters<typeof SeasonEditsCard>[0]['anchorChoices']
+
+function anchorChoice(
+	anchors: Array<{ fromWeekKey: string; value: number }>,
+): NonNullable<Choice>[number] {
+	return {
+		trackId: RUN,
+		discipline: 'run',
+		currency: 'km',
+		anchors: anchors.map((anchor, index) => ({
+			...anchor,
+			earliest: index === 0,
+			inPlan: true,
+			removable: index > 0 && anchor.fromWeekKey >= '2030-01-07',
+		})),
+		weeks: [
+			{
+				weekKey: '2030-01-07',
+				role: 'recovery',
+				target: 25,
+				overridden: false,
+				level: 37.4567,
+			},
+			{
+				weekKey: '2030-01-14',
+				role: 'loading',
+				target: 39.3,
+				overridden: false,
+				level: 39.3,
+			},
+		],
+	}
+}
+
+function renderAnchorEdit(
+	choice: NonNullable<Choice>[number],
+	reply: Parameters<typeof SeasonEditsCard>[0]['reply'] = null,
+) {
+	const App = createRoutesStub([
+		{
+			path: '/training/plan',
+			Component: () => (
+				<SeasonEditsCard
+					outlineId="outline-1"
+					weeks={[]}
+					phases={[]}
+					tracks={[]}
+					anchorChoices={[choice]}
+					firstUnbegunWeekKey="2030-01-07"
+					reply={reply}
+				/>
+			),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+	render(
+		<App
+			initialEntries={[
+				`/training/plan?edit=season-anchor&trackId=${RUN}#season-edit-season-anchor`,
+			]}
+		/>,
+	)
+}
+
+test('the lead’s link opens a fresh start from the first unbegun week, pre-filled with the ramp’s level', async () => {
+	renderAnchorEdit(anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]))
+
+	const form = await screen.findByRole('form', { name: 'Endre startnivået' })
+	expect(form.closest('#season-edit-season-anchor')).not.toBeNull()
+	expect(
+		screen.getByRole('radio', { name: /Start på nytt fra en uke/ }),
+	).toBeChecked()
+	// The level to three decimals, not the easy week's own target.
+	expect(screen.getByLabelText('Starter på (km)')).toHaveValue('37,457')
+	expect(screen.getByText('Nå: 25 km, lett uke.')).toBeInTheDocument()
+	// Only the season's first anchor: nothing to remove.
+	expect(screen.queryByRole('radio', { name: /Fjern/ })).toBeNull()
+})
+
+test('a segment starting on the first unbegun week opens on its value; only later ones can go', async () => {
+	renderAnchorEdit(
+		anchorChoice([
+			{ fromWeekKey: '2029-12-31', value: 30 },
+			{ fromWeekKey: '2030-01-07', value: 36 },
+		]),
+	)
+
+	expect(
+		await screen.findByRole('radio', { name: /Endre tallet i et startnivå/ }),
+	).toBeChecked()
+	expect(screen.getByLabelText('Nytt tall (km)')).toHaveValue('36')
+	expect(
+		screen.getByRole('radio', { name: /Fjern et nytt startnivå/ }),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(/Sesongstarten \(Fra uke 1 · 31\. des 2029 · 30 km\)/),
+	).toBeInTheDocument()
+})
+
+function anchorPreviewReply(value: number) {
+	const edit = {
+		kind: 'season-anchor' as const,
+		trackId: RUN,
+		action: 'add' as const,
+		fromWeekKey: '2030-01-14',
+		value,
+	}
+	return {
+		edit: 'season-anchor' as const,
+		preview: {
+			kind: 'season-anchor' as const,
+			weeks: [],
+			digest: 'digest-1',
+			message: `Løping fra uke 3: nytt startnivå ${value} km.`,
+			warnings: [],
+			edit,
+			anchor: {
+				unit: 'km',
+				changedWeeks: '1 uke får nytt mål',
+				rows: [],
+				held: [],
+			},
+		},
+	}
+}
+
+test('the preview stays while the field says the same number, however it is written', async () => {
+	renderAnchorEdit(
+		anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]),
+		anchorPreviewReply(45.5),
+	)
+	const field = await screen.findByLabelText('Starter på (km)')
+	expect(field).toHaveValue('45,5')
+	expect(document.querySelector('[data-season-edit-preview]')).not.toBeNull()
+
+	// A decimal point, a trailing zero: the number the preview was made from.
+	fireEvent.input(field, { target: { value: '45.50' } })
+	expect(document.querySelector('[data-season-edit-preview]')).not.toBeNull()
+
+	// Another number is another edit: the preview is someone else's.
+	fireEvent.input(field, { target: { value: '46' } })
+	expect(document.querySelector('[data-season-edit-preview]')).toBeNull()
+})
+
+test('a preview row names the track’s Volume Currency beside its figures', async () => {
+	const edit = {
+		kind: 'season-anchor' as const,
+		trackId: RUN,
+		action: 'add' as const,
+		fromWeekKey: '2030-01-14',
+		value: 42,
+	}
+	renderAnchorEdit(anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]), {
+		edit: 'season-anchor',
+		preview: {
+			kind: 'season-anchor',
+			weeks: [],
+			digest: 'digest-1',
+			message: 'Løping fra uke 3: nytt startnivå 42 km.',
+			warnings: [],
+			edit,
+			anchor: {
+				unit: 'km',
+				changedWeeks: '1 uke får nytt mål',
+				rows: [
+					{
+						weekKey: '2030-01-14',
+						weekNumber: 3,
+						where: 'hard uke · Base',
+						before: '39,3',
+						after: '42',
+						authored: false,
+						how: null,
+					},
+				],
+				held: [],
+			},
+		},
+	})
+
+	const row = await screen.findByText('Uke 3')
+	expect(row.closest('li')?.textContent).toMatch(/39,3.*→.*42\s*km/)
+})
+
+test('the preview heading focus lands on reads the headline with it', async () => {
+	renderAnchorEdit(
+		anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]),
+		anchorPreviewReply(42),
+	)
+	// The live region mounts holding its text, which a screen reader does not
+	// announce; the heading focus moves to carries it as its description.
+	expect(
+		await screen.findByRole('heading', { name: 'Forhåndsvisning' }),
+	).toHaveAccessibleDescription('Løping fra uke 3: nytt startnivå 42 km.')
+})
+
+test('the confirm takes no second tap while the edit is being applied', async () => {
+	const App = createRoutesStub([
+		{
+			path: '/training/plan',
+			Component: () => (
+				<SeasonEditsCard
+					outlineId="outline-1"
+					weeks={[]}
+					phases={[]}
+					tracks={[]}
+					anchorChoices={[
+						anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]),
+					]}
+					firstUnbegunWeekKey="2030-01-07"
+					reply={anchorPreviewReply(42)}
+				/>
+			),
+			// The apply lays the changed weeks again: it has not answered yet.
+			action: () => new Promise(() => {}),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+	render(<App initialEntries={['/training/plan?edit=season-anchor']} />)
+
+	const confirm = await screen.findByRole('button', { name: 'Bruk endringen' })
+	fireEvent.click(confirm)
+	await waitFor(() => expect(confirm).toBeDisabled())
+})
+
+test('a refused value change names only the lived weeks its segment covers', async () => {
+	// Segments from uke 51 and uke 1; the first unbegun week is uke 2. The
+	// segment from uke 51 stops where the next one starts: it covers 51–52,
+	// not 51–1.
+	const choice = anchorChoice([
+		{ fromWeekKey: '2029-12-17', value: 30 },
+		{ fromWeekKey: '2029-12-31', value: 34 },
+	])
+	renderAnchorEdit(choice, {
+		edit: 'season-anchor',
+		refusal: 'segment-lived',
+		result: {
+			status: 'error',
+			initialValue: {
+				trackId: RUN,
+				action: 'set',
+				setWeekKey: '2029-12-17',
+				setValue: '50',
+			},
+			error: {},
+		},
+	})
+
+	const refusal = await screen.findByText(/Startnivået fra uke 51/)
+	expect(refusal).toHaveTextContent('gjelder også uke 51–52, som du har trent')
+})
+
+test('every picker in the edit labels its weeks “Fra uke”', async () => {
+	renderAnchorEdit(anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]))
+	await screen.findByRole('form', { name: 'Endre startnivået' })
+	// The fresh start's picker, on the first unbegun week (uke 2).
+	const picker = document.querySelector(
+		'[data-season-anchor-act="add"] [role="combobox"]',
+	)
+	expect(picker?.textContent).toMatch(/^Fra uke 2 · /)
+})
+
+test('the value fields’ labels are on the callout step like the edit’s others', async () => {
+	renderAnchorEdit(anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]))
+	await screen.findByRole('form', { name: 'Endre startnivået' })
+	for (const name of ['Starter på (km)', 'Nytt tall (km)']) {
+		const label = document.querySelector(
+			`label[for="${screen.getByLabelText(name).id}"]`,
+		)
+		expect(label?.classList).toContain('text-callout')
+	}
+})
+
+test('a stale confirm moves focus to what to do next', async () => {
+	function Card() {
+		const [stale, setStale] = useState(false)
+		return (
+			<>
+				<button type="button" onClick={() => setStale(true)}>
+					stale
+				</button>
+				<SeasonEditsCard
+					outlineId="outline-1"
+					weeks={[]}
+					phases={[]}
+					tracks={[]}
+					anchorChoices={[
+						anchorChoice([{ fromWeekKey: '2029-12-31', value: 30 }]),
+					]}
+					firstUnbegunWeekKey="2030-01-07"
+					reply={
+						stale
+							? { edit: 'season-anchor', stale: true }
+							: anchorPreviewReply(42)
+					}
+				/>
+			</>
+		)
+	}
+	const App = createRoutesStub([
+		{
+			path: '/training/plan',
+			Component: Card,
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+	render(<App initialEntries={['/training/plan?edit=season-anchor']} />)
+
+	const confirm = await screen.findByRole('button', { name: 'Bruk endringen' })
+	confirm.focus()
+	fireEvent.click(screen.getByRole('button', { name: 'stale' }))
+
+	const refresh = await screen.findByRole('button', {
+		name: 'Vis ny forhåndsvisning',
+	})
+	await waitFor(() => expect(refresh).toHaveFocus())
 })
