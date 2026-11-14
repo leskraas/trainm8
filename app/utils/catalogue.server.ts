@@ -447,7 +447,7 @@ type PlacedProvenanceRow = Prisma.WorkoutGetPayload<{
  */
 export async function readPlacedProvenance(
 	workoutId: string | null | undefined,
-	adoptedAt: Date | string | null,
+	adoptedAt: Date | null,
 ): Promise<{ provenance: SessionProvenance; takenDown: boolean } | null> {
 	if (!workoutId) return null
 	const workout = await prisma.workout.findUnique({

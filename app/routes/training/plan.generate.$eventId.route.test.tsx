@@ -150,11 +150,11 @@ test('nothing reaches the calendar until the athlete says so', async () => {
 /** A placed session's row: one button, named by its day line and title. */
 function row(title: RegExp | string) {
 	return screen.findByRole('button', {
-		name: typeof title === 'string' ? new RegExp(escape(title)) : title,
+		name: typeof title === 'string' ? new RegExp(escapeRegExp(title)) : title,
 	})
 }
 
-function escape(text: string) {
+function escapeRegExp(text: string) {
 	return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
