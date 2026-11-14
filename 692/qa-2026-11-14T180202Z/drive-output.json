@@ -1,0 +1,19 @@
+{
+ "todayTop": 122,
+ "strip": {
+  "cells": 52,
+  "minW": 6.875,
+  "overflow": 0
+ },
+ "weeksMounted": 32,
+ "writesDuringScroll": [],
+ "pillLabel": "Gå opp til i dag",
+ "pillAway": "-1",
+ "pillAfterAway": "0",
+ "todayTopAfterPill": 122,
+ "oldestWeek": {
+  "key": "2026-05-18",
+  "topAfter6s": 2
+ },
+ "pageerrors": []
+}

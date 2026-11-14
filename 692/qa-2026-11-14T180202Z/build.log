@@ -1,0 +1,669 @@
+🖼️  Generated SVG spritesheet in app/components/ui/icons
+TS Generated icon types in app/components/ui/icons/types.ts
+vite v7.3.1 building client environment for production...
+
+  ⚠️  Source maps are enabled in production
+     This makes your server code publicly
+     visible in the browser. This is highly
+     discouraged! If you insist, ensure that
+     you are using environment variables for
+     secrets and not hard-coding them in
+     your source code.
+
+transforming...
+node_modules/react-router/dist/development/dom-export.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/sonner.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/label.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/alert-dialog.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/command.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/input-group.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/drawer.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/dropdown-menu.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/switch.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/progress.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/tabs.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/content/DrawerContent.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/indent/DrawerIndent.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/backdrop/DrawerBackdrop.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/indent-background/DrawerIndentBackground.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/popup/DrawerPopup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/swipe-area/DrawerSwipeArea.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/utils/useStableCallback.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/portal/DialogPortal.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/description/DialogDescription.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/close/DialogClose.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/provider/DrawerProviderContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/root/DrawerRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/utils/useControlled.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/root/DialogRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/trigger/DialogTrigger.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/viewport/DrawerViewport.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/title/DialogTitle.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/virtual-keyboard-provider/DrawerVirtualKeyboardContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/utils/useAnimationFrame.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/button/Button.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/input/Input.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/toggle/Toggle.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/toggle-group/ToggleGroup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/dialog.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/floating-ui-react/components/FloatingDelayGroup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/floating-ui-react/components/FloatingPortal.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/floating-ui-react/components/FloatingTree.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/floating-ui-react/hooks/useFloatingRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/utils/store/ReactStore.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/separator/Separator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/floating-ui-react/hooks/useListNavigation.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/collapsible/trigger/CollapsibleTrigger.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/root/TooltipRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/collapsible/root/CollapsibleRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/provider/TooltipProvider.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/viewport/TooltipViewport.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/backdrop/DialogBackdrop.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/popup/TooltipPopup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/portal/TooltipPortal.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/positioner/TooltipPositioner.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/viewport/DialogViewport.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/arrow/TooltipArrow.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/trigger/TooltipTrigger.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/popup/DialogPopup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/checkbox/indicator/CheckboxIndicator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/collapsible/panel/CollapsiblePanel.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/utils/FocusGuard.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/checkbox/root/CheckboxRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/label/SelectLabel.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/icon/SelectIcon.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/value/SelectValue.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/portal/SelectPortal.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/scroll-down-arrow/SelectScrollDownArrow.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/list/SelectList.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/trigger/SelectTrigger.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/arrow/SelectArrow.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/item-indicator/SelectItemIndicator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/item/SelectItem.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/item-text/SelectItemText.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/positioner/SelectPositioner.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/scroll-up-arrow/SelectScrollUpArrow.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/group/SelectGroup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/backdrop/SelectBackdrop.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/group-label/SelectGroupLabel.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/popup/SelectPopup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/radio-group/RadioGroup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/root/SelectRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/internals/form-context/FormContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/utils/listbox-separator/ListboxSeparator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/internals/field-root-context/FieldRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/radio/indicator/RadioIndicator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/radio/root/RadioRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/root/DialogRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/internals/labelable-provider/LabelableContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/arrow/MenuArrow.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/backdrop/MenuBackdrop.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/checkbox-item-indicator/MenuCheckboxItemIndicator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/checkbox-item/MenuCheckboxItem.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/group/MenuGroup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/item/MenuItem.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/radio-item/MenuRadioItem.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/portal/MenuPortal.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/radio-group/MenuRadioGroup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/popup/MenuPopup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/clear/MenuClear.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/group-label/MenuGroupLabel.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/empty/MenuEmpty.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/link-item/MenuLinkItem.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/radio-item-indicator/MenuRadioItemIndicator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/viewport/MenuViewport.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/list/MenuList.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/input/MenuInput.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/trigger/MenuTrigger.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/root/MenuRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/submenu-trigger/MenuSubmenuTrigger.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/positioner/MenuPositioner.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/trigger/PopoverTrigger.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/positioner/PopoverPositioner.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/title/PopoverTitle.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/description/PopoverDescription.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/viewport/PopoverViewport.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/backdrop/PopoverBackdrop.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/portal/PopoverPortal.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/close/PopoverClose.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/arrow/PopoverArrow.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/root/PopoverRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/dialog/portal/DialogPortalContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/drawer/viewport/DrawerViewportContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/switch/thumb/SwitchThumb.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/popup/PopoverPopup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/filter-provider/MenuFilterProviderContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/root/MenuRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/submenu-root/MenuSubmenuRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/switch/root/SwitchRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/progress/indicator/ProgressIndicator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/progress/root/ProgressRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/progress/value/ProgressValue.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/progress/label/ProgressLabel.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/meter/track/MeterTrack.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/meter/label/MeterLabel.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/meter/indicator/MeterIndicator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/progress/track/ProgressTrack.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/meter/root/MeterRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tabs/tab/TabsTab.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tabs/root/TabsRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/meter/value/MeterValue.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tabs/panel/TabsPanel.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tabs/list/TabsList.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/internals/use-button/useButton.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tabs/indicator/TabsIndicator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/toggle-group/ToggleGroupContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/toolbar/group/ToolbarGroupContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/toolbar/root/ToolbarRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/internals/direction-context/DirectionContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/collapsible/root/CollapsibleRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/root/TooltipRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/internals/composite/root/CompositeRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/filter-root/MenuFilterContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menubar/MenubarContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/field/root/FieldRoot.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/field/label/FieldLabel.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/field/error/FieldError.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/field/description/FieldDescription.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/field/validity/FieldValidity.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/provider/TooltipProviderContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/positioner/TooltipPositionerContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/field/item/FieldItem.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tooltip/portal/TooltipPortalContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/field/control/FieldControl.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/utils/FloatingPortalLite.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/checkbox/root/CheckboxRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/checkbox-group/CheckboxGroupContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/internals/composite/list/CompositeListContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/field/item/FieldItemContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/filter-dropdown/root/FilterDropdownRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/filter-root/MenuFilterPopup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/filter-root/MenuFilterGroup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/collapsible/panel/useCollapsiblePanel.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/filter-root/MenuFilterList.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/positioner/SelectPositionerContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/scroll-arrow/SelectScrollArrow.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/utils/ItemIndicator.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/item/SelectItemContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/internals/csp-context/CSPContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/fieldset/root/FieldsetRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/radio-group/RadioGroupContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/radio/root/RadioRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/select/group/SelectGroupContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/positioner/MenuPositionerContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/checkbox-item/MenuCheckboxItemContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/context-menu/root/ContextMenuRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/group/MenuGroupContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/radio-item/MenuRadioItemContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/portal/MenuPortalContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/radio-group/MenuRadioGroupContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/filter-dropdown/clear/FilterDropdownClear.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/filter-dropdown/empty/FilterDropdownEmpty.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/filter-dropdown/input/FilterDropdownInput.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/filter-dropdown/group/FilterDropdownGroupContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/root/PopoverRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/portal/PopoverPortalContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/popover/positioner/PopoverPositionerContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/utils/closePart.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/switch/root/SwitchRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/progress/root/ProgressRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/meter/root/MeterRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tabs/list/TabsListContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/tabs/root/TabsRootContext.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/direction-provider/DirectionProvider.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/menu/filter-root/useMenuFilterPopup.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/filter-dropdown/list/FilterDropdownList.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@base-ui/react/internals/labelable-provider/LabelableProvider.mjs (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2055 modules transformed.
+Generated an empty chunk: "events".
+Generated an empty chunk: "library".
+Generated an empty chunk: "mcp".
+Generated an empty chunk: "imports._index".
+Generated an empty chunk: "index".
+Generated an empty chunk: "index".
+Generated an empty chunk: "index".
+Generated an empty chunk: "logout".
+Generated an empty chunk: "presenter".
+Generated an empty chunk: "robots_._txt".
+Generated an empty chunk: "sitemap_._xml".
+Generated an empty chunk: "imports.share-target".
+Generated an empty chunk: "integrations.sync".
+Generated an empty chunk: "autopilot".
+Generated an empty chunk: "composer-sources".
+Generated an empty chunk: "dev-switch-athlete".
+Generated an empty chunk: "download-user-data".
+Generated an empty chunk: "healthcheck".
+Generated an empty chunk: "images".
+Generated an empty chunk: "import-link".
+Generated an empty chunk: "imports-events".
+Generated an empty chunk: "sentence-exercises".
+Generated an empty chunk: "session-adjust".
+Generated an empty chunk: "session-annet".
+Generated an empty chunk: "session-done".
+Generated an empty chunk: "session-release".
+Generated an empty chunk: "session-swap".
+Generated an empty chunk: "strength-log".
+Generated an empty chunk: "theme-switch".
+Generated an empty chunk: "track-days".
+Generated an empty chunk: "week-change".
+Generated an empty chunk: "week-sum".
+Generated an empty chunk: "_".
+Generated an empty chunk: "exercises".
+Generated an empty chunk: "webhook.strava".
+Generated an empty chunk: "authentication".
+Generated an empty chunk: "registration".
+Generated an empty chunk: "anchoring".
+Generated an empty chunk: "composer".
+Generated an empty chunk: "composer-context".
+Generated an empty chunk: "composer-drawer".
+Generated an empty chunk: "composer-model".
+Generated an empty chunk: "composer-sentence".
+Generated an empty chunk: "day-lookup".
+Generated an empty chunk: "day-pane".
+Generated an empty chunk: "disc-dot".
+Generated an empty chunk: "home-timeline".
+Generated an empty chunk: "import-actions".
+Generated an empty chunk: "import-link".
+Generated an empty chunk: "presenter".
+Generated an empty chunk: "row-content".
+Generated an empty chunk: "row-inset".
+Generated an empty chunk: "season-pane".
+Generated an empty chunk: "season-table".
+Generated an empty chunk: "session-detail".
+Generated an empty chunk: "stream".
+Generated an empty chunk: "strength-log".
+Generated an empty chunk: "strength-log-panel".
+Generated an empty chunk: "strip".
+Generated an empty chunk: "track-marks".
+Generated an empty chunk: "use-day-selection".
+Generated an empty chunk: "use-timeline-scroll".
+Generated an empty chunk: "week-change".
+Generated an empty chunk: "week-change-card".
+Generated an empty chunk: "week-strip".
+Generated an empty chunk: "week-words".
+Generated an empty chunk: "sqlite".
+Generated an empty chunk: "api.auth._".
+Generated an empty chunk: "integrations.intervalsicu.connect".
+Generated an empty chunk: "integrations.intervalsicu.sync".
+Generated an empty chunk: "integrations.strava.callback".
+Generated an empty chunk: "integrations.strava.connect".
+Generated an empty chunk: "integrations.strava.sync".
+Generated an empty chunk: "index".
+Generated an empty chunk: "callback".
+Generated an empty chunk: "lru._cacheKey".
+Generated an empty chunk: "sqlite._cacheKey".
+rendering chunks...
+computing gzip size...
+build/client/assets/favicon-Xd7rFGOf.svg                                 0.47 kB │ gzip:   0.30 kB
+build/client/assets/docker-CKYupBMy.svg                                  4.88 kB │ gzip:   1.94 kB
+build/client/assets/playwright-D0Du3LFd.svg                              5.03 kB │ gzip:   2.04 kB
+build/client/assets/prisma-IaIz7Mrr.svg                                  5.10 kB │ gzip:   2.19 kB
+build/client/assets/testing-library-DlPZpWfP.png                         5.80 kB
+build/client/assets/prettier-DbIVlkV4.svg                                6.41 kB │ gzip:   0.84 kB
+build/client/assets/public-sans-vietnamese-wght-normal-CtlIRbEm.woff2    7.72 kB
+build/client/assets/apple-touch-icon-Ds7s8IDz.png                        8.99 kB
+build/client/assets/fly-COcofn25.svg                                     9.78 kB │ gzip:   4.46 kB
+build/client/assets/sqlite-C780ctma.svg                                  9.89 kB │ gzip:   3.97 kB
+build/client/assets/react-email-DKP-k4Ck.svg                            11.49 kB │ gzip:   4.42 kB
+build/client/assets/sprite-ksOb09Fk.svg                                 14.19 kB │ gzip:   2.96 kB
+build/client/assets/public-sans-latin-ext-wght-normal-MQgHevqp.woff2    18.47 kB
+build/client/assets/public-sans-latin-wght-normal-DdeTHZLK.woff2        26.83 kB
+build/client/assets/faker-D6l4cpmx.svg                                  76.11 kB │ gzip:  23.81 kB
+build/client/assets/zod-TYtFcqGX.svg                                   118.03 kB │ gzip:  83.66 kB
+build/client/.vite/manifest.json                                       173.17 kB │ gzip:  14.77 kB
+build/client/assets/stars-C09PLoVz.jpg                                 391.16 kB
+build/client/assets/tailwind-DRLjm1CU.css                              237.56 kB │ gzip:  35.90 kB
+build/client/assets/_-l0sNRNKZ.js                                        0.04 kB │ gzip:   0.06 kB │ map:     0.09 kB
+build/client/assets/mcp-l0sNRNKZ.js                                      0.04 kB │ gzip:   0.06 kB │ map:     0.10 kB
+build/client/assets/index-l0sNRNKZ.js                                    0.04 kB │ gzip:   0.06 kB │ map:     0.10 kB
+build/client/assets/index-DP2rzg_V.js                                    0.04 kB │ gzip:   0.06 kB │ map:     0.10 kB
+build/client/assets/index-K6Dvbx-E.js                                    0.04 kB │ gzip:   0.06 kB │ map:     0.10 kB
+build/client/assets/strip-l0sNRNKZ.js                                    0.04 kB │ gzip:   0.06 kB │ map:     0.10 kB
+build/client/assets/index-C6Kfwj0f.js                                    0.04 kB │ gzip:   0.06 kB │ map:     0.10 kB
+build/client/assets/events-l0sNRNKZ.js                                   0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/logout-l0sNRNKZ.js                                   0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/images-l0sNRNKZ.js                                   0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/stream-l0sNRNKZ.js                                   0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/sqlite-l0sNRNKZ.js                                   0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/library-l0sNRNKZ.js                                  0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/week-sum-l0sNRNKZ.js                                 0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/composer-l0sNRNKZ.js                                 0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/day-pane-l0sNRNKZ.js                                 0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/disc-dot-l0sNRNKZ.js                                 0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/callback-l0sNRNKZ.js                                 0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/presenter-l0sNRNKZ.js                                0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/autopilot-l0sNRNKZ.js                                0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/exercises-l0sNRNKZ.js                                0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/anchoring-l0sNRNKZ.js                                0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/presenter-DP2rzg_V.js                                0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/row-inset-l0sNRNKZ.js                                0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/track-days-l0sNRNKZ.js                               0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/day-lookup-l0sNRNKZ.js                               0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/week-strip-l0sNRNKZ.js                               0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/week-words-l0sNRNKZ.js                               0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/api.auth._-l0sNRNKZ.js                               0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/healthcheck-l0sNRNKZ.js                              0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/import-link-l0sNRNKZ.js                              0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/week-change-l0sNRNKZ.js                              0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/import-link-DP2rzg_V.js                              0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/row-content-l0sNRNKZ.js                              0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/season-pane-l0sNRNKZ.js                              0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/track-marks-l0sNRNKZ.js                              0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/week-change-DP2rzg_V.js                              0.05 kB │ gzip:   0.07 kB │ map:     0.10 kB
+build/client/assets/robots_._txt-l0sNRNKZ.js                             0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/session-done-l0sNRNKZ.js                             0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/session-swap-l0sNRNKZ.js                             0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/strength-log-l0sNRNKZ.js                             0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/theme-switch-l0sNRNKZ.js                             0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/registration-l0sNRNKZ.js                             0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/season-table-l0sNRNKZ.js                             0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/strength-log-DP2rzg_V.js                             0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/sitemap_._xml-l0sNRNKZ.js                            0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/session-annet-l0sNRNKZ.js                            0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/home-timeline-l0sNRNKZ.js                            0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/lru._cacheKey-l0sNRNKZ.js                            0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/imports._index-l0sNRNKZ.js                           0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/imports-events-l0sNRNKZ.js                           0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/session-adjust-l0sNRNKZ.js                           0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/webhook.strava-l0sNRNKZ.js                           0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/authentication-l0sNRNKZ.js                           0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/composer-model-l0sNRNKZ.js                           0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/import-actions-l0sNRNKZ.js                           0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/session-detail-l0sNRNKZ.js                           0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/session-release-l0sNRNKZ.js                          0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/composer-drawer-l0sNRNKZ.js                          0.05 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/composer-sources-l0sNRNKZ.js                         0.06 kB │ gzip:   0.07 kB │ map:     0.11 kB
+build/client/assets/composer-context-l0sNRNKZ.js                         0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/week-change-card-l0sNRNKZ.js                         0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/sqlite._cacheKey-l0sNRNKZ.js                         0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/integrations.sync-l0sNRNKZ.js                        0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/composer-sentence-l0sNRNKZ.js                        0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/use-day-selection-l0sNRNKZ.js                        0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/dev-switch-athlete-l0sNRNKZ.js                       0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/download-user-data-l0sNRNKZ.js                       0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/sentence-exercises-l0sNRNKZ.js                       0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/strength-log-panel-l0sNRNKZ.js                       0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/use-timeline-scroll-l0sNRNKZ.js                      0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/imports.share-target-l0sNRNKZ.js                     0.06 kB │ gzip:   0.08 kB │ map:     0.11 kB
+build/client/assets/integrations.strava.sync-l0sNRNKZ.js                 0.06 kB │ gzip:   0.08 kB │ map:     0.12 kB
+build/client/assets/integrations.strava.connect-l0sNRNKZ.js              0.07 kB │ gzip:   0.09 kB │ map:     0.12 kB
+build/client/assets/integrations.strava.callback-l0sNRNKZ.js             0.07 kB │ gzip:   0.09 kB │ map:     0.12 kB
+build/client/assets/integrations.intervalsicu.sync-l0sNRNKZ.js           0.07 kB │ gzip:   0.09 kB │ map:     0.12 kB
+build/client/assets/integrations.intervalsicu.connect-l0sNRNKZ.js        0.07 kB │ gzip:   0.09 kB │ map:     0.13 kB
+build/client/assets/__first-run-fields-BdCEs-eq.js                       0.12 kB │ gzip:   0.13 kB │ map:     0.47 kB
+build/client/assets/nonce-provider-FlonQjwl.js                           0.18 kB │ gzip:   0.17 kB │ map:     0.51 kB
+build/client/assets/support-DGosxV-v.js                                  0.19 kB │ gzip:   0.18 kB │ map:     0.36 kB
+build/client/assets/about-B_o1G3t9.js                                    0.19 kB │ gzip:   0.19 kB │ map:     0.35 kB
+build/client/assets/tos-GZ8C_uWZ.js                                      0.19 kB │ gzip:   0.19 kB │ map:     0.36 kB
+build/client/assets/index-CmgXWyMb.js                                    0.20 kB │ gzip:   0.18 kB │ map:     1.51 kB
+build/client/assets/index-BEOGX0de.js                                    0.21 kB │ gzip:   0.19 kB │ map:     2.13 kB
+build/client/assets/defaults-z2zBFOr8.js                                 0.21 kB │ gzip:   0.21 kB │ map:     4.74 kB
+build/client/assets/event-fit-DvlSP0u6.js                                0.25 kB │ gzip:   0.22 kB │ map:     2.00 kB
+build/client/assets/motion-C0ZmtvrV.js                                   0.26 kB │ gzip:   0.22 kB │ map:     1.54 kB
+build/client/assets/useValueChanged-DimyLPX7.js                          0.27 kB │ gzip:   0.24 kB │ map:     1.06 kB
+build/client/assets/calendar-key-schema-DI2bnLr4.js                      0.27 kB │ gzip:   0.24 kB │ map:     1.17 kB
+build/client/assets/user-B-jmA5Or.js                                     0.30 kB │ gzip:   0.25 kB │ map:     2.86 kB
+build/client/assets/useControlled-BIggQtOu.js                            0.30 kB │ gzip:   0.26 kB │ map:     4.07 kB
+build/client/assets/_layout-1v3y8Hor.js                                  0.31 kB │ gzip:   0.27 kB │ map:     0.97 kB
+build/client/assets/Separator-h0b_iC3t.js                                0.37 kB │ gzip:   0.29 kB │ map:     1.52 kB
+build/client/assets/autopilot-schema-BopvQZ9_.js                         0.41 kB │ gzip:   0.28 kB │ map:     1.87 kB
+build/client/assets/track-marks-D_LFrn1_.js                              0.42 kB │ gzip:   0.31 kB │ map:     1.53 kB
+build/client/assets/separator-B1DOs4Ny.js                                0.44 kB │ gzip:   0.30 kB │ map:     0.96 kB
+build/client/assets/source-credits-Cl8JzJyw.js                           0.44 kB │ gzip:   0.33 kB │ map:     1.65 kB
+build/client/assets/label-BI7A3QS4.js                                    0.46 kB │ gzip:   0.32 kB │ map:     0.86 kB
+build/client/assets/__event-parts-Z5a4azsg.js                            0.46 kB │ gzip:   0.35 kB │ map:     1.14 kB
+build/client/assets/community-MRgsxNIx.js                                0.49 kB │ gzip:   0.34 kB │ map:     7.86 kB
+build/client/assets/auth-layout-C6yb6RoA.js                              0.54 kB │ gzip:   0.35 kB │ map:     1.57 kB
+build/client/assets/session-title-ElclOxWu.js                            0.55 kB │ gzip:   0.38 kB │ map:     9.95 kB
+build/client/assets/catalogue-B07pLrXx.js                                0.56 kB │ gzip:   0.39 kB │ map:     8.60 kB
+build/client/assets/valueToPercent-CfQKDXCr.js                           0.60 kB │ gzip:   0.40 kB │ map:     2.82 kB
+build/client/assets/ramp-guard-93KtbxxX.js                               0.62 kB │ gzip:   0.38 kB │ map:    10.11 kB
+build/client/assets/kilo-input-CfUSJOTk.js                               0.63 kB │ gzip:   0.37 kB │ map:     3.45 kB
+build/client/assets/error-boundary-CJQYFTQs.js                           0.64 kB │ gzip:   0.44 kB │ map:     2.30 kB
+build/client/assets/provenance-CFcbJ_uQ.js                               0.69 kB │ gzip:   0.45 kB │ map:    20.22 kB
+build/client/assets/_layout-CAok2KDn.js                                  0.72 kB │ gzip:   0.48 kB │ map:     2.13 kB
+build/client/assets/_layout-HvIijI-p.js                                  0.72 kB │ gzip:   0.48 kB │ map:     1.84 kB
+build/client/assets/planned-discipline-BZpNhpgT.js                       0.72 kB │ gzip:   0.43 kB │ map:     6.21 kB
+build/client/assets/textarea-DJrPAU5h.js                                 0.79 kB │ gzip:   0.47 kB │ map:     1.31 kB
+build/client/assets/strength-log-BUMeI5v5.js                             0.80 kB │ gzip:   0.46 kB │ map:    37.96 kB
+build/client/assets/connections-CREANeHU.js                              0.83 kB │ gzip:   0.53 kB │ map:     3.05 kB
+build/client/assets/_-YiU0fTO2.js                                        0.83 kB │ gzip:   0.46 kB │ map:     2.72 kB
+build/client/assets/app-tabs-CNMyLJZv.js                                 0.85 kB │ gzip:   0.48 kB │ map:     6.13 kB
+build/client/assets/CompositeItem-hQD3kXWx.js                            0.87 kB │ gzip:   0.54 kB │ map:     3.72 kB
+build/client/assets/simple-activity-DLUYUQsc.js                          0.87 kB │ gzip:   0.51 kB │ map:     7.16 kB
+build/client/assets/honeypot-BtcjPnmg.js                                 0.89 kB │ gzip:   0.53 kB │ map:     2.64 kB
+build/client/assets/status-button-m6AptCdO.js                            1.03 kB │ gzip:   0.54 kB │ map:     3.41 kB
+build/client/assets/user-validation-xWIfZxRI.js                          1.05 kB │ gzip:   0.50 kB │ map:     3.03 kB
+build/client/assets/effort-word-CBhbXVzc.js                              1.09 kB │ gzip:   0.60 kB │ map:     8.00 kB
+build/client/assets/page-header-Clvcfq9y.js                              1.13 kB │ gzip:   0.67 kB │ map:     4.74 kB
+build/client/assets/preload-helper-BXl3LOEh.js                           1.16 kB │ gzip:   0.69 kB │ map:     0.11 kB
+build/client/assets/__programs-list-presenter-BqlelrW6.js                1.21 kB │ gzip:   0.66 kB │ map:     7.83 kB
+build/client/assets/table-COmF6Dgj.js                                    1.23 kB │ gzip:   0.53 kB │ map:     3.65 kB
+build/client/assets/disable-D5a7Eb00.js                                  1.30 kB │ gzip:   0.77 kB │ map:     3.71 kB
+build/client/assets/fit-proposal-DK9fI1eM.js                             1.31 kB │ gzip:   0.66 kB │ map:    16.96 kB
+build/client/assets/prescribed-duration-rvYCHYLS.js                      1.43 kB │ gzip:   0.77 kB │ map:     9.79 kB
+build/client/assets/alert-CUESDQjK.js                                    1.48 kB │ gzip:   0.67 kB │ map:     3.13 kB
+build/client/assets/athlete-schema-CztZtrYQ.js                           1.53 kB │ gzip:   0.79 kB │ map:     9.43 kB
+build/client/assets/badge-DPqwlwQR.js                                    1.57 kB │ gzip:   0.75 kB │ map:     3.31 kB
+build/client/assets/card-CTK3fj5E.js                                     1.57 kB │ gzip:   0.64 kB │ map:     3.76 kB
+build/client/assets/helpers-DUdUxqSb.js                                  1.61 kB │ gzip:   0.71 kB │ map:    11.33 kB
+build/client/assets/index-B2Lxqdka.js                                    1.65 kB │ gzip:   0.89 kB │ map:     4.71 kB
+build/client/assets/__event-target-D0Q5rEt3.js                           1.65 kB │ gzip:   0.79 kB │ map:     7.76 kB
+build/client/assets/toAuthenticatorAttachment-DIPxyKr-.js                1.68 kB │ gzip:   0.84 kB │ map:     9.43 kB
+build/client/assets/weather-glyph-BU4wFoJB.js                            1.75 kB │ gzip:   0.91 kB │ map:     4.19 kB
+build/client/assets/__first-run-frame-Bcr921nk.js                        1.77 kB │ gzip:   0.92 kB │ map:     6.08 kB
+build/client/assets/useBaseUiId-BCamSlgJ.js                              1.78 kB │ gzip:   0.95 kB │ map:    10.37 kB
+build/client/assets/view-morph-tzvUGIoS.js                               1.85 kB │ gzip:   0.90 kB │ map:     9.51 kB
+build/client/assets/__plan-new-parts-ByAnmqkU.js                         1.90 kB │ gzip:   0.90 kB │ map:     7.59 kB
+build/client/assets/usePopupHandleStore-CY5ppLCS.js                      1.92 kB │ gzip:   0.79 kB │ map:     7.89 kB
+build/client/assets/constraint-Cw-SUbDO.js                               1.94 kB │ gzip:   0.90 kB │ map:     7.40 kB
+build/client/assets/provenance-slot-BZDZJQsb.js                          1.97 kB │ gzip:   0.95 kB │ map:     7.90 kB
+build/client/assets/DialogPopup-C_isGh5r.js                              1.99 kB │ gzip:   0.97 kB │ map:     8.37 kB
+build/client/assets/useFocus-DGCeUTck.js                                 2.00 kB │ gzip:   0.97 kB │ map:    10.61 kB
+build/client/assets/events.new-B1IIWleS.js                               2.21 kB │ gzip:   1.15 kB │ map:     3.27 kB
+build/client/assets/event-schema-PXE4MxQA.js                             2.21 kB │ gzip:   0.98 kB │ map:     9.11 kB
+build/client/assets/athlete-calendar-7NqX7AGw.js                         2.22 kB │ gzip:   0.98 kB │ map:    18.10 kB
+build/client/assets/__library-section-zO3zRUiG.js                        2.33 kB │ gzip:   0.94 kB │ map:     6.55 kB
+build/client/assets/events._eventId.edit-D6mIUwpU.js                     2.36 kB │ gzip:   1.25 kB │ map:     4.57 kB
+build/client/assets/toggle-CSgqPV8C.js                                   2.44 kB │ gzip:   1.24 kB │ map:     9.08 kB
+build/client/assets/useLabelableId-BjKvCk5p.js                           2.52 kB │ gzip:   1.19 kB │ map:    15.62 kB
+build/client/assets/start-schema-PpEW7Dgp.js                             2.53 kB │ gzip:   1.03 kB │ map:    13.18 kB
+build/client/assets/change-email-Ds3a38Hu.js                             2.54 kB │ gzip:   1.30 kB │ map:     7.23 kB
+build/client/assets/password_.create-A0iYeSB5.js                         2.56 kB │ gzip:   1.28 kB │ map:     6.80 kB
+build/client/assets/catalogue.place._workoutId-BZGr2oBX.js               2.59 kB │ gzip:   1.22 kB │ map:     8.80 kB
+build/client/assets/library_.exercises-CHmMc6o9.js                       2.64 kB │ gzip:   1.35 kB │ map:    10.20 kB
+build/client/assets/reset-password-DncQL_29.js                           2.81 kB │ gzip:   1.39 kB │ map:     7.36 kB
+build/client/assets/input-DvgiDj91.js                                    2.82 kB │ gzip:   1.41 kB │ map:    12.88 kB
+build/client/assets/signup-BtPC9oua.js                                   2.85 kB │ gzip:   1.47 kB │ map:     8.18 kB
+build/client/assets/password-Dj1_e7x5.js                                 2.91 kB │ gzip:   1.40 kB │ map:     8.54 kB
+build/client/assets/alert-dialog-DxrD1mCi.js                             2.93 kB │ gzip:   1.02 kB │ map:     9.19 kB
+build/client/assets/meter-BKlvq9yP.js                                    2.96 kB │ gzip:   1.31 kB │ map:    15.75 kB
+build/client/assets/history-sOOQsk9l.js                                  2.98 kB │ gzip:   1.48 kB │ map:     9.22 kB
+build/client/assets/forgot-password-Bxy1f2Mo.js                          3.01 kB │ gzip:   1.55 kB │ map:     8.49 kB
+build/client/assets/koble-BmGHp_1h.js                                    3.03 kB │ gzip:   1.49 kB │ map:     7.84 kB
+build/client/assets/__start-option-card-Cu99NIUy.js                      3.05 kB │ gzip:   1.10 kB │ map:    13.54 kB
+build/client/assets/week-pattern-BQR2_8D7.js                             3.20 kB │ gzip:   1.53 kB │ map:    27.73 kB
+build/client/assets/progress-CiMZKO3B.js                                 3.25 kB │ gzip:   1.39 kB │ map:    18.24 kB
+build/client/assets/anchors-DVvjOOVT.js                                  3.31 kB │ gzip:   1.33 kB │ map:    18.78 kB
+build/client/assets/moderation-B13T2jDf.js                               3.37 kB │ gzip:   1.42 kB │ map:    11.57 kB
+build/client/assets/verify-CmeJKjk5.js                                   3.38 kB │ gzip:   1.71 kB │ map:     8.86 kB
+build/client/assets/useOpenChangeComplete-BqRYA6tU.js                    3.51 kB │ gzip:   1.56 kB │ map:    23.15 kB
+build/client/assets/events-DKZGQa4j.js                                   3.56 kB │ gzip:   1.55 kB │ map:     7.48 kB
+build/client/assets/events-CG2f70r6.js                                   3.57 kB │ gzip:   1.59 kB │ map:    10.46 kB
+build/client/assets/button-X9IuXdmj.js                                   3.60 kB │ gzip:   1.46 kB │ map:    11.55 kB
+build/client/assets/ZodError-D2irriyn.js                                 3.60 kB │ gzip:   1.54 kB │ map:    14.27 kB
+build/client/assets/gym-CN0y-VSB.js                                      3.62 kB │ gzip:   1.67 kB │ map:    14.14 kB
+build/client/assets/connections-CVcQAk6U.js                              3.63 kB │ gzip:   1.59 kB │ map:    12.00 kB
+build/client/assets/field-Jc6JkOue.js                                    3.66 kB │ gzip:   1.26 kB │ map:     8.82 kB
+build/client/assets/integrations-BMYzydQa.js                             3.67 kB │ gzip:   1.56 kB │ map:    15.35 kB
+build/client/assets/photo-CdCebNbl.js                                    3.70 kB │ gzip:   1.81 kB │ map:    11.87 kB
+build/client/assets/__me-form-records-D-9nRzT2.js                        3.71 kB │ gzip:   1.34 kB │ map:    12.59 kB
+build/client/assets/chart-4d_w4Vvf.js                                    3.72 kB │ gzip:   1.81 kB │ map:    25.64 kB
+build/client/assets/toggle-group-CDHOd7WT.js                             3.74 kB │ gzip:   1.43 kB │ map:    12.55 kB
+build/client/assets/index-pOaxvIR-.js                                    3.75 kB │ gzip:   1.45 kB │ map:    12.85 kB
+build/client/assets/index-BaAQOtDt.js                                    3.80 kB │ gzip:   1.70 kB │ map:    11.34 kB
+build/client/assets/training-CFEuGVZ1.js                                 3.85 kB │ gzip:   1.63 kB │ map:    27.96 kB
+build/client/assets/_provider-Cu5YRUIh.js                                3.86 kB │ gzip:   1.79 kB │ map:    12.47 kB
+build/client/assets/programs._programId.start-dFrpn-9B.js                3.86 kB │ gzip:   1.81 kB │ map:    46.62 kB
+build/client/assets/verify-DxJpDMXz.js                                   3.91 kB │ gzip:   1.85 kB │ map:    11.53 kB
+build/client/assets/index-CcqOmyuJ.js                                    3.94 kB │ gzip:   1.72 kB │ map:    12.19 kB
+build/client/assets/CompositeRoot-CRpFlQaR.js                            3.98 kB │ gzip:   1.85 kB │ map:    21.27 kB
+build/client/assets/dom-CSO_I1Ct.js                                      4.01 kB │ gzip:   1.67 kB │ map:    27.85 kB
+build/client/assets/__preset-gallery-BIc8Zw5B.js                         4.07 kB │ gzip:   1.77 kB │ map:    25.98 kB
+build/client/assets/plates-Bg2Rxp7o.js                                   4.08 kB │ gzip:   1.81 kB │ map:    34.40 kB
+build/client/assets/weekday-chips-CVVfX1ry.js                            4.09 kB │ gzip:   1.84 kB │ map:    16.38 kB
+build/client/assets/okter-DgLvZZZ9.js                                    4.11 kB │ gzip:   1.91 kB │ map:    10.65 kB
+build/client/assets/programs-Cdj0YwGA.js                                 4.39 kB │ gzip:   1.80 kB │ map:    15.37 kB
+build/client/assets/level-CnR3jC5K.js                                    4.41 kB │ gzip:   2.06 kB │ map:     9.76 kB
+build/client/assets/__week-sketch-BTRM6chv.js                            4.47 kB │ gzip:   1.97 kB │ map:    18.79 kB
+build/client/assets/imports.upload-B4J6SdUf.js                           4.50 kB │ gzip:   2.01 kB │ map:    15.90 kB
+build/client/assets/catalogue.report._workoutId-DT_Unx5K.js              4.61 kB │ gzip:   2.11 kB │ map:    14.16 kB
+build/client/assets/recipes-DoGxaQBv.js                                  4.65 kB │ gzip:   1.06 kB │ map:    23.74 kB
+build/client/assets/profile-bars-te5MqaiM.js                             4.97 kB │ gzip:   2.16 kB │ map:    30.97 kB
+build/client/assets/__plan-chrome-k4LSRL8o.js                            4.99 kB │ gzip:   1.73 kB │ map:    23.27 kB
+build/client/assets/sessions.new-CfOZfQKt.js                             5.05 kB │ gzip:   2.19 kB │ map:    22.42 kB
+build/client/assets/__meg-ui-Ba2AxPr3.js                                 5.16 kB │ gzip:   2.02 kB │ map:    19.33 kB
+build/client/assets/presets-D0VVR6lP.js                                  5.17 kB │ gzip:   1.64 kB │ map:    33.07 kB
+build/client/assets/hjemsted-CsGXH3lr.js                                 5.28 kB │ gzip:   2.33 kB │ map:    16.31 kB
+build/client/assets/integrations-BX13L5zu.js                             5.34 kB │ gzip:   2.24 kB │ map:    16.52 kB
+build/client/assets/programs.run._instanceId-CHUhpV-_.js                 5.38 kB │ gzip:   2.07 kB │ map:    24.16 kB
+build/client/assets/parse-7qVzaR2j.js                                    5.44 kB │ gzip:   2.06 kB │ map:    25.57 kB
+build/client/assets/plan-new-4YSXa4rj.js                                 5.47 kB │ gzip:   2.51 kB │ map:    11.32 kB
+build/client/assets/resultater-kLI8b7Ch.js                               5.56 kB │ gzip:   2.36 kB │ map:    23.17 kB
+build/client/assets/vocabulary-BQE0t1Uy.js                               5.74 kB │ gzip:   2.70 kB │ map:    33.08 kB
+build/client/assets/catalogue.publish._workoutId-DJiYcRJ8.js             5.88 kB │ gzip:   2.37 kB │ map:    21.86 kB
+build/client/assets/workout-schema-DSJ2JZpj.js                           5.94 kB │ gzip:   1.91 kB │ map:    33.63 kB
+build/client/assets/valg-DJF14FKF.js                                     6.01 kB │ gzip:   2.62 kB │ map:    23.03 kB
+build/client/assets/session-composer-DAu3pyBG.js                         6.07 kB │ gzip:   2.78 kB │ map:    21.48 kB
+build/client/assets/analyze-Bp6BIFWT.js                                  6.38 kB │ gzip:   2.51 kB │ map:    20.30 kB
+build/client/assets/DialogTrigger-D_KNQJUt.js                            6.38 kB │ gzip:   2.59 kB │ map:    34.34 kB
+build/client/assets/events._eventId-Cm1zYAcu.js                          6.40 kB │ gzip:   2.28 kB │ map:    19.85 kB
+build/client/assets/lifts._exerciseId_.propose-D52TxZ-Z.js               6.50 kB │ gzip:   2.63 kB │ map:    40.50 kB
+build/client/assets/privacy-DgIaZTyB.js                                  6.52 kB │ gzip:   3.02 kB │ map:    10.31 kB
+build/client/assets/checkbox-CA501aSf.js                                 6.63 kB │ gzip:   3.08 kB │ map:    35.91 kB
+build/client/assets/lifts._exerciseId-CJEBQ4S9.js                        6.81 kB │ gzip:   2.76 kB │ map:    26.96 kB
+build/client/assets/styrke-FIY2kw97.js                                   6.89 kB │ gzip:   2.85 kB │ map:    41.16 kB
+build/client/assets/klar-DoAHnSge.js                                     6.92 kB │ gzip:   2.59 kB │ map:    21.91 kB
+build/client/assets/index-nvuM1waS.js                                    6.96 kB │ gzip:   2.84 kB │ map:    26.20 kB
+build/client/assets/collapsible-CaC6bg9k.js                              6.98 kB │ gzip:   2.88 kB │ map:    48.48 kB
+build/client/assets/radio-group-DHyI6SEv.js                              7.00 kB │ gzip:   3.11 kB │ map:    47.73 kB
+build/client/assets/me-Cg1K2Iat.js                                       7.18 kB │ gzip:   2.85 kB │ map:    29.77 kB
+build/client/assets/niva-DbD1oYF1.js                                     7.44 kB │ gzip:   3.18 kB │ map:    25.39 kB
+build/client/assets/plan.new-Cr9lqQzl.js                                 7.78 kB │ gzip:   3.01 kB │ map:    27.54 kB
+build/client/assets/passkeys-hhwYXwlX.js                                 8.20 kB │ gzip:   3.43 kB │ map:    25.88 kB
+build/client/assets/trening--8GemOKZ.js                                  8.38 kB │ gzip:   3.27 kB │ map:    27.88 kB
+build/client/assets/login-DHsEhlYf.js                                    8.54 kB │ gzip:   3.80 kB │ map:    28.14 kB
+build/client/assets/catalogue-Bkj26273.js                                8.75 kB │ gzip:   3.11 kB │ map:    35.01 kB
+build/client/assets/week-words-C4VmwzW0.js                               9.10 kB │ gzip:   3.74 kB │ map:    63.96 kB
+build/client/assets/integrations-P58sZll-.js                             9.38 kB │ gzip:   3.07 kB │ map:    33.01 kB
+build/client/assets/__event-form-BwwM3YsT.js                             9.42 kB │ gzip:   2.98 kB │ map:    34.46 kB
+build/client/assets/useRenderElement-3VHJOCcv.js                         9.65 kB │ gzip:   4.02 kB │ map:    62.03 kB
+build/client/assets/first-run-DjpKbmVw.js                               10.03 kB │ gzip:   4.24 kB │ map:    34.99 kB
+build/client/assets/__track-editor-BmsnForW.js                          10.07 kB │ gzip:   3.57 kB │ map:    88.34 kB
+build/client/assets/__workout-detail-telemetry-DlJQ8yG_.js              10.40 kB │ gzip:   4.27 kB │ map:    50.83 kB
+build/client/assets/format-Djxtlq-y.js                                  10.41 kB │ gzip:   3.91 kB │ map:   106.17 kB
+build/client/assets/i-dag-B5k6d9w-.js                                   10.69 kB │ gzip:   4.76 kB │ map:    37.77 kB
+build/client/assets/index-BSwY3e5j.js                                   10.71 kB │ gzip:   3.87 kB │ map:    41.02 kB
+build/client/assets/workout-detail-BSZO_3hV.js                          10.80 kB │ gzip:   4.73 kB │ map:    26.26 kB
+build/client/assets/safePolygon-BVLom6gh.js                             11.00 kB │ gzip:   4.02 kB │ map:    57.34 kB
+build/client/assets/plan.new._eventId-BPvsWb65.js                       11.16 kB │ gzip:   4.25 kB │ map:    52.95 kB
+build/client/assets/week-change-DTaJ1W2R.js                             11.38 kB │ gzip:   4.45 kB │ map:    43.94 kB
+build/client/assets/popover-BHrMgNDb.js                                 12.24 kB │ gzip:   4.61 kB │ map:    61.91 kB
+build/client/assets/exercises._exerciseId-CKwpSqV_.js                   12.27 kB │ gzip:   4.37 kB │ map:   116.91 kB
+build/client/assets/season-pane-CtE7Y1Q_.js                             13.78 kB │ gzip:   4.83 kB │ map:    55.57 kB
+build/client/assets/tooltip-CKFYYnCT.js                                 14.34 kB │ gzip:   5.28 kB │ map:    70.96 kB
+build/client/assets/score-stanza-DJtQL8G8.js                            15.32 kB │ gzip:   5.04 kB │ map:    97.91 kB
+build/client/assets/bibliotek-CdRb8E8d.js                               16.76 kB │ gzip:   6.77 kB │ map:    39.43 kB
+build/client/assets/root-KqSiKiSU.js                                    17.18 kB │ gzip:   6.94 kB │ map:    65.20 kB
+build/client/assets/useOpenInteractionType-DPmoj5vH.js                  17.77 kB │ gzip:   6.77 kB │ map:    95.03 kB
+build/client/assets/forms-CXm0R6AO.js                                   19.80 kB │ gzip:   6.96 kB │ map:    62.31 kB
+build/client/assets/hooks-BjeKrKUQ.js                                   22.85 kB │ gzip:   7.86 kB │ map:   115.61 kB
+build/client/assets/sessions._sessionId_.log-CdIJDEHO.js                22.95 kB │ gzip:   7.63 kB │ map:   164.96 kB
+build/client/assets/plan.generate._eventId-BFJIcxhh.js                  23.75 kB │ gzip:   8.61 kB │ map:   103.73 kB
+build/client/assets/meg-DeyLhbKL.js                                     25.60 kB │ gzip:  10.12 kB │ map:    52.66 kB
+build/client/assets/season-DZ59DkOf.js                                  26.65 kB │ gzip:   9.62 kB │ map:   110.03 kB
+build/client/assets/usePositioner-D4YC-AxL.js                           26.84 kB │ gzip:  10.63 kB │ map:   164.34 kB
+build/client/assets/start-draft-WrNKlGHe.js                             27.24 kB │ gzip:   9.84 kB │ map:   218.16 kB
+build/client/assets/intensity-target-DALYJxtQ.js                        27.83 kB │ gzip:   9.29 kB │ map:   159.76 kB
+build/client/assets/FloatingRootStore-D6LgUOCn.js                       30.06 kB │ gzip:  10.97 kB │ map:   188.38 kB
+build/client/assets/debug-build-BYX0I243.js                             32.21 kB │ gzip:  11.24 kB │ map:   226.36 kB
+build/client/assets/dropdown-menu-DfVBHyCO.js                           32.90 kB │ gzip:  10.98 kB │ map:   163.52 kB
+build/client/assets/index-7PjMYw_z.js                                   33.50 kB │ gzip:   9.60 kB │ map:    93.30 kB
+build/client/assets/icon-_3KtMCYL.js                                    34.20 kB │ gzip:  11.44 kB │ map:   178.57 kB
+build/client/assets/sessions._sessionId-oWcRUtSR.js                     35.07 kB │ gzip:  11.47 kB │ map:   173.42 kB
+build/client/assets/design-D-mfCWin.js                                  35.74 kB │ gzip:  11.28 kB │ map:   114.31 kB
+build/client/assets/drawer-BJ6BDhH2.js                                  39.59 kB │ gzip:  13.79 kB │ map:   195.94 kB
+build/client/assets/select-DfHJoAH3.js                                  43.95 kB │ gzip:  15.74 kB │ map:   229.76 kB
+build/client/assets/plan-domain-BVQb43BE.js                             52.38 kB │ gzip:  18.07 kB │ map:   134.81 kB
+build/client/assets/types-CqOqBg-a.js                                   53.09 kB │ gzip:  12.03 kB │ map:   214.87 kB
+build/client/assets/command-jgBjuUFM.js                                 54.38 kB │ gzip:  17.61 kB │ map:   245.16 kB
+build/client/assets/index-Do_Wge4S.js                                   55.04 kB │ gzip:  19.97 kB │ map:   153.00 kB
+build/client/assets/__token-sentence-editor-B9LTzO5o.js                 79.41 kB │ gzip:  23.83 kB │ map:   405.08 kB
+build/client/assets/chunk-JZWAC4HX-BrPgsPVH.js                         125.92 kB │ gzip:  42.63 kB │ map:   582.77 kB
+build/client/assets/plan-B6oHj4GA.js                                   145.07 kB │ gzip:  38.39 kB │ map:   811.04 kB
+build/client/assets/composer-drawer-B0POjNRz.js                        152.72 kB │ gzip:  49.71 kB │ map:   828.81 kB
+build/client/assets/entry.client-Bi5uAEvM.js                           187.25 kB │ gzip:  59.37 kB │ map:   986.72 kB
+build/client/assets/monitoring.client-PDWHxzgs.js                      197.51 kB │ gzip:  64.70 kB │ map:   952.76 kB
+build/client/assets/plan.prototype-pH1mDsjo.js                         417.05 kB │ gzip: 127.46 kB │ map: 1,666.55 kB
+✓ built in 14.32s
+vite v7.3.1 building ssr environment for production...
+transforming...
+app/components/ui/sonner.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/alert-dialog.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/label.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/command.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/input-group.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/dropdown-menu.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/switch.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/drawer.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/tabs.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/progress.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+app/components/ui/dialog.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 745 modules transformed.
+rendering chunks...
+build/server/assets/favicon-Xd7rFGOf.svg                                   0.47 kB
+build/server/assets/docker-CKYupBMy.svg                                    4.88 kB
+build/server/assets/playwright-D0Du3LFd.svg                                5.03 kB
+build/server/assets/prisma-IaIz7Mrr.svg                                    5.10 kB
+build/server/.vite/manifest.json                                           5.64 kB
+build/server/assets/testing-library-DlPZpWfP.png                           5.80 kB
+build/server/assets/prettier-DbIVlkV4.svg                                  6.41 kB
+build/server/assets/public-sans-vietnamese-wght-normal-CtlIRbEm.woff2      7.72 kB
+build/server/assets/apple-touch-icon-Ds7s8IDz.png                          8.99 kB
+build/server/assets/fly-COcofn25.svg                                       9.78 kB
+build/server/assets/sqlite-C780ctma.svg                                    9.89 kB
+build/server/assets/react-email-DKP-k4Ck.svg                              11.49 kB
+build/server/assets/sprite-ksOb09Fk.svg                                   14.19 kB
+build/server/assets/public-sans-latin-ext-wght-normal-MQgHevqp.woff2      18.47 kB
+build/server/assets/public-sans-latin-wght-normal-DdeTHZLK.woff2          26.83 kB
+build/server/assets/faker-D6l4cpmx.svg                                    76.11 kB
+build/server/assets/zod-TYtFcqGX.svg                                     118.03 kB
+build/server/assets/stars-C09PLoVz.jpg                                   391.16 kB
+build/server/assets/tailwind-DRLjm1CU.css                                237.56 kB
+build/server/index.js                                                      0.47 kB │ map:      0.98 kB
+build/server/assets/session-nudge.server-Cl_8ZaML.js                       5.68 kB │ map:      9.29 kB
+build/server/assets/better-auth.server-CnvVMtPs.js                         5.85 kB │ map:      6.58 kB
+build/server/assets/__workout-detail-telemetry-DKokX4i-.js                21.55 kB │ map:     42.35 kB
+build/server/assets/week-change.server-BpDW7zV2.js                        25.58 kB │ map:     71.25 kB
+build/server/assets/server-build-CEG9bfmy.js                           4,099.90 kB │ map: 10,079.85 kB
+
+✓ 17 assets cleaned from React Router server build.
+build/client/assets/tailwind-DRLjm1CU.css
+build/client/assets/apple-touch-icon-Ds7s8IDz.png
+build/client/assets/favicon-Xd7rFGOf.svg
+build/client/assets/sprite-ksOb09Fk.svg
+build/client/assets/docker-CKYupBMy.svg
+build/client/assets/faker-D6l4cpmx.svg
+build/client/assets/fly-COcofn25.svg
+build/client/assets/playwright-D0Du3LFd.svg
+build/client/assets/prettier-DbIVlkV4.svg
+build/client/assets/prisma-IaIz7Mrr.svg
+build/client/assets/react-email-DKP-k4Ck.svg
+build/client/assets/sqlite-C780ctma.svg
+build/client/assets/testing-library-DlPZpWfP.png
+build/client/assets/zod-TYtFcqGX.svg
+build/client/assets/public-sans-vietnamese-wght-normal-CtlIRbEm.woff2
+build/client/assets/public-sans-latin-ext-wght-normal-MQgHevqp.woff2
+build/client/assets/public-sans-latin-wght-normal-DdeTHZLK.woff2
+
+✓ built in 9.25s

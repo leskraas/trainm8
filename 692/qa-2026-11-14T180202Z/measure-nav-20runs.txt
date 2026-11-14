@@ -1,0 +1,43 @@
+{"label":"seed","mode":"nav","run":1,"shown":879.6000000000931,"longTasks":3,"longTaskMs":274,"blockingMs":124,"longestTask":147,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":1,"shown":1160.7999999998137,"longTasks":5,"longTaskMs":516,"blockingMs":266,"longestTask":171,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":2,"shown":768.8000000002794,"longTasks":2,"longTaskMs":217,"blockingMs":117,"longestTask":150,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":2,"shown":1029.3999999999069,"longTasks":5,"longTaskMs":475,"blockingMs":225,"longestTask":161,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":3,"shown":975.0999999996275,"longTasks":3,"longTaskMs":324,"blockingMs":174,"longestTask":186,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":3,"shown":1106.9000000003725,"longTasks":6,"longTaskMs":590,"blockingMs":290,"longestTask":163,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":4,"shown":914,"longTasks":3,"longTaskMs":272,"blockingMs":122,"longestTask":149,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":4,"shown":1136.1000000000931,"longTasks":7,"longTaskMs":615,"blockingMs":265,"longestTask":158,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":5,"shown":800.6000000000931,"longTasks":3,"longTaskMs":252,"blockingMs":102,"longestTask":127,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":5,"shown":1042.1000000000931,"longTasks":5,"longTaskMs":469,"blockingMs":219,"longestTask":164,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":6,"shown":839.2999999998137,"longTasks":4,"longTaskMs":337,"blockingMs":137,"longestTask":158,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":6,"shown":1122.0999999996275,"longTasks":6,"longTaskMs":556,"blockingMs":256,"longestTask":157,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":7,"shown":926.8999999999069,"longTasks":4,"longTaskMs":334,"blockingMs":134,"longestTask":141,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":7,"shown":1120.3000000002794,"longTasks":5,"longTaskMs":514,"blockingMs":264,"longestTask":186,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":8,"shown":916.8999999999069,"longTasks":2,"longTaskMs":268,"blockingMs":168,"longestTask":196,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":8,"shown":1083.3999999999069,"longTasks":5,"longTaskMs":468,"blockingMs":218,"longestTask":158,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":9,"shown":766,"longTasks":3,"longTaskMs":290,"blockingMs":140,"longestTask":162,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":9,"shown":1081.0999999996275,"longTasks":6,"longTaskMs":577,"blockingMs":277,"longestTask":145,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":10,"shown":777.2999999998137,"longTasks":4,"longTaskMs":317,"blockingMs":117,"longestTask":140,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":10,"shown":1191.6000000000931,"longTasks":7,"longTaskMs":636,"blockingMs":286,"longestTask":175,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":11,"shown":896.3000000002794,"longTasks":4,"longTaskMs":402,"blockingMs":202,"longestTask":205,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":11,"shown":1201.8000000002794,"longTasks":5,"longTaskMs":541,"blockingMs":291,"longestTask":193,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":12,"shown":827.0999999996275,"longTasks":4,"longTaskMs":309,"blockingMs":109,"longestTask":137,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":12,"shown":1167.5,"longTasks":4,"longTaskMs":428,"blockingMs":228,"longestTask":152,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":13,"shown":914.8999999999069,"longTasks":3,"longTaskMs":327,"blockingMs":177,"longestTask":187,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":13,"shown":1056.9000000003725,"longTasks":6,"longTaskMs":517,"blockingMs":217,"longestTask":156,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":14,"shown":856.6000000000931,"longTasks":3,"longTaskMs":287,"blockingMs":137,"longestTask":151,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":14,"shown":1190.8999999999069,"longTasks":5,"longTaskMs":557,"blockingMs":307,"longestTask":203,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":15,"shown":817.9000000003725,"longTasks":3,"longTaskMs":279,"blockingMs":129,"longestTask":157,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":15,"shown":1133.1999999997206,"longTasks":5,"longTaskMs":533,"blockingMs":283,"longestTask":178,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":16,"shown":913.4000000003725,"longTasks":4,"longTaskMs":343,"blockingMs":143,"longestTask":154,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":16,"shown":1104.0999999996275,"longTasks":5,"longTaskMs":470,"blockingMs":220,"longestTask":143,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":17,"shown":905.7999999998137,"longTasks":3,"longTaskMs":308,"blockingMs":158,"longestTask":161,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":17,"shown":1315.7000000001863,"longTasks":5,"longTaskMs":584,"blockingMs":334,"longestTask":211,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":18,"shown":919,"longTasks":3,"longTaskMs":319,"blockingMs":169,"longestTask":156,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":18,"shown":1248.5,"longTasks":6,"longTaskMs":579,"blockingMs":279,"longestTask":209,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":19,"shown":830.1999999997206,"longTasks":3,"longTaskMs":264,"blockingMs":114,"longestTask":138,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":19,"shown":1069.3999999999069,"longTasks":5,"longTaskMs":462,"blockingMs":212,"longestTask":160,"todayTop":122,"weeks":32}
+{"label":"seed","mode":"nav","run":20,"shown":836.3000000002794,"longTasks":3,"longTaskMs":267,"blockingMs":117,"longestTask":151,"todayTop":122,"weeks":28}
+{"label":"long","mode":"nav","run":20,"shown":1126.8999999999069,"longTasks":5,"longTaskMs":525,"blockingMs":275,"longestTask":194,"todayTop":122,"weeks":32}
+seed: median of 20 runs by navigation, 4× CPU, 390×844: {"shown":879.6,"longTasks":3,"longTaskMs":308,"blockingMs":137,"longestTask":154,"todayTop":122,"weeks":28}
+long: median of 20 runs by navigation, 4× CPU, 390×844: {"shown":1126.9,"longTasks":5,"longTaskMs":533,"blockingMs":266,"longestTask":164,"todayTop":122,"weeks":32}
+long against seed: {"longestTask":"6.5%","shown":"28.1%"}
