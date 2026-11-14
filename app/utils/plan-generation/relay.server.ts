@@ -145,7 +145,18 @@ async function readGeneratedOutline(userId: string, outlineId: string) {
 	})
 	if (!outline?.generationRecord) return null
 	const generator = generatorFor(outline.generationRecord.generatorId)
-	if (!generator) return null
+	if (!generator) {
+		// Left alone rather than cleared (#686's decision), but said, so a plan
+		// whose weeks stop being laid can be traced to its record.
+		console.warn(
+			'[relay] a Generation Record names a generator this build lacks',
+			{
+				outlineId,
+				generatorId: outline.generationRecord.generatorId,
+			},
+		)
+		return null
+	}
 	return { ...outline, generationRecord: outline.generationRecord, generator }
 }
 
