@@ -131,8 +131,12 @@ Its days are not in the migration: they are weekdays in the athlete's timezone,
 which SQLite cannot compute. The first re-lay of such a plan reads them off the
 plan's own laid sessions in the athlete's timezone (per Discipline, the weekday
 set most of its weeks hold, the long day the one its long-archetype sessions sat
-on, else the last) and writes them to the record in the same transaction. From
-then on the record is read like any other.
+on, else the last) and writes them to the record in a write of their own, just
+before that re-lay's per-week transactions: the days are a fact about the whole
+plan and must exist before any week is placed, so they are not tied to one
+week's write. Two first re-lays at once both compute the same days; the record's
+unique (Discipline, weekday) key keeps one set, and the other re-lay reads it
+back. From then on the record is read like any other.
 
 ## Considered options
 
