@@ -29,12 +29,12 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
   shows a mix) and open the preview.
 - The preview's placed rows (ADR 0117, #475): each is one button
   (`[data-session-row] > button`, `aria-expanded`) that carries the plan and no
-  source line. Tapping it opens its **Session Provenance** in a panel below it
-  (`[data-provenance-panel]`): _Kilde: …_ with a locator link for a corpus row,
-  or the convention or hand-written notice. One panel is open across the season;
-  a second tap, Escape or opening another row closes it. Unfilled rows are not
-  buttons. Needs the corpus: `prisma db seed` on a fresh local database, or
-  every slot reads as unfilled.
+  provenance line. Tapping it opens its **Session Provenance** in a panel below
+  it (`[data-provenance-panel]`): _Kilde: …_ with a locator link for a corpus
+  row, or the convention or hand-written notice. One panel is open across the
+  season; a second tap, Escape or opening another row closes it. Unfilled rows
+  are not buttons. Needs the corpus: `prisma db seed` on a fresh local database,
+  or every slot reads as unfilled.
 - Bibliotek, the region _Bibliotek_: catalogue (`/training/catalogue`), programs
   (`/training/programs`), exercises (`/library/exercises`).
 
