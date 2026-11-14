@@ -303,3 +303,41 @@ test('a timezone written in another letter case reuses the same formatter, so th
 	}
 	expect(built).toBe(1)
 })
+
+test('the formatter cache is bounded, so an athlete stepping through timezone spellings cannot grow it without end', () => {
+	// The Athlete Timezone is free text, and Intl accepts every fixed-offset
+	// spelling (`+05:37`, `-13:59`) as a zone: thousands of keys per shape, about
+	// 29KB a formatter. Past the bound the cache starts over, so the first zone
+	// of a long run of distinct spellings is built again when it comes back.
+	const zones: string[] = []
+	for (const sign of ['+', '-']) {
+		for (let hour = 0; hour < 14; hour++) {
+			for (let minute = 0; minute < 60; minute++) {
+				zones.push(
+					`${sign}${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+				)
+			}
+		}
+	}
+	const instant = new Date('2030-02-10T12:00:00.000Z')
+	for (const zone of zones) localDate(instant, zone)
+
+	const Real = Intl.DateTimeFormat
+	let built = 0
+	class Counting extends Real {
+		constructor(
+			locales?: Intl.LocalesArgument,
+			options?: Intl.DateTimeFormatOptions,
+		) {
+			super(locales, options)
+			built += 1
+		}
+	}
+	Intl.DateTimeFormat = Counting as typeof Intl.DateTimeFormat
+	try {
+		expect(localDate(instant, zones[0]!)).toBe('2030-02-10')
+	} finally {
+		Intl.DateTimeFormat = Real
+	}
+	expect(built).toBe(1)
+})

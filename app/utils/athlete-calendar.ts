@@ -61,10 +61,13 @@ type Shape = keyof typeof SHAPES
  * two thirds of the longest task on opening the full view of a 52-week season.
  * Formatting with a reused instance gives the same answer, so server and client
  * still agree. Keyed on the zone name lower-cased, because Intl reads a zone
- * in any letter case and the Athlete Timezone is stored as typed. Nothing is
- * evicted: the keys are the distinct zones Intl accepts, which are the IANA
- * names plus fixed offsets (`+01:00`), a few thousand per shape at most.
+ * in any letter case and the Athlete Timezone is stored as typed. Bounded at
+ * {@link FORMATTERS_MAX}, past which it starts over: the Athlete Timezone is
+ * free text and Intl accepts every fixed-offset spelling (`+01:00`, `+0100`,
+ * `-13:59`) as a zone, thousands of keys per shape at about 29KB a formatter,
+ * while a server formats for a handful of real zones.
  */
+const FORMATTERS_MAX = 1024
 const FORMATTERS = new Map<string, Intl.DateTimeFormat>()
 /**
  * The same formatters by the zone exactly as given, so the hot path, called
@@ -93,6 +96,7 @@ function cachedFormatter(shape: Shape, timezone: string): Intl.DateTimeFormat {
 			...options,
 			timeZone: timezone,
 		})
+		if (FORMATTERS.size >= FORMATTERS_MAX) FORMATTERS.clear()
 		FORMATTERS.set(key, formatter)
 	}
 	if (given.size >= GIVEN_ZONES_MAX) given.clear()
