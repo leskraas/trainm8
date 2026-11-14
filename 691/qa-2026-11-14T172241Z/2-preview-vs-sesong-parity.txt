@@ -1,0 +1,11 @@
+Preview (before approval) vs Sesong (/season, after approval), same event "Verify Run", run track, shape threshold-focus-long, anchor 40 km.
+
+week  | preview /training/plan/generate (planlagt)   | Sesong /season after approval
+46    | planlagt 6 økter uten km (+2 existing)        | Denne uka: Løping planlagt 6 økter uten km
+47    | planlagt 6 økter uten km (+2 existing)        | Neste uke: Løping planlagt 6 økter uten km
+13    | planlagt 15 km +3 uten km                     | Uke 13: Løping planlagt 15 ... +3 uten km
+14    | planlagt 15 km +3 uten km                     | Uke 14: Løping planlagt 15 ... +3 uten km
+15,16 | planlagt 4 økter uten km                      | Uke 15, 16: 4 økter planlagt
+49-12 | planlagt 4 økter uten km                      | Uke 49-12: 4 økter planlagt
+Note: Sesong week 48 shows no Løping row (no run target there from the older plan), so run planned is not separately readable for that week.
+Plus unit test generate.server.test.ts "a preview week's Planned Volume is the one Sesong reads for that week once the season is approved unchanged" (passes).

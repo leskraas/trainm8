@@ -1,0 +1,6 @@
+- list "Mål og planlagt per idrett":
+  - listitem: Løping mål 5 km planlagt 14 økter uten km
+---- ≠ row ----
+- listitem:
+  - text: Løping mål 10,4 km planlagt 30 km +6 uten km
+  - img "planlagt er mer enn 10 % unna målet": ≠

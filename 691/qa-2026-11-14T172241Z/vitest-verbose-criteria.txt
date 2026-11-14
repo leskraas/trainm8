@@ -1,0 +1,108 @@
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a runner reads km: the target from the plan, the planned and done sums 10ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a runner also reads pace, and the easy pace averages only the easy sessions 4ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > pace with nothing easy done says why rather than borrowing the hard sessions 11ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a skier reads hours, and the zone split is the plan as intention against what was done 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a zone split nothing recorded says why 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a lifter reads sets, and sessions against the Strength Frequency 4ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a TSS track sums Planned TSS and actual TSS 8ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > every plan track is there, the ones with nothing on them too 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a hand-set week reads as the athlete set it, and is marked 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a week outside the plan has no target, and says so 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a week inside the plan with no anchor in force says that instead 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > three numbers per track, in the track’s own unit > a session never changes the Week Target 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > sessions without a number are counted, never added as zero > two planned sessions with no km read "+2 uten km" beside the sum 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > sessions without a number are counted, never added as zero > a done session with no import yet is waiting for its numbers 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > sessions without a number are counted, never added as zero > a planned week that is all unmeasured has no sum, not a zero 5ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > sessions without a number are counted, never added as zero > a lifting session done without logged sets is unmeasured, not zero sets 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > on a Monday nothing is graded yet, so it never reads "under" 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > on a Thursday the done volume is held against Monday to Wednesday 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > a session done today is shown but waits for tomorrow to be graded 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > a closed week is graded through Sunday, against its whole target (#505 story 31) 5ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > a closed week with a done number still missing falls back to the measured pairs 5ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > a closed week with nothing planned in the unit is held against its target 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > an awaited import is left out, never read as 0 km: not "under" (probe a) 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > a run with no planned km is left out of both sides: not "over" (probe b) 5ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > with only unmeasured sessions on past days the week is ungraded, never "under" 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > a week closed on Sunday evening grades through Sunday 6ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > a week ahead is not graded 6ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the current week is graded only against the days already past > done sessions whose numbers have not come leave the week ungraded, with a reason 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the ≠ mark: planned more than 10 % off the target > marks a week planned over or under by more than 10 % 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the ≠ mark: planned more than 10 % off the target > leaves a week inside 10 % unmarked, the edge included 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the ≠ mark: planned more than 10 % off the target > cannot tell when unmeasured sessions could explain a short week 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the ≠ mark: planned more than 10 % off the target > still marks an overplanned week whatever is unmeasured 4ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the ≠ mark: planned more than 10 % off the target > no target, no mark 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the strip bar is the larger of target and planned > an overplanned week shows the planned sum 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the strip bar is the larger of target and planned > an underplanned week shows the target 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > the strip bar is the larger of target and planned > without a target the planned sum stands alone, and with neither there is nothing 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > Annet counts in nothing > an "other" import is shown apart and moves no track 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > Annet counts in nothing > a Discipline the plan has no track for is Annet too 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > Annet counts in nothing > a session the athlete put in Annet counts in no track, even with a track for it 3ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > Annet counts in nothing > a week with nothing outside the tracks has no Annet 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > strength reported honestly when the data is partial (story 85) > logged through Thursday and not after reads "til og med torsdag · resten ikke målt" 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > strength reported honestly when the data is partial (story 85) > a week logged in full is not partial 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > strength reported honestly when the data is partial (story 85) > a week whose first lift went unlogged has nothing to report through 1ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > a prescription read on its own > a km figure only where every step carries distance 4ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > a prescription read on its own > an hours figure times a distance step through the athlete’s own thresholds, and assumes no pace without one 2ms
+ ✓ app/utils/plan-outline/week-volumes.test.ts > a prescription read on its own > a session not yet written has no Planned TSS, so it is unmeasured in TSS 2ms
+ ✓ app/utils/labels.plan-generate.test.ts > every answer to «Hvor står du nå?» has its own sentence 5ms
+ ✓ app/utils/labels.plan-generate.test.ts > every refusal is said, and the ones the shape step shares read the same on both 4ms
+ ✓ app/utils/labels.plan-generate.test.ts > counts read right at one and at many 6ms
+ ✓ app/utils/labels.plan-generate.test.ts > an empty day names what it asked for, joined the Norwegian way 2ms
+ ✓ app/utils/labels.plan-generate.test.ts > the gap between a week’s target and its sessions is named once, and holds its no-break spaces (#472) 2ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > a preview writes nothing at all 264ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > a preview declines the strength track by name and lays the endurance one 204ms
+ ✓ app/utils/plan-generation/planned-volume.test.ts > the “already in this week” count holds only the sessions a planned figure counts (#472) 5ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > approving writes the Plan Outline and the sessions under it 525ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > the season is already there — the screen opens on a plan, not a blank form 505ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > a placed session is generated, anchored, and owns a fresh copy of the corpus row 434ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > a placed session reaches its Citation through the chain, never a copy of it 537ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > nothing reaches the calendar until the athlete says so 264ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > a Training Track with no Season Anchor previews but cannot be approved 157ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a row carries the plan and no Session Provenance until it is tapped (ADR 0123) 233ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > another athlete cannot generate against this Event 211ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > tapping a corpus row opens its Citation below it; tapping again closes it 413ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > an Event already carrying a plan is refused rather than doubled 480ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > the corpus read serves stock rows only, and no retired one 182ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > a goal event is read off an exact race distance and nothing else 3ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > the default shape is the one landing nearest the Event, and is never a label 2ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a row controls its panel only while the panel exists 294ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > approving under a Weekly Capacity writes the lowered season, and the plan’s own hours check stays quiet (#473) 480ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > one panel is open across the season, and Escape closes it back onto the row 530ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > Escape closes the open panel wherever focus is, and returns focus to its row 283ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > Escape pressed in another control closes the panel and leaves focus where the athlete is 301ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > a preview week’s Planned Volume is the one Sesong reads for that week once the season is approved unchanged 624ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a community session reads the slot without a Citation, and carries the non-vouch 516ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > the strength Unavailable is stated before the season, not hidden inside it 141ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > a placed session is not rescaled: its copy carries its Stock Workout’s blocks and steps field by field 505ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > an empty day is named rather than backfilled 238ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > the preview states the weeks whose placed sessions outrun the Weekly Capacity, and approval reads them again on the server (#473) 472ms
+ ✓ app/utils/plan-generation/generate.server.test.ts > a placed session whose id is not a Stock Workout is neither read into the preview nor copied on approval 223ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a week card shows each track’s target and planned figure, labelled, with units 198ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a week with no Season Anchor reads “—” for its target and still shows what is planned 137ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a session with no number in the unit is counted apart, never as zero, and keeps a short week unmarked 255ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a week whose sessions all lack a number says so instead of 0 km 141ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a week with nothing placed plans 0, carries no mark, and keeps its unfilled lines 153ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > ≠ marks a week planned more than 10 % off, per week as on Sesong, and says what it means 191ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > an hours track counts a session it cannot time apart, in the existing words 111ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a session the athlete already has in the week is counted, and the card says so 131ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > the page says once, above the weeks, that sessions are placed as published 134ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > the one question and the pre-selected shape read in Norwegian, as Sesong names them 281ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a lowered season says it was scaled to the athlete’s hours, before and after 131ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > hours the athlete authored in hours carry no ≈ 133ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a season that still does not fit says so, where, and why 125ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a breach in every week is said as the whole season, not as a span 109ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a 'unset' reading adds nothing to the preview 139ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a 'unpriced' reading adds nothing to the preview 145ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a 'fits' reading adds nothing to the preview 164ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a week whose placed sessions outrun the capacity says so on its card, as a floor read through a pace 144ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a week timed end to end reads a plain figure, with no minst and no ≈ 154ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > the season line names the breaching weeks beside the over line, and neither replaces the other 172ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > one breaching week is told as that week 115ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > breaching weeks behind «N uker til» are named on its row, in the foreground, with the section closed 161ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > past three hidden spans the row counts the weeks instead of listing them 206ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > a breach in every week leaves the row to the season line 204ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > 'no capacity' adds nothing about the placed sessions 168ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > 'weeks that fit' adds nothing about the placed sessions 176ms
+ ✓ app/routes/training/plan.generate.$eventId.route.test.tsx > 'a week with nothing timed' adds nothing about the placed sessions 164ms
+ Test Files  5 passed (5)
+      Tests  106 passed (106)

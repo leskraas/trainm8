@@ -1,0 +1,40 @@
+ [32m✓[39m app/utils/plan-generation/deterministic.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 146[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/proposal.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/open-ended.server.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 2526[2mms[22m[39m
+   [33m[2m✓[22m[39m adding an Event mid-round ends the round early, lays phases to the Event, and keeps the athlete’s sessions [33m 363[2mms[22m[39m
+   [33m[2m✓[22m[39m the preview writes nothing, counts the athlete’s sessions it keeps, and is what the attach then applies [33m 320[2mms[22m[39m
+   [33m[2m✓[22m[39m a confirm whose preview no longer matches is refused, nothing moves, and no race is left behind [33m 319[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/week-sum.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/capacity.test.ts [2m([22m[2m99 tests[22m[2m)[22m[33m 524[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/strength-offer.server.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 853[2mms[22m[39m
+   [33m[2m✓[22m[39m an athlete who lifts twice a week is offered a strength track; accepting it gives the plan lifting targets and lifting sessions [33m 372[2mms[22m[39m
+   [33m[2m✓[22m[39m accepting the offer adds lifting slots, laid away from the intervals rather than on the first days of the week [33m 325[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/week-volumes.server.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1222[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/commensurability.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/season-span.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 64[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/attach-event.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 60[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/ramp-guard.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/day-rule.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generator.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/fit-proposal.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/retrieval.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/provenance.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/copy-week.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/placed-hours.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/strength-goal.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/band-fit.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/volume-conversion.server.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 800[2mms[22m[39m
+ [32m✓[39m app/utils/labels.plan-generate.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/session-placement.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/season-anchors.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/quality-mix.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/planned-volume.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/philosophy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/week-keys.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/event-fit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m56 passed[39m[22m[90m (56)[39m
+[2m      Tests [22m [1m[32m1304 passed[39m[22m[90m (1304)[39m
+[2m   Start at [22m 17:08:44
+[2m   Duration [22m 56.42s[2m (transform 6.93s, setup 35.99s, import 9.51s, tests 105.00s, environment 528ms)[22m
+
