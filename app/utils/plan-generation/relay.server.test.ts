@@ -4,7 +4,10 @@ import { localDate, weekdayIndex, weekMonday } from '../athlete-calendar.ts'
 import { prisma } from '../db.server.ts'
 import { layPlanWeek } from '../load/horizon-fill.server.ts'
 import { storedPlaceWeeksRequest } from '../plan-outline/generation-request.ts'
-import { relayPlanFrom } from '../plan-outline/open-ended.server.ts'
+import {
+	relayPlanFrom,
+	relayPlanFromFirstUnbegunWeek,
+} from '../plan-outline/open-ended.server.ts'
 import { outlinePreviewSelect } from '../plan-outline/outline-preview.ts'
 import { readPlanWeekSource } from '../plan-outline/week-source.server.ts'
 import { getDisciplineThresholds } from '../training.server.ts'
@@ -554,4 +557,58 @@ test('two re-lays of a legacy plan at once both freeze its days without failing 
 	expect(
 		await prisma.generationRecordDay.count({ where: { recordId: record.id } }),
 	).toBe(4)
+})
+
+test('a re-lay after a change leaves the week already begun as it was (AC 6)', async () => {
+	await seedCorpus()
+	const { athleteId, outlineId } = await approve()
+	const before = await planSessions(athleteId)
+	const inWeek = (rows: typeof before, weekKey: string) =>
+		rows.filter((row) => row.weekKey === weekKey)
+	// Base now asks for threshold where it asked for tempo: every Base loading
+	// week's quality slot changes, the begun one included.
+	const base = await prisma.trainingTrackSegment.findFirstOrThrow({
+		where: { track: { outlineId }, phase: { orderIndex: 0 } },
+		select: { id: true },
+	})
+	await prisma.qualitySessionMixEntry.updateMany({
+		where: { segmentId: base.id },
+		data: { zone: 4 },
+	})
+	await relayPlanFromFirstUnbegunWeek(athleteId, outlineId, NOW, 'test')
+
+	const after = await planSessions(athleteId)
+	expect(inWeek(after, '2026-01-05')).toEqual(inWeek(before, '2026-01-05'))
+	expect(inWeek(before, FIRST_UNBEGUN)[0]!.stock).toBe('stock_tempo1')
+	expect(inWeek(after, FIRST_UNBEGUN)[0]!.stock).toBe('stock_thr1')
+})
+
+test('once a generated plan has a Week Pattern with days, a re-lay stamps it (AC 8)', async () => {
+	await seedCorpus()
+	const { athleteId, outlineId } = await approve()
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	const pattern = await prisma.weekPattern.create({
+		select: { id: true },
+		data: { outlineId, orderIndex: 0, name: 'Min uke' },
+	})
+	await prisma.weekPatternDay.create({
+		data: {
+			patternId: pattern.id,
+			trackId: track.id,
+			weekday: 2,
+			orderInDay: 0,
+			kind: 'share',
+			weight: 1,
+		},
+	})
+	await relay(athleteId, outlineId)
+
+	const week = (await planSessions(athleteId)).filter(
+		(row) => row.weekKey === '2026-01-19',
+	)
+	// The pattern's one day, not the four the record holds.
+	expect(week.map((row) => row.weekday)).toEqual([2])
 })
