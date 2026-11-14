@@ -15,10 +15,11 @@ import {
 	DEFAULT_GENERATION_INTENT,
 	GENERATION_INTENTS,
 	INTENT_LEVEL_FLOOR,
+	type GeneratedDay,
 	type GenerationIntent,
 	type PlaceWeeksRequest,
 } from '../plan-generation/season.ts'
-import { isCardioDiscipline } from '../workout-schema.ts'
+import { CARDIO_DISCIPLINES, isCardioDiscipline } from '../workout-schema.ts'
 import { phaseSpecs, resolvedTracks, type OutlineRows } from './from-rows.ts'
 import { isPatternWeekday } from './week-pattern.ts'
 
@@ -26,6 +27,27 @@ import { isPatternWeekday } from './week-pattern.ts'
 export type GenerationRecordRows = {
 	intent: string | null
 	days: ReadonlyArray<{ discipline: string; weekday: number; role: string }>
+}
+
+/**
+ * A record's stored days, read once into the generator's terms. The database's
+ * CHECKs hold each column to its vocabulary, so nothing is dropped here but a
+ * row that could never have been written.
+ */
+export function recordedDays(
+	days: GenerationRecordRows['days'],
+): GeneratedDay[] {
+	return days.flatMap((day) => {
+		const discipline = CARDIO_DISCIPLINES.find((d) => d === day.discipline)
+		if (!discipline || !isPatternWeekday(day.weekday)) return []
+		return [
+			{
+				discipline,
+				weekday: day.weekday,
+				role: day.role === 'long' ? ('long' as const) : ('ordinary' as const),
+			},
+		]
+	})
 }
 
 /** A stored intent, or the default for one never recorded (or unknown). */
@@ -47,23 +69,16 @@ export function storedPlaceWeeksRequest(
 	weekIndices: readonly number[],
 ): PlaceWeeksRequest {
 	const phases = phaseSpecs(rows)
+	const recorded = recordedDays(record.days)
 	return {
 		startWeekKey: rows.startWeekKey,
 		phases,
 		tracks: resolvedTracks(rows).flatMap((track) => {
 			const discipline = track.discipline
 			if (!isCardioDiscipline(discipline)) return []
-			const days = record.days.flatMap((day) =>
-				day.discipline === discipline && isPatternWeekday(day.weekday)
-					? [
-							{
-								weekday: day.weekday,
-								role:
-									day.role === 'long'
-										? ('long' as const)
-										: ('ordinary' as const),
-							},
-						]
+			const days = recorded.flatMap((day) =>
+				day.discipline === discipline
+					? [{ weekday: day.weekday, role: day.role }]
 					: [],
 			)
 			if (days.length === 0) return []

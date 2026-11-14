@@ -30,21 +30,30 @@ import { type SessionArchetype } from '../catalogue.ts'
 import { prisma } from '../db.server.ts'
 import { totalWeeks } from '../plan-outline/derive.ts'
 import { phaseSpecs } from '../plan-outline/from-rows.ts'
-import { storedPlaceWeeksRequest } from '../plan-outline/generation-request.ts'
+import {
+	recordedDays,
+	storedPlaceWeeksRequest,
+} from '../plan-outline/generation-request.ts'
 import { fillKeptSlots } from '../plan-outline/kept-slots.ts'
 import { outlinePreviewSelect } from '../plan-outline/outline-preview.ts'
 import { weekIndexOf, weekKeyAt } from '../plan-outline/week-keys.ts'
+import {
+	isPatternWeekday,
+	type PatternWeekday,
+} from '../plan-outline/week-pattern.ts'
 import {
 	clearPlanWeek,
 	deletePlanSessions,
 	readKeptSlots,
 	REPLACEABLE_SESSION,
 } from '../plan-outline/week-sessions.server.ts'
+import { CARDIO_DISCIPLINES, type CardioDiscipline } from '../workout-schema.ts'
 import { readGenerationCorpus } from './generate.server.ts'
 import { generatorFor } from './generator.ts'
 import { matchesCriteria, type RetrievableEntry } from './retrieval.ts'
 import {
 	placedSessions,
+	type GeneratedDay,
 	type PlacedSlot,
 	type PlaceWeeksRequest,
 } from './season.ts'
@@ -328,7 +337,7 @@ async function freezeRecordDays(
 	outline: GeneratedOutline,
 	corpus: readonly RetrievableEntry[],
 	timezone: string,
-): Promise<Array<{ discipline: string; weekday: number; role: string }>> {
+): Promise<GeneratedDay[]> {
 	const sessions = await prisma.workoutSession.findMany({
 		where: {
 			userId: outline.athleteId,
@@ -342,27 +351,34 @@ async function freezeRecordDays(
 	})
 	const byWorkoutId = new Map(corpus.map((entry) => [entry.workoutId, entry]))
 	// discipline → week → weekdays
-	const weeks = new Map<string, Map<string, Set<number>>>()
-	const longDays = new Map<string, Map<number, number>>()
+	const weeks = new Map<CardioDiscipline, Map<string, Set<PatternWeekday>>>()
+	const longDays = new Map<CardioDiscipline, Map<PatternWeekday, number>>()
 	for (const session of sessions) {
 		if (!session.workout) continue
-		const discipline = session.workout.discipline
+		// The generator places cardio only; the record holds nothing else.
+		const discipline = CARDIO_DISCIPLINES.find(
+			(d) => d === session.workout?.discipline,
+		)
+		if (!discipline) continue
 		const weekday = weekdayIndex(localDate(session.scheduledAt, timezone))
+		if (!isPatternWeekday(weekday)) continue
 		const week = weekMonday(session.scheduledAt, timezone)
-		const perWeek = weeks.get(discipline) ?? new Map<string, Set<number>>()
+		const perWeek =
+			weeks.get(discipline) ?? new Map<string, Set<PatternWeekday>>()
 		perWeek.set(week, (perWeek.get(week) ?? new Set()).add(weekday))
 		weeks.set(discipline, perWeek)
 		const entry = session.workout.copiedFromId
 			? byWorkoutId.get(session.workout.copiedFromId)
 			: undefined
 		if (entry && entry.archetype === 'long') {
-			const counts = longDays.get(discipline) ?? new Map<number, number>()
+			const counts =
+				longDays.get(discipline) ?? new Map<PatternWeekday, number>()
 			counts.set(weekday, (counts.get(weekday) ?? 0) + 1)
 			longDays.set(discipline, counts)
 		}
 	}
 
-	const days: Array<{ discipline: string; weekday: number; role: string }> = []
+	const days: GeneratedDay[] = []
 	for (const [discipline, perWeek] of [...weeks].sort(([a], [b]) =>
 		a < b ? -1 : 1,
 	)) {
@@ -379,7 +395,7 @@ async function freezeRecordDays(
 		const [setKey] = [...tally].sort(
 			([, a], [, b]) => b.count - a.count || (a.first < b.first ? -1 : 1),
 		)[0]!
-		const weekdays = setKey.split(',').map(Number)
+		const weekdays = setKey.split(',').map(Number) as PatternWeekday[]
 		const longCounts = longDays.get(discipline)
 		const longDay =
 			[...(longCounts ?? [])]
@@ -410,10 +426,12 @@ async function freezeRecordDays(
 			error instanceof Prisma.PrismaClientKnownRequestError &&
 			error.code === 'P2002'
 		) {
-			return prisma.generationRecordDay.findMany({
-				where: { recordId: outline.generationRecord.id },
-				select: { discipline: true, weekday: true, role: true },
-			})
+			return recordedDays(
+				await prisma.generationRecordDay.findMany({
+					where: { recordId: outline.generationRecord.id },
+					select: { discipline: true, weekday: true, role: true },
+				}),
+			)
 		}
 		throw error
 	}
