@@ -194,7 +194,7 @@ test('the backfill leaves one notice naming the CTL it moved', async () => {
 			},
 		},
 	})
-	expect(notice.ctlBefore).toBeGreaterThan(notice.ctlAfter)
+	expect(notice.ctlBefore).toBeGreaterThan(notice.ctlAfter!)
 	// Strength was this athlete's only load, so the corrected CTL is zero.
 	expect(notice.ctlAfter).toBeCloseTo(0, 6)
 	expect(notice.dismissedAt).toBeNull()
@@ -214,7 +214,7 @@ test('the backfill leaves one notice naming the CTL it moved', async () => {
 			},
 		},
 	})
-	expect(reread.ctlBefore).toBeCloseTo(notice.ctlBefore, 6)
+	expect(reread.ctlBefore).toBeCloseTo(notice.ctlBefore!, 6)
 })
 
 test('an endurance-only athlete is left alone — no recompute, no notice', async () => {

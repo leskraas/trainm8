@@ -1,7 +1,12 @@
 /**
- * The plan page's advisory notices (`plan.tsx`, #533): the ramp guard, the
- * availability and band fit notices, what the plan cannot tell, and where the
- * laid weeks disagree with the mix. Each warns and none blocks a save.
+ * The plan page's advisory notices (`plan.tsx`, #533): the three **Guard
+ * Notices** (the ramp guard, the availability and band fit notices), what the
+ * plan cannot tell, and where the laid weeks disagree with the mix. Each warns
+ * and none blocks a save.
+ *
+ * The Guard Notices mount through `PlanGuardNotices` alone, in _Plan_'s lead
+ * (ADR 0118): the three notices are private to this module, so no second caller
+ * can mount a copy of one.
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -41,13 +46,101 @@ import {
 	type SeasonDayClashWarning,
 	type SeasonHoursFitWarning,
 } from '#app/utils/training.server.ts'
-import { type Discipline } from '#app/utils/workout-schema.ts'
+import {
+	isCardioDiscipline,
+	type Discipline,
+} from '#app/utils/workout-schema.ts'
 import { CollapsibleSection } from './__plan-chrome.tsx'
 import {
 	isoWeekOfPlanWeek,
 	weekSpan,
+	type SeasonData,
 	type SeasonPhaseData,
 } from './__plan-season.ts'
+
+/**
+ * An inline link inside a notice: an invisible box to 44px (ui-conventions §2.2)
+ * rather than `inline-flex min-h-11`, which would open a gap in the middle of the
+ * sentence. The inline box is the font's content area (about 19px at 16px, 16px at
+ * 14px), so the area grows 13px, or 14px from `md`, each way.
+ */
+const NOTICE_LINK_TARGET =
+	'relative after:absolute after:-inset-x-1 after:-inset-y-[13px] md:after:-inset-y-3.5'
+
+/**
+ * The plan's **Guard Notices**, in _Plan_'s lead under the card (ADR 0118): the
+ * ramp guard, then the availability fit notice, then the band fit notice, as one
+ * stack with no heading. With no guard firing it renders nothing — no wrapper and
+ * no gap.
+ *
+ * It reads the loader's `season`, the plan being viewed, so `?outline=`, `?event=`
+ * and a resting plan each show their own guards. The caller keys it by the plan
+ * (`season.outlineId`), so a dismissal belongs to one plan.
+ *
+ * The guards **open** here, always: they warn and never block (ADR 0040 §12),
+ * which only works if the athlete reads them without asking, so none of the three
+ * sits behind a `Disclosure` — not even _Avansert_'s, which is why they left it
+ * (ADR 0118). Hiding a warning before it has been read is a warning withheld —
+ * progressive disclosure is for controls, never for what the plan is trying to
+ * tell you. Closing one **after** reading it is the opposite act, and it is the
+ * athlete's (#399 story 95): see `DismissibleNotice`, which is where the
+ * distinction and the per-visit rule are written down.
+ */
+export function PlanGuardNotices({ season }: { season: SeasonData }) {
+	// **Every** track's guard, not the endurance half of it: ADR 0047 §1 gave a
+	// strength segment the same ramp and the same boundary step, and the guard
+	// gained a second track to guard with them. Each line carries the track it came
+	// from, so a lifting warning can say where it opens instead of naming a phase as
+	// its subject.
+	const ramp = season.tracks.flatMap((track) =>
+		track.warnings.map((warning) => ({
+			...warning,
+			discipline: track.discipline,
+			lifting: !isCardioDiscipline(track.discipline),
+		})),
+	)
+	// Both fit checks, read off the season rather than derived here: the days check
+	// is the **combined** one across both tracks (ADR 0047 §4) and the hours one
+	// prices the weeks through the **Volume Conversion** (ADR 0050), and a component
+	// that recomputed either would put two overlapping claims about one week on the
+	// same page.
+	const availability = season.availabilityWarnings
+	const hoursFit = season.hoursWarnings
+	const dayClashes = season.dayClashWarnings
+	const fit =
+		availability.length > 0 || hoursFit.length > 0 || dayClashes.length > 0
+	const band = season.bandWarnings
+
+	if (ramp.length === 0 && !fit && band.length === 0) return null
+
+	return (
+		<div data-plan-guards className="flex flex-col gap-3">
+			{ramp.length > 0 ? (
+				<RampGuardNotice
+					warnings={ramp}
+					phases={season.phases}
+					anyStrength={ramp.some((warning) => warning.lifting)}
+				/>
+			) : null}
+			{fit ? (
+				<AvailabilityFitNotice
+					warnings={availability}
+					hoursWarnings={hoursFit}
+					dayClashes={dayClashes}
+					weeklyCapacityHours={season.weeklyCapacityHours}
+					startWeekKey={season.startWeekKey}
+				/>
+			) : null}
+			{band.length > 0 ? (
+				<BandFitNotice
+					warnings={band}
+					timezone={season.timezone}
+					startWeekKey={season.startWeekKey}
+				/>
+			) : null}
+		</div>
+	)
+}
 
 /**
  * A guard notice, open on arrival and closable once it has been read (#399 story
@@ -80,6 +173,17 @@ import {
  * top of a long authoring page, and the athlete is told nothing about the button
  * they just pressed. Three of these can sit in a row, so losing your place on the
  * first is losing it before you have read the other two.
+ *
+ * **Standing content, not news** (ADR 0118 §4): `role="note"` in place of
+ * `Alert`'s `role="alert"`. In the lead these mount on every visit, and a live
+ * region would read three long notices aloud on each arrival. `Alert` itself
+ * keeps `role="alert"` for its other callers.
+ *
+ * **Only the first block clears the close button.** `Alert`'s 72px gutter down
+ * the whole notice narrows the text by a quarter on a phone; the button sits
+ * beside the first block alone (the first fact line, or a first paragraph), so
+ * that block takes a 40px gutter and everything under it runs the full width.
+ * No motion: a dismissal is rare, and the notice is simply gone.
  */
 function DismissibleNotice({
 	name,
@@ -114,8 +218,18 @@ function DismissibleNotice({
 	}
 
 	return (
-		<Alert className="mb-4">
-			<AlertDescription className="space-y-2">{children}</AlertDescription>
+		<Alert role="note" className="pr-4 has-data-[slot=alert-action]:pr-4">
+			<AlertDescription
+				// The text column runs the full width; the first block (its first
+				// fact line, or a first paragraph) steps in for the button. Fact lines (`li`) read in the
+				// foreground, the explanation under them stays muted: in the lead the
+				// warning should read before its reason. `text-pretty` rather than
+				// `Alert`'s phone `text-balance`, which narrows every line of a long
+				// notice to match its last.
+				className="[&_li]:text-foreground space-y-2 text-base text-pretty md:text-sm [&>p:first-child]:pr-10 [&>ul:first-child>li:first-child]:pr-10"
+			>
+				{children}
+			</AlertDescription>
 			{/* After the words it closes, not before them: `AlertAction` is positioned
 			    absolutely, so the control sits top-right either way, and reading order
 			    should be *warning, then the decision about it*. */}
@@ -160,7 +274,7 @@ function DismissibleNotice({
  * that phase (ADR 0047 §6) — so a lifting warning says "opening in Base" rather than
  * naming the phase as its subject, and the closing paragraph says why.
  */
-export function RampGuardNotice({
+function RampGuardNotice({
 	warnings,
 	phases,
 	anyStrength,
@@ -284,7 +398,7 @@ function clashLines(clashes: readonly SeasonDayClashWarning[]) {
 	return [...lines.values()]
 }
 
-export function AvailabilityFitNotice({
+function AvailabilityFitNotice({
 	warnings,
 	hoursWarnings,
 	dayClashes,
@@ -389,7 +503,10 @@ export function AvailabilityFitNotice({
 					{hoursWarnings.length === 0 && weeklyCapacityHours == null ? (
 						<p>
 							{SESONG_NOTICE_LABELS.noCapacity}{' '}
-							<Link className="underline" to="/settings/profile">
+							<Link
+								className={`text-foreground font-medium underline ${NOTICE_LINK_TARGET}`}
+								to="/settings/profile"
+							>
 								{SESONG_NOTICE_LABELS.noCapacityLink}
 							</Link>{' '}
 							{SESONG_NOTICE_LABELS.noCapacityEnd}
@@ -443,7 +560,7 @@ export function AvailabilityFitNotice({
  * points at the *session*, since that is the thing to change if the athlete wants to
  * change something; the other way out is to change the goal, and the copy says both.
  */
-export function BandFitNotice({
+function BandFitNotice({
 	warnings,
 	timezone,
 	startWeekKey,
@@ -469,12 +586,14 @@ export function BandFitNotice({
 				.join('|')}
 			name={SESONG_NOTICE_LABELS.bandName}
 		>
-			<ul className="space-y-1">
+			{/* A band line runs to two lines or more, so with `space-y-2` each
+			    link's hit area clears the next one's. */}
+			<ul className="space-y-2">
 				{warnings.map((warning) => (
 					<li key={warning.sessionId}>
 						<Link
 							to={`/training/sessions/${warning.sessionId}`}
-							className="font-medium hover:underline"
+							className={`font-medium hover:underline ${NOTICE_LINK_TARGET}`}
 						>
 							{weekSpan(startWeekKey, warning.weekInPlan, warning.weekInPlan)},{' '}
 							{formatNbDayMonth(warning.scheduledAt, timezone)}

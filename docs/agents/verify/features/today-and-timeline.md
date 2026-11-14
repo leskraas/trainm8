@@ -14,6 +14,11 @@ The athlete's landing page and the whole season as one bi-directional stream
   (`[data-timeline-today]`, `[data-today-pill]`), and the writing line.
 - Marking a session done (_Merk <tittel> som gjort_) and answering an import's
   question (_Hva var dette?_).
+- The **Load Recompute Notice** above the stream on `/season`
+  (`load-recompute-notice`): a kicker (`h2`), an optional movement line
+  (_Kondisjonen steg/falt med opptil N — A → B på det meste_), the explanation
+  and _Skjønner_, which dismisses that kind only. A notice with no CTL pair
+  (ADR 0117) shows no movement line at all.
 - The weather (#433, ADR 0115): with a Home Place set (_Meg_ › _Hjemsted_, see
   `me-settings-and-imports.md`), one weather line on the today card
   (`[data-calm-weather]`), a weather column on this week's rows from tomorrow on
@@ -39,6 +44,11 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
 
 ## Gotchas
 
+- Only one-shot backfills write a Load Recompute Notice, so the seed has none.
+  To see one, insert a `LoadRecomputeNotice` row for kody in QA's own database
+  (`kind` `swim-rest-left-the-pace` or `strength-left-the-triad`; `ctlBefore`
+  and `ctlAfter` both set or both NULL, a CHECK refuses one alone). The newest
+  outstanding notice shows; after _Skjønner_ and a reload the next one does.
 - The weather comes from MET Norway, called by the server. Start the server with
   `MOCK_WEATHER=true` for the mock's fixed pattern
   (`tests/mocks/ met-norway.ts`, from the current hour); without it the real MET
