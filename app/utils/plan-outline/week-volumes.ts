@@ -277,8 +277,6 @@ export type VolumeSession = {
  */
 export type PrescriptionWorkout = ShapeWorkout &
 	SimpleActivityWorkout & {
-		discipline: string
-		intent: string | null
 		blocks: Parameters<typeof fixedDayVolume>[0] &
 			Parameters<typeof sumBlockSets>[0]
 	}
