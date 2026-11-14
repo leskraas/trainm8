@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
@@ -225,6 +225,22 @@ test('one panel is open across the season, and Escape closes it back onto the ro
 	// Enter opens it from the keyboard, as a native button does.
 	await user.keyboard('{Enter}')
 	expect(shakeout).toHaveAttribute('aria-expanded', 'true')
+})
+
+test('Escape closes the open panel wherever focus is, and returns focus to its row', async () => {
+	const user = userEvent.setup()
+	renderScreen()
+	const button = await row('5 × 1 km @ T')
+	await user.click(button)
+	expect(button).toHaveAttribute('aria-expanded', 'true')
+	// Safari does not focus a clicked button, and a click elsewhere moves focus
+	// off the row: Escape still closes the panel (ADR 0030 rule 3).
+	act(() => (document.activeElement as HTMLElement | null)?.blur())
+	expect(button).not.toHaveFocus()
+
+	await user.keyboard('{Escape}')
+	expect(button).toHaveAttribute('aria-expanded', 'false')
+	expect(button).toHaveFocus()
 })
 
 test('a community session reads the slot without a Citation, and carries the non-vouch', async () => {

@@ -19,7 +19,7 @@
  * The panel renders from `GeneratedSession.provenance`, already on the
  * payload: opening a row makes no request.
  */
-import { useCallback, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ProvenanceSlot } from '#app/components/provenance-slot.tsx'
 import {
 	Collapsible,
@@ -198,12 +198,20 @@ export function SessionRow({
 	const triggerRef = useRef<HTMLButtonElement>(null)
 	const panelId = `provenance-${key}`
 
-	function onKeyDown(event: KeyboardEvent) {
-		if (event.key !== 'Escape' || !open) return
-		event.preventDefault()
-		openRow.close()
-		triggerRef.current?.focus()
-	}
+	// Escape closes the open panel wherever focus is: Safari does not focus a
+	// clicked button, and a click elsewhere moves focus off the row.
+	const { close } = openRow
+	useEffect(() => {
+		if (!open) return
+		function onKeyDown(event: globalThis.KeyboardEvent) {
+			if (event.key !== 'Escape' || event.defaultPrevented) return
+			event.preventDefault()
+			close()
+			triggerRef.current?.focus()
+		}
+		document.addEventListener('keydown', onKeyDown)
+		return () => document.removeEventListener('keydown', onKeyDown)
+	}, [open, close])
 
 	const extra = [
 		NB_SESSION_ARCHETYPE_LABELS[session.archetype],
@@ -211,7 +219,7 @@ export function SessionRow({
 	]
 
 	return (
-		<Collapsible open={open} data-session-row onKeyDown={onKeyDown}>
+		<Collapsible open={open} data-session-row>
 			<CollapsibleTrigger
 				ref={triggerRef}
 				aria-controls={panelId}
