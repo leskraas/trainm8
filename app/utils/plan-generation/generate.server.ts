@@ -42,7 +42,7 @@
  */
 import { type Prisma } from '@prisma/client'
 import { addDays, localTimeUTC, weekMonday } from '../athlete-calendar.ts'
-import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
+import { trainingTimeOf } from '../athlete-schema.ts'
 import { catalogueEntrySelect } from '../catalogue.server.ts'
 import {
 	CATALOGUE_GOAL_EVENTS,
@@ -51,6 +51,7 @@ import {
 } from '../catalogue.ts'
 import { prisma } from '../db.server.ts'
 import { parseEventDisciplines, parseEventTarget } from '../event-schema.ts'
+import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import {
 	createPlanOutline,
@@ -71,6 +72,7 @@ import {
 } from '../plan-outline/proposal.ts'
 import { readConversionContexts } from '../plan-outline/volume-conversion.server.ts'
 import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
+import { getDisciplineThresholds } from '../training.server.ts'
 import {
 	isCardioDiscipline,
 	RACE_ANCHOR_DISTANCE_M,
@@ -186,6 +188,27 @@ export async function readGenerationCorpus(): Promise<RetrievableEntry[]> {
 					description: true,
 					discipline: true,
 					authorship: true,
+					// What a placed session's Placed Hours are read from: every
+					// column `prescribedDuration` reads, the Send-Off included.
+					blocks: {
+						orderBy: { orderIndex: 'asc' },
+						select: {
+							repeatCount: true,
+							seriesRepeatCount: true,
+							betweenSeriesRestSec: true,
+							sendOff: true,
+							steps: {
+								orderBy: { orderIndex: 'asc' },
+								select: {
+									kind: true,
+									discipline: true,
+									intensity: true,
+									durationSec: true,
+									distanceM: true,
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -207,6 +230,7 @@ export async function readGenerationCorpus(): Promise<RetrievableEntry[]> {
 		citationWork: entry.citationWork,
 		citationYear: entry.citationYear,
 		citationLocator: entry.citationLocator,
+		blocks: entry.workout.blocks,
 	}))
 }
 
@@ -251,6 +275,8 @@ type GenerationContext = {
 	proposals: TrackProposal[]
 	trainableWeekdays: number[] | null
 	weeklyCapacityHours: number | null
+	/** The session row's thresholds: what a placed session is timed by (ADR 0116). */
+	thresholds: DisciplineThresholdMap
 	corpus: RetrievableEntry[]
 	/** Reads the athlete's conversion inputs for a start week (ADR 0110). */
 	readContexts: (
@@ -298,6 +324,7 @@ async function readContext(
 		proposals,
 		trainableWeekdays: parseWeekdays(profile?.trainableWeekdays ?? null),
 		weeklyCapacityHours: profile?.weeklyCapacityHours ?? null,
+		thresholds: await getDisciplineThresholds(athleteId),
 		corpus: await readGenerationCorpus(),
 		readContexts: (startWeekKey, disciplines) =>
 			readConversionContexts(athleteId, startWeekKey, disciplines),
@@ -358,6 +385,9 @@ export async function buildRequest(
 						choice.startWeekKey,
 						tracks.map((track) => track.discipline),
 					),
+		// The map a session row times its minutes by, read on every preview and
+		// approval whether or not a capacity is set (ADR 0116 §1).
+		thresholds: context.thresholds,
 	}
 }
 
@@ -573,7 +603,7 @@ async function defaultTrainingTime(athleteId: string): Promise<string> {
 		where: { userId: athleteId },
 		select: { defaultTrainingTime: true },
 	})
-	return profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+	return trainingTimeOf(profile)
 }
 
 /**

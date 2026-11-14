@@ -113,6 +113,7 @@ export function buildCatalogueCard(input: {
 					blocks: workout.blocks.map((block) => ({
 						repeatCount: block.repeatCount,
 						seriesRepeatCount: block.seriesRepeatCount ?? null,
+						sendOff: block.sendOff ?? null,
 						steps: block.steps.map((step) => ({
 							kind: step.kind,
 							durationSec: step.durationSec ?? null,

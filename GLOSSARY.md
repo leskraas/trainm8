@@ -1051,7 +1051,7 @@ points at directly. That one is kept **unattributed**: private, its **Catalogue
 Entry** retired and its **Attribution** deleted, so it carries no author's name
 and nobody can publish it again. A surviving fork's lineage is spliced to its
 nearest surviving ancestor, so a **Citation** still resolves through it. An
-**Orphaned Workout** gets the same treatment (ADR 0051 §5, ADR 0114). Not a
+**Orphaned Workout** gets the same treatment (ADR 0051 §5, ADR 0119). Not a
 **withdrawal**: that is the author's own reversible act, and it keeps the
 Attribution. _Avoid_: account deletion (the whole act, not the Workout policy),
 withdrawn (for the kept row), sweep
@@ -1152,13 +1152,15 @@ exists; it is an **Unavailable Metric** on that surface only, and the reason
 names the platforms that closed it (ADR 0098). Never used for a value that does
 not exist. _Avoid_: Blocked, redacted, licence error, missing
 
-**Reading**: One number as trainm8 states it to anything outside its own screens
+**Reading**: One value as trainm8 states it to anything outside its own screens
 — an athlete's **Assistant** above all — either _available_ with its value or
 _unavailable_ with its reason and the athlete's words for it, never a zero, a
-blank or an omitted field (ADR 0092). An **Unavailable Metric** is a Reading
-that is unavailable; `source-terms` is one of its reasons. Distinct from a
-**Workout Reading**, which is a whole account of one session whose numbers are
-Readings. _Avoid_: Value, data point, nullable number, metric (alone)
+blank or an omitted field (ADR 0092). The value is one number, one band, or one
+observation whose figures stand or fall together, such as a **Day Forecast**
+(ADR 0115). An **Unavailable Metric** is a Reading that is unavailable;
+`source-terms` is one of its reasons. Distinct from a **Workout Reading**, which
+is a whole account of one session whose numbers are Readings. _Avoid_: Value,
+data point, nullable number, metric (alone)
 
 **Summary Count**: A truthful aggregate derived from existing sessions, such as
 number of sessions or number of days in the horizon. The **Strength Summary
@@ -1219,20 +1221,25 @@ day in the athlete's local timezone (daily TSS totals, CTL, ATL, TSB). _Avoid_:
 Daily load, load row
 
 **Load Recompute Notice**: The one-time, athlete-visible explanation for a
-correction that moved a **Load Snapshot** number the athlete had already read —
-what changed, why, and the CTL it moved. Written by the one-shot backfill that
-caused the movement, shown as a bar above the **Home Timeline** until
-acknowledged. It exists because ADR 0008 forbids switching an athlete's numbers
-_silently_; where the athlete's own data has not changed there is nothing to opt
-into, so what is owed is an explanation rather than an offer (ADR 0046 §2). A
-correction the app has no written words for shows nothing at all — never a
-generic "some numbers changed". A correction may lower CTL (strength leaving the
-triad) or raise it (a pool swim's rest leaving its pace, ADR 0107); the line
-says which, from the day the correction moved CTL furthest in its own direction,
-and sizes the movement as the gap between the two rounded figures it prints. It
-is owed whenever a number the athlete read moved, so a corrected swim pace earns
-one even when CTL did not visibly move; the line then names no movement.
-_Avoid_: Banner, alert, migration message
+correction that moved a number the athlete had already read — what changed, why,
+and the CTL it moved, where it moved any. Each kind of correction moved either
+**load** (a **Load Snapshot** number) or **prescription** (bands, **Planned
+TSS**, **Adherence Bands**, chip tint), and says which. Written by the one-shot
+backfill that caused the movement, shown as a bar above the **Home Timeline**
+until acknowledged. It exists because ADR 0008 forbids switching an athlete's
+numbers _silently_; where the athlete's own data has not changed there is
+nothing to opt into, so what is owed is an explanation rather than an offer (ADR
+0046 §2). A correction the app has no written words for shows nothing at all —
+never a generic "some numbers changed". A correction may lower CTL (strength
+leaving the triad) or raise it (a pool swim's rest leaving its pace, ADR 0107);
+the line says which, from the day the correction moved CTL furthest in its own
+direction, and sizes the movement as the gap between the two rounded figures it
+prints. It is owed whenever a number the athlete read moved, so a corrected swim
+pace earns one even when CTL did not visibly move; the line then names no
+movement. A notice that moved no CTL beyond noise, and every prescription
+notice, carries no CTL figures at all: there is no movement to name, which is
+not an **Unavailable Metric** (ADR 0117). _Avoid_: Banner, alert, migration
+message
 
 **Load Formula**: The named method used to compute TSS for one session — one of
 `coggan` (power-based), `hrTSS` (heart-rate-based), `rTSS` (pace-based run),
@@ -1664,6 +1671,23 @@ inn ennå_ instead. _Avoid_: Wall, lookahead, sprint window.
 **Discipline Query**: The URL query parameter that preserves the selected
 discipline filter. _Avoid_: Local filter state, tab state
 
+**Forecast Hour**: The hour a day's **Day Forecast** is for: the start of the
+day's first session not yet done (still scheduled; a skipped or missed one does
+not count), else the athlete's default training time (**Training
+Availability**), else 07:00; today, once that hour has passed, the coming hour.
+One rule for every surface that shows weather (ADR 0115). _Avoid_: Weather time,
+training hour
+
+**Day Forecast**: The weather forecast for one day at its **Forecast Hour** at
+the athlete's **Home Place** — a weather symbol, the temperature and the
+precipitation — taken from the one forecast step that covers that hour, so its
+figures stand or fall together. It is a forecast, never a measurement and never
+a **Training Metric**: on I dag a day with no forecast (past, beyond the
+forecast's reach, no Home Place, the source silent) shows nothing at all, not an
+**Unavailable Metric**; to an **Assistant** it is a **Reading** with its reason
+(ADR 0115). _Avoid_: Weather (alone, as a code term), conditions, forecast
+metric
+
 ### People and scope
 
 **Self-Coaching Athlete**: The primary user who plans and reviews their own
@@ -1682,10 +1706,30 @@ access control. _Avoid_: Viewer; _avoid bare_ "account" (use **Authenticated
 User** for internal identity, **Account Connection** for an external service
 account)
 
+**Sign-in Method**: One way an **Authenticated User** proves who they are: a
+password, a passkey, or a linked GitHub identity. Two-factor authentication is
+not a method of its own but a second step on top of one. An emailed code is a
+second step for an athlete who must set up two-factor again, never a method that
+signs anyone in alone (ADR 0094 §3). _Avoid_: Account, login provider,
+connection (an **Account Connection** links a training service, not a way to
+sign in)
+
+**Sign-in Session**: The period an **Authenticated User** stays signed in on one
+browser, ended by signing out, by expiry, or by the one forced sign-out at the
+login cutover (ADR 0094 §1). _Avoid_: bare "session" (that is a **Workout
+Session** in this domain)
+
 **Owner**: The authenticated user who owns workouts and workout sessions.
 _Avoid_: Creator, participant, "the session's owner" for athlete-versus-machine
 (that is **Session Ownership**: every session has one Owner, the athlete, and
 still may be the machine's to change)
+
+**Home Place**: The one named place in Norway the athlete chooses as where they
+train from, kept as its name, where it lies (municipality and county) and a
+point rounded to about a kilometre (UI word: _Hjemsted_, set in _Meg_). It is
+stated by the athlete, never inferred from recordings or the browser, and is
+used only to fetch the **Day Forecast**. At most one; none means no weather
+anywhere (ADR 0115). _Avoid_: Location, position, address, home (alone)
 
 ### App structure
 
@@ -2702,6 +2746,18 @@ warning (all three claim something the evidence does not support), `RAMP_WARN` /
 Targets** — `weekRiseWarnings`, +10 % between two loading weeks — is ADR 0084's
 amendment to §12, not a week-over-week diff on every week.
 
+**Guard Notice**: One of the three warnings a plan gives about itself without
+being asked: the **Ramp Guard**, the availability fit notice (the two **Training
+Availability** fit checks and the day clashes) and the band fit notice (sessions
+whose `%1RM` sits outside the band their **Strength Goal** derives). Each
+**warns and never blocks**, is open on arrival, and can be closed once read, for
+that visit only: closing is the athlete's decision about a warning they have
+read, never disclosure that hides one they have not. They stand in _Plan_'s lead
+under the card, once each, and are about the plan being viewed (ADR 0118). The
+mix-disagreement notices and _Hva planen ikke kan si_ are statements about the
+plan, not Guard Notices. _Avoid_: Alert (they are standing content, not news),
+guard (alone, for the notice rather than the check behind it), warning banner.
+
 **Block Boundary Step**: The optional volume change a **Training Track** authors
 at a segment's opening, default `0` — expressing a deliberate volume drop
 entering an intensity-led stretch, which a negative **Volume Ramp** would model
@@ -2885,6 +2941,16 @@ never added as zero, so a week whose sessions are all unmeasured has no Planned
 Volume rather than a planned zero. Writing, moving or editing a session moves
 this number and never the **Week Target**. _Avoid_: Planned load (that is
 Planned TSS, per session), week sum.
+
+**Placed Hours**: How long one generated **Training Week**'s placed endurance
+sessions take **at least**, in hours: every step the **Workout Reading** can time
+through the athlete's own thresholds, a **Send-Off** rep at its cycle time, summed.
+Exact only when every placed session was timed end to end and no slot went
+unfilled; otherwise a floor, and it reads _minst_. Read in the generate preview
+against the **Weekly Capacity** and stated, never fixed, where it is over (ADR
+0110 §4, ADR 0116). Not **Planned Volume**, which drops a whole session for one
+untimed step, so the two may differ on the same week. _Avoid_: Planned hours,
+session hours, week duration.
 
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the
@@ -3380,6 +3446,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 
 ## Flagged ambiguities
 
+- **"account" and "session" in auth code are not the domain's words.** Better
+  Auth calls each **Sign-in Method** an "account" (`AuthAccount`) and each
+  **Sign-in Session** a "session" (`AuthSession`). Neither is an **Account
+  Connection** or a **Workout Session**; say **Sign-in Method** and **Sign-in
+  Session** outside the auth module, and **Authenticated User** for "the
+  account" as a whole.
 - "workout" has been used to mean both the structural definition and the
   scheduled instance; use **Workout** for the structure and **Workout Session**
   for the scheduled instance. The old advice here said "**Workout Template** for

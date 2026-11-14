@@ -24,11 +24,10 @@ branch.
    the skill's `SKILL.md` (the `bredvid-engineering` plugin, or
    `.claude/skills/<name>/` in the repo), since both are user-invoked only.
    You have no Agent tool: where a skill starts subagents, do their work
-   yourself, one after another, all of it. Build to **The bar**: make the
-   restructuring the `Architecture` section names, and any the change needs
-   to sit cleanly, so the new code reads as if the structure had always held
-   it. Done when every acceptance criterion, or every reason from step 1, has
-   a commit and a test that fails without it.
+   yourself, one after another, all of it. Build to the phase's **bar**
+   (`questions.md`, "The bar"), and make the restructuring the `Architecture`
+   section names. Done when every acceptance criterion, or every reason from
+   step 1, has a commit and the test the bar asks for.
 3. **Prove it.** Run the project's `check` (or what CI runs) with every test
    the change touches. When `deploy-check` is set and the change touches what
    it covers (migrations, the image, startup scripts), run it too. Every

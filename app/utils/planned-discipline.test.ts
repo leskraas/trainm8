@@ -16,6 +16,7 @@ import { DISCIPLINES } from './workout-schema.ts'
 // this is the shape every path a planned session travels must survive.
 const simpleActivityBlocks = [
 	{
+		sendOff: null,
 		repeatCount: 1,
 		steps: [
 			{
@@ -144,7 +145,11 @@ test('session detail reads Planned TSS and planned distance of a Simple Activity
 			workout: {
 				discipline: 'other',
 				blocks: [
-					{ repeatCount: 1, steps: [{ durationSec: 3600, distanceM: 1000 }] },
+					{
+						sendOff: null,
+						repeatCount: 1,
+						steps: [{ durationSec: 3600, distanceM: 1000 }],
+					},
 				],
 			},
 			recording: null,

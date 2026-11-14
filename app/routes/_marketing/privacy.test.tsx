@@ -68,3 +68,25 @@ test('the notice does not promise more deletion than account deletion does', () 
 	// A workout someone else trains on is kept without the athlete's name.
 	expect(screen.queryByText(/visningsnavnet du delte den med/)).toBeNull()
 })
+
+// The Home Place (#433, ADR 0115 §7, ADR 0105 §3): named as stored data, with
+// what MET Norway and Kartverket each get, what neither gets, and how long it
+// is kept.
+test('the notice names the Home Place, its two recipients and its retention', () => {
+	render(<PrivacyRoute />)
+
+	expect(screen.getByText(/^Hjemsted, hvis du velger et i Meg/)).toBeTruthy()
+	const recipients = screen.getByText(/^MET Norway \(Meteorologisk institutt\)/)
+	expect(recipients.textContent).toMatch(/bare det avrundede punktet/)
+	expect(recipients.textContent).toMatch(
+		/Kartverket får bare teksten du søker på/,
+	)
+	expect(recipients.textContent).toMatch(
+		/Ingen av dem får navnet ditt, kontoen din eller IP-adressen din/,
+	)
+	expect(
+		screen.getByText(
+			/^Hjemstedet: så lenge du har konto, eller til du fjerner det i Meg/,
+		),
+	).toBeTruthy()
+})

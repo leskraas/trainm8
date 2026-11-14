@@ -1,14 +1,14 @@
 /**
  * **Account Erasure** — what "Slett kontoen din" does to the Workouts an athlete
  * wrote, and what the one-time purge does to the **Orphaned Workouts** every
- * deletion before #641 left behind (ADR 0051 §5 "Account erasure", ADR 0114).
+ * deletion before #641 left behind (ADR 0051 §5 "Account erasure", ADR 0119).
  *
  * `Workout.ownerId` is `SetNull` (ADR 0051 §2), so a bare `prisma.user.delete`
  * erases the account and leaves every Workout the athlete wrote behind as an
  * Orphaned Workout — their titles, descriptions and notes, and, for a published one, a
  * Shared Workout under the name they published as. This is the one place an
  * account is deleted, and it erases first; lint rejects any other
- * `user.delete` in `app/` and `server/` (ADR 0114 §4).
+ * `user.delete` in `app/` and `server/` (ADR 0119 §4).
  *
  * The rules live here once and run over an **erasure scope**: an account's own
  * Workouts (`deleteAccount`) or the Orphaned Workouts (`eraseOrphanedWorkouts`).
@@ -29,6 +29,10 @@
  *   published name. Not the author's withdrawal (`unpublishWorkout`), which
  *   keeps the Attribution.
  *
+ * Sign-in data goes too: Better Auth's tables cascade from `User`, except
+ * `AuthVerification`, which names its user only by id or email and is cleared
+ * by `eraseAuthVerifications` (ADR 0114 §6).
+ *
  * A bookmark (`CatalogueSave`) does not keep a row: it is a pointer, not a copy,
  * and it cascades away with the row.
  *
@@ -38,6 +42,7 @@
  * are the athlete's own (`ownerId`), so they are purged with the rest.
  */
 import { type Prisma } from '@prisma/client'
+import { eraseAuthVerifications } from './auth/erase.server.ts'
 import { prisma } from './db.server.ts'
 import { MAX_LINEAGE_HOPS } from './workout.server.ts'
 
@@ -71,6 +76,14 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 			where: { pattern: { outline: { athleteId: userId } } },
 		})
 		const erasure = await erase(tx, { kind: 'account', userId })
+		// Better Auth's verification rows name the user by id or email, not by a
+		// foreign key, so the `User` cascade misses them (ADR 0114 §6). Its other
+		// tables cascade.
+		const { email } = await tx.user.findUniqueOrThrow({
+			where: { id: userId },
+			select: { email: true },
+		})
+		await eraseAuthVerifications(tx, { userId, email })
 		await tx.user.delete({ where: { id: userId } })
 		return erasure
 	}, ERASURE_TRANSACTION_OPTIONS)
@@ -78,7 +91,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 
 /**
  * Erase the **Orphaned Workouts** with the rules `deleteAccount` applies, inside
- * the caller's transaction (the one-time purge, ADR 0114 §2). Idempotent: a row
+ * the caller's transaction (the one-time purge, ADR 0119 §2). Idempotent: a row
  * kept unattributed on one run is held by the same training on the next, so it
  * is kept again and never erased.
  */
