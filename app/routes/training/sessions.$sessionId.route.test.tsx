@@ -6,7 +6,12 @@ import userEvent from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
 import { type SessionArchetypeView } from '#app/utils/archetype-classification/index.ts'
-import { nbStoredReplanReason } from '#app/utils/labels.ts'
+import { CONVENTION_NOTICE } from '#app/utils/catalogue-corpus.ts'
+import {
+	NB_PROVENANCE_LABELS,
+	nbStoredReplanReason,
+} from '#app/utils/labels.ts'
+import { type SessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import {
 	type SessionDetail,
 	type SimilarSession,
@@ -1567,4 +1572,147 @@ test('a done session with no Workout and no Recording opens a readable detail, n
 	await screen.findByRole('heading', { level: 1 })
 	expect(document.body.textContent).toMatch(/gjort/i)
 	expect(screen.queryByText(/404|not found|fant ikke/i)).not.toBeInTheDocument()
+})
+
+/** The real loader's `placedProvenance` beside the rest (ADR 0123 §5). */
+function withPlacedProvenance(
+	loader: (args: LoaderFunctionArgs) => Promise<Record<string, unknown>>,
+	provenance: SessionProvenance,
+	takenDown = false,
+) {
+	return async (args: LoaderFunctionArgs) => ({
+		...(await loader(args)),
+		placedProvenance: { provenance, takenDown },
+	})
+}
+
+test('a placed convention session states its notice once, in Norwegian, not again in the description (#475)', async () => {
+	const session = makeSession({
+		status: 'scheduled',
+		workout: {
+			...makeSession().workout!,
+			description: `${CONVENTION_NOTICE} Rolig løping hele veien.`,
+		},
+	})
+	renderRoute(
+		withPlacedProvenance(sessionDetailLoader(session), {
+			kind: 'convention',
+		}),
+	)
+
+	expect(
+		await screen.findByText(/^Vanlig trenerpraksis — trainm8 viser ikke/),
+	).toBeInTheDocument()
+	expect(screen.getByText('Rolig løping hele veien.')).toBeInTheDocument()
+	expect(
+		screen.queryByText(/Widely-used coaching convention/),
+	).not.toBeInTheDocument()
+})
+
+test('the Session Provenance is the last item in the prose block, after the read archetype (#475)', async () => {
+	const session = makeSession({
+		status: 'completed',
+		recording: makeRecording(),
+	})
+	renderRoute(
+		withPlacedProvenance(
+			sessionDetailLoader(session, {}, null, {
+				kind: 'read',
+				reading: {
+					kind: 'archetype',
+					archetype: 'threshold',
+					modifiers: [],
+					confidence: 'medium',
+					reasons: ['4 × 8 min at threshold intensity'],
+					caveat: null,
+				},
+			}),
+			{ kind: 'convention' },
+		),
+	)
+
+	const line = await screen.findByText(/^Vanlig trenerpraksis/)
+	const badge = screen.getByText('lest · middels')
+	expect(
+		badge.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+})
+
+test('a placed community session names its publisher, with the non-vouch on a second line (#475)', async () => {
+	const session = makeSession({ status: 'scheduled' })
+	renderRoute(
+		withPlacedProvenance(sessionDetailLoader(session), {
+			kind: 'community',
+			attribution: {
+				displayName: 'Jo Kraas',
+				publishedAt: new Date('2030-01-01T12:00:00.000Z'),
+			},
+		}),
+	)
+
+	const byline = await screen.findByText(/Publisert av Jo Kraas/)
+	const nonVouch = screen.getByText(NB_PROVENANCE_LABELS.nonVouch)
+	// Two lines of one slot: the byline, then the non-vouch directly below it.
+	expect(byline.tagName).toBe('P')
+	expect(byline.nextElementSibling).toBe(nonVouch)
+	expect(screen.queryByText(/Kilde:/)).not.toBeInTheDocument()
+	expect(screen.queryByText(/Fjernet av en moderator/)).not.toBeInTheDocument()
+})
+
+test('a placed session whose community row was taken down still says an athlete published it, and that it was removed (#475)', async () => {
+	const session = makeSession({ status: 'scheduled' })
+	renderRoute(
+		withPlacedProvenance(
+			sessionDetailLoader(session),
+			// The reader serves no name once the row is taken down (ADR 0123 §5).
+			{ kind: 'community', attribution: null },
+			true,
+		),
+	)
+
+	expect(
+		await screen.findByText(
+			/Publisert av en utøver — trainm8 kan ikke si hvem\./,
+		),
+	).toHaveTextContent(/Fjernet av en moderator/)
+	expect(screen.getByText(NB_PROVENANCE_LABELS.nonVouch)).toBeInTheDocument()
+})
+
+test('an adopted session keeps its Citation and says, in the same line, that the athlete changed it (#475)', async () => {
+	const session = makeSession({
+		status: 'scheduled',
+		adoptedAt: new Date('2030-01-01T09:00:00.000Z'),
+	})
+	renderRoute(
+		withPlacedProvenance(sessionDetailLoader(session), {
+			kind: 'corpus',
+			citation: {
+				author: 'Daniels',
+				work: "Daniels' Running Formula",
+				year: 2013,
+				locator: null,
+			},
+		}),
+	)
+
+	const line = (await screen.findByText(NB_PROVENANCE_LABELS.adopted))
+		.parentElement
+	expect(line).toHaveTextContent(
+		/^Endret av deg · Kilde: Daniels — Daniels' Running Formula \(2013\)/,
+	)
+	expect(
+		screen.queryByText(NB_PROVENANCE_LABELS.nonVouch),
+	).not.toBeInTheDocument()
+})
+
+test('a session not adopted carries no "Endret av deg" (#475)', async () => {
+	const session = makeSession({ status: 'scheduled', adoptedAt: null })
+	renderRoute(
+		withPlacedProvenance(sessionDetailLoader(session), {
+			kind: 'convention',
+		}),
+	)
+
+	await screen.findByText(/^Vanlig trenerpraksis/)
+	expect(screen.queryByText(NB_PROVENANCE_LABELS.adopted)).toBeNull()
 })

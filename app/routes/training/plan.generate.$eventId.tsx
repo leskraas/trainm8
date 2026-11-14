@@ -19,10 +19,11 @@
  * every slot the **Catalogue** had nothing for are stated at the top, before the
  * season, where a source may sit behind a tap and an absence may not.
  *
- * **Provenance is available, not asserted.** Every placed session carries its
- * source line — a **Citation** on a corpus row, the convention or hand-written
- * notice on the two uncited kinds — in a quiet slot under the title rather than as
- * a badge competing with it.
+ * **Provenance is available, not asserted** (ADR 0123). A placed session's row
+ * carries the plan and nothing else; tapping it opens the session's **Session
+ * Provenance** — a **Citation** on a corpus row, the convention or hand-written
+ * notice on the two uncited kinds — in a panel directly below it
+ * (`__plan-preview-row.tsx`). Only the provenance waits behind the tap.
  *
  * The season is long: 27 weeks × 4 days is over a hundred rows at 390 px (ADR
  * 0028). The first four weeks are open and the rest sit behind one tap — the same
@@ -76,7 +77,6 @@ import {
 	isoWeekSpanLabel,
 	NB_CATALOGUE_PHASE_LABELS,
 	NB_DISCIPLINE_LABELS,
-	NB_PATTERN_WEEKDAY_LABELS,
 	NB_SESSION_ARCHETYPE_LABELS,
 	NB_VOLUME_UNITS,
 	NB_WEEK_ROLE_LABELS,
@@ -101,7 +101,6 @@ import { type PlacedFit } from '#app/utils/plan-generation/placed-hours.ts'
 import { type PreviewWeekVolumes } from '#app/utils/plan-generation/planned-volume.ts'
 import {
 	GENERATION_INTENTS,
-	type GeneratedSession,
 	type GenerationIntent,
 	type UnfilledSlot,
 } from '#app/utils/plan-generation/season.ts'
@@ -113,12 +112,15 @@ import {
 } from '#app/utils/plan-outline/presets.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.generate.$eventId.ts'
-import {
-	nbProvenanceNonVouch,
-	nbProvenanceSentence,
-} from './__catalogue-card.ts'
 import { CollapsibleSection, PlanCard } from './__plan-chrome.tsx'
 import { ChoiceCard } from './__plan-new-parts.tsx'
+import {
+	DayLine,
+	PlanPreviewRow,
+	planPreviewRowKey,
+	usePlanPreviewOpenRow,
+	type PlanPreviewOpenRow,
+} from './__plan-preview-row.tsx'
 import {
 	LoadProfile,
 	nbPresetName,
@@ -232,6 +234,8 @@ export default function GenerateSeasonRoute({
 }: Route.ComponentProps) {
 	const { preview, refusal, nearestFit } = loaderData
 	const [searchParams] = useSearchParams()
+	// The season's one open provenance panel (ADR 0123 §2).
+	const openRow = usePlanPreviewOpenRow()
 
 	if (!preview) {
 		return (
@@ -380,7 +384,12 @@ export default function GenerateSeasonRoute({
 				<ul className="space-y-3">
 					{weeks.slice(0, WEEKS_SHOWN).map((week) => (
 						<li key={week.weekKey}>
-							<WeekCard week={week} season={season} figures={figuresOf(week)} />
+							<WeekCard
+								week={week}
+								season={season}
+								figures={figuresOf(week)}
+								openRow={openRow}
+							/>
 						</li>
 					))}
 				</ul>
@@ -403,6 +412,7 @@ export default function GenerateSeasonRoute({
 										week={week}
 										season={season}
 										figures={figuresOf(week)}
+										openRow={openRow}
 									/>
 								</li>
 							))}
@@ -776,11 +786,13 @@ function WeekCard({
 	week,
 	season,
 	figures,
+	openRow,
 }: {
 	week: SeasonPreview['season']['weeks'][number]
 	season: SeasonPreview['season']
 	/** The week's tracks, worded. */
 	figures: WeekFigures
+	openRow: PlanPreviewOpenRow
 }) {
 	const phase = season.phases[week.phaseIndex]!
 	const sessions = season.sessions.filter(
@@ -836,10 +848,11 @@ function WeekCard({
 				<ul className="divide-border/60 divide-y px-(--card-spacing)">
 					{sessions.map((session) => (
 						<li
-							key={`${session.weekday}-${session.discipline}-${session.entryId}`}
-							className="py-3 first:pt-1 last:pb-0"
+							key={planPreviewRowKey(session)}
+							// The row is its own 44 px button with its own padding.
+							className="py-1 first:pt-0 last:pb-0"
 						>
-							<SessionRow session={session} />
+							<PlanPreviewRow session={session} openRow={openRow} />
 						</li>
 					))}
 					{unfilled.map((slot) => (
@@ -1016,66 +1029,6 @@ function PlacedWeekLine({
 			<span className="font-semibold">{lead}</span>
 			{rest}
 		</p>
-	)
-}
-
-/** `Mandag · Løping` — the day and the sport a row sits on. */
-function DayLine({
-	weekday,
-	discipline,
-	extra,
-}: {
-	weekday: UnfilledSlot['weekday']
-	discipline: Discipline
-	extra?: readonly string[]
-}) {
-	return (
-		// A long archetype («Konkurransesimulering») breaks rather than pushing
-		// the card sideways at 320 px with 200 % text.
-		<p className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 [overflow-wrap:anywhere]">
-			<span className="text-foreground font-semibold">
-				{NB_PATTERN_WEEKDAY_LABELS[weekday]}
-			</span>
-			<span aria-hidden>·</span>
-			<span>{NB_DISCIPLINE_LABELS[discipline]}</span>
-			{extra?.map((part) => (
-				<span key={part} className="contents">
-					<span aria-hidden>·</span>
-					<span>{part}</span>
-				</span>
-			))}
-		</p>
-	)
-}
-
-function SessionRow({ session }: { session: GeneratedSession }) {
-	const nonVouch = nbProvenanceNonVouch(session.provenance)
-	return (
-		<div className="space-y-0.5">
-			<DayLine
-				weekday={session.weekday}
-				discipline={session.discipline}
-				extra={[
-					NB_SESSION_ARCHETYPE_LABELS[session.archetype],
-					...(session.zone == null ? [] : [L.zone(session.zone)]),
-				]}
-			/>
-			<p className="text-callout [overflow-wrap:anywhere]">{session.title}</p>
-			{/* The provenance slot: one position, four possible contents, and the
-			    community one is the only one that says trainm8 is not standing behind
-			    it. Read off the row rather than assumed to be a Citation. */}
-			<p
-				className="text-footnote text-muted-foreground [overflow-wrap:anywhere]"
-				data-provenance
-			>
-				{nbProvenanceSentence(session.provenance)}
-			</p>
-			{nonVouch ? (
-				<p className="text-footnote text-muted-foreground" data-non-vouch>
-					{nonVouch}
-				</p>
-			) : null}
-		</div>
 	)
 }
 

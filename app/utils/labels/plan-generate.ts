@@ -45,7 +45,7 @@ export const PLAN_GENERATE_LABELS = {
 	summary: (sessions: number, weeks: number) =>
 		`${nbSessionCount(sessions)} over ${nbWeeks(weeks)}`,
 	intro:
-		'Hver økt er hentet fra katalogen og viser hvor den kommer fra. Ingenting havner i kalenderen før du legger det inn.',
+		'Hver økt er hentet fra katalogen. Trykk på en økt for å se hvor den kommer fra. Ingenting havner i kalenderen før du legger det inn.',
 
 	youTitle: 'Hvor står du nå?',
 	youIntro:

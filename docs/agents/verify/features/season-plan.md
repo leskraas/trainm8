@@ -13,9 +13,14 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
   the Workout of one of the athlete's own sessions (fixed) or a shape for a
   share day (_formet etter <tittel>_).
 - The plan's **Guard Notices** (Ramp Guard, availability fit, band fit) in
-  _Plan_'s lead, under the card and before _Bibliotek_, as `role="note"` notices
-  in `[data-plan-guards]`, each closable by its button _Lukk merknaden om …_
-  (ADR 0118). None renders inside _Avansert_.
+  _Plan_'s lead, under the card and before _Bibliotek_, as `role="note"`
+  notices in `[data-plan-guards]`, each closable by its button _Lukk merknaden
+  om …_ (ADR 0118). None renders inside _Avansert_.
+- _Ukevolum_ in the lead (#673): one row per endurance track with a Season
+  Anchor, and _Endre volumet_, which opens _Endre startnivået_ (the
+  `season-anchor` Sesong edit, ADR 0122) inside _Avansert_, scrolled to it:
+  three acts (_Start på nytt fra en uke_, _Endre tallet i et startnivå_, _Fjern
+  et nytt startnivå_), a preview, a confirm in a sticky footer.
 - Plan creation at `/training/plan/new`: a dated goal (_Mål_, _Dato_, _Lag målet
   og gå videre_), then _Legg opp sesongen_ (base, units, start volume).
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
@@ -38,6 +43,14 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
   kody's `weeklyCapacityHours` a little under a week's placed hours (a 20-week
   10 km run season with a 4:30/km threshold reads about 3,9 t a week, so 3,8
   shows a mix) and open the preview.
+- The preview's placed rows (ADR 0123, #475): each is one button
+  (`[data-session-row] > button`, `aria-expanded`) that carries the plan and no
+  provenance line. Tapping it opens its **Session Provenance** in a panel below
+  it (`[data-provenance-panel]`): _Kilde: …_ with a locator link for a corpus
+  row, or the convention or hand-written notice. One panel is open across the
+  season; a second tap, Escape or opening another row closes it. Unfilled rows
+  are not buttons. Needs the corpus: `prisma db seed` on a fresh local database,
+  or every slot reads as unfilled.
 - Bibliotek, the region _Bibliotek_: catalogue (`/training/catalogue`), programs
   (`/training/programs`), exercises (`/library/exercises`).
 
@@ -53,6 +66,11 @@ const tabs = page.getByRole('navigation', { name: 'Hovedmeny' })
 await hydrated(tabs.getByRole('link', { name: 'Plan' }))
 await tabs.getByRole('link', { name: 'Plan' }).click()
 await page.getByRole('heading', { name: 'Plan', level: 1 }).waitFor()
+// changing a track's volume from the lead (#673):
+await page.locator('[data-plan-lead-volume-row="run"] a').click()
+const anchor = page.getByRole('form', { name: 'Endre startnivået' })
+await anchor.getByRole('button', { name: 'Vis forhåndsvisning' }).click()
+await page.locator('[data-season-edit-preview]').waitFor()
 const events = page.getByRole('region', { name: 'Løp og arrangementer' })
 await events.getByRole('link', { name: 'Alle løp' }).click()
 // creating a season from a goal (a user without one lands on /training/plan/new):
@@ -74,6 +92,11 @@ await page.getByRole('heading', { name: 'Legg opp sesongen' }).waitFor()
   block's band; `tests/e2e/mobile-overflow.test.ts` builds all three.
 - Season editors are inside _Avansert_, closed by default: open it with one tap
   on its heading (`openPlanAdvanced` in `tests/playwright-utils.ts`).
+- _Endre startnivået_ writes when confirmed: kody's run track gains a segment.
+  Reset it between runs (delete the `SeasonAnchorSegment` row on the first
+  unbegun week) or the edit opens on _Endre tallet_ instead of a fresh start.
+- Each act's fields are all in the form; the inactive acts' are `hidden`, so
+  fill `input[name="addValue"]` only while _Start på nytt_ is the chosen act.
 - A Week Pattern day holds the plan's own copy of what it picked, a **Held
   Workout** (ADR 0113): the row is `Workout.heldByOutlineId = <plan id>`, never
   the session's own `workoutId`. After picking, deleting or editing that session
