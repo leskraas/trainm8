@@ -159,8 +159,8 @@ takes these, in order, re-measuring after each:
   The set of timezones is small and bounded by IANA; that is fine on the server
   as on the client.
 - **The ledger still ships every session's whole `workout`.** The 52-week
-  season's payload is 6× the seed's. It is in no long task today; it is the
-  named next lever if the budget is missed (above).
+  season's payload is 6× the seed's. Its decode is now one of the long tasks
+  left on the 52-week season (below); it is the named next lever.
 - **A finished boundary is rendered in place** (found while building it, #503).
   React's server renderer outlines every finished `<Suspense>` boundary once
   12.8KB of the page has flushed (`progressiveChunkSize`), sending it as a
@@ -185,13 +185,41 @@ takes these, in order, re-measuring after each:
 - **The fallback is built**: the server renders this week and the next
   (`AHEAD_LANDING`), and an effect appends the rest of `AHEAD_INITIAL` in a
   transition once the frame has hydrated, below the reader. Until it lands, the
-  list ends in a screen's height of room (`h-dvh`): two weeks can be shorter
+  list ends in a screen's height of room (`h-svh`): two weeks can be shorter
   than the Stream on a tall screen or a late-week landing, and the landing would
   be clamped short of its target and move once the weeks came.
-- **What is left is not the presenter or hydration.** After both, at 4×, the
-  longest task is 1.6% longer than the seed season's by URL and 2.6% by
-  navigation, and "hydrated" is 20.7% later pooled over 24 interleaved runs
-  (paired median 17%), which #503's 25% budget for it allows. The profile has
-  the presenter at 59ms against 40ms; the rest is the parse and layout of the
-  denser past's markup and the ledger's decode, the remainder this ADR leaves to
-  the spec rather than change what the loader ships.
+- **The list is held unpainted until it is parked** (found on QA's second
+  return, #503 criterion 5). The browser paints whatever it has parsed each time
+  its parser yields, and on a long page it yields between today's row and the
+  landing script after the list: those frames showed the top of the season, and
+  the list jumped to today (on `main` too, in 4 of 5 loads of the seed season).
+  A script just before the list adds a style that gives it
+  `content-visibility: hidden` (and `visibility: hidden`); the landing script
+  removes it in the same task as it parks the list. A client navigation runs no
+  inserted script, so its list is never held; the hook's landing removes a hold
+  left behind.
+- **No `:has()` on the root** (found on the same return). `--tab-bar-space` was
+  keyed off `:root:has([data-tab-bar])`, and with it every node added anywhere
+  in the page, each week as it hydrated and each chunk the parser added,
+  restyled the whole page: a long task per week, and the same again on every
+  frame painted during the parse. `root.tsx` now marks the root with
+  `data-tab-bar-space` wherever `TabBar` draws the bar. With the hold and the
+  profile check below, the longest task by URL went from 147ms to 107ms on the
+  seed season and from 182ms to 152ms on the 52-week season (median of 20), and
+  "hydrated" from 1.9s to 1.7s and from 2.3s to 2.1s.
+- **A recording's stored profile is checked by hand**, not by zod: the union of
+  five literals for its zone collected an issue for every literal it tried, on
+  every completed session, twice a load. With it the presenter is about a third
+  shorter on the 52-week season.
+- **What is left is the density of the 52-week season's past, not its length.**
+  With all of the above, at 4× by URL (median of 20 interleaved runs),
+  "hydrated" is 22% later than on the seed season (#503's budget for it is 25%),
+  and by navigation the longest task is 1% longer. By URL the longest task is
+  152ms against 107ms, 42% longer: the fix to the root's style took more off the
+  seed season's tasks than the long season's. What remains on the 52-week season
+  is a set of tasks of 110-170ms that each scale with what the past holds (four
+  completed sessions a week against the seed's sparse one): the parse of its
+  markup with the landing's layout, the decode of a ledger 6× the seed's, and
+  the presenter (about 117ms under the profiler). Closing that is the
+  loader-shape decision this ADR leaves outside #503; criterion 2 went back to
+  the spec with these numbers.
