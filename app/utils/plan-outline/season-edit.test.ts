@@ -103,6 +103,28 @@ describe('a week target', () => {
 		})
 	})
 
+	test('a hand-set figure that reads as the derived one still lists the week it writes', () => {
+		// 44.12 shows as 44,1, the week's derived target, yet the confirm writes a
+		// Week Volume Override: the week turns hand-set, so the preview lists it.
+		const preview = ok(
+			previewSeasonEdit(
+				outline(),
+				{
+					kind: 'week-target',
+					trackId: 'run',
+					weekKey: '2026-10-19',
+					value: 44.12,
+				},
+				UNBEGUN,
+			),
+		)
+		expect(preview.write).toEqual(
+			expect.objectContaining({ kind: 'week-target', value: 44.12 }),
+		)
+		expect(preview.weeks.map((week) => week.weekKey)).toEqual(['2026-10-19'])
+		expect(preview.weeks[0]!.after?.targets[0]!.overridden).toBe(true)
+	})
+
 	test('warns when it rises more than 10 % over the loading week before it', () => {
 		const preview = ok(
 			previewSeasonEdit(

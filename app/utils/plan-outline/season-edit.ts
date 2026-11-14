@@ -937,8 +937,16 @@ function derivationsFor(rows: OutlineRows) {
 function sameNumbers(a: WeekView | null, b: WeekView | null): boolean {
 	if (a == null || b == null) return a === b
 	if (a.role !== b.role) return false
-	return a.targets.every((target, index) =>
-		sameFigure(target.value, b.targets[index]?.value ?? null, target.currency),
+	// A week turning hand-set (or back) is a change even when its figure reads
+	// the same: the confirm writes or deletes a Week Volume Override there.
+	return a.targets.every(
+		(target, index) =>
+			target.overridden === (b.targets[index]?.overridden ?? false) &&
+			sameFigure(
+				target.value,
+				b.targets[index]?.value ?? null,
+				target.currency,
+			),
 	)
 }
 
