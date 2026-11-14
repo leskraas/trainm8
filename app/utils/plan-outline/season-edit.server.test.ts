@@ -478,3 +478,60 @@ test('a Season Anchor confirm gone stale is refused and writes nothing', async (
 		}),
 	).toEqual([{ fromWeekKey: PLAN_START }])
 })
+
+test('a Season Anchor value change lays only its own segment’s weeks again: a trained session stays, and the weeks after the next segment are byte-equal', async () => {
+	const { userId, outlineId, trackId } = await plan()
+	// Segments from 14 Jan and from 21 Jan: a value change on the first moves
+	// only the week of 14 Jan, because the second takes over after it.
+	await prisma.seasonAnchorSegment.createMany({
+		data: [
+			{ trackId, fromWeekKey: '2030-01-14', value: 30 },
+			{ trackId, fromWeekKey: '2030-01-21', value: 30 },
+		],
+	})
+	// The athlete has already trained the machine's session of 14 Jan.
+	const [trainedOn] = await sessionsOn(userId, '2030-01-14')
+	const trained = await prisma.workoutSession.update({
+		where: { id: trainedOn!.id },
+		data: { status: 'completed' },
+	})
+	const all = () =>
+		prisma.workoutSession.findMany({
+			where: { userId },
+			orderBy: { id: 'asc' },
+		})
+	const before = await all()
+
+	const edit = {
+		kind: 'season-anchor' as const,
+		trackId,
+		action: 'set' as const,
+		fromWeekKey: '2030-01-14',
+		value: 36,
+	}
+	const preview = await readSeasonEdit(userId, outlineId, edit, WEDNESDAY)
+	if (!preview.ok) throw new Error(preview.reason)
+	expect(preview.relayWeekKeys).toEqual(['2030-01-14'])
+	await applySeasonEdit(userId, outlineId, edit, WEDNESDAY, {
+		digest: preview.digest,
+	})
+
+	const after = await all()
+	// The trained session is never laid again …
+	expect(after.find((session) => session.id === trained.id)).toEqual(trained)
+	// … and every session outside the changed week is byte-equal, the week
+	// after the next segment included.
+	const outside = (sessions: typeof before) =>
+		sessions.filter(
+			(session) =>
+				session.scheduledAt < new Date('2030-01-14T00:00:00Z') ||
+				session.scheduledAt >= new Date('2030-01-21T00:00:00Z'),
+		)
+	expect(outside(before).length).toBeGreaterThan(0)
+	expect(
+		outside(before).some(
+			(s) => s.scheduledAt >= new Date('2030-01-21T00:00:00Z'),
+		),
+	).toBe(true)
+	expect(outside(after)).toEqual(outside(before))
+})
