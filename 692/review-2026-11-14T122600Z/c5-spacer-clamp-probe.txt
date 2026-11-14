@@ -1,0 +1,25 @@
+Probe: does removing the first-chunk spacer clamp the landing and move today after first paint (criterion 5)?
+Scratch Playwright test (not committed): season = a session every day for 60 days back, plus one at today+N.
+Each line: today's row top from the stream's top @ weeks mounted / stream scrollHeight, every distinct value sampled
+per animation frame from DOMContentLoaded until 2.5s after hydration. Dev server, chromium, 2026-11-14 (Saturday).
+
+PR head 60784f9 (h=1400 at 1280 wide; h=844 at 390 wide), 3 repeats at h=1400:
+last=+0  h=844 : 295@9/3734 -> 295@9/3752 -> 284@9/3752
+last=+0  h=1400: 920@9/3716 | 920@9/3716 | 953@9/3716 -> 920@9/3716
+last=+3  h=844 : 284@10/4118 -> 284@10/4112
+last=+3  h=1400: 560@10/4076 | 591@10/4076 -> 560 | 591@10/4078 -> 560
+last=+9  h=844 : 284@10/4776 -> 284@11/4490      (season ends today+2: the append adds one week, the spacer goes)
+last=+9  h=1400: 284@10/5312 -> 284@11/4454 (x3)  (no move)
+last=+16 h=844 : 284@10/4776 -> 284@12/4870
+last=+16 h=1400: 284@10/5316 -> 284@12/4832 (x3) (no move)
+
+main b4b32f5, same probe:
+last=+0  h=844 : 295@9/3752 -> 284@9/3752
+last=+0  h=1400: 920 | 953 -> 920 | 953 -> 920
+last=+3  h=1400: 560 | 591 -> 560 | 591 -> 560
+last=+9  h=1400: 284@11/4452 (x3)
+last=+16 h=1400: 284@12/4828 (x3)
+
+Reading: the spacer's removal never moved today (+9, +16: 284 throughout, scrollHeight shrinks without a clamp).
+A 31-33px move after first paint happens only where the landing is already clamped at the season's end
+(+0, +3), and main has it in the same cases at the same size: pre-existing, not reached newly by this PR.
