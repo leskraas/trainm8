@@ -62,7 +62,7 @@ future `prisma.user.delete` from making new ones.
 
 - **A guarded SQL migration** (ADR 0051's suggestion): no operator either, but a
   second copy of the rules that cannot be tested against the first.
-- **A daily orphan sweep**: hides the regression it cleans up after, and sits
+- **A daily Orphaned Workout sweep**: hides the regression it cleans up after, and sits
   beside a retention sweep ADR 0105 has not built.
 - **A test that greps the source for `user.delete`**: reports later than lint,
   and further from the line.
@@ -88,6 +88,12 @@ future `prisma.user.delete` from making new ones.
   this kind, or boot enqueues the purge again (harmless, since the rules are
   idempotent, but it is a second run) and the record is lost. The retention
   sweep is not built; when it is, it exempts them.
+- The job queue's contract (ADR 0013) grows for a job that writes onto its own
+  row. A handler receives the job it runs (`JobHandler(payload, job)`), so it
+  never finds its row by kind and status. `failJob` takes a guard and leaves a
+  job that moved on since it was read. `failStaleJobs` fails a job its stopped
+  worker left `running`, through `failJob`, so it goes back to `pending` (or
+  `failed` once its attempts are spent); only this purge calls it today.
 - A purge a machine stopped mid-run (a deploy, a crash) rolls back but leaves
   its row `running`. Boot fails such a row when it started before this process
   did (one node runs the worker), so the queue's attempts retry it on the first
