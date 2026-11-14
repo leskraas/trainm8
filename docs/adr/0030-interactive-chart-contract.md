@@ -34,9 +34,13 @@ Three rules the **Chart Primitive** (ADR 0029) enforces:
    Tapping a mark inspects it into a **fixed panel below the chart** — never a
    tooltip floating over the marks, which obscures neighbours at 390px.
    Re-tapping the same mark, tapping empty plot area, or pressing Escape
-   **dismisses**. Desktop hover is parity, mirroring the same panel. (The
-   prototype found a library's click-tooltip snaps to the nearest mark and never
-   clears — dismissal and anchoring are our obligation regardless.)
+   **dismisses**. Desktop hover is parity, mirroring the same panel (**narrowed
+   by
+   [ADR 0117](./0117-provenance-is-available-not-asserted-a-row-carries-the-plan-and-its-provenance-is-one-tap-away.md)
+   §6** to fixed panels: a panel inline in a list opens on a click or tap, never
+   on hover). (The prototype found a library's click-tooltip snaps to the
+   nearest mark and never clears — dismissal and anchoring are our obligation
+   regardless.)
 
 ## Consequences
 
