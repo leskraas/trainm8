@@ -163,7 +163,7 @@ export function DayChoicePreview({
 		>
 			<input type="hidden" name="version" value={version} />
 			<h3 className="text-callout font-semibold">{labels.previewHeading}</h3>
-			<ul className="divide-border/70 flex flex-col divide-y">
+			<ul className="divide-border/60 flex flex-col divide-y">
 				{weeks.map((week) => {
 					const changed = week.before.join(',') !== week.after.join(',')
 					return (

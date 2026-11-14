@@ -230,7 +230,7 @@ function ResultRow({
 							.join(' · ')}
 					</span>
 					{result.typed ? (
-						<span className="text-caption text-muted-foreground">
+						<span className="text-caption text-muted-foreground font-normal">
 							{L.typedNote}
 						</span>
 					) : null}
@@ -289,7 +289,7 @@ function AddResultForm({ today }: { today: string }) {
 					onValueChange={(value) => setAnchor((value as string) ?? '5k')}
 					items={items}
 				>
-					<SelectTrigger id="result-anchor" className="w-full md:text-base">
+					<SelectTrigger id="result-anchor" className="md:text-body w-full">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>

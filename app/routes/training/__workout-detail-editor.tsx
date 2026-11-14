@@ -305,7 +305,7 @@ export function ScheduledWorkoutSentence({
 			<p
 				aria-live="polite"
 				role="status"
-				className="text-caption text-muted-foreground pointer-events-none absolute right-0 -bottom-5"
+				className="text-caption text-muted-foreground pointer-events-none absolute right-0 -bottom-5 font-normal"
 			>
 				{showSaving ? WORKOUT_DETAIL_EDITOR_LABELS.saving : ''}
 			</p>
@@ -343,7 +343,8 @@ function LoggedSetNotice({
 				{
 					id: step.id,
 					count,
-					name: step.exercise?.name ?? WORKOUT_DETAIL_EDITOR_LABELS.thisExercise,
+					name:
+						step.exercise?.name ?? WORKOUT_DETAIL_EDITOR_LABELS.thisExercise,
 				},
 			]
 		}),

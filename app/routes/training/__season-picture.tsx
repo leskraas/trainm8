@@ -133,7 +133,7 @@ export function SeasonPicture({
 					</p>
 				) : null}
 			</div>
-			<p className="text-caption text-muted-foreground">
+			<p className="text-caption text-muted-foreground font-normal">
 				{SESONG_PAGE_LABELS.pictureHint}
 				{anyBegun ? ` ${SESONG_PAGE_LABELS.pictureBegunHint}` : null}
 			</p>

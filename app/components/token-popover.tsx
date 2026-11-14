@@ -87,7 +87,7 @@ export function TokenPopoverTrigger<Payload>({
 			payload={payload}
 			data-token-trigger
 			className={cn(
-				'focus-visible:ring-ring hover:bg-muted data-popup-open:bg-muted -mx-1 -my-1 cursor-pointer rounded-lg px-1 py-1 outline-none focus-visible:ring-2',
+				'focus-visible:ring-ring hover:bg-muted data-popup-open:bg-muted -mx-1 -my-1 cursor-pointer rounded-2xl px-1 py-1 outline-none focus-visible:ring-2',
 				className,
 			)}
 			{...props}

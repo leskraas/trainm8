@@ -398,7 +398,7 @@ function AnchorCard({
 	return (
 		<Card>
 			<CardHeader className="gap-1">
-				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
+				<CardTitle className="text-heading flex flex-wrap items-center gap-2">
 					{where}
 					<Badge variant={anchor.earliest ? 'outline' : 'secondary'}>
 						{anchor.earliest
@@ -406,7 +406,7 @@ function AnchorCard({
 							: SESONG_ANCHOR_LABELS.reAnchored}
 					</Badge>
 				</CardTitle>
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-footnote">
 					{anchor.weekInPlan == null
 						? SESONG_ANCHOR_LABELS.outsideNote
 						: `${formatNbWeeklyVolume(anchor.value, track.currency)}${

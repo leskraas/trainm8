@@ -253,7 +253,7 @@ function SheetBody({
 						>
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-2">
-									<p className="text-caption text-muted-foreground">
+									<p className="text-caption text-muted-foreground font-normal">
 										{L.step(stepIndex + 1)}
 									</p>
 									{/* The Kind select routes through the same §4.2

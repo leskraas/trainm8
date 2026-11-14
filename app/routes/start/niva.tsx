@@ -422,7 +422,7 @@ export default function LevelStep({
  * without a button's weight. An instant tint on press; no motion.
  */
 const QUIET_LINK =
-	'text-footnote text-muted-foreground decoration-muted-foreground/40 hover:text-foreground active:bg-muted/60 focus-visible:ring-ring/30 -mx-2 flex min-h-11 max-w-full items-center rounded-lg px-2 py-2 underline underline-offset-4 outline-none [text-wrap:pretty] [-webkit-tap-highlight-color:transparent] focus-visible:ring-3'
+	'text-footnote text-muted-foreground decoration-muted-foreground/40 hover:text-foreground active:bg-muted/60 focus-visible:ring-ring/30 -mx-2 flex min-h-11 max-w-full items-center rounded-2xl px-2 py-2 underline underline-offset-4 outline-none [text-wrap:pretty] [-webkit-tap-highlight-color:transparent] focus-visible:ring-3'
 
 /** Look again every few seconds while the history is on its way. */
 function useImportPoll(importing: boolean) {

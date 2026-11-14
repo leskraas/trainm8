@@ -179,7 +179,9 @@ export function ProfileBars({
 	scale?: ProfileBarsScale
 }) {
 	if (givenBars.length === 0) {
-		return <span className="text-muted-foreground text-xs">—</span>
+		return (
+			<span className="text-muted-foreground text-caption font-normal">—</span>
+		)
 	}
 	const { bars, groups } = fitBars(givenBars, givenGroups, MAX_PROFILE_BARS)
 	const hasDuration = bars.some((b) => b.durationSec > 0)

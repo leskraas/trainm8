@@ -226,7 +226,7 @@ function DismissibleNotice({
 				// warning should read before its reason. `text-pretty` rather than
 				// `Alert`'s phone `text-balance`, which narrows every line of a long
 				// notice to match its last.
-				className="[&_li]:text-foreground space-y-2 text-base text-pretty md:text-sm [&>p:first-child]:pr-10 [&>ul:first-child>li:first-child]:pr-10"
+				className="[&_li]:text-foreground text-body space-y-2 text-pretty [&>p:first-child]:pr-10 [&>ul:first-child>li:first-child]:pr-10"
 			>
 				{children}
 			</AlertDescription>
@@ -697,7 +697,7 @@ export function MixNotices({
 					</li>
 				))}
 			</ul>
-			<p className="text-caption text-muted-foreground">
+			<p className="text-caption text-muted-foreground font-normal">
 				{SESONG_PAGE_LABELS.mixNoticesNote}
 			</p>
 		</section>

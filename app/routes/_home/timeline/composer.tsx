@@ -623,7 +623,7 @@ function DayStrip({
 							if (next) onDay(next)
 						}}
 						// 16px so iOS never zooms; the platform's own picker.
-						className="border-border bg-background h-9 rounded-xl border px-2 text-[16px]"
+						className="border-border bg-background h-9 rounded-3xl border px-2 text-[16px]"
 					/>
 				</span>
 			</label>
@@ -1330,7 +1330,7 @@ function RestField({
 					event.preventDefault()
 					commit()
 				}}
-				className="border-border bg-background text-foreground h-11 w-20 rounded-xl border px-3 text-[16px] tabular-nums"
+				className="border-border bg-background text-foreground h-11 w-20 rounded-3xl border px-3 text-[16px] tabular-nums"
 			/>
 		</label>
 	)

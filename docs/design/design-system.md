@@ -75,10 +75,25 @@ the four fail as text, which is why text never takes the mark.
 colour use the ink: I dag's week header and the large-screen season table's
 column heads.
 
-**Older app tokens:** only `zone-1…5` remains, read by pages outside home. The
-timeline's own (`ink-*`, `hairline*`, `warning`, `--shadow-pill`) are gone: I
-dag uses `foreground`/`muted-foreground` (with opacity steps), `border` at low
-opacity for hairlines, tone for surfaces and `status-under` (ADR 0086).
+**Training Zones** (`zone-1…5`, ADR 0119 §3): the Z1–Z5 intensity ladder, blue →
+green → mustard → orange → red, on profile bars, the shape strip, the season
+chart and the score's chip tint. They are **marks, never text**: a bar, a strip
+cell, a chart fill or a tint. Each has a light and a dark value and reaches 3:1
+(WCAG 1.4.11) on `card` in both themes. shadcn's `chart-1…5` are categorical, so
+they do not stand in for the ladder.
+
+| Token    | Light value            | on `card` | on `background` | Dark value             | on `card` | on `background` |
+| -------- | ---------------------- | --------- | --------------- | ---------------------- | --------- | --------------- |
+| `zone-1` | `oklch(0.6 0.12 250)`  | 3.93      | 3.66            | `oklch(0.72 0.11 250)` | 7.25      | 7.99            |
+| `zone-2` | `oklch(0.59 0.12 160)` | 3.88      | 3.61            | `oklch(0.72 0.12 160)` | 7.60      | 8.38            |
+| `zone-3` | `oklch(0.65 0.13 95)`  | 3.23      | 3.01            | `oklch(0.76 0.12 95)`  | 8.36      | 9.21            |
+| `zone-4` | `oklch(0.61 0.14 58)`  | 3.96      | 3.69            | `oklch(0.74 0.14 58)`  | 7.48      | 8.24            |
+| `zone-5` | `oklch(0.55 0.19 22)`  | 5.36      | 4.99            | `oklch(0.67 0.16 22)`  | 5.55      | 6.11            |
+
+The timeline's older tokens (`ink-*`, `hairline*`, `warning`, `--shadow-pill`)
+are gone: I dag uses `foreground`/`muted-foreground` (with opacity steps),
+`border` at low opacity for hairlines, tone for surfaces and `status-under` (ADR
+0086).
 
 ### Radius
 
@@ -88,9 +103,29 @@ components use the top of it: buttons and cards `rounded-4xl` (~16px), inputs,
 popups and toggles `rounded-3xl` (~13px), menu items `rounded-2xl` (~11px), and
 `rounded-full` for pills, tabs and the segmented control. 6px is chosen so
 luma's generated class names land on #505's numbers (cards 14–16, controls
-10–12+, pills full) without editing them. Pages that already said
-`rounded-lg`/`rounded-xl` render a little sharper than before (lg was 10px);
-move them to the luma steps when they are touched.
+10–12+, pills full) without editing them.
+
+Page code takes the step by **what the element is** (ADR 0119), and the lint
+rule `trainm8/luma-steps` rejects an off-step corner in page code (bare
+`rounded`, `rounded-xs/sm/md/lg/xl` and their side forms such as `rounded-t-lg`;
+its exemptions, `app/components/ui`, admin, marketing, SEO, auth, prototypes and
+tests, are listed in its block in `eslint.config.js`; admin still takes the
+steps, by hand):
+
+| Element                                                     | Step            |
+| ----------------------------------------------------------- | --------------- |
+| Cards, sheets, list groups                                  | `rounded-4xl`   |
+| Fields, popovers, toggles, steppers, wells                  | `rounded-3xl`   |
+| Items inside them (a row press, a link focus target, a day) | `rounded-2xl`   |
+| Pills, tabs, chips (intensity, ×5 repeat, key)              | `rounded-full`  |
+| Data marks (legend swatches, scale bars)                    | `rounded-[3px]` |
+
+**Surfaces.** A content block sits on the card: `bg-card`, `shadow-md` on the
+tinted page, `ring-foreground/5` (dark `/10`) for the edge. A card never nests a
+bordered box: a group inside a card or popover is a well,
+`bg-muted/50 rounded-3xl` with no border. Rows inside a card are divided by
+`divide-border/60`. A field inside a popover takes the `ui/input` look:
+`bg-input/50 border-transparent rounded-3xl`, focus `ring-ring/30 ring-3`.
 
 ### Elevation
 
@@ -111,7 +146,8 @@ Public Sans. shadcn ships no type tokens, so this is an app role in Tailwind's
 own `--text-*` namespace. Each step is a set: size, line height, weight and
 size-specific tracking (negative as type grows, slightly positive at caption
 sizes). Generated components keep their `text-sm`/`text-base`; page content uses
-these steps.
+these steps, and `trainm8/luma-steps` rejects a raw `text-xs`…`text-9xl` in page
+code (ADR 0119).
 
 | Class           | Size/leading | Weight | Tracking | For                                |
 | --------------- | ------------ | ------ | -------- | ---------------------------------- |
@@ -123,6 +159,19 @@ these steps.
 | `text-footnote` | 13/18        | 400    | +0.002em | row facts, descriptions            |
 | `text-caption`  | 12/16        | 500    | +0.01em  | labels under figures               |
 | `text-overline` | 11/16        | 600    | +0.06em  | kickers; pair with `uppercase`     |
+
+**By role, not by nearest size** (ADR 0119): a page has **one** title, the
+content's name (a plan, a session, a lift's exercise), at `text-title`.
+`PageHeader`'s h1, `CardTitle`, the overlay header and sheet titles take
+`text-heading`. Row titles and labels over a figure take `text-callout` (was
+`text-sm font-medium`); row facts, descriptions and field errors `text-footnote`
+(errors in `text-foreground-destructive`; inside a popover or menu,
+`text-foreground-destructive dark:text-destructive`, since the dark
+`foreground-destructive` reads 4.42:1 on `popover`, under AA); labels and units
+`text-caption`, with `font-normal` when muted; inputs, `h-12` calls to action
+and running text `text-body` (`md:text-base` becomes `md:text-body`). Section,
+row title and row fact are three visible steps, so a reader sees what to read
+first.
 
 Override weight with `font-*` where needed; never override tracking. Use
 **`tabular-nums`** on every figure that shares a column or changes in place (km,

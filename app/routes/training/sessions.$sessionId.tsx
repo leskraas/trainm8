@@ -1259,7 +1259,7 @@ function ArchetypeToken({ view }: { view: SessionArchetypeView }) {
 	return (
 		<Popover>
 			<PopoverTrigger
-				className="focus-visible:ring-ring decoration-muted-foreground text-foreground relative rounded-sm font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:top-1/2 after:left-1/2 after:size-11 after:min-w-full after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:ring-2"
+				className="focus-visible:ring-ring decoration-muted-foreground text-foreground relative rounded-2xl font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:top-1/2 after:left-1/2 after:size-11 after:min-w-full after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:ring-2"
 				data-archetype={view.kind}
 			>
 				{word}
@@ -1478,7 +1478,7 @@ function SimpleActivityFacts({
 				>
 					{S.notMeasuredHeading}
 				</h3>
-				<dl className="divide-border mt-1 divide-y" data-not-measured>
+				<dl className="divide-border/60 mt-1 divide-y" data-not-measured>
 					{withheld.map((label) => (
 						<div
 							key={label}
@@ -1618,7 +1618,9 @@ function FigureTile({
 }) {
 	return (
 		<div className="bg-muted/60 rounded-3xl px-4 py-3">
-			<dt className="text-caption text-muted-foreground">{label}</dt>
+			<dt className="text-caption text-muted-foreground font-normal">
+				{label}
+			</dt>
 			<dd className="text-heading mt-1 tabular-nums">{value}</dd>
 			<dd className="text-footnote text-muted-foreground mt-0.5 tabular-nums">
 				{note}
@@ -1964,7 +1966,7 @@ function RecordingPanel({
 			<CardContent className="space-y-4">
 				{phaseBars.length > 0 ? (
 					<div className="space-y-1">
-						<p className="text-caption text-muted-foreground">
+						<p className="text-caption text-muted-foreground font-normal">
 							{L.recording.zones}
 						</p>
 						<ProfileBars bars={phaseBars} className="h-8" />
@@ -1974,7 +1976,9 @@ function RecordingPanel({
 				<dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
 					{metrics.map((m) => (
 						<div key={m.label} className="space-y-0.5">
-							<dt className="text-caption text-muted-foreground">{m.label}</dt>
+							<dt className="text-caption text-muted-foreground font-normal">
+								{m.label}
+							</dt>
 							<dd className="text-callout tabular-nums">{m.value}</dd>
 						</div>
 					))}
@@ -2174,7 +2178,10 @@ function SessionLogForm({
 				/>
 
 				<div className="space-y-2">
-					<p id={rpeLabelId} className="text-caption text-muted-foreground">
+					<p
+						id={rpeLabelId}
+						className="text-caption text-muted-foreground font-normal"
+					>
 						{L.log.rpe}
 					</p>
 					{/* Ten 44px targets (ADR 0028): five to a row on a phone, all ten
