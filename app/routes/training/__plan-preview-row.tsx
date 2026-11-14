@@ -35,6 +35,8 @@ import {
 import { cn } from '#app/utils/misc.tsx'
 import { prefersReducedMotion } from '#app/utils/motion.ts'
 import { type GeneratedSession } from '#app/utils/plan-generation/season.ts'
+import { type PatternWeekday } from '#app/utils/plan-outline/week-pattern.ts'
+import { type Discipline } from '#app/utils/workout-schema.ts'
 
 /** How long `motion-collapse` takes to open (`--transition-duration-collapse`). */
 const COLLAPSE_OPEN_MS = 200
@@ -148,6 +150,43 @@ function Chevron() {
 	)
 }
 
+/**
+ * `Mandag · Løping · Terskel · sone 4`: the day, the sport and what a row is,
+ * for a placed row and an unfilled one alike, so both wrap by one rule.
+ *
+ * A `<span>`, so it is valid inside the row's button. The tokens wrap between
+ * each other, and a token's own space is non-breaking, so `sone 4` never
+ * splits. A token longer than the line («Konkurransesimulering» at 320 px with
+ * 200 % text) still breaks rather than pushing the card sideways. A real space
+ * between tokens, so an accessible name reads as words.
+ */
+export function DayLine({
+	weekday,
+	discipline,
+	extra = [],
+}: {
+	weekday: PatternWeekday
+	discipline: Discipline
+	extra?: readonly string[]
+}) {
+	return (
+		<span className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 [overflow-wrap:anywhere]">
+			<span className="text-foreground min-w-0 font-semibold">
+				{NB_PATTERN_WEEKDAY_LABELS[weekday]}
+			</span>{' '}
+			<span aria-hidden>·</span>{' '}
+			<span className="min-w-0">{NB_DISCIPLINE_LABELS[discipline]}</span>
+			{extra.map((part) => (
+				<span key={part} className="contents">
+					{' '}
+					<span aria-hidden>·</span>{' '}
+					<span className="min-w-0">{part.replaceAll(' ', '\u00a0')}</span>
+				</span>
+			))}
+		</span>
+	)
+}
+
 export function SessionRow({
 	session,
 	openRow,
@@ -171,7 +210,7 @@ export function SessionRow({
 	const extra = [
 		NB_SESSION_ARCHETYPE_LABELS[session.archetype],
 		...(session.zone == null ? [] : [L.zone(session.zone)]),
-	].map((part) => part.replaceAll(' ', '\u00a0'))
+	]
 
 	return (
 		<Collapsible open={open} data-session-row onKeyDown={onKeyDown}>
@@ -186,27 +225,11 @@ export function SessionRow({
 				className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 w-[calc(100%+1rem)] touch-manipulation items-center gap-3 rounded-2xl px-2 py-2 text-left select-none motion-safe:transition-colors motion-safe:ease-out"
 			>
 				<span className="min-w-0 flex-1 space-y-0.5">
-					{/* The tokens wrap between each other, and a token's own space is
-					    non-breaking, so `sone 4` never splits. A token longer than the
-					    line («Konkurransesimulering» at 320 px with 200 % text) still
-					    breaks rather than pushing the card sideways. A real space between
-					    tokens, so the accessible name reads as words. */}
-					<span className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 [overflow-wrap:anywhere]">
-						<span className="text-foreground min-w-0 font-semibold">
-							{NB_PATTERN_WEEKDAY_LABELS[session.weekday]}
-						</span>{' '}
-						<span aria-hidden>·</span>{' '}
-						<span className="min-w-0">
-							{NB_DISCIPLINE_LABELS[session.discipline]}
-						</span>
-						{extra.map((part) => (
-							<span key={part} className="contents">
-								{' '}
-								<span aria-hidden>·</span>{' '}
-								<span className="min-w-0">{part}</span>
-							</span>
-						))}
-					</span>{' '}
+					<DayLine
+						weekday={session.weekday}
+						discipline={session.discipline}
+						extra={extra}
+					/>{' '}
 					<span className="text-callout block [overflow-wrap:anywhere]">
 						{session.title}
 					</span>

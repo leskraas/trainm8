@@ -69,7 +69,6 @@ import {
 	isoWeekSpanLabel,
 	NB_CATALOGUE_PHASE_LABELS,
 	NB_DISCIPLINE_LABELS,
-	NB_PATTERN_WEEKDAY_LABELS,
 	NB_SESSION_ARCHETYPE_LABELS,
 	NB_VOLUME_UNITS,
 	NB_WEEK_ROLE_LABELS,
@@ -104,6 +103,7 @@ import { type Route } from './+types/plan.generate.$eventId.ts'
 import { CollapsibleSection, PlanCard } from './__plan-chrome.tsx'
 import { ChoiceCard } from './__plan-new-parts.tsx'
 import {
+	DayLine,
 	SessionRow,
 	useOpenSessionRow,
 	type OpenSessionRow,
@@ -865,35 +865,6 @@ function PlacedWeekLine({
 		>
 			<span className="font-semibold">{lead}</span>
 			{rest}
-		</p>
-	)
-}
-
-/** `Mandag · Løping` — the day and the sport a row sits on. */
-function DayLine({
-	weekday,
-	discipline,
-	extra,
-}: {
-	weekday: UnfilledSlot['weekday']
-	discipline: Discipline
-	extra?: readonly string[]
-}) {
-	return (
-		// A long archetype («Konkurransesimulering») breaks rather than pushing
-		// the card sideways at 320 px with 200 % text.
-		<p className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 [overflow-wrap:anywhere]">
-			<span className="text-foreground font-semibold">
-				{NB_PATTERN_WEEKDAY_LABELS[weekday]}
-			</span>
-			<span aria-hidden>·</span>
-			<span>{NB_DISCIPLINE_LABELS[discipline]}</span>
-			{extra?.map((part) => (
-				<span key={part} className="contents">
-					<span aria-hidden>·</span>
-					<span>{part}</span>
-				</span>
-			))}
 		</p>
 	)
 }
