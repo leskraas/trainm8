@@ -4,6 +4,7 @@
 import { render, screen, within } from '@testing-library/react'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
+import { addDays } from '#app/utils/athlete-calendar.ts'
 import {
 	DRIFT_MARK_LABEL,
 	NB_PROVENANCE_LABELS,
@@ -129,12 +130,7 @@ function preview(
 	const placed = season.sessions.map((placedSession, index) =>
 		volume(
 			// The day the session is placed on: its weekday in its week.
-			new Date(
-				Date.parse(`${placedSession.weekKey}T00:00:00Z`) +
-					placedSession.weekday * 86_400_000,
-			)
-				.toISOString()
-				.slice(0, 10),
+			addDays(placedSession.weekKey, placedSession.weekday),
 			prescribed?.[index] ?? { km: 8 },
 			{ discipline: placedSession.discipline },
 		),
@@ -343,7 +339,7 @@ test('a week with no Season Anchor reads “—” for its target and still show
 		`Løpingmål —${PLAN_GENERATE_LABELS.targetUnavailable} · planlagt 8 km`,
 	])
 	// The dash is not spoken: a screen reader hears the target is unavailable.
-	expect(screen.getAllByText('—', { selector: '[aria-hidden]' }).length).toBe(1)
+	expect(screen.getAllByText('—', { selector: '[aria-hidden]' })).toHaveLength(1)
 	expect(screen.getByText(PLAN_GENERATE_LABELS.targetUnavailable)).toHaveClass(
 		'sr-only',
 	)
