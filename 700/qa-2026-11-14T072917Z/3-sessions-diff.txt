@@ -1,0 +1,7 @@
+Easy week moved to week 6 (phase edit), driven in the UI. Sessions 72 before, 72 after; 70 rows identical (weeks the edit did not change).
+REMOVED (week 6, now an easy week: quality sessions go)
+ 2027-02-09 Tue stock_run-C2
+ 2027-02-11 Thu stock_run-C5
+ADDED (same days, the generator's easy-week sessions)
+ 2027-02-09 Tue stock_run-A3
+ 2027-02-11 Thu stock_run-A2

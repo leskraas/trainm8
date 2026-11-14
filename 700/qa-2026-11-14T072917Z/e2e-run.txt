@@ -1,0 +1,17 @@
+(node:2811) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 6 tests using 2 workers
+
+(node:2831) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2832) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [chromium] › tests/e2e/plan-generate.test.ts:147:1 › a season over the athlete’s weekly hours is scaled to fit, and says so (14.9s)
+  ✓  3 [chromium] › tests/e2e/plan-generate.test.ts:249:1 › the season line and the «N uker til» row name the weeks whose placed sessions outrun the capacity, with the section closed (1.9s)
+  ✓  4 [chromium] › tests/e2e/plan-generate.test.ts:297:1 › the worst-case season wraps without overflow at 320 px and 390 px with 200 % text (5.8s)
+  ✓  1 [chromium] › tests/e2e/plan-generate.test.ts:19:1 › athlete builds a season from the catalogue, answers its question, and adds it (24.7s)
+  ✓  6 [chromium] › tests/e2e/season-edits.test.ts:130:1 › choosing the easy week shows the weeks that change first, then says the phase kept its length (5.4s)
+  ✓  5 [chromium] › tests/e2e/season-edits.test.ts:16:1 › a new week target shows a preview with the 10 % warning, and the message says what stayed (7.5s)
+
+  6 passed (41.3s)

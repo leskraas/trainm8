@@ -1,0 +1,19 @@
+ ✓ app/utils/plan-generation/relay.server.test.ts > approving records the generator, shape, intent and days with the sessions (AC 1) 559ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > placing an unedited stored plan places exactly what approval placed (AC 10) 530ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > a target-only edit leaves every placed session as it was (AC 2) 653ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > a phase edit places the changed weeks as the generator would, and leaves earlier weeks alone (AC 3) 685ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > a re-lay places on the days stored at approval, whatever the availability says now (AC 4) 718ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > the athlete's sessions and trained ones stay, and a kept plan session fills its slot (AC 5, AC 6) 717ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > a slot the corpus has nothing for stays empty, and no week is emptied (AC 7) 563ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > a Week Pattern with days takes over from the generator (AC 8) 500ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > a plan generated before the record is laid again, its days frozen from its sessions (AC 9) 598ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > the horizon fill lays a generated plan's unlaid week by its generator, as approval laid it 569ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > a shortened generated plan clears the machine's sessions past its new end 696ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > a session kept on another day leaves its own day one session, not two (AC 5) 619ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > two re-lays of a legacy plan at once both freeze its days without failing (AC 9) 650ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > a re-lay after a change leaves the week already begun as it was (AC 6) 598ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > once a generated plan has a Week Pattern with days, a re-lay stamps it (AC 8) 873ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > the migration records each legacy generated plan once, however often it runs (AC 9) 1305ms
+ ✓ app/utils/plan-generation/relay.server.test.ts > the database refuses a record day or intent outside their vocabularies 492ms
+ Test Files  1 passed (1)
+      Tests  17 passed (17)

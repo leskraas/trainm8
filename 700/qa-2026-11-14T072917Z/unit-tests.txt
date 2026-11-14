@@ -1,0 +1,30 @@
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(SqliteError { extended_code: 275, message: Some("CHECK constraint failed: LoadRecomputeNotice_ctl_pair_both_or_neither") }), transient: false })
+
+[90mstdout[2m | app/utils/load/recompute-notice.constraints.test.ts[2m > [22m[2mthe rebuild kept the unique (athlete, kind) and the cascade
+[22m[39mprisma:error 
+Invalid `prisma.loadRecomputeNotice.create()` invocation in
+/tmp/claude-0/-home-user-trainm8/4df34f12-5284-5b43-8475-238752b0d40b/scratchpad/wt/700-qa/app/utils/load/recompute-notice.constraints.test.ts:26:36
+
+  23 	kind: string,
+  24 	ctl: { ctlBefore: number | null; ctlAfter: number | null },
+  25 ) {
+→ 26 	return prisma.loadRecomputeNotice.create(
+Unique constraint failed on the fields: (`athleteId`,`kind`)
+
+ [32m✓[39m app/utils/load/recompute-notice.constraints.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 514[2mms[22m[39m
+ [32m✓[39m app/utils/load/readiness.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m app/utils/load/week-replan-demo-seed.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 3777[2mms[22m[39m
+   [33m[2m✓[22m[39m the seeded overreaching athlete gets a proposed softening that silence applied: stored decision + softened sessions with Replan Notes [33m 1850[2mms[22m[39m
+   [33m[2m✓[22m[39m the seeded no-planned-load athlete gets the explicit insufficient-data decline, no session touched [33m 1918[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/quality-mix.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/philosophy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m app/utils/load/snapshot-week-change.server.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 210[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/week-keys.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m app/utils/plan-outline/event-fit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m87 passed[39m[22m[90m (87)[39m
+[2m      Tests [22m [1m[32m1625 passed[39m[22m[90m (1625)[39m
+[2m   Start at [22m 07:19:28
+[2m   Duration [22m 86.54s[2m (transform 6.70s, setup 65.32s, import 11.68s, tests 155.70s, environment 16ms)[22m
+

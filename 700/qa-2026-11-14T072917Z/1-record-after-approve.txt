@@ -1,0 +1,11 @@
+outline [('cmwg2xopo00f27d25s2tbx4bk', '2026-11-09')]
+record [('cmwg2xoq600fn7d25e7jy18mi', 'cmwg2xopo00f27d25s2tbx4bk', 'deterministic-v1', 'classic-linear', 'first-season', 1794641034607)]
+days [('run', 1, 'ordinary'), ('run', 3, 'ordinary'), ('run', 5, 'ordinary'), ('run', 6, 'long')]
+weekpatterns [(0,)]
+sessions 72
+('cmwg2xoqa00fy7d25v3f87ut0', 'cmwg2xoq800ft7d25g0rgj33l', 'stock_run-A5', 1794294000000, 'generated', 'scheduled')
+('cmwg2xoqe00g97d258az5zw7m', 'cmwg2xoqc00g07d25ht1dkx5o', 'stock_run-A3', 1794466800000, 'generated', 'scheduled')
+('cmwg2xoqh00gg7d25stduqwf2', 'cmwg2xoqf00gb7d25wtycicas', 'stock_run-A2', 1794639600000, 'generated', 'scheduled')
+('cmwg2xoqk00gn7d2522w649av', 'cmwg2xoqi00gi7d256rh5f2c0', 'stock_run-B1', 1794726000000, 'generated', 'scheduled')
+('cmwg2xoqm00gu7d253n7ued63', 'cmwg2xoqk00gp7d25au7n4ask', 'stock_run-A5', 1794898800000, 'generated', 'scheduled')
+('cmwg2xoqp00h17d25sdol6yqr', 'cmwg2xoqo00gw7d25bo6s3mqf', 'stock_run-A2', 1795071600000, 'generated', 'scheduled')
