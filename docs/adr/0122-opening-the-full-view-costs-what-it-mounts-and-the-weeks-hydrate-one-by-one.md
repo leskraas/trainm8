@@ -67,9 +67,10 @@ in pieces React can yield between.
 
 1. **The Athlete Calendar caches its formatters.** `localDate`, `tzOffsetMs` and
    `localTimeOfDay` reuse one `Intl.DateTimeFormat` per timezone and shape (a
-   module-level `Map`, as `format.ts` does). Same outputs, so server and client
-   still agree; every caller of the module gains, the server render and the calm
-   I dag view included.
+   module-level `Map`; `format.ts` reads its day and clock through them rather
+   than keeping maps of its own). Same outputs, so server and client still
+   agree; every caller of the module gains, the server render and the calm I dag
+   view included.
 2. **A week's days are built when the week is read, once.** The presenter splits
    along the seam the profile shows: `buildTimelineSeason` builds the season's
    **week skeleton** (shape, header, track volumes, phase, what the Week Strip
@@ -96,8 +97,8 @@ in pieces React can yield between.
 
 ### If the budget is still missed
 
-#503 sets the budget against the seed season: the longest task within 15%, by
-URL and by navigation (median of 5), and "hydrated" by URL within 25%, each
+#503 sets the budget against the seed season: by URL, "hydrated" within 25% and
+the longest task under 200ms; by navigation, the longest task within 15%; each
 season's median over at least 20 interleaved runs. After 1–3 the build measures
 with `scripts/measure-home-stream.ts`, and only if a criterion is still over
 takes these, in order, re-measuring after each:
@@ -155,9 +156,10 @@ takes these, in order, re-measuring after each:
 - **A week that is not yet hydrated is not yet interactive** for anything but a
   tap or a click, which React replays. Hover and focus styles are CSS and work
   from the server's markup.
-- **The formatter cache is per process and per timezone**, and never evicted.
-  The set of timezones is small and bounded by IANA; that is fine on the server
-  as on the client.
+- **The formatter cache is per process and per timezone**, and starts over past
+  1,024 zones. The zones in real use are few, but the Athlete Timezone is free
+  text and Intl accepts every fixed-offset spelling, so the bound keeps a run of
+  spellings from growing the server's memory without end.
 - **The ledger still ships every session's whole `workout`.** The 52-week
   season's payload is 6× the seed's. Its decode is now one of the long tasks
   left on the 52-week season (below); it is the named next lever.
@@ -222,4 +224,5 @@ takes these, in order, re-measuring after each:
   markup with the landing's layout, the decode of a ledger 6× the seed's, and
   the presenter (about 117ms under the profiler). Closing that is the
   loader-shape decision this ADR leaves outside #503; criterion 2 went back to
-  the spec with these numbers.
+  the spec with these numbers and was settled as under 200ms by URL, which 152ms
+  meets.
