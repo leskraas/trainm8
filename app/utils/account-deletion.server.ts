@@ -152,16 +152,16 @@ async function erase(
 	tx: Prisma.TransactionClient,
 	scope: ErasureScope,
 ): Promise<AccountErasure> {
-	const { candidates, heldElsewhere: held } = scopeQueries(scope)
+	const { candidates, heldElsewhere } = scopeQueries(scope)
 	const rows = await tx.workout.findMany({
 		where: candidates,
 		select: { id: true, copiedFromId: true },
 	})
-	const heldElsewhere = await tx.workout.findMany({
-		where: { AND: [candidates, held] },
+	const heldRows = await tx.workout.findMany({
+		where: { AND: [candidates, heldElsewhere] },
 		select: { id: true },
 	})
-	const kept = new Set(heldElsewhere.map((row) => row.id))
+	const kept = new Set(heldRows.map((row) => row.id))
 	const parentOf = new Map(
 		rows
 			.filter((row) => !kept.has(row.id))
