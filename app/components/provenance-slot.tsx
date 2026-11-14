@@ -120,7 +120,9 @@ export function ProvenanceSlot({
 								href={href}
 								target="_blank"
 								rel="noreferrer noopener"
-								className="hover:text-foreground underline underline-offset-2"
+								// A footnote-high link: an invisible hit area brings it to
+								// 44px (ui-conventions §2.2).
+								className="hover:text-foreground relative underline underline-offset-2 after:absolute after:inset-x-0 after:-inset-y-3.5"
 							>
 								{locator}
 							</a>
