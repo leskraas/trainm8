@@ -467,6 +467,8 @@ test('a Season Anchor: a fresh start previews every week it moves with how each 
 		},
 		expect.objectContaining({ weekNumber: 44, before: '2,8', after: '3,5' }),
 	])
+	// The panel reads only its own rows: the week views stay on the server.
+	expect(shown.weeks).toEqual([])
 	expect(await prisma.seasonAnchorSegment.count({ where: { trackId } })).toBe(1)
 
 	const applied = await send(

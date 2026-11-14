@@ -53,7 +53,9 @@ function previewView(
 ): SeasonEditPreviewView {
 	return {
 		kind: preview.kind,
-		weeks: preview.weeks,
+		// A Season Anchor's panel reads only its own rows (`anchor`): the week
+		// views, a season of them with their derivations, stay on the server.
+		weeks: preview.kind === 'season-anchor' ? [] : preview.weeks,
 		digest: preview.digest,
 		message: seasonEditMessage(preview),
 		warnings: preview.warnings.map(seasonEditWarningMessage),
