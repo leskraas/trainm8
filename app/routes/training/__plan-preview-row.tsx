@@ -33,13 +33,11 @@ import {
 	PLAN_GENERATE_LABELS as L,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { prefersReducedMotion } from '#app/utils/motion.ts'
+import { COLLAPSE_OPEN_MS, prefersReducedMotion } from '#app/utils/motion.ts'
 import { type GeneratedSession } from '#app/utils/plan-generation/season.ts'
 import { type PatternWeekday } from '#app/utils/plan-outline/week-pattern.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 
-/** How long `motion-collapse` takes to open (`--transition-duration-collapse`). */
-const COLLAPSE_OPEN_MS = 200
 /** How many frames the tapped row is held in place while the panel above closes. */
 const HOLD_FRAMES = 12
 

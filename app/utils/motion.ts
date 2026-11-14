@@ -13,6 +13,9 @@ export const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
 /** `--ease-in-out`: something moving on screen. */
 export const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)'
 
+/** `--transition-duration-collapse`: how long `motion-collapse` takes to open. */
+export const COLLAPSE_OPEN_MS = 200
+
 /**
  * How long a write's toast stays, and its row stays highlighted with _Angre_
  * (ADR 0088): long enough to read what changed and reach the way back.
