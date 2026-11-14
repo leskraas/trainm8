@@ -68,7 +68,13 @@ future `prisma.user.delete` from making new ones.
   and further from the line.
 - **A local ESLint plugin rule** instead of `no-restricted-syntax`: no shadowing
   to manage, but a plugin to maintain for one selector. Composing named entries
-  plus the pinning test does the same job.
+  plus the pinning test does the same job. _Contradicts ADR 0119_, whose
+  Consequences give "a future guard with its own scope" its own rule name in
+  the `trainm8` plugin, and whose Considered options reject composing another
+  `no-restricted-syntax` entry into shared blocks. The user-delete guard is such
+  a guard, and already needs the route-test block only to keep `<select>`.
+  Moving it to a `trainm8/user-delete` rule needs an edit to `eslint.config.js`,
+  which a human makes, so this ADR keeps the composed entries until then.
 
 ## Consequences
 
