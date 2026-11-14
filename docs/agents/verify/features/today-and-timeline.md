@@ -15,6 +15,16 @@ The athlete's landing page and the whole season as one bi-directional stream
   (`[data-timeline-today]`, `[data-today-pill]`), and the writing line.
 - Marking a session done (_Merk <tittel> som gjort_) and answering an import's
   question (_Hva var dette?_).
+- The **Load Recompute Notice** above the stream on `/season`
+  (`load-recompute-notice`): a kicker (`h2`), an optional movement line
+  (_Kondisjonen steg/falt med opptil N — A → B på det meste_), the explanation
+  and _Skjønner_, which dismisses that kind only. A notice with no CTL pair
+  (ADR 0117) shows no movement line at all.
+- The weather (#433, ADR 0115): with a Home Place set (_Meg_ › _Hjemsted_, see
+  `me-settings-and-imports.md`), one weather line on the today card
+  (`[data-calm-weather]`), a weather column on this week's rows from tomorrow on
+  (`[data-calm-day-weather]`) and _Værvarsel fra MET Norway_ under the week.
+  Without a Home Place none of it renders.
 
 ## How to get to it
 
@@ -35,6 +45,20 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
 
 ## Gotchas
 
+- Only one-shot backfills write a Load Recompute Notice, so the seed has none.
+  To see one, insert a `LoadRecomputeNotice` row for kody in QA's own database
+  (`kind` `swim-rest-left-the-pace` or `strength-left-the-triad`; `ctlBefore`
+  and `ctlAfter` both set or both NULL, a CHECK refuses one alone). The newest
+  outstanding notice shows; after _Skjønner_ and a reload the next one does.
+- The weather comes from MET Norway, called by the server. Start the server with
+  `MOCK_WEATHER=true` for the mock's fixed pattern
+  (`tests/mocks/ met-norway.ts`, from the current hour); without it the real MET
+  answers. It is cached per rounded point in `$CACHE_DATABASE_PATH`, so a fresh
+  cache database is a fresh forecast.
+- The weather column is hidden below a 20rem row (a 320px phone, or 200% text):
+  the weather then sits in the stacked day line
+  (`[data-calm-day-weather-inline]`). Check both widths.
+
 - The stream scrolls in both directions and loads weeks as it goes: scroll the
   `timeline-stream` element itself to reach a week, or the rows are not rendered
   yet.
@@ -43,11 +67,11 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
 - What I dag shows depends on today's date against kody's seeded history and
   plan, so a journey that needs a session today should create one first (see
   `session-authoring.md`).
-- Each week of the stream hydrates on its own, after the frame (ADR 0113): a
+- Each week of the stream hydrates on its own, after the frame (ADR 0119): a
   week's controls answer once the week carries React's props. Wait with
   `untilHydrated` on the control before a tap that writes.
 - The server renders this week and the next ahead only; the rest of the first
-  chunk ahead mounts after hydration (ADR 0113). Wait for a week further ahead
+  chunk ahead mounts after hydration (ADR 0119). Wait for a week further ahead
   rather than reading it off the first HTML.
 - How fast the full view opens on a long season is measured, not driven:
   `scripts/measure-home-stream.ts` (by URL, and `--nav` from _Se hele sesongen_)

@@ -376,10 +376,15 @@ const NO_THRESHOLDS = { thresholds: {} }
 describe('reading a fixed day in the track currency', () => {
 	const blocks = [
 		{
+			sendOff: null,
 			repeatCount: 5,
 			steps: [{ durationSec: 240, distanceM: 1000 }],
 		},
-		{ repeatCount: 1, steps: [{ durationSec: 600, distanceM: 2000 }] },
+		{
+			sendOff: null,
+			repeatCount: 1,
+			steps: [{ durationSec: 600, distanceM: 2000 }],
+		},
 	]
 
 	test('a km track reads the prescribed distance', () => {
@@ -393,6 +398,7 @@ describe('reading a fixed day in the track currency', () => {
 	test('an hours track times a zone-word distance through the thresholds (#638)', () => {
 		const tenk = [
 			{
+				sendOff: null,
 				repeatCount: 1,
 				steps: [
 					{
@@ -424,7 +430,11 @@ describe('reading a fixed day in the track currency', () => {
 
 	test('an hours track leaves a session unrounded, so a week of them rounds its sum once (#638)', () => {
 		const fifty = [
-			{ repeatCount: 1, steps: [{ durationSec: 3000, distanceM: null }] },
+			{
+				sendOff: null,
+				repeatCount: 1,
+				steps: [{ durationSec: 3000, distanceM: null }],
+			},
 		]
 		const hours = fixedDayVolume(fifty, 'hours', NO_THRESHOLDS)
 		expect(hours).toBeCloseTo(50 / 60)
@@ -436,14 +446,26 @@ describe('reading a fixed day in the track currency', () => {
 	test('a distance-only prescription is unavailable in hours, not zero', () => {
 		expect(
 			fixedDayVolume(
-				[{ repeatCount: 1, steps: [{ durationSec: null, distanceM: 5000 }] }],
+				[
+					{
+						sendOff: null,
+						repeatCount: 1,
+						steps: [{ durationSec: null, distanceM: 5000 }],
+					},
+				],
 				'hours',
 				NO_THRESHOLDS,
 			),
 		).toBeNull()
 		expect(
 			fixedDayVolume(
-				[{ repeatCount: 1, steps: [{ durationSec: null, distanceM: 5000 }] }],
+				[
+					{
+						sendOff: null,
+						repeatCount: 1,
+						steps: [{ durationSec: null, distanceM: 5000 }],
+					},
+				],
 				'km',
 				NO_THRESHOLDS,
 			),
@@ -453,6 +475,7 @@ describe('reading a fixed day in the track currency', () => {
 	test('a timed rest between reps adds no km and leaves the reps measured', () => {
 		const reps = [
 			{
+				sendOff: null,
 				repeatCount: 6,
 				steps: [
 					{ kind: 'cardio', durationSec: null, distanceM: 1000 },
@@ -468,6 +491,7 @@ describe('reading a fixed day in the track currency', () => {
 			fixedDayVolume(
 				[
 					{
+						sendOff: null,
 						repeatCount: 1,
 						steps: [{ kind: 'cardio', durationSec: 600, distanceM: null }],
 					},
@@ -482,8 +506,13 @@ describe('reading a fixed day in the track currency', () => {
 		const pace = JSON.stringify({ kind: 'pace', minSecPerKm: 220 })
 		// `15 min Z2 + 6 × (1 km @ 3:40 + 90 s) + 10 min Z1` is 56 minutes.
 		const distanceReps = [
-			{ repeatCount: 1, steps: [{ durationSec: 900, distanceM: null }] },
 			{
+				sendOff: null,
+				repeatCount: 1,
+				steps: [{ durationSec: 900, distanceM: null }],
+			},
+			{
+				sendOff: null,
 				repeatCount: 6,
 				steps: [
 					{
@@ -495,7 +524,11 @@ describe('reading a fixed day in the track currency', () => {
 					{ kind: 'rest', durationSec: 90, distanceM: null },
 				],
 			},
-			{ repeatCount: 1, steps: [{ durationSec: 600, distanceM: null }] },
+			{
+				sendOff: null,
+				repeatCount: 1,
+				steps: [{ durationSec: 600, distanceM: null }],
+			},
 		]
 		expect(fixedDayVolume(distanceReps, 'hours', NO_THRESHOLDS)).toBeCloseTo(
 			56 / 60,
@@ -503,6 +536,7 @@ describe('reading a fixed day in the track currency', () => {
 		// `3 × 13 × 30/15 s` with 6 min between series: 41 min 15 s, not 39 × 45 s.
 		const series = [
 			{
+				sendOff: null,
 				repeatCount: 13,
 				seriesRepeatCount: 3,
 				betweenSeriesRestSec: 360,
@@ -528,9 +562,21 @@ describe('reading a fixed day in the track currency', () => {
 		// understate the session and inflate every share day that divides what is
 		// left, so the honest answer is that this week cannot be divided.
 		const partly = [
-			{ repeatCount: 1, steps: [{ durationSec: 1200, distanceM: null }] },
-			{ repeatCount: 5, steps: [{ durationSec: null, distanceM: 1000 }] },
-			{ repeatCount: 1, steps: [{ durationSec: 600, distanceM: null }] },
+			{
+				sendOff: null,
+				repeatCount: 1,
+				steps: [{ durationSec: 1200, distanceM: null }],
+			},
+			{
+				sendOff: null,
+				repeatCount: 5,
+				steps: [{ durationSec: null, distanceM: 1000 }],
+			},
+			{
+				sendOff: null,
+				repeatCount: 1,
+				steps: [{ durationSec: 600, distanceM: null }],
+			},
 		]
 
 		expect(fixedDayVolume(partly, 'km', NO_THRESHOLDS)).toBeNull()
@@ -541,7 +587,11 @@ describe('reading a fixed day in the track currency', () => {
 	test('a prescription with no steps at all prices as unavailable', () => {
 		expect(fixedDayVolume([], 'km', NO_THRESHOLDS)).toBeNull()
 		expect(
-			fixedDayVolume([{ repeatCount: 1, steps: [] }], 'hours', NO_THRESHOLDS),
+			fixedDayVolume(
+				[{ sendOff: null, repeatCount: 1, steps: [] }],
+				'hours',
+				NO_THRESHOLDS,
+			),
 		).toBeNull()
 	})
 

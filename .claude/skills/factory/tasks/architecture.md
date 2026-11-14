@@ -26,7 +26,8 @@ and the ADRs live, and the format of each.
    Done when every term in the acceptance criteria maps to the glossary, and
    every door and strained seam is named.
 3. **Settle them.** Each door is a decision: the alternatives with what each
-   locks in, and your answer, the durable one. Reversibility breaks ties
+   locks in, and your answer, by the phase's bar; make it two-way where you
+   can (`questions.md`, "Make it two-way"). Reversibility breaks ties
    between options that are otherwise equally sound. Settle drift by renaming
    in the issue, and say so. A restructuring with no door goes into the
    `Architecture` section as work the build does in the same PR.

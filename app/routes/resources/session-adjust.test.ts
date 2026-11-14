@@ -240,6 +240,7 @@ async function picture(sessionId: string) {
 						orderBy: { orderIndex: 'asc' },
 						select: {
 							repeatCount: true,
+							sendOff: true,
 							steps: {
 								orderBy: { orderIndex: 'asc' },
 								select: {

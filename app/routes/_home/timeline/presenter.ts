@@ -27,7 +27,7 @@
  * status and load and `sessionProfile`, the Session Ledger's own rule, for the
  * shape bars.
  *
- * **Two halves, built at two times (ADR 0113).** `buildTimelineSeason` builds
+ * **Two halves, built at two times (ADR 0119).** `buildTimelineSeason` builds
  * the season's **week skeleton**: every week's shape, header, track volumes
  * and phase — what the Week Strip and the week headers read. A week's **days**
  * (its rows, their sessions, each session's import facts and strength log) are
@@ -434,7 +434,7 @@ const WEEK_DAYS = new WeakMap<
  * from today forward; behind today, every day the query reached. The stream
  * draws every one.
  *
- * Built on the first read and cached on the week (ADR 0113 §2): the season
+ * Built on the first read and cached on the week (ADR 0119 §2): the season
  * presenter builds only the skeleton, and a week nothing reads costs nothing.
  * Every reader of a week's days comes through here.
  */
@@ -954,7 +954,7 @@ function buildWeek({
 	// A session older than that still gets its row — what the reach bounds is the
 	// claim that a day was empty, never a day the caller actually handed us.
 	// The stream shows every one of them (ADR 0086). Built on first read, not
-	// here (`weekDays`, ADR 0113 §2).
+	// here (`weekDays`, ADR 0119 §2).
 	const buildDays = () => {
 		const byDay = bucketByDay(sessionRows, timezone)
 		const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))

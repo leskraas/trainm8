@@ -333,7 +333,7 @@ still hold.
 ### Proposed (owner to decide): make the load cost not grow with the past
 
 Status: **Not built: decided against by
-[ADR 0113](0113-opening-the-full-view-costs-what-it-mounts-and-the-weeks-hydrate-one-by-one.md)**
+[ADR 0119](0119-opening-the-full-view-costs-what-it-mounts-and-the-weeks-hydrate-one-by-one.md)**
 (#503). The profile put the longest task in the season presenter, not in the
 past's rows, and both seasons mount the same 25 past weeks. Kept below as
 proposed. The load numbers are the one thing at 364 rows

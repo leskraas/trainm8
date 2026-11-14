@@ -267,6 +267,8 @@ export const CATALOGUE_PUBLISH_LABELS = {
 			'En moderator fjernet denne økta fra katalogen. Den kan ikke publiseres igjen.',
 		notYours: 'Dette er ikke din økt å publisere.',
 		stock: 'trainm8 har med denne økta, så den er allerede i katalogen.',
+		heldByPlan:
+			'Dette er planens egen kopi av en økt. Publiser økta du skrev selv.',
 		gone: 'Den økta finnes ikke lenger.',
 	},
 } as const

@@ -237,7 +237,7 @@ test('localTimeOfDay round-trips localTimeUTC across a DST boundary', () => {
 	)
 })
 
-// ── formatter cache (ADR 0113 §1) ──────────────────────────────────────────
+// ── formatter cache (ADR 0119 §1) ──────────────────────────────────────────
 
 test('the calendar builds one formatter per timezone and shape, however often it is called', () => {
 	// Building an Intl.DateTimeFormat was two thirds of the longest task on

@@ -132,6 +132,14 @@ export const VOLUME_CONVERSION_REASONS = [
  * - `not-logged`: the athlete has not logged it (RPE, a Session Log).
  * - `structure-not-verifiable`: Structure Adherence could not confirm the
  *   structure (ADR 0034) — never charged to the athlete as a miss.
+ *
+ * And the **Day Forecast**'s (ADR 0115 §5), which is a forecast, never a
+ * measurement:
+ *
+ * - `no-home-place`: the athlete has chosen no **Home Place**.
+ * - `beyond-forecast`: the day's **Forecast Hour** lies past the forecast's
+ *   reach.
+ * - `forecast-unavailable`: MET errored or was slow, with nothing cached.
  */
 export const UNAVAILABLE_REASONS = [
 	...UNAVAILABLE_METRIC_REASONS,
@@ -146,5 +154,8 @@ export const UNAVAILABLE_REASONS = [
 	'no-plan',
 	'not-logged',
 	'structure-not-verifiable',
+	'no-home-place',
+	'beyond-forecast',
+	'forecast-unavailable',
 ] as const
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number]

@@ -11,6 +11,7 @@ import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import { MAX_QUALITY_SESSIONS_PER_WEEK } from './authoring-schema.ts'
 import { type AddTrackRefusal } from './authoring.server.ts'
 import { type StrengthGoal } from './derive.ts'
+import { heldWorkouts } from './held-workouts.server.ts'
 import { readStrengthTrackOffer } from './history.server.ts'
 import { relayPlanFrom } from './open-ended.server.ts'
 import { weekIndexOf } from './week-keys.ts'
@@ -45,8 +46,9 @@ export type AcceptStrengthOfferResult =
  *   target (a strength track's target comes from its blocks). Its rates are
  *   left to the convention; its goal is {@link PROPOSED_STRENGTH_GOAL}.
  * - **Lifting slots** in the plan's week pattern (ADR 0104 §3) — as many as
- *   the frequency, on no weekday, each on the athlete's most recent strength
- *   session, so a stamped lift is the session they actually do. The stamp lays
+ *   the frequency, on no weekday, sharing one held copy of the athlete's most
+ *   recent strength session (ADR 0113), so a stamped lift is the session they
+ *   actually do and the session itself stays theirs to edit or delete. The stamp lays
  *   each week's slots after that week's endurance mix, away from its hard
  *   days (`liftingDaysFor`), over the athlete's Training Availability — the
  *   first run's rule, so the offer and the first run lift alike.
@@ -140,9 +142,19 @@ export async function addProposedStrengthTrack(
 					: null
 
 			// One slot per lift, on no weekday (ADR 0104 §3): the stamp lays each
-			// week's against that week's hard days, as the first run's are.
+			// week's against that week's hard days, as the first run's are. The
+			// slots share one copy of the last strength session, which the plan
+			// holds (ADR 0113), so the athlete can still edit or delete that
+			// session.
 			const pattern = outline.patterns[0]
-			const workoutId = shape?.workoutId
+			const held =
+				pattern && shape?.workoutId
+					? await heldWorkouts(tx, { outlineId: outline.id, athleteId }).hold(
+							shape.workoutId,
+							'strength',
+						)
+					: null
+			const workoutId = held?.ok ? held.workoutId : null
 			let lifts = 0
 			if (pattern && workoutId) {
 				for (let orderInDay = 0; orderInDay < sessionsPerWeek; orderInDay++) {

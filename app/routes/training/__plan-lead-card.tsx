@@ -9,8 +9,11 @@
  * race (ADR 0079 §4). Everything else the old Sesong page held is below, behind
  * the closed _Avansert_ (`__plan-advanced.tsx`).
  *
- * `children` is the lead's last slot, for what changes the plan as a whole:
- * _Bytt treningsform_ (#581) goes there, after _Legg til et løp_.
+ * `children` is the card's last slot, for what changes the plan as a whole:
+ * _Bytt treningsform_ (#581) goes there, after _Legg til et løp_. `notices` is
+ * the lead's, outside the card and after the resting line: the plan's Guard
+ * Notices (ADR 0118), which follow the card they are about rather than sit in
+ * it.
  *
  * No motion of its own: the lead is the page's resting state, and the morph
  * from _Planen er klar_'s curve into this one is #582's.
@@ -61,6 +64,7 @@ export function PlanLeadCard({
 	nextEasyWeek,
 	attach,
 	resting,
+	notices,
 	className,
 	children,
 }: {
@@ -83,8 +87,14 @@ export function PlanLeadCard({
 	}
 	/** A line under the card when this plan rests or another one does. */
 	resting?: ReactNode
+	/**
+	 * The plan's **Guard Notices** (`PlanGuardNotices`, ADR 0118): after the
+	 * resting line and outside the card, before Bibliotek. Renders nothing of its
+	 * own when there are none.
+	 */
+	notices?: ReactNode
 	className?: string
-	/** The lead's last slot: _Bytt treningsform_ (#581). */
+	/** The card's last slot: _Bytt treningsform_ (#581). */
 	children?: ReactNode
 }) {
 	const from = formatNbDate(startsAt, timezone)
@@ -172,6 +182,7 @@ export function PlanLeadCard({
 				{children}
 			</PlanCard>
 			{resting}
+			{notices}
 		</section>
 	)
 }

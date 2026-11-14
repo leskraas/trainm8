@@ -15,7 +15,7 @@ import {
 
 /**
  * The row the reader is reading never moves when content arrives above it
- * (#503 criterion 7, ADR 0086 §4, ADR 0113).
+ * (#503 criterion 7, ADR 0086 §4, ADR 0119).
  *
  * Two ways content arrives on the full Home Timeline after the first paint:
  * a **live import** lands on a day the reader has already scrolled past, and
@@ -175,7 +175,7 @@ test('on a screen taller than the weeks the server renders ahead, today is parke
 	navigate,
 	login,
 }) => {
-	// #503 criterion 5. The server renders this week and the next (ADR 0113);
+	// #503 criterion 5. The server renders this week and the next (ADR 0119);
 	// on a tall screen with a sparse week ahead that is less room below today
 	// than the Stream is tall, and a landing short of its target would jump
 	// once the rest of the first chunk is appended.

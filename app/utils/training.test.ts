@@ -72,7 +72,9 @@ test('getSessionDuration prefers the recording actual duration', () => {
 	const min = getSessionDuration({
 		recording: { durationSec: 1800 },
 		workout: {
-			blocks: [{ repeatCount: 1, steps: [{ durationSec: 600 }] }],
+			blocks: [
+				{ sendOff: null, repeatCount: 1, steps: [{ durationSec: 600 }] },
+			],
 		},
 	})?.minutes
 	expect(min).toBe(30)
@@ -82,7 +84,9 @@ test('getSessionDuration falls back to planned step duration', () => {
 	const min = getSessionDuration({
 		recording: null,
 		workout: {
-			blocks: [{ repeatCount: 2, steps: [{ durationSec: 600 }] }],
+			blocks: [
+				{ sendOff: null, repeatCount: 2, steps: [{ durationSec: 600 }] },
+			],
 		},
 	})?.minutes
 	expect(min).toBe(20)
@@ -104,7 +108,9 @@ test('toSessionLedgerEntry projects the normalized ledger fields', () => {
 		workout: {
 			title: 'Tempo Run',
 			discipline: 'run',
-			blocks: [{ repeatCount: 1, steps: [{ durationSec: 2400 }] }],
+			blocks: [
+				{ sendOff: null, repeatCount: 1, steps: [{ durationSec: 2400 }] },
+			],
 		},
 		recording: { discipline: 'run', durationSec: 2700 },
 		sessionLog: { rpe: 7 },
@@ -202,7 +208,9 @@ test('toSessionLedgerEntry handles a planned session with no log or recording', 
 		workout: {
 			title: 'Easy Spin',
 			discipline: 'bike',
-			blocks: [{ repeatCount: 1, steps: [{ durationSec: 3600 }] }],
+			blocks: [
+				{ sendOff: null, repeatCount: 1, steps: [{ durationSec: 3600 }] },
+			],
 		},
 		recording: null,
 		sessionLog: null,

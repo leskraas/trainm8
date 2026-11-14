@@ -51,6 +51,7 @@ import {
 } from '#app/utils/labels.ts'
 import { type AutopilotNotice } from '#app/utils/load/autopilot-notice.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
+import { type LoadRecomputeNoticeRecord } from '#app/utils/load/recompute-notice.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
@@ -114,7 +115,7 @@ export type HomeTimelineData = {
 	sustained: SustainedDeviation | null
 	nudge: SessionNudge
 	thresholds: DisciplineThresholdMap
-	loadRecomputeNotice: LoadRecomputeNotice | null
+	loadRecomputeNotice: LoadRecomputeNoticeRecord | null
 	/**
 	 * The Ukeskiftet card's proposals (#505 stories 42–55): the closed week's,
 	 * while one still waits for an answer; null otherwise.
@@ -266,7 +267,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		() => season.weeks.slice(0, to + 1),
 		[season.weeks, to],
 	)
-	// Until the rest of the first chunk is appended (ADR 0113), the end of the
+	// Until the rest of the first chunk is appended (ADR 0119), the end of the
 	// list holds a screen's height of room, so the landing never runs out of
 	// room below today and stops short of its target, to move once the weeks
 	// arrive (#503 criterion 5).

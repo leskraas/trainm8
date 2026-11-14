@@ -1483,8 +1483,19 @@ test('a fixed day stores its Workout and no weight at all', async () => {
 	expect(result).toEqual({ ok: true })
 	// Wednesday, Monday-first. Prescribed, so there is no share of the week to take
 	// and no weight to store.
+	// The day holds the plan's own copy of the picked Workout (ADR 0113).
+	const held = await prisma.workout.findFirstOrThrow({
+		where: { copiedFromId: workoutId, heldByOutlineId: outlineId },
+		select: { id: true },
+	})
 	expect((await patternsOf(outlineId))[0]!.days).toMatchObject([
-		{ weekday: 2, orderInDay: 0, kind: 'fixed', weight: null, workoutId },
+		{
+			weekday: 2,
+			orderInDay: 0,
+			kind: 'fixed',
+			weight: null,
+			workoutId: held.id,
+		},
 	])
 })
 
