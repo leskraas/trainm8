@@ -219,7 +219,7 @@ export function PlanLeadVolume({
 }) {
 	const location = useLocation()
 	const rows = tracks.filter((track) => track.weeks.length > 0)
-	if (rows.length === 0) return null
+	if (rows.length === 0 && !hasStrength) return null
 	const hrefFor = (trackId: string) => {
 		const params = new URLSearchParams(location.search)
 		for (const name of ['weekKey', 'phaseId']) params.delete(name)
@@ -235,50 +235,52 @@ export function PlanLeadVolume({
 			>
 				{PLAN_LEAD_LABELS.volume}
 			</h2>
-			<ul aria-labelledby="plan-lead-volume">
-				{rows.map((track) => {
-					const week = track.weeks[0]!
-					const name = nbTrackName(track.discipline)
-					return (
-						<li
-							key={track.trackId}
-							className="border-border/50 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-t py-2 first:border-t-0"
-							data-plan-lead-volume-row={track.discipline}
-						>
-							<span className="min-w-0 flex-1">
-								<span
-									className={cn(
-										'text-callout block font-semibold',
-										TRACK_INK[track.discipline],
-									)}
-								>
-									{name}
-								</span>
-								<span className="text-footnote text-muted-foreground block tabular-nums">
-									{PLAN_LEAD_LABELS.volumeWeek(
-										isoWeekNumber(week.weekKey),
-										NB_WEEK_ROLE_LABELS[week.role],
-										week.target == null
-											? null
-											: `${formatNbVolumeFigure(week.target, track.currency)} ${NB_VOLUME_UNITS[track.currency]}`,
-										week.overridden,
-									)}
-								</span>
-							</span>
-							<PillLink
-								to={hrefFor(track.trackId)}
-								// 32 px tall like the lead's other pills; the invisible
-								// box above and below makes the target 44 px.
-								className="relative shrink-0 px-3 after:absolute after:inset-x-0 after:-inset-y-1.5"
-								aria-label={PLAN_LEAD_LABELS.changeVolumeFor(name)}
+			{rows.length > 0 ? (
+				<ul aria-labelledby="plan-lead-volume">
+					{rows.map((track) => {
+						const week = track.weeks[0]!
+						const name = nbTrackName(track.discipline)
+						return (
+							<li
+								key={track.trackId}
+								className="border-border/50 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-t py-2 first:border-t-0"
+								data-plan-lead-volume-row={track.discipline}
 							>
-								<Icon name="bar-chart" size="sm" />
-								{PLAN_LEAD_LABELS.changeVolume}
-							</PillLink>
-						</li>
-					)
-				})}
-			</ul>
+								<span className="min-w-0 flex-1">
+									<span
+										className={cn(
+											'text-callout block font-semibold',
+											TRACK_INK[track.discipline],
+										)}
+									>
+										{name}
+									</span>
+									<span className="text-footnote text-muted-foreground block tabular-nums">
+										{PLAN_LEAD_LABELS.volumeWeek(
+											isoWeekNumber(week.weekKey),
+											NB_WEEK_ROLE_LABELS[week.role],
+											week.target == null
+												? null
+												: `${formatNbVolumeFigure(week.target, track.currency)} ${NB_VOLUME_UNITS[track.currency]}`,
+											week.overridden,
+										)}
+									</span>
+								</span>
+								<PillLink
+									to={hrefFor(track.trackId)}
+									// 32 px tall like the lead's other pills; the invisible
+									// box above and below makes the target 44 px.
+									className="relative shrink-0 px-3 after:absolute after:inset-x-0 after:-inset-y-1.5"
+									aria-label={PLAN_LEAD_LABELS.changeVolumeFor(name)}
+								>
+									<Icon name="bar-chart" size="sm" />
+									{PLAN_LEAD_LABELS.changeVolume}
+								</PillLink>
+							</li>
+						)
+					})}
+				</ul>
+			) : null}
 			{hasStrength ? (
 				<p className="text-footnote text-muted-foreground">
 					{PLAN_LEAD_LABELS.strengthVolume}
