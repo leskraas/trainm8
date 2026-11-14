@@ -39,8 +39,14 @@ import { type PatternWeekday } from '#app/utils/plan-outline/week-pattern.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { COLLAPSIBLE_CHEVRON, ROW_PRESS } from './__plan-chrome.tsx'
 
-/** How many frames the tapped row is held in place while the panel above closes. */
-const HOLD_FRAMES = 12
+/**
+ * How many frames the tapped row is held in place while the layout above it
+ * settles: the length of a panel opening (`COLLAPSE_OPEN_MS`) at 60 Hz.
+ */
+const HOLD_FRAMES = Math.ceil(COLLAPSE_OPEN_MS / (1000 / 60))
+
+/** What the athlete does to scroll the page themselves. */
+const ATHLETE_SCROLL = ['pointerdown', 'wheel', 'keydown'] as const
 
 /** One key per placed session across the season. */
 export function sessionRowKey(session: GeneratedSession): string {
@@ -99,15 +105,29 @@ export function useOpenSessionRow(): OpenSessionRow {
 /**
  * Keep `row` at the height it was tapped at while the layout above it
  * collapses. Measured each frame rather than computed, so a browser that
- * anchors the scroll itself sees no correction from here.
+ * anchors the scroll itself sees no correction from here. The hold lets go the
+ * moment the athlete scrolls themselves (a touch, a wheel, a key), so it never
+ * pulls a flick back or cuts off its momentum.
  */
-function holdInPlace(row: HTMLElement) {
+export function holdInPlace(row: HTMLElement) {
 	const top = row.getBoundingClientRect().top
 	let frames = 0
+	let released = false
+	const release = () => {
+		released = true
+		for (const type of ATHLETE_SCROLL) {
+			window.removeEventListener(type, release)
+		}
+	}
+	for (const type of ATHLETE_SCROLL) {
+		window.addEventListener(type, release, { passive: true })
+	}
 	const tick = () => {
+		if (released) return
 		const drift = row.getBoundingClientRect().top - top
 		if (drift !== 0) window.scrollBy({ top: drift, behavior: 'instant' })
 		if (++frames < HOLD_FRAMES) requestAnimationFrame(tick)
+		else release()
 	}
 	requestAnimationFrame(tick)
 }
