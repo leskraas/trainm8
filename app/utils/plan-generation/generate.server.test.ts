@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
+import { consoleWarn } from '#tests/setup/setup-test-env.ts'
 import { CONVENTION_NOTICE } from '../catalogue-corpus.ts'
 import { resolveCatalogueOrigin } from '../catalogue.server.ts'
 import { readCitation } from '../catalogue.ts'
@@ -685,6 +686,9 @@ test('a placed session whose id is not a Stock Workout is neither read into the 
 		},
 	}
 	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
+	// The drop is said where an operator reads it, with the id dropped, so a
+	// figure smaller than the rows under it is not a silent mystery.
+	consoleWarn.mockImplementation(() => {})
 
 	const preview = await previewSeason(athlete.id, event.id, choice(), {
 		now: NOW,
@@ -695,9 +699,12 @@ test('a placed session whose id is not a Stock Workout is neither read into the 
 	for (const week of preview.preview.weekVolumes) {
 		expect(week.hasSessions).toBe(false)
 	}
+	expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining(theirs.id))
+	consoleWarn.mockClear()
 
 	await approveSeason(athlete.id, event.id, choice(), { now: NOW, generator })
 	expect(
 		await prisma.workout.count({ where: { copiedFromId: theirs.id } }),
 	).toBe(0)
+	expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining(theirs.id))
 })

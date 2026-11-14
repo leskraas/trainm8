@@ -746,13 +746,23 @@ async function writeSessions(
 async function readStockWorkouts(
 	workoutIds: readonly string[],
 ): Promise<Map<string, StockWorkout>> {
+	const ids = [...new Set(workoutIds)]
 	const rows = await prisma.workout.findMany({
 		// Stock rows only, as the corpus read: an id the seam hands back is never
 		// trusted to be one, so no athlete's own Workout is read or copied.
-		where: { id: { in: [...new Set(workoutIds)] }, authorship: 'system' },
+		where: { id: { in: ids }, authorship: 'system' },
 		select: stockWorkoutSelect,
 	})
-	return new Map(rows.map((row) => [row.id, row]))
+	const byId = new Map(rows.map((row) => [row.id, row]))
+	// A dropped session leaves the week's figure short of the rows under it, so
+	// the drop is said, with its ids, rather than left silent.
+	const dropped = ids.filter((id) => !byId.has(id))
+	if (dropped.length > 0) {
+		console.warn(
+			`Season generation: ${dropped.length} placed Workout id(s) are not Stock Workouts, so their sessions are left out: ${dropped.join(', ')}`,
+		)
+	}
+	return byId
 }
 
 const stockWorkoutSelect = {
