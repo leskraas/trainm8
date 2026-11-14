@@ -70,7 +70,11 @@ import {
 	type LoadRecomputeLine,
 	type LoadRecomputeNotice,
 } from '../presenter.ts'
-import { type AwayFromToday, landingScript } from './anchoring.ts'
+import {
+	AHEAD_INITIAL,
+	type AwayFromToday,
+	landingScript,
+} from './anchoring.ts'
 import {
 	type ComposerContainer,
 	type ComposerTarget,
@@ -262,6 +266,13 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		() => season.weeks.slice(0, to + 1),
 		[season.weeks, to],
 	)
+	// Until the rest of the first chunk is appended (ADR 0113), the end of the
+	// list holds a screen's height of room, so the landing never runs out of
+	// room below today and stops short of its target, to move once the weeks
+	// arrive (#503 criterion 5).
+	const firstChunkPending =
+		to <
+		Math.min(season.weeks.length - 1, season.todayWeekIndex + AHEAD_INITIAL)
 	const notice = buildLoadRecomputeLine(loadRecomputeNotice)
 
 	// The first day the composer may write on: the loader's own window. It
@@ -531,9 +542,14 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 								{to === season.weeks.length - 1 ? (
 									<EndCap cap={season.endCap} />
 								) : (
-									// In reach, the next weeks ahead mount below — which moves
-									// nothing the reader can see.
-									<div aria-hidden {...{ [AHEAD_SENTINEL_ATTR]: '' }} />
+									<>
+										{firstChunkPending ? (
+											<div aria-hidden className="h-dvh" />
+										) : null}
+										{/* In reach, the next weeks ahead mount below — which
+										    moves nothing the reader can see. */}
+										<div aria-hidden {...{ [AHEAD_SENTINEL_ATTR]: '' }} />
+									</>
 								)}
 							</div>
 						</ReadingHold>

@@ -10,6 +10,7 @@ import {
 	middayTimezone,
 	scrollStreamTo,
 	test,
+	untilHydrated,
 } from '#tests/playwright-utils.ts'
 
 /**
@@ -167,4 +168,75 @@ test('weeks that mount after the first paint never move the row the reader is re
 	expect(
 		Math.abs((await rowTop(page, reading!))! - before),
 	).toBeLessThanOrEqual(1)
+})
+
+test('on a screen taller than the weeks the server renders ahead, today is parked before the first paint and stays there', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	// #503 criterion 5. The server renders this week and the next (ADR 0113);
+	// on a tall screen with a sparse week ahead that is less room below today
+	// than the Stream is tall, and a landing short of its target would jump
+	// once the rest of the first chunk is appended.
+	test.setTimeout(120_000)
+	await page.setViewportSize({ width: 1280, height: 1400 })
+	const user = await login()
+	const now = new Date()
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, timezone: middayTimezone(now) },
+	})
+	// A session every day for two months up to today, then one far ahead so
+	// the season reaches past the first chunk: the weeks just ahead are empty.
+	const offsets = [...Array.from({ length: 61 }, (_, i) => i - 60), 120]
+	await prisma.workoutSession.createMany({
+		data: offsets.map((days) => ({
+			userId: user.id,
+			scheduledAt: new Date(now.getTime() + days * DAY),
+			status: days < 0 ? 'completed' : 'scheduled',
+			tssValue: days < 0 ? 40 : null,
+			plannedTssValue: 45,
+			plannedTssConfidence: 'full',
+			source: 'authored',
+		})),
+	})
+	// Today's row from the stream's top on every frame from the moment the
+	// document is parsed: the landing script has run by then.
+	await page.addInitScript(() => {
+		const tops: number[] = []
+		Object.assign(window, { __todayTops: tops })
+		const poll = () => {
+			const stream = document.querySelector('[data-timeline-stream]')
+			const today = stream?.querySelector('[data-timeline-today]')
+			if (stream && today) {
+				tops.push(
+					Math.round(
+						today.getBoundingClientRect().top -
+							stream.getBoundingClientRect().top,
+					),
+				)
+			}
+			requestAnimationFrame(poll)
+		}
+		document.addEventListener('DOMContentLoaded', () =>
+			requestAnimationFrame(poll),
+		)
+	})
+
+	await navigate(HOME_TIMELINE_HREF)
+	const stream = page.getByTestId('timeline-stream')
+	await expect(stream).toBeVisible()
+	// Until the rest of the first chunk has been appended below.
+	await expect
+		.poll(() => stream.locator('[data-timeline-week]').count(), {
+			timeout: 30_000,
+		})
+		.toBeGreaterThan(0)
+	await untilHydrated(stream)
+	await page.waitForTimeout(1000)
+	const tops = await page.evaluate(
+		() => (window as unknown as { __todayTops: number[] }).__todayTops,
+	)
+	expect(tops.length).toBeGreaterThan(0)
+	expect(new Set(tops)).toEqual(new Set([tops[0]]))
 })
