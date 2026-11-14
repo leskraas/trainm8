@@ -851,7 +851,10 @@ export default function SessionDetailRoute({
 	const rawDescription = session.workout?.description ?? null
 	const description =
 		rawDescription && placedProvenance
-			? withoutProvenanceNotice(rawDescription, placedProvenance.provenance)
+			? withoutProvenanceNotice(
+					rawDescription,
+					placedProvenance.provenance.kind,
+				)
 			: rawDescription
 	// The same headline Intensity Target the home surface shows, so the two agree
 	// (#130). Resolves the workout's authored target against the athlete's

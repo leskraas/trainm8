@@ -109,12 +109,12 @@ export function readSessionProvenance(
  */
 export function withoutProvenanceNotice(
 	description: string,
-	provenance: SessionProvenance,
+	kind: SessionProvenance['kind'],
 ): string {
 	const notice =
-		provenance.kind === 'convention'
+		kind === 'convention'
 			? CONVENTION_NOTICE
-			: provenance.kind === 'hand-written'
+			: kind === 'hand-written'
 				? HAND_WRITTEN_NOTICE
 				: null
 	const text = description.trim()

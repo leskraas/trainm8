@@ -27,7 +27,7 @@ export function catalogueBlurb(description: string | null): string | null {
 	if (!description) return null
 	let text = description.trim()
 	for (const kind of ['convention', 'hand-written'] as const) {
-		text = withoutProvenanceNotice(text, { kind })
+		text = withoutProvenanceNotice(text, kind)
 	}
 	text = text
 		.replace(/\*\*([^*]+)\*\*/g, '$1')
