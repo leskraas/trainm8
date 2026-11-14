@@ -246,7 +246,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			}),
 			// The reading itself, not pre-worded strings: the shared slot words it,
 			// so this card, the Plan Preview and the session page say one sentence
-			// for one row (ADR 0122 §4).
+			// for one row (ADR 0123 §4).
 			provenance: {
 				reading: sourcing,
 				adaptedFrom,

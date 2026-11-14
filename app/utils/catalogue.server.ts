@@ -430,7 +430,7 @@ type PlacedProvenanceRow = Prisma.WorkoutGetPayload<{
 
 /**
  * A placed session's **Session Provenance**, as the session page shows it
- * (ADR 0122 §5), or `null` where it has none to state.
+ * (ADR 0123 §5), or `null` where it has none to state.
  *
  * The provenance is read off the **Catalogue Entry** of the Workout the placing act copied
  * from: the session Workout's `copiedFrom` — never the Workout's own entry

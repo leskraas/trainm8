@@ -1,6 +1,6 @@
 /**
  * **A placed session's row on the Plan Preview, and its provenance one tap
- * away** (#475, ADR 0122).
+ * away** (#475, ADR 0123).
  *
  * The row carries the plan and nothing else: the day line (weekday · sport ·
  * archetype · zone) and the title. The whole row is one button, with a hairline
@@ -14,7 +14,7 @@
  * Escape (focus goes back to the row) or opening another row closes it. If the
  * open panel sits above the row being opened, it closes without animation and
  * the tapped row is held where it was, so it does not slide out from under the
- * finger. Hovering tints the row and never opens a panel (ADR 0122 §6).
+ * finger. Hovering tints the row and never opens a panel (ADR 0123 §6).
  *
  * The panel renders from `GeneratedSession.provenance`, already on the
  * payload: opening a row makes no request.

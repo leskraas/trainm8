@@ -28,7 +28,10 @@ import {
 	formatRepRange,
 	formatSessionCounts,
 	formatSigned,
+	formatNbFieldNumber,
+	formatNbSignedRate,
 	formatSignedPercent,
+	parseNbDecimal,
 	formatSignedTsb,
 	formatSpeed,
 	formatSwimPace,
@@ -79,6 +82,27 @@ test('formatSignedPercent signs a ramp, a boundary step and a cut', () => {
 	expect(formatSignedPercent(-0.126)).toBe('−13%')
 	// An authored zero is a real authored rate — "flat" — not an absent one.
 	expect(formatSignedPercent(0)).toBe('+0%')
+})
+
+test('formatNbSignedRate signs a rate to a tenth, a no-break space before %', () => {
+	expect(formatNbSignedRate(0.05)).toBe('+5\u00a0%')
+	expect(formatNbSignedRate(0.025)).toBe('+2,5\u00a0%')
+	expect(formatNbSignedRate(-0.1)).toBe('−10\u00a0%')
+	expect(formatNbSignedRate(0)).toBe('+0\u00a0%')
+})
+
+test('formatNbFieldNumber writes a field’s number with a decimal comma', () => {
+	expect(formatNbFieldNumber(45.5)).toBe('45,5')
+	expect(formatNbFieldNumber(40)).toBe('40')
+	expect(formatNbFieldNumber(75.98123, 3)).toBe('75,981')
+})
+
+test('parseNbDecimal reads a comma or a point, and blank as not a number', () => {
+	expect(parseNbDecimal('45,5')).toBe(45.5)
+	expect(parseNbDecimal(' 45.50 ')).toBe(45.5)
+	expect(parseNbDecimal('')).toBeNaN()
+	expect(parseNbDecimal('abc')).toBeNaN()
+	expect(parseNbDecimal(formatNbFieldNumber(75.98123, 3))).toBe(75.981)
 })
 
 test('formatSignedTsb uses a real minus sign and an explicit +0 (coach/replan copy)', () => {

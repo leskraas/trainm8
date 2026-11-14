@@ -324,6 +324,13 @@ const { ensureCredentialEncryptionBackfillEnqueued } =
 	await import('#app/utils/credential-backfill.server.ts')
 await ensureCredentialEncryptionBackfillEnqueued()
 
+// One-shot purge (#468, ADR 0121): every account deleted before #641 left the
+// Workouts it wrote stored as Orphaned Workouts. Enqueue the purge exactly once
+// — the job row is the marker — and it erases them with `deleteAccount`'s rules.
+const { ensureOrphanedWorkoutPurgeEnqueued } =
+	await import('#app/utils/orphaned-workout-purge.server.ts')
+await ensureOrphanedWorkoutPurgeEnqueued()
+
 // Start the daily reconciliation sweep (#77, generalized in #205): one job per
 // active Account Connection across every provider, catching any activities the
 // Strava webhook (#76) missed and giving webhook-less providers their daily pull.

@@ -82,6 +82,7 @@ import {
 	HORIZON_LABELS,
 	horizonFillLabel,
 	HELD_NUMBER_LABELS,
+	seasonAnchorDerivationSentence,
 	seasonEditSentence,
 	weekRiseSentence,
 } from './labels.ts'
@@ -769,4 +770,21 @@ test('a chosen day that is no longer a training day is named', () => {
 	expect(L.notAvailable([5, 6])).toBe(
 		'Lørdag og søndag er ikke treningsdager lenger. Ta dem bort, eller legg dem til i profilen din.',
 	)
+})
+
+test('the Season Anchor derivation never parts a percent from its sign', () => {
+	const sentence = seasonAnchorDerivationSentence({
+		anchor: { figure: '40 km', weekNumber: 41 },
+		ramps: [{ percent: '+2,5\u00a0%', loadingWeeks: 3, phaseName: 'Base' }],
+		boundarySteps: [{ percent: '−10\u00a0%', phaseName: 'Bygg' }],
+		role: 'recovery',
+		factorPercent: 70,
+		referenceWeekNumber: 43,
+		referenceIsAnchor: false,
+		phaseName: 'Base',
+	})
+	expect(sentence).toContain('+2,5\u00a0% for hver av de 3 harde ukene')
+	expect(sentence).toContain('−10\u00a0% inn i')
+	expect(sentence).toContain('70\u00a0% av uke 43')
+	expect(sentence).not.toMatch(/\d %/)
 })

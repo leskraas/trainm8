@@ -158,7 +158,7 @@ function row(title: RegExp | string) {
 	})
 }
 
-test('a row carries the plan and no Session Provenance until it is tapped (ADR 0122)', async () => {
+test('a row carries the plan and no Session Provenance until it is tapped (ADR 0123)', async () => {
 	renderScreen()
 	const button = await row('5 × 1 km @ T')
 	// Day, sport, kind, zone and title name the row.

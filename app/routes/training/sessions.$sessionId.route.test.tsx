@@ -1574,7 +1574,7 @@ test('a done session with no Workout and no Recording opens a readable detail, n
 	expect(screen.queryByText(/404|not found|fant ikke/i)).not.toBeInTheDocument()
 })
 
-/** The real loader's `placedProvenance` beside the rest (ADR 0122 §5). */
+/** The real loader's `placedProvenance` beside the rest (ADR 0123 §5). */
 function withPlacedProvenance(
 	loader: (args: LoaderFunctionArgs) => Promise<Record<string, unknown>>,
 	provenance: SessionProvenance,
@@ -1664,7 +1664,7 @@ test('a placed session whose community row was taken down still says an athlete 
 	renderRoute(
 		withPlacedProvenance(
 			sessionDetailLoader(session),
-			// The reader serves no name once the row is taken down (ADR 0122 §5).
+			// The reader serves no name once the row is taken down (ADR 0123 §5).
 			{ kind: 'community', attribution: null },
 			true,
 		),

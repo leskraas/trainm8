@@ -11,8 +11,12 @@
  */
 
 import { z } from 'zod/v3'
-import { SEASON_EDIT_LABELS } from '#app/utils/labels.ts'
-import { PhaseWeeksSchema } from './authoring-schema.ts'
+import {
+	SEASON_ANCHOR_EDIT_LABELS,
+	SEASON_EDIT_LABELS,
+} from '#app/utils/labels.ts'
+import { parseNbDecimal } from '../format.ts'
+import { PhaseWeeksSchema, WeekKeySchema } from './authoring-schema.ts'
 import { RHYTHMS } from './derive.ts'
 import { type SeasonEdit, type SeasonEditKind } from './season-edit.ts'
 
@@ -48,7 +52,7 @@ const TargetField = z
 	.trim()
 	.min(1, SEASON_EDIT_LABELS.targetRequired)
 	.transform((raw, ctx) => {
-		const value = Number(raw.replace(',', '.'))
+		const value = parseNbDecimal(raw)
 		if (!Number.isFinite(value) || value < 0) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
@@ -120,7 +124,83 @@ export const EasyWeekEditFormSchema = z
 	})
 	.refine(confirmedFromPreview.check, confirmedFromPreview.message)
 
+/**
+ * A Season Anchor as typed (#673): a number over 0 — an anchor of 0 would make
+ * every week after it 0, which is a week off per week, not a level — with a
+ * decimal comma allowed.
+ */
+const AnchorValueField = z
+	.string()
+	.trim()
+	.transform((raw, ctx) => {
+		const value = parseNbDecimal(raw)
+		if (!Number.isFinite(value) || value <= 0) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: SEASON_ANCHOR_EDIT_LABELS.valuePositive,
+			})
+			return z.NEVER
+		}
+		return value
+	})
+
+/**
+ * A segment's week as posted: a week key, so a Monday (ADR 0044 §3), the rule
+ * the direct anchor editor's schemas hold too. Any other day would round into
+ * a week and key a second segment beside the one on its Monday.
+ */
+const AnchorWeekField = z
+	.string()
+	.refine(
+		(key) => WeekKeySchema.safeParse(key).success,
+		SEASON_EDIT_LABELS.pickWeek,
+	)
+
+export const SEASON_ANCHOR_ACTIONS = ['add', 'set', 'remove'] as const
+
+/**
+ * _Endre startnivået_ (ADR 0122 §1): one form, three acts. Each act has its own
+ * week picker (and the two that take one, their own number), all posted, so
+ * switching between the acts keeps what each one was given; the act chosen
+ * decides which are read.
+ */
+export const SeasonAnchorEditFormSchema = z
+	.object({
+		...shared,
+		edit: z.literal('season-anchor'),
+		trackId: required(SEASON_EDIT_LABELS.pickTrack),
+		action: z.enum(SEASON_ANCHOR_ACTIONS),
+		addWeekKey: blankIsKeep(AnchorWeekField),
+		addValue: blankIsKeep(AnchorValueField),
+		setWeekKey: blankIsKeep(AnchorWeekField),
+		setValue: blankIsKeep(AnchorValueField),
+		removeWeekKey: blankIsKeep(AnchorWeekField),
+	})
+	.superRefine((value, ctx) => {
+		const missing = (path: string, message: string) =>
+			ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message })
+		if (value.action === 'add') {
+			if (!value.addWeekKey) missing('addWeekKey', SEASON_EDIT_LABELS.pickWeek)
+			if (value.addValue == null) {
+				missing('addValue', SEASON_ANCHOR_EDIT_LABELS.valueRequired)
+			}
+		}
+		if (value.action === 'set') {
+			if (!value.setWeekKey) {
+				missing('setWeekKey', SEASON_ANCHOR_EDIT_LABELS.pickSegment)
+			}
+			if (value.setValue == null) {
+				missing('setValue', SEASON_ANCHOR_EDIT_LABELS.valueRequired)
+			}
+		}
+		if (value.action === 'remove' && !value.removeWeekKey) {
+			missing('removeWeekKey', SEASON_ANCHOR_EDIT_LABELS.pickSegment)
+		}
+	})
+	.refine(confirmedFromPreview.check, confirmedFromPreview.message)
+
 export const SEASON_EDIT_FORM_SCHEMAS = {
+	'season-anchor': SeasonAnchorEditFormSchema,
 	'week-target': WeekTargetEditFormSchema,
 	phase: PhaseEditFormSchema,
 	'easy-week': EasyWeekEditFormSchema,
@@ -151,5 +231,24 @@ export function seasonEditOf(value: SeasonEditFormValue): SeasonEdit {
 			}
 		case 'easy-week':
 			return { kind: 'easy-week', weekKey: value.weekKey }
+		case 'season-anchor':
+			// The schema has required the act's own fields.
+			return value.action === 'remove'
+				? {
+						kind: 'season-anchor',
+						trackId: value.trackId,
+						action: 'remove',
+						fromWeekKey: value.removeWeekKey!,
+					}
+				: {
+						kind: 'season-anchor',
+						trackId: value.trackId,
+						action: value.action,
+						fromWeekKey:
+							(value.action === 'add' ? value.addWeekKey : value.setWeekKey) ??
+							'',
+						value:
+							(value.action === 'add' ? value.addValue : value.setValue) ?? 0,
+					}
 	}
 }

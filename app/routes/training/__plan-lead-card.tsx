@@ -10,19 +10,23 @@
  * the closed _Avansert_ (`__plan-advanced.tsx`).
  *
  * `children` is the card's last slot, for what changes the plan as a whole:
- * _Bytt treningsform_ (#581) goes there, after _Legg til et løp_. `notices` is
- * the lead's, outside the card and after the resting line: the plan's Guard
- * Notices (ADR 0118), which follow the card they are about rather than sit in
- * it.
+ * the _Ukevolum_ rows ({@link PlanLeadVolume}, #673) and _Bytt treningsform_
+ * (#581) go there, after _Legg til et løp_. `notices` is the lead's, outside
+ * the card and after the resting line: the plan's Guard Notices (ADR 0118),
+ * which follow the card they are about rather than sit in it.
  *
  * No motion of its own: the lead is the page's resting state, and the morph
  * from _Planen er klar_'s curve into this one is #582's.
  */
 import { type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { formatNbDate } from '#app/utils/format.ts'
+import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
+import { formatNbDate, formatNbVolumeFigure } from '#app/utils/format.ts'
 import {
+	NB_VOLUME_UNITS,
+	NB_WEEK_ROLE_LABELS,
+	nbTrackName,
 	OPEN_ENDED_PLAN_LABEL,
 	openEndedBlockLabel,
 	PHILOSOPHY_LABELS,
@@ -31,6 +35,7 @@ import {
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type PresetFamily } from '#app/utils/plan-outline/presets.ts'
+import { type SeasonAnchorChoice } from '#app/utils/plan-outline/season-edit.ts'
 import {
 	AttachEventOffer,
 	type AttachableEvent,
@@ -38,6 +43,7 @@ import {
 } from './__attach-event.tsx'
 import { PillLink, PlanCard } from './__plan-chrome.tsx'
 import { type NextEasyWeek, planPlainName } from './__plan-lead.ts'
+import { seasonEditAnchor } from './__season-edits.tsx'
 import { type SeasonPicture as SeasonPictureData } from './__season-picture.server.ts'
 import { SeasonLeadCurve } from './__season-picture.tsx'
 
@@ -94,7 +100,7 @@ export function PlanLeadCard({
 	 */
 	notices?: ReactNode
 	className?: string
-	/** The card's last slot: _Bytt treningsform_ (#581). */
+	/** The card's last slot: _Ukevolum_ (#673) and _Bytt treningsform_ (#581). */
 	children?: ReactNode
 }) {
 	const from = formatNbDate(startsAt, timezone)
@@ -184,5 +190,102 @@ export function PlanLeadCard({
 			{resting}
 			{notices}
 		</section>
+	)
+}
+
+/** A track's name in its own colour: the `-ink` step, readable as text. */
+const TRACK_INK: Record<string, string> = {
+	run: 'text-track-run-ink',
+	bike: 'text-track-bike-ink',
+	swim: 'text-track-swim-ink',
+}
+
+/**
+ * _Ukevolum_ in Plan's lead (#673): one row per endurance track with a Season
+ * Anchor — its name, the first unbegun week's target with its role word, so an
+ * easy week does not read as a cut — and _Endre volumet_, which opens
+ * _Endre startnivået_ for that track inside _Avansert_, behind its preview. A
+ * strength track gets one line pointing to Avansert, where its blocks are.
+ *
+ * The athlete knows their weekly volume, not their anchor, so the row shows
+ * the week's target and never the anchor's value.
+ */
+export function PlanLeadVolume({
+	tracks,
+	hasStrength,
+}: {
+	tracks: SeasonAnchorChoice[]
+	hasStrength: boolean
+}) {
+	const location = useLocation()
+	const rows = tracks.filter((track) => track.weeks.length > 0)
+	if (rows.length === 0 && !hasStrength) return null
+	const hrefFor = (trackId: string) => {
+		const params = new URLSearchParams(location.search)
+		for (const name of ['weekKey', 'phaseId']) params.delete(name)
+		params.set('edit', 'season-anchor')
+		params.set('trackId', trackId)
+		return `?${params.toString()}#${seasonEditAnchor('season-anchor')}`
+	}
+	return (
+		<div className="space-y-1" data-plan-lead-volume>
+			<h2
+				id="plan-lead-volume"
+				className="text-caption text-muted-foreground font-semibold"
+			>
+				{PLAN_LEAD_LABELS.volume}
+			</h2>
+			{rows.length > 0 ? (
+				<ul aria-labelledby="plan-lead-volume">
+					{rows.map((track) => {
+						const week = track.weeks[0]!
+						const name = nbTrackName(track.discipline)
+						return (
+							<li
+								key={track.trackId}
+								className="border-border/50 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-t py-2 first:border-t-0"
+								data-plan-lead-volume-row={track.discipline}
+							>
+								<span className="min-w-0 flex-1">
+									<span
+										className={cn(
+											'text-callout block font-semibold',
+											TRACK_INK[track.discipline],
+										)}
+									>
+										{name}
+									</span>
+									<span className="text-footnote text-muted-foreground block tabular-nums">
+										{PLAN_LEAD_LABELS.volumeWeek(
+											isoWeekNumber(week.weekKey),
+											NB_WEEK_ROLE_LABELS[week.role],
+											week.target == null
+												? null
+												: `${formatNbVolumeFigure(week.target, track.currency)} ${NB_VOLUME_UNITS[track.currency]}`,
+											week.overridden,
+										)}
+									</span>
+								</span>
+								<PillLink
+									to={hrefFor(track.trackId)}
+									// 32 px tall like the lead's other pills; the invisible
+									// box above and below makes the target 44 px.
+									className="relative shrink-0 px-3 after:absolute after:inset-x-0 after:-inset-y-1.5"
+									aria-label={PLAN_LEAD_LABELS.changeVolumeFor(name)}
+								>
+									<Icon name="bar-chart" size="sm" />
+									{PLAN_LEAD_LABELS.changeVolume}
+								</PillLink>
+							</li>
+						)
+					})}
+				</ul>
+			) : null}
+			{hasStrength ? (
+				<p className="text-footnote text-muted-foreground">
+					{PLAN_LEAD_LABELS.strengthVolume}
+				</p>
+			) : null}
+		</div>
 	)
 }

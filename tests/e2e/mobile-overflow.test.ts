@@ -205,7 +205,7 @@ test('the Plan Preview with a provenance panel open does not overflow at 390px (
 		},
 	})
 	await page.goto(`/training/plan/generate/${event.id}?anchor-run=40`)
-	// A placed row is one button; its provenance waits behind the tap (ADR 0122).
+	// A placed row is one button; its provenance waits behind the tap (ADR 0123).
 	const row = page.locator('[data-session-row] > button').first()
 	await expect(row).toHaveAttribute('aria-expanded', 'false')
 	await expect(page.locator('[data-provenance-panel]')).toHaveCount(0)
@@ -237,7 +237,7 @@ test('a Plan Preview panel opened just above the tab bar scrolls clear of it, wi
 		},
 	})
 	await page.goto(`/training/plan/generate/${event.id}?anchor-run=40`)
-	// A placed row is one button (ADR 0122).
+	// A placed row is one button (ADR 0123).
 	const target = page.locator('[data-session-row]').getByRole('button').nth(3)
 	await untilHydrated(target)
 	const tabBar = page.locator('[data-tab-bar]')

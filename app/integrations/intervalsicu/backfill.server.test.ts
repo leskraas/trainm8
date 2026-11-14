@@ -105,7 +105,10 @@ test('backfill imports the activities in the window with the intervalsicu provid
 test('the job handler runs the backfill for the enqueued athlete', async () => {
 	const { user } = await setupBackfillAthlete()
 
-	await jobHandlers[INTERVALSICU_BACKFILL_JOB_KIND]!({ athleteId: user.id })
+	await jobHandlers[INTERVALSICU_BACKFILL_JOB_KIND]!(
+		{ athleteId: user.id },
+		{ id: 'job' },
+	)
 
 	const imports = await prisma.activityImport.count({
 		where: { athleteId: user.id, externalProvider: 'intervalsicu' },
