@@ -1,0 +1,48 @@
+
+ RUN  v4.0.18 /tmp/claude-0/-home-user-trainm8/5abcfaac-daa9-5016-a673-14708bee6e7b/scratchpad/wt/677-review2
+
+stdout | app/utils/orphaned-workout-purge.server.test.ts
+GitHub OAuth strategy not available because environment variables are not set
+
+ ❯ app/utils/orphaned-workout-purge.server.test.ts (9 tests | 1 failed | 8 skipped) 34ms
+   ↓ boot enqueues the purge exactly once, ever
+   ↓ the job erases the Orphaned Workouts and records counts only, on its own row
+   ↓ a run after one that committed keeps the first record, never zeros
+   ↓ a record that is not three counts is not taken as the first run’s
+   ↓ a purge that fails partway erases nothing and is retried
+   ↓ a purge a crash stranded in running is retried by the next boot
+   × a purge a quick restart stranded in running is retried by that boot 30ms
+   ↓ boot leaves a purge that is running now alone
+   ↓ the run writes its record on its own row, not on another of its kind
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  app/utils/orphaned-workout-purge.server.test.ts > a purge a quick restart stranded in running is retried by that boot
+AssertionError: expected { …(12) } to match object { status: 'pending', attempts: 1 }
+(10 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "attempts": 1,
+-   "status": "pending",
++   "status": "running",
+  }
+
+ ❯ app/utils/orphaned-workout-purge.server.test.ts:287:32
+    285|  await ensureOrphanedWorkoutPurgeEnqueued()
+    286| 
+    287|  expect(await readJob(job.id)).toMatchObject({
+       |                                ^
+    288|   status: 'pending',
+    289|   attempts: 1,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 skipped (9)
+   Start at  07:28:36
+   Duration  2.19s (transform 1.14s, setup 725ms, import 1.01s, tests 34ms, environment 0ms)
+

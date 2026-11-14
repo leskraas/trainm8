@@ -1,0 +1,48 @@
+
+ RUN  v4.0.18 /tmp/claude-0/-home-user-trainm8/5abcfaac-daa9-5016-a673-14708bee6e7b/scratchpad/wt/677-review2
+
+stdout | app/utils/jobs/queue.server.test.ts
+GitHub OAuth strategy not available because environment variables are not set
+
+ ❯ app/utils/jobs/queue.server.test.ts (17 tests | 1 failed | 16 skipped) 33ms
+   ↓ enqueued job can be claimed once
+   ↓ a claimed job is not handed out a second time
+   ↓ completed job is terminal and never reclaimed
+   ↓ a failed job with attempts left is rescheduled into the future
+   ↓ a job that exhausts maxAttempts becomes terminally failed
+   ↓ processNextJob dispatches to the handler for the job kind and completes it
+   ↓ processNextJob returns idle when nothing is runnable
+   ↓ a throwing handler fails the job for retry
+   ↓ a handler that defers its job reschedules it without spending an attempt
+   ↓ a job deferred for more than 7 days spends its attempts and dead-letters
+   ↓ past the cap, a deferral that made progress still gives its attempt back
+   ↓ bestEffort hands back the value, or the error it swallowed
+   ↓ bestEffort passes a deferral on, marked when the caller did work
+   ↓ a job with no registered handler fails rather than spinning
+   ↓ failStaleJobs fails only jobs of its kind running since before the given moment
+   × failStaleJobs logs each job it fails, with its kind, id and new status 29ms
+   ↓ failJob with a guard leaves a job that has moved on as it is
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  app/utils/jobs/queue.server.test.ts > failStaleJobs logs each job it fails, with its kind, id and new status
+AssertionError: expected "warn" to be called with arguments: [ …(2) ]
+
+Number of calls: 0
+
+ ❯ app/utils/jobs/queue.server.test.ts:264:15
+    262|  await failStaleJobs({ kind: 'one-shot', startedBefore: new Date() })
+    263| 
+    264|  expect(warn).toHaveBeenCalledWith('[jobs] failed a stale running job'…
+       |               ^
+    265|   kind: 'one-shot',
+    266|   jobId: stranded.id,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  07:29:00
+   Duration  1.46s (transform 426ms, setup 880ms, import 11ms, tests 33ms, environment 0ms)
+
