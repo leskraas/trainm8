@@ -61,7 +61,9 @@ test('athlete builds a season from the catalogue, answers its question, and adds
 		.first()
 		.getByRole('listitem')
 		.first()
-	await expect(runRow).toHaveText(/^Løping\s*mål —\s*·\s*planlagt\s/)
+	await expect(runRow).toHaveText(
+		/^Løping\s*mål —ikke tilgjengelig\s*·\s*planlagt\s/,
+	)
 
 	// Nothing reaches the calendar without a size: the approval says why.
 	const approve = page.getByRole('button', {

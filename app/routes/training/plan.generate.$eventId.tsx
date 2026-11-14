@@ -934,8 +934,17 @@ function TrackFigures({ figures }: { figures: WeekFigures }) {
 /** `mål 32 km · planlagt 24 km +1 uten km ≠`, broken only between its parts. */
 function TrackFigureLine({ track }: { track: TimelineTrackWeek }) {
 	const withUnit = (figure: string) => `${figure}\u00a0${track.unit}`
+	// `—` alone is not spoken, so an Unavailable target says so to a screen
+	// reader and shows the dash to the eye.
 	const target =
-		track.figures.target == null ? '—' : withUnit(track.figures.target)
+		track.figures.target == null ? (
+			<>
+				<span aria-hidden>—</span>
+				<span className="sr-only">{L.targetUnavailable}</span>
+			</>
+		) : (
+			withUnit(track.figures.target)
+		)
 	// A sum, or, where every planned session lacks a number, what stands in its
 	// place (`2 økter uten km`); never `0 km` for sessions that are there.
 	const planned =

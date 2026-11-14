@@ -337,7 +337,14 @@ test('a week with no Season Anchor reads “—” for its target and still show
 			week({ targets: [{ discipline: 'run', currency: 'km', value: null }] }),
 		],
 	})
-	expect(await trackRows()).toEqual(['Løpingmål — · planlagt 8 km'])
+	expect(await trackRows()).toEqual([
+		`Løpingmål —${PLAN_GENERATE_LABELS.targetUnavailable} · planlagt 8 km`,
+	])
+	// The dash is not spoken: a screen reader hears the target is unavailable.
+	expect(screen.getAllByText('—', { selector: '[aria-hidden]' }).length).toBe(1)
+	expect(screen.getByText(PLAN_GENERATE_LABELS.targetUnavailable)).toHaveClass(
+		'sr-only',
+	)
 })
 
 test('a session with no number in the unit is counted apart, never as zero, and keeps a short week unmarked', async () => {

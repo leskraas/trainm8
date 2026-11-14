@@ -137,6 +137,11 @@ export const PLAN_GENERATE_LABELS = {
 	 */
 	placedAsPublished:
 		'Øktene legges inn slik kilden publiserte dem og skaleres aldri for å treffe ukemålet, så målet og summen av øktene kan være to ulike tall. ≠\u00a0betyr at planlagt er mer enn 10\u00a0% unna målet.',
+	/**
+	 * What a screen reader hears for a Week Target that is an **Unavailable
+	 * Metric**, where the card shows `—`, which is not spoken.
+	 */
+	targetUnavailable: 'ikke tilgjengelig',
 	/** The name of a week card's list of tracks, for a screen reader. */
 	weekFiguresLabel: 'Mål og planlagt per idrett',
 	/**
