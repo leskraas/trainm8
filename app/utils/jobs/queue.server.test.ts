@@ -242,3 +242,19 @@ test('failStaleJobs fails only long-running jobs of its kind', async () => {
 	expect(await status(live.id)).toBe('running')
 	expect(await status(otherKind.id)).toBe('running')
 })
+
+test('failJob with a guard leaves a job that has moved on as it is', async () => {
+	// failStaleJobs reads, then fails: a run that completes in between must stay
+	// completed, not go back to pending.
+	const job = await enqueueJob({ kind: 'one-shot', maxAttempts: 2 })
+	await prisma.job.update({
+		where: { id: job.id },
+		data: { status: 'completed', attempts: 1, completedAt: new Date() },
+	})
+
+	await failJob(job.id, new Error('stale'), { status: 'running' })
+
+	expect(
+		await prisma.job.findUniqueOrThrow({ where: { id: job.id } }),
+	).toMatchObject({ status: 'completed', lastError: null })
+})

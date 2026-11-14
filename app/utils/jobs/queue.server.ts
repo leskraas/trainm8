@@ -1,4 +1,4 @@
-import { type Job } from '@prisma/client'
+import { type Job, type Prisma } from '@prisma/client'
 import { prisma } from '#app/utils/db.server.ts'
 
 /**
@@ -195,22 +195,30 @@ const BACKOFF_BASE_MS = 1000
  * Record a failed run. If attempts remain the job returns to `pending` with
  * `runAt` pushed out by exponential backoff (`BACKOFF_BASE_MS * 2^attempts`);
  * once `maxAttempts` is reached the job is terminal (`failed`).
+ *
+ * `onlyIf` guards the write: a job that no longer matches it (it moved on since
+ * the caller read it) is left as it is.
  */
-export async function failJob(id: string, error: unknown): Promise<void> {
+export async function failJob(
+	id: string,
+	error: unknown,
+	onlyIf: Prisma.JobWhereInput = {},
+): Promise<void> {
 	const job = await prisma.job.findUniqueOrThrow({ where: { id } })
 	const message = error instanceof Error ? error.message : String(error)
+	const where = { ...onlyIf, id }
 
 	if (job.attempts >= job.maxAttempts) {
-		await prisma.job.update({
-			where: { id },
+		await prisma.job.updateMany({
+			where,
 			data: { status: 'failed', lastError: message },
 		})
 		return
 	}
 
 	const delayMs = BACKOFF_BASE_MS * 2 ** job.attempts
-	await prisma.job.update({
-		where: { id },
+	await prisma.job.updateMany({
+		where,
 		data: {
 			status: 'pending',
 			lastError: message,
@@ -234,18 +242,21 @@ export async function failStaleJobs({
 	kind: string
 	staleAfterMs: number
 }): Promise<number> {
+	const isStale = {
+		kind,
+		status: 'running',
+		startedAt: { lt: new Date(Date.now() - staleAfterMs) },
+	} satisfies Prisma.JobWhereInput
 	const stale = await prisma.job.findMany({
-		where: {
-			kind,
-			status: 'running',
-			startedAt: { lt: new Date(Date.now() - staleAfterMs) },
-		},
+		where: isStale,
 		select: { id: true },
 	})
 	for (const { id } of stale) {
+		// Guarded: a row that finished since the read is not set back to pending.
 		await failJob(
 			id,
 			new Error('The worker stopped while this job was running'),
+			isStale,
 		)
 	}
 	return stale.length
