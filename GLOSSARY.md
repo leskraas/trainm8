@@ -2386,7 +2386,7 @@ non-vouch says it does not. What it cannot do it **names**: no preset carries a
 **strength** segment, so a strength track is an **Unavailable Metric** stated on
 the payload, and a slot the corpus has nothing for is left empty and said out
 loud rather than backfilled. A season is reviewed on the **Plan Preview** before
-approval and on _Plan_ after it; there is no separate review screen (ADR 0121).
+approval and on _Plan_ after it; there is no separate review screen (ADR 0122).
 The plan it writes keeps a **Generation Record**, and its weeks are laid again by
 the generator until the athlete gives it a **Week Pattern** with days (ADR 0120).
 _Avoid_: AI plan, auto-plan.
@@ -2425,7 +2425,7 @@ Citation", which was written before an uncited **Stock Workout** existed and
 would now silently delete about a third of the corpus — the **Convention Rows**,
 the **Hand-Written Rows**, and with them the only sessions that exist for race
 week. Nothing may claim a source it does not have, which is the rule that
-survives intact. **Available, not asserted** (ADR 0121): a row carries the plan
+survives intact. **Available, not asserted** (ADR 0122): a row carries the plan
 and its provenance is one tap away; an absence or a warning never waits behind
 that tap. _Avoid_: Citation (one of the four), source (overloaded with **Session
 Source**), attribution (that is the community one)

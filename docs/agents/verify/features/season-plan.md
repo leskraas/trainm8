@@ -31,7 +31,7 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
   kody's `weeklyCapacityHours` a little under a week's placed hours (a 20-week
   10 km run season with a 4:30/km threshold reads about 3,9 t a week, so 3,8
   shows a mix) and open the preview.
-- The preview's placed rows (ADR 0121, #475): each is one button
+- The preview's placed rows (ADR 0122, #475): each is one button
   (`[data-session-row] > button`, `aria-expanded`) that carries the plan and no
   provenance line. Tapping it opens its **Session Provenance** in a panel below
   it (`[data-provenance-panel]`): _Kilde: …_ with a locator link for a corpus

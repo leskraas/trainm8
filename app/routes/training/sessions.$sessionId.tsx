@@ -309,7 +309,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		// the way I dag's row reads it (`trackCurrencies`, the first track per
 		// sport), so the page and the row it was opened from agree.
 		findActiveOutline(userId, new Date()),
-		// Where a session placed from the Catalogue came from (ADR 0121 §5): the
+		// Where a session placed from the Catalogue came from (ADR 0122 §5): the
 		// placed copy's Catalogue Entry, one hop further past an adoption fork.
 		readPlacedProvenance(session.workout?.id, session.adoptedAt),
 	])
@@ -1041,7 +1041,7 @@ export default function SessionDetailRoute({
 									</div>
 								) : null}
 								{/* Session Provenance, last in the prose block, after the
-								    numbers (ADR 0121 §2): the session page is the tap from
+								    numbers (ADR 0122 §2): the session page is the tap from
 								    the row, so it is stated here, not behind a disclosure.
 								    "Endret av deg" reads `adoptedAt`. Nothing renders where
 								    the session came from no Catalogue row. */}

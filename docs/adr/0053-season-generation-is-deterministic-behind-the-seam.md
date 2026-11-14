@@ -164,7 +164,7 @@ already existed:
 - the **Citation** is _reached_ rather than copied, by walking the chain and
   never assuming one hop, so correcting a mis-cited row corrects every plan that
   used it and `retiredAt` keeps working (ADR 0051 §5, #460). **Narrowed by
-  [ADR 0121](./0121-provenance-is-available-not-asserted-a-row-carries-the-plan-and-its-provenance-is-one-tap-away.md)
+  [ADR 0122](./0122-provenance-is-available-not-asserted-a-row-carries-the-plan-and-its-provenance-is-one-tap-away.md)
   §5** for the session page, which reads the placed copy and at most one hop
   past an adoption fork, never the whole chain;
 - **Session Adoption** already means the right thing: the session stays

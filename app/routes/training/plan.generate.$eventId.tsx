@@ -19,7 +19,7 @@
  * every slot the **Catalogue** had nothing for are stated at the top, before the
  * season, where a source may sit behind a tap and an absence may not.
  *
- * **Provenance is available, not asserted** (ADR 0121). A placed session's row
+ * **Provenance is available, not asserted** (ADR 0122). A placed session's row
  * carries the plan and nothing else; tapping it opens the session's **Session
  * Provenance** — a **Citation** on a corpus row, the convention or hand-written
  * notice on the two uncited kinds — in a panel directly below it
@@ -222,7 +222,7 @@ export default function GenerateSeasonRoute({
 }: Route.ComponentProps) {
 	const { preview, refusal, nearestFit } = loaderData
 	const [searchParams] = useSearchParams()
-	// The season's one open provenance panel (ADR 0121 §2).
+	// The season's one open provenance panel (ADR 0122 §2).
 	const openRow = usePlanPreviewOpenRow()
 
 	if (!preview) {
