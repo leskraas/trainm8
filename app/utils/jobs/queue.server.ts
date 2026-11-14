@@ -1,4 +1,4 @@
-import { type Job } from '@prisma/client'
+import { type Job, type Prisma } from '@prisma/client'
 import { prisma } from '#app/utils/db.server.ts'
 
 /**
@@ -133,8 +133,21 @@ export async function bestEffort<T>(
 	}
 }
 
-/** A handler runs one job kind. It receives the job's parsed JSON payload. */
-export type JobHandler = (payload: Record<string, unknown>) => Promise<void>
+/**
+ * The job a handler is running, for one that writes onto its own row (a
+ * one-time job's record). Handed in, so a handler never has to find its row
+ * by kind and status.
+ */
+export type JobContext = { id: string }
+
+/**
+ * A handler runs one job kind. It receives the job's parsed JSON payload and
+ * the job it is running.
+ */
+export type JobHandler = (
+	payload: Record<string, unknown>,
+	job: JobContext,
+) => Promise<void>
 
 /** Maps a job `kind` to the handler that runs it. */
 export type JobHandlers = Record<string, JobHandler>
@@ -158,7 +171,7 @@ export async function processNextJob(
 		if (!handler) {
 			throw new Error(`No handler registered for job kind "${job.kind}"`)
 		}
-		await handler(job.payload)
+		await handler(job.payload, { id: job.id })
 		await completeJob(job.id)
 	} catch (error) {
 		if (error instanceof DeferJob) await deferJob(job.id, error)
@@ -182,28 +195,82 @@ const BACKOFF_BASE_MS = 1000
  * Record a failed run. If attempts remain the job returns to `pending` with
  * `runAt` pushed out by exponential backoff (`BACKOFF_BASE_MS * 2^attempts`);
  * once `maxAttempts` is reached the job is terminal (`failed`).
+ *
+ * `onlyIf` guards the write: a job that no longer matches it (it moved on since
+ * the caller read it) is left as it is. Returns the status written, or `null`
+ * when the guard left the job alone.
  */
-export async function failJob(id: string, error: unknown): Promise<void> {
+export async function failJob(
+	id: string,
+	error: unknown,
+	onlyIf: Prisma.JobWhereInput = {},
+): Promise<'pending' | 'failed' | null> {
 	const job = await prisma.job.findUniqueOrThrow({ where: { id } })
 	const message = error instanceof Error ? error.message : String(error)
+	const where = { ...onlyIf, id }
 
 	if (job.attempts >= job.maxAttempts) {
-		await prisma.job.update({
-			where: { id },
+		const { count } = await prisma.job.updateMany({
+			where,
 			data: { status: 'failed', lastError: message },
 		})
-		return
+		return count ? 'failed' : null
 	}
 
 	const delayMs = BACKOFF_BASE_MS * 2 ** job.attempts
-	await prisma.job.update({
-		where: { id },
+	const { count } = await prisma.job.updateMany({
+		where,
 		data: {
 			status: 'pending',
 			lastError: message,
 			runAt: new Date(Date.now() + delayMs),
 		},
 	})
+	return count ? 'pending' : null
+}
+
+/**
+ * Fail every job of `kind` that has said `running` since before `startedBefore`:
+ * its worker stopped mid-run (a deploy, a crash) and nothing else will ever
+ * move it on. Each goes through {@link failJob}, so it is retried with backoff,
+ * or ends `failed` once its attempts are spent. A caller passes a moment no live
+ * run of the kind can have started before (this process's start, on the one
+ * node that runs the worker), or a live run would be claimed twice. Each one
+ * it fails is logged.
+ */
+export async function failStaleJobs({
+	kind,
+	startedBefore,
+}: {
+	kind: string
+	startedBefore: Date
+}): Promise<void> {
+	const isStale = {
+		kind,
+		status: 'running',
+		startedAt: { lt: startedBefore },
+	} satisfies Prisma.JobWhereInput
+	const stale = await prisma.job.findMany({
+		where: isStale,
+		select: { id: true },
+	})
+	for (const { id } of stale) {
+		// Guarded: a row that finished since the read is not set back to pending.
+		const status = await failJob(
+			id,
+			new Error('The worker stopped while this job was running'),
+			isStale,
+		)
+		// The queue logs no failure itself; without this line a stranded run that
+		// spent its attempts here would end `failed` with only `lastError` to say so.
+		if (status) {
+			console.warn('[jobs] failed a stale running job', {
+				kind,
+				jobId: id,
+				status,
+			})
+		}
+	}
 }
 
 /**

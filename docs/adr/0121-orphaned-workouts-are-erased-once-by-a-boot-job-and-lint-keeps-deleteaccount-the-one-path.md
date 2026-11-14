@@ -1,0 +1,117 @@
+# Orphaned Workouts are erased once by a boot job, and lint keeps `deleteAccount` the one path
+
+Status: Accepted · Resolves #468 · Closes two items of ADR 0051 §5 "Deferred
+hardening" and updates ADR 0105's retention table
+
+## Context
+
+**Account Erasure** (ADR 0051 §5, `deleteAccount` since #641) stops new
+**Orphaned Workouts**, but every account deleted before #641 left its Workouts
+stored, and a `public` one under the name its author published as. ADR 0051's
+Deferred hardening suggested a guarded cleanup migration. Nothing stopped a
+future `prisma.user.delete` from making new ones.
+
+## Decision
+
+1. **One implementation of the rules, two entry points.** The rules (keep a row
+   another athlete's session, Week Pattern slot or Program day points at, and
+   make it unattributed; erase the rest; splice surviving forks to the nearest
+   surviving ancestor, capped at `MAX_LINEAGE_HOPS`) stay private to
+   `app/utils/account-deletion.server.ts`. It exports `deleteAccount(userId)`
+   and `eraseOrphanedWorkouts(tx)`, and both run the same internal function over
+   an **erasure scope**: an account's own Workouts, or the Orphaned Workouts. An
+   Orphaned Workout is selected by `authorship = 'athlete' AND ownerId IS NULL`,
+   never by `ownerId IS NULL` alone (ADR 0051 §2): that would erase every
+   **Stock Workout**. The rules are not written by threading a nullable `userId`
+   through the account queries, because `ownerId: null` there is exactly that.
+2. **The purge is a one-time job enqueued at boot**, on the `ensure*Enqueued`
+   pattern (any job row of its kind, in any state, means boot does not enqueue
+   another). The job runs `eraseOrphanedWorkouts` in one transaction and writes
+   the counts it erased, kept and spliced onto its own `Job.payload` (`purged`:
+   `{ erased, keptUnattributed, spliced }`) inside that same transaction, and
+   logs them. The kept count is named for the glossary's **unattributed** keep,
+   not "withdrawn", which is the author's own act and keeps the Attribution. A
+   run after one that committed keeps that first record rather than writing
+   zeros over it. It never records a title, description, name or Workout id. The
+   job queue's attempts are its retries.
+3. **Not a migration.** The rules exist once, in tested TypeScript. A SQL copy
+   would be a recursive CTE for the splice that nothing typechecks or runs
+   against `deleteAccount`'s fixtures, and it would drift from them: ADR 0051
+   §9's reason, applied to logic rather than content.
+4. **No recurring sweep. Lint pins the one deletion path instead.**
+   `no-restricted-syntax` rejects, in `app/` and `server/`, every shape that
+   reaches a `User` delete: `.user.delete` / `.user.deleteMany` read off any
+   object (called, optionally called, in a batch `$transaction`, bound, dotted
+   or computed), the `user` delegate taken off a client (`prisma`, `tx`, `db`,
+   `client`) into a variable or a destructuring, and a raw `DELETE FROM "User"`
+   in any string. Only `account-deletion.server.ts` and test files
+   (`*.test.ts(x)`) are exempt. Fixtures under `tests/` sit outside the rule's
+   files; a fixture inside `app/` (such as `app/utils/load/elevate-fixtures.ts`)
+   is linted like any other module. None deletes a User today, and one that must
+   is moved to `tests/` or exempted by a human. Its message names
+   `deleteAccount`. A sweep would quietly clean up after the regression lint
+   reports at the line that causes it.
+5. **Restrictions share one rule, so they are composed.** ESLint's flat config
+   replaces a rule's options per matching block; it does not merge them. Each
+   restriction is a named entry in `eslint.config.js`, and a block that covers
+   route files lists the native-`<select>` restriction and the user-delete one
+   together. A test lints a snippet at a route path and at a non-route path, so
+   neither restriction can silently shadow the other.
+
+## Considered options
+
+- **A guarded SQL migration** (ADR 0051's suggestion): no operator either, but a
+  second copy of the rules that cannot be tested against the first.
+- **A daily Orphaned Workout sweep**: hides the regression it cleans up after, and sits
+  beside a retention sweep ADR 0105 has not built.
+- **A test that greps the source for `user.delete`**: reports later than lint,
+  and further from the line.
+- **A local ESLint plugin rule** instead of `no-restricted-syntax`: no shadowing
+  to manage, but a plugin to maintain for one selector. Composing named entries
+  plus the pinning test does the same job. _Contradicts ADR 0119_, whose
+  Consequences give "a future guard with its own scope" its own rule name in
+  the `trainm8` plugin, and whose Considered options reject composing another
+  `no-restricted-syntax` entry into shared blocks. The user-delete guard is such
+  a guard, and already needs the route-test block only to keep `<select>`.
+  Moving it to a `trainm8/user-delete` rule needs an edit to `eslint.config.js`,
+  which a human makes, so this ADR keeps the composed entries until then.
+
+## Consequences
+
+- A row kept because another athlete's training points at it stays an
+  unattributed Orphaned Workout. If that training later lets go of it, nothing
+  collects it: the job does not run again. No shipped path writes such a pointer
+  (ADR 0051 §5).
+- Open reports on an erased Orphaned Workout go with it, as on Account Erasure
+  (#639 H24).
+- The read-only SQL count in ADR 0051 §5 stays as the owner's check that the job
+  ran: after it, only kept rows remain, all `private`.
+- `git grep` stays the backstop for shapes lint does not see: the delegate
+  handed off under a client name the rule does not list, or a raw delete whose
+  SQL is assembled from pieces.
+- The job row is both the run-once marker and the record. ADR 0105's proposed
+  job retention (30 days after a job finishes) must keep one-time job rows of
+  this kind, or boot enqueues the purge again (harmless, since the rules are
+  idempotent, but it is a second run) and the record is lost. The retention
+  sweep is not built; when it is, it exempts them.
+- The job queue's contract (ADR 0013) grows for a job that writes onto its own
+  row. A handler receives the job it runs (`JobHandler(payload, job)`), so it
+  never finds its row by kind and status. `failJob` takes a guard and leaves a
+  job that moved on since it was read. `failStaleJobs` fails a job its stopped
+  worker left `running`, through `failJob`, so it goes back to `pending` (or
+  `failed` once its attempts are spent); only this purge calls it today.
+- A purge a machine stopped mid-run (a deploy, a crash) rolls back but leaves
+  its row `running`. Boot fails such a row when it started before this process
+  did (one node runs the worker), so the queue's attempts retry it on the first
+  boot after the stop, however soon; without that its row would block every
+  later enqueue.
+- A purge that fails on every attempt ends `failed`, and no later boot enqueues
+  another. Each failed attempt logs `[orphaned-workout-purge] attempt failed`,
+  and sends the same to Sentry, with the job id and the error's class and code,
+  never its message (a Prisma
+  validation error prints the query's arguments). The message is still stored in
+  the row's `lastError` and printed by Prisma's own error log, where it can
+  carry Workout ids, never a title or name. The owner's check is therefore two
+  reads: the `Job` of kind `orphaned-workout-purge` is `completed` (its
+  `lastError` says why if not), and ADR 0051 §5's SQL count shows only kept
+  rows.
