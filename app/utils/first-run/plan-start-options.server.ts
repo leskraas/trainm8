@@ -13,7 +13,7 @@ import { isCardioDiscipline } from '../workout-schema.ts'
 import { planStartAnswers } from './plan-start-options.ts'
 import {
 	draftStart,
-	STRENGTH_PER_WEEK_CHOICES,
+	startStrengthPerWeek,
 	type StartAnswers,
 	type StartDraft,
 	type StrengthPerWeek,
@@ -69,16 +69,6 @@ export type ActivitiesReadOnly = 'event' | 'currency'
  */
 export type PlanStartLifting = StartStrengthReading & {
 	perWeek: StrengthPerWeek | null
-}
-
-/** A stored Strength Frequency read back as one of the start's choices. */
-function strengthChoice(
-	value: number | null | undefined,
-): StrengthPerWeek | null {
-	return value != null &&
-		(STRENGTH_PER_WEEK_CHOICES as readonly number[]).includes(value)
-		? (value as StrengthPerWeek)
-		: null
 }
 
 export type PlanStartAnswersReading =
@@ -228,7 +218,9 @@ export async function readPlanStartAnswers(
 		}
 	}
 	// How often the plan lifts now: the athlete's answer, else the block
-	// in force from this week, else the plan's first.
+	// in force from this week, else the plan's first, held to the tap's 1–3,
+	// else the level's default (`startStrengthPerWeek`). A live strength track
+	// always reads as lifting, so an edit that leaves _Styrke_ alone keeps it.
 	const blocks = strengthTrack?.strengthSegments ?? []
 	const block =
 		[...blocks].reverse().find((one) => one.startWeekKey <= fromWeekKey) ??
@@ -245,7 +237,8 @@ export async function readPlanStartAnswers(
 			? {
 					...reading,
 					perWeek: strengthTrack
-						? strengthChoice(
+						? startStrengthPerWeek(
+								answers.level,
 								profile?.strengthPerWeek ?? block?.sessionsPerWeek ?? null,
 							)
 						: null,

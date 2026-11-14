@@ -596,3 +596,24 @@ test("every Workout the edit's pattern days use is one the plan holds, and none 
 		id: lifted.id,
 	})
 })
+
+test('a live strength track with no stored answer pre-fills Styrke on, so another edit keeps the lifts', async () => {
+	const { userId, outlineId } = await startPlan()
+	// An older plan: no Strength Frequency answered, and a block that lifts
+	// four times a week, outside the tap's 1–3.
+	await prisma.athleteProfile.update({
+		where: { userId },
+		data: { strengthPerWeek: null },
+	})
+	await prisma.trainingTrackSegment.updateMany({
+		where: { track: { outlineId, discipline: 'strength' } },
+		data: { sessionsPerWeek: 4 },
+	})
+	const season = (await getSeasonForOutline(userId, outlineId, NOW))!
+	// Meg's editor reads the plan offering strength, as the route does.
+	const reading = await readPlanStartAnswers(userId, season, BOUNDARY, NOW, {
+		offerStrength: true,
+	})
+	if (!reading.ok) throw new Error(reading.reason)
+	expect(reading.lifting?.perWeek).toBe(3)
+})
