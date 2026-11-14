@@ -254,12 +254,10 @@ export function SessionRow({
 			<CollapsibleContent
 				id={panelId}
 				data-provenance-panel
-				// Reduced motion keeps only the fade; a panel snapping shut above the
+				// `motion-collapse` keeps its own reduced-motion answer (ADR 0077 §5:
+				// the reflow is the gentler answer). A panel snapping shut above the
 				// tapped row has no transition at all.
-				className={cn(
-					'motion-reduce:[transition-property:opacity]',
-					snap && 'transition-none!',
-				)}
+				className={cn(snap && 'transition-none!')}
 			>
 				<div className="pt-2">
 					<div className="bg-muted/60 rounded-3xl p-3">
