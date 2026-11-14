@@ -98,7 +98,6 @@ import {
 	type PlaceWeeksRequest,
 	type SeasonRequest,
 	type SessionSlot,
-	type UnfilledSlot,
 	placedSessions,
 	unfilledSlots,
 } from './season.ts'
