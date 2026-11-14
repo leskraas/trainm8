@@ -1,0 +1,3 @@
+lint exit 0
+typecheck exit 0
+vitest exit 0
