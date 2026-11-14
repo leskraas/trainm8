@@ -223,7 +223,10 @@ async function layWeeks(
 				),
 			)
 			// A replaceable session its week still asks for stays (step 2): its
-			// own weekday's slot first, then any open slot of its Discipline.
+			// own weekday's slot first, then any open slot of its Discipline, but
+			// only once its own weekday holds no open slot of that Discipline: a
+			// session kept on its day while that day's slot is laid would put two
+			// sessions on one day and leave the other empty (AC 5).
 			const pending = replaceable.map((session) => ({
 				...session,
 				weekday: weekdayIndex(localDate(session.scheduledAt, timezone)),
@@ -236,6 +239,16 @@ async function layWeeks(
 				for (const session of pending) {
 					if (keptIds.has(session.id) || !session.entry) continue
 					const entry = session.entry
+					if (
+						!sameDay &&
+						open.some(
+							(slot) =>
+								slot.weekday === session.weekday &&
+								slot.discipline === entry.discipline,
+						)
+					) {
+						continue
+					}
 					const at = open.findIndex(
 						(slot) =>
 							(!sameDay || slot.weekday === session.weekday) &&

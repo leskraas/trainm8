@@ -503,3 +503,38 @@ test("a shortened generated plan clears the machine's sessions past its new end"
 		lastWeek.map(() => 'stock_race1'),
 	)
 })
+
+test('a session kept on another day leaves its own day one session, not two (AC 5)', async () => {
+	await seedCorpus()
+	const { athleteId, outlineId } = await approve()
+	const peakWeek = '2026-02-23'
+	const before = (await planSessions(athleteId)).filter(
+		(row) => row.weekKey === peakWeek,
+	)
+	// Peak lays threshold on Monday and VO2max on Wednesday.
+	expect(before.slice(0, 2).map((row) => [row.weekday, row.stock])).toEqual([
+		[0, 'stock_thr1'],
+		[2, 'stock_vo2a'],
+	])
+	// A philosophy switch moves Peak's mix to zones 3 and 4: Monday now asks for
+	// tempo and Wednesday for threshold.
+	const peak = await prisma.trainingTrackSegment.findFirstOrThrow({
+		where: { track: { outlineId }, phase: { orderIndex: 2 } },
+		select: { id: true },
+	})
+	await prisma.qualitySessionMixEntry.deleteMany({
+		where: { segmentId: peak.id },
+	})
+	await prisma.qualitySessionMixEntry.createMany({
+		data: [
+			{ segmentId: peak.id, zone: 3, sessionsPerWeek: 1 },
+			{ segmentId: peak.id, zone: 4, sessionsPerWeek: 1 },
+		],
+	})
+	await relay(athleteId, outlineId)
+
+	const after = (await planSessions(athleteId)).filter(
+		(row) => row.weekKey === peakWeek,
+	)
+	expect(after.map((row) => row.weekday)).toEqual([0, 2, 4, 5])
+})

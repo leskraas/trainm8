@@ -105,7 +105,10 @@ In each week, a re-lay of a generated plan:
    level floor) and is of the archetype the generator retrieves for that slot
    (the first of the slot's archetypes the corpus answers, not a fallback it
    lists, so an easy session in a week that became race week goes), preferring
-   the slot on its own weekday. A kept one stays on the day it is on;
+   the slot on its own weekday. It meets a slot on another day only when its own
+   weekday holds no open slot of its Discipline, so a kept session never leaves
+   its day with a second session laid beside it. A kept one stays on the day it
+   is on;
 3. removes every other replaceable session the plan laid in that week, and
    places the generator's session in each slot still unfilled, through the same
    writer approval uses.
