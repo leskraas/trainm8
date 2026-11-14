@@ -32,8 +32,10 @@ from, and which sessions it covers.
    reader of that read (the route today, a `preview_season` action under ADR
    0092 and ADR 0093 later) gets the same numbers.
 2. **Read from the stored Stock Workout rows that approval copies.** The read
-   uses `workoutCopySelect`, the select `writeSessions` reads, through one
-   shared reader, so the preview and the approval cannot read different rows. It
+   uses `stockWorkoutSelect` (`workoutCopySelect`, the columns a copy writes,
+   plus the block and step ids the Workout Shape keys its planned zones by,
+   which a copy never writes), through one reader that `writeSessions` uses
+   too, so the preview and the approval cannot read different rows. It
    does not use the TypeScript corpus, whose structured Intensity Targets
    `fixedDayVolume` cannot read. Thresholds are `getDisciplineThresholds`, as on
    _Sesong_. Nothing is resolved, rescaled or written (ADR 0053 §6, §8).
