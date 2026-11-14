@@ -163,7 +163,10 @@ already existed:
   one-to-many, so a shared Workout would make one edit twelve (ADR 0044 §6);
 - the **Citation** is _reached_ rather than copied, by walking the chain and
   never assuming one hop, so correcting a mis-cited row corrects every plan that
-  used it and `retiredAt` keeps working (ADR 0051 §5, #460);
+  used it and `retiredAt` keeps working (ADR 0051 §5, #460). **Narrowed by
+  [ADR 0123](./0123-provenance-is-available-not-asserted-a-row-carries-the-plan-and-its-provenance-is-one-tap-away.md)
+  §5** for the session page, which reads the placed copy and at most one hop
+  past an adoption fork, never the whole chain;
 - **Session Adoption** already means the right thing: the session stays
   `generated` forever and `adoptedAt` records the takeover.
 

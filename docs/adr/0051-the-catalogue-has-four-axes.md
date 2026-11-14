@@ -152,7 +152,11 @@ Three things this buys that copy-on-save cannot:
 `SetNull` and never `Cascade`: deleting a source must orphan the lineage and
 never take the athlete's own copy with it. Lineage is a **chain**, so a reader
 walks it (`resolveCatalogueOrigin`, capped at 16 hops) rather than assuming one
-hop — a fork of a fork still came from the corpus.
+hop — a fork of a fork still came from the corpus. (**Narrowed by
+[ADR 0123](./0123-provenance-is-available-not-asserted-a-row-carries-the-plan-and-its-provenance-is-one-tap-away.md)
+§5** for the session page's provenance line, which reads the placed copy and at
+most one hop past an adoption fork, so a session built from the athlete's own
+fork cites nothing.)
 
 **One field, one rule, across two tickets.**
 [#460](https://github.com/leskraas/trainm8/issues/460) needs the same mechanism

@@ -22,6 +22,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
+import { ProvenanceSlot } from '#app/components/provenance-slot.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
 import { ScoreStanza } from '#app/components/score-stanza.tsx'
 import { ShapeStrip } from '#app/components/shape-strip.tsx'
@@ -78,6 +79,7 @@ import {
 import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { readPlacedProvenance } from '#app/utils/catalogue.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	formatLoad,
@@ -114,6 +116,7 @@ import {
 } from '#app/utils/labels.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { withoutProvenanceNotice } from '#app/utils/plan-generation/provenance.ts'
 import {
 	type VsLastMetric,
 	buildVsLastComparison,
@@ -277,6 +280,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		exercises,
 		recentExerciseIds,
 		activeOutline,
+		placedProvenance,
 	] = await Promise.all([
 		getDisciplineThresholds(userId),
 		session.status === 'completed' && session.workout
@@ -305,6 +309,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		// the way I dag's row reads it (`trackCurrencies`, the first track per
 		// sport), so the page and the row it was opened from agree.
 		findActiveOutline(userId, new Date()),
+		// Where a session placed from the Catalogue came from (ADR 0123 §5): the
+		// placed copy's Catalogue Entry, one hop further past an adoption fork.
+		readPlacedProvenance(session.workout?.id, session.adoptedAt),
 	])
 
 	// A Simple Activity has no archetype to state or read (ADR 0015 §A): it is
@@ -392,6 +399,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		simpleActivity,
 		loggedSetCount,
 		loggedSetsByStep,
+		placedProvenance,
 		// Arket M: the session in its own numbers, the track's unit first. Built
 		// here, from the rows the page already loaded — the presenter is pure.
 		summary: buildSessionSummary({
@@ -834,9 +842,20 @@ export default function SessionDetailRoute({
 		simpleActivity,
 		loggedSetCount,
 		loggedSetsByStep,
+		placedProvenance,
 		summary,
 	} = loaderData
 	const timeZone = useAthleteTimezone()
+	// The notice a convention or hand-written row opens with is said once, by
+	// the Session Provenance below it, as the Catalogue card does.
+	const rawDescription = session.workout?.description ?? null
+	const description =
+		rawDescription && placedProvenance
+			? withoutProvenanceNotice(
+					rawDescription,
+					placedProvenance.provenance.kind,
+				)
+			: rawDescription
 	// The same headline Intensity Target the home surface shows, so the two agree
 	// (#130). Resolves the workout's authored target against the athlete's
 	// thresholds; null when there's no prescription or no truthful target. A
@@ -986,12 +1005,13 @@ export default function SessionDetailRoute({
 						    athlete adopts the structure — read off `adoptedAt` now that
 						    the origin survives the takeover (#460). */}
 						{session.workout?.description ||
+						placedProvenance ||
 						isUnadoptedDetected(session) ||
 						archetype?.kind === 'read' ? (
 							<CardContent className="flex flex-col gap-2">
-								{session.workout?.description ? (
+								{description ? (
 									<p className="text-footnote text-muted-foreground">
-										{session.workout.description}
+										{description}
 									</p>
 								) : null}
 								{isUnadoptedDetected(session) || archetype?.kind === 'read' ? (
@@ -1019,6 +1039,19 @@ export default function SessionDetailRoute({
 											</Badge>
 										) : null}
 									</div>
+								) : null}
+								{/* Session Provenance, last in the prose block, after the
+								    numbers (ADR 0123 §2): the session page is the tap from
+								    the row, so it is stated here, not behind a disclosure.
+								    "Endret av deg" reads `adoptedAt`. Nothing renders where
+								    the session came from no Catalogue row. */}
+								{placedProvenance ? (
+									<ProvenanceSlot
+										data-provenance
+										provenance={placedProvenance.provenance}
+										adopted={session.adoptedAt != null}
+										takenDown={placedProvenance.takenDown}
+									/>
 								) : null}
 							</CardContent>
 						) : null}

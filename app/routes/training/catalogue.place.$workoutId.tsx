@@ -16,6 +16,7 @@
 import { data, Form, Link, redirect, useSearchParams } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
+import { ProvenanceSlot } from '#app/components/provenance-slot.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { localDate } from '#app/utils/athlete-calendar.ts'
@@ -35,11 +36,7 @@ import {
 import { cn } from '#app/utils/misc.tsx'
 import { readSessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import { type Route } from './+types/catalogue.place.$workoutId.ts'
-import {
-	catalogueBlurb,
-	nbProvenanceNonVouch,
-	nbProvenanceSentence,
-} from './__catalogue-card.ts'
+import { catalogueBlurb } from './__catalogue-card.ts'
 
 export const meta: Route.MetaFunction = () => [{ title: L.metaTitle }]
 
@@ -99,7 +96,6 @@ export default function PlaceRoute({
 	actionData,
 }: Route.ComponentProps) {
 	const row = loaderData
-	const nonVouch = nbProvenanceNonVouch(row.sourcing)
 	// The list the athlete came from, filters and page intact: the card's link
 	// carried them here, so back and cancel hand them straight back.
 	const [searchParams] = useSearchParams()
@@ -126,14 +122,7 @@ export default function PlaceRoute({
 						{row.description}
 					</p>
 				) : null}
-				<p className="text-footnote text-muted-foreground">
-					{nbProvenanceSentence(row.sourcing)}
-				</p>
-				{nonVouch ? (
-					<p className="text-footnote text-muted-foreground" data-non-vouch>
-						{nonVouch}
-					</p>
-				) : null}
+				<ProvenanceSlot provenance={row.sourcing} />
 			</div>
 
 			<Form method="POST" className="space-y-4">

@@ -4,13 +4,19 @@ import * as setCookieParser from 'set-cookie-parser'
 import { autoSaveImport } from '#app/utils/activity-import.server.ts'
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
+import * as corpusCitations from '#app/utils/catalogue-corpus.citations.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	createFitnessGoalEvent,
 	createPlanOutline,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
-import { expect, openPlanAdvanced, test } from '#tests/playwright-utils.ts'
+import {
+	expect,
+	openPlanAdvanced,
+	test,
+	untilHydrated,
+} from '#tests/playwright-utils.ts'
 
 // Mirrors `onboardingEmailSessionKey` in
 // `app/routes/_auth/onboarding/index.tsx`. Inlined rather than imported: that
@@ -182,6 +188,92 @@ test('the season plan does not overflow at 390px', async ({
 	await expectNoHorizontalOverflow(page)
 })
 
+test('the Plan Preview with a provenance panel open does not overflow at 390px (#475)', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(150_000)
+	const user = await login()
+	const event = await prisma.event.create({
+		data: {
+			athleteId: user.id,
+			name: `Race ${faker.string.alphanumeric(8)}`,
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date(Date.now() + 17 * 7 * 24 * 60 * 60 * 1000),
+			disciplines: JSON.stringify(['run']),
+		},
+	})
+	await page.goto(`/training/plan/generate/${event.id}?anchor-run=40`)
+	// A placed row is one button; its provenance waits behind the tap (ADR 0123).
+	const row = page.locator('[data-session-row] > button').first()
+	await expect(row).toHaveAttribute('aria-expanded', 'false')
+	await expect(page.locator('[data-provenance-panel]')).toHaveCount(0)
+	await untilHydrated(row)
+	await row.click()
+	await expect(row).toHaveAttribute('aria-expanded', 'true')
+	await expect(page.locator('[data-provenance-panel]')).toBeVisible()
+	expect(
+		(await row.boundingBox())?.height,
+		'a row is a 44px target (ADR 0028)',
+	).toBeGreaterThanOrEqual(44)
+	await expectNoHorizontalOverflow(page)
+})
+
+test('a Plan Preview panel opened just above the tab bar scrolls clear of it, with no request (#475)', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(150_000)
+	const user = await login()
+	const event = await prisma.event.create({
+		data: {
+			athleteId: user.id,
+			name: `Race ${faker.string.alphanumeric(8)}`,
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date(Date.now() + 17 * 7 * 24 * 60 * 60 * 1000),
+			disciplines: JSON.stringify(['run']),
+		},
+	})
+	await page.goto(`/training/plan/generate/${event.id}?anchor-run=40`)
+	// A placed row is one button (ADR 0123).
+	const target = page.locator('[data-session-row]').getByRole('button').nth(3)
+	await untilHydrated(target)
+	const tabBar = page.locator('[data-tab-bar]')
+	// Put the row's bottom 16 px above the tab bar: on screen, so tapping it
+	// scrolls nothing, while its panel would open behind the bar.
+	const barTop = (await tabBar.boundingBox())!.y
+	const rowBox = (await target.boundingBox())!
+	await page.evaluate(
+		(by) => window.scrollBy({ top: by, behavior: 'instant' }),
+		rowBox.y + rowBox.height - (barTop - 16),
+	)
+
+	const requests: string[] = []
+	page.on('request', (request) => {
+		if (['document', 'fetch', 'xhr'].includes(request.resourceType())) {
+			requests.push(request.url())
+		}
+	})
+	await target.click()
+	await expect(target).toHaveAttribute('aria-expanded', 'true')
+	const panel = page.locator('[data-provenance-panel]')
+	await expect(panel).toBeVisible()
+	// The panel opens (200 ms), then scrolls into view.
+	await expect
+		.poll(async () => {
+			const bottom = await panel.evaluate(
+				(el) => el.getBoundingClientRect().bottom,
+			)
+			const top = await tabBar.evaluate((el) => el.getBoundingClientRect().top)
+			return bottom - top
+		}, 'the open panel ends above the tab bar, not behind it')
+		.toBeLessThanOrEqual(0)
+	// The panel renders from the payload already on the page.
+	expect(requests, 'opening a row makes no request').toEqual([])
+})
+
 test('the season plan with all three Guard Notices in its lead does not overflow at 390px', async ({
 	page,
 	navigate,
@@ -328,6 +420,79 @@ test('the season plan with all three Guard Notices in its lead does not overflow
 	await openPlanAdvanced(page)
 	await expect(page.getByRole('note')).toHaveCount(3)
 	await expectNoHorizontalOverflow(page)
+})
+
+test('a session page carrying the longest Citation and a URL locator does not overflow at 390px (#475)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	// The corpus's longest work, read from the corpus so the case follows it; a
+	// URL is the locator that cannot break at a space.
+	const longest = Object.values(corpusCitations).reduce((a, b) =>
+		b.work.length > a.work.length ? b : a,
+	)
+	// The Stock Workout is nobody's, so the user's cleanup never reaches it: it
+	// is retired from the start (a retired entry still cites, and nothing can
+	// retrieve it) and deleted when the test ends.
+	const stock = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Eksplosiv styrke for løpsøkonomi',
+			discipline: 'run',
+			intent: 'threshold',
+			archetype: 'threshold',
+			authorship: 'system',
+		},
+	})
+	await prisma.catalogueEntry.create({
+		data: {
+			workoutId: stock.id,
+			workoutAuthorship: 'system',
+			archetype: 'threshold',
+			citationAuthor: longest.author,
+			citationWork: longest.work,
+			citationYear: longest.year,
+			citationLocator:
+				'https://runningwritings.com/2023/12/percentage-based-training-for-distance-runners-a-very-long-address.html',
+			retiredAt: new Date(),
+		},
+	})
+	try {
+		const placed = await prisma.workout.create({
+			select: { id: true },
+			data: {
+				title: 'Eksplosiv styrke for løpsøkonomi',
+				discipline: 'run',
+				intent: 'threshold',
+				ownerId: user.id,
+				copiedFromId: stock.id,
+			},
+		})
+		const session = await prisma.workoutSession.create({
+			select: { id: true },
+			data: {
+				userId: user.id,
+				workoutId: placed.id,
+				scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+				status: 'scheduled',
+				source: 'generated',
+				adoptedAt: new Date(),
+			},
+		})
+		await navigate('/training/sessions/:sessionId', { sessionId: session.id })
+		const line = page.locator('[data-provenance]')
+		await expect(line).toContainText(`Endret av deg · Kilde: ${longest.author}`)
+		await expect(line.getByRole('link')).toHaveAttribute(
+			'href',
+			/^https:\/\/runningwritings\.com\//,
+		)
+		await expectNoHorizontalOverflow(page)
+	} finally {
+		await prisma.workout.delete({ where: { id: stock.id } })
+	}
 })
 
 test('the Bibliotek and Meg tabs do not overflow, and the tab bar covers no content', async ({

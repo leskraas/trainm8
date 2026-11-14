@@ -2404,10 +2404,10 @@ act, and trainm8 placing one unasked is trainm8 vouching for what its own
 non-vouch says it does not. What it cannot do it **names**: no preset carries a
 **strength** segment, so a strength track is an **Unavailable Metric** stated on
 the payload, and a slot the corpus has nothing for is left empty and said out
-loud rather than backfilled. First surface: `/training/plan/generate/:eventId`,
-reached from the shape step; the review surface proper is still fog. The plan it
-writes keeps a **Generation Record**, and its weeks are laid again by the
-generator until the athlete gives it a **Week Pattern** with days (ADR 0120).
+loud rather than backfilled. A season is reviewed on the **Plan Preview** before
+approval and on _Plan_ after it; there is no separate review screen (ADR 0123).
+The plan it writes keeps a **Generation Record**, and its weeks are laid again by
+the generator until the athlete gives it a **Week Pattern** with days (ADR 0120).
 _Avoid_: AI plan, auto-plan.
 
 **Generation Record**: What a **Plan Outline** made by **Plan Generation** keeps
@@ -2444,15 +2444,18 @@ Citation", which was written before an uncited **Stock Workout** existed and
 would now silently delete about a third of the corpus — the **Convention Rows**,
 the **Hand-Written Rows**, and with them the only sessions that exist for race
 week. Nothing may claim a source it does not have, which is the rule that
-survives intact. _Avoid_: Citation (one of the four), source (overloaded with
-**Session Source**), attribution (that is the community one)
+survives intact. **Available, not asserted** (ADR 0123): a row carries the plan
+and its provenance is one tap away; an absence or a warning never waits behind
+that tap. _Avoid_: Citation (one of the four), source (overloaded with **Session
+Source**), attribution (that is the community one)
 
 **Plan Preview**: The transient, un-persisted result of a **Plan Generation**,
 reviewed before anything is written — live again with generation (ADR 0053 §8),
 after being retired alongside it (ADR 0044). **Nothing reaches the calendar
 unapproved**, and that is now a property of the payload's _type_: it carries no
 id the app minted, so it cannot be mistaken for a written plan. There is still
-no draft session state. _Avoid_: Draft (no draft session state exists).
+no draft session state. _Avoid_: Draft (no draft session state exists), generate
+preview (the route's nickname, not a second concept).
 
 **Generated Session**: A **Workout Session** whose **Session Source** is
 generation rather than manual authoring or recording — **produced again since
@@ -2959,14 +2962,14 @@ this number and never the **Week Target**. _Avoid_: Planned load (that is
 Planned TSS, per session), week sum.
 
 **Placed Hours**: How long one generated **Training Week**'s placed endurance
-sessions take **at least**, in hours: every step the **Workout Reading** can time
-through the athlete's own thresholds, a **Send-Off** rep at its cycle time, summed.
-Exact only when every placed session was timed end to end and no slot went
-unfilled; otherwise a floor, and it reads _minst_. Read in the generate preview
-against the **Weekly Capacity** and stated, never fixed, where it is over (ADR
-0110 §4, ADR 0116). Not **Planned Volume**, which drops a whole session for one
-untimed step, so the two may differ on the same week. _Avoid_: Planned hours,
-session hours, week duration.
+sessions take **at least**, in hours: every step the **Workout Reading** can
+time through the athlete's own thresholds, a **Send-Off** rep at its cycle time,
+summed. Exact only when every placed session was timed end to end and no slot
+went unfilled; otherwise a floor, and it reads _minst_. Read in the **Plan
+Preview** against the **Weekly Capacity** and stated, never fixed, where it is
+over (ADR 0110 §4, ADR 0116). Not **Planned Volume**, which drops a whole
+session for one untimed step, so the two may differ on the same week. _Avoid_:
+Planned hours, session hours, week duration.
 
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the
