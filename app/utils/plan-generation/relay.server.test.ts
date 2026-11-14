@@ -540,7 +540,7 @@ test('a session kept on another day leaves its own day one session, not two (AC 
 	expect(after.map((row) => row.weekday)).toEqual([0, 2, 4, 5])
 })
 
-test("two re-lays of a legacy plan at once both freeze its days without failing (AC 9)", async () => {
+test('two re-lays of a legacy plan at once both freeze its days without failing (AC 9)', async () => {
 	await seedCorpus()
 	const { athleteId, outlineId } = await approve()
 	const record = await prisma.generationRecord.update({
