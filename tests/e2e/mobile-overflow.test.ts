@@ -4,6 +4,7 @@ import * as setCookieParser from 'set-cookie-parser'
 import { autoSaveImport } from '#app/utils/activity-import.server.ts'
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
+import * as corpusCitations from '#app/utils/catalogue-corpus.citations.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	createFitnessGoalEvent,
@@ -226,10 +227,14 @@ test('a session page carrying the longest Citation and a URL locator does not ov
 }) => {
 	test.setTimeout(120_000)
 	const user = await login()
-	// Denadai 2017 is the corpus's longest work; a URL is the locator that
-	// cannot break at a space. The Stock Workout is nobody's, so the user's
-	// cleanup never reaches it: it is retired from the start (a retired entry
-	// still cites, and nothing can retrieve it) and deleted when the test ends.
+	// The corpus's longest work, read from the corpus so the case follows it; a
+	// URL is the locator that cannot break at a space.
+	const longest = Object.values(corpusCitations).reduce((a, b) =>
+		b.work.length > a.work.length ? b : a,
+	)
+	// The Stock Workout is nobody's, so the user's cleanup never reaches it: it
+	// is retired from the start (a retired entry still cites, and nothing can
+	// retrieve it) and deleted when the test ends.
 	const stock = await prisma.workout.create({
 		select: { id: true },
 		data: {
@@ -245,11 +250,9 @@ test('a session page carrying the longest Citation and a URL locator does not ov
 			workoutId: stock.id,
 			workoutAuthorship: 'system',
 			archetype: 'threshold',
-			citationAuthor:
-				'Denadai BS, de Aguiar RA, de Lima LC, Greco CC, Caputo F',
-			citationWork:
-				'Explosive training and heavy weight training are effective for improving running economy in endurance athletes: a systematic review and meta-analysis. Sports Med 47(3):545–554',
-			citationYear: 2017,
+			citationAuthor: longest.author,
+			citationWork: longest.work,
+			citationYear: longest.year,
 			citationLocator:
 				'https://runningwritings.com/2023/12/percentage-based-training-for-distance-runners-a-very-long-address.html',
 			retiredAt: new Date(),
@@ -279,7 +282,7 @@ test('a session page carrying the longest Citation and a URL locator does not ov
 		})
 		await navigate('/training/sessions/:sessionId', { sessionId: session.id })
 		const line = page.locator('[data-provenance]')
-		await expect(line).toContainText('Endret av deg · Kilde: Denadai BS')
+		await expect(line).toContainText(`Endret av deg · Kilde: ${longest.author}`)
 		await expect(line.getByRole('link')).toHaveAttribute(
 			'href',
 			/^https:\/\/runningwritings\.com\//,
