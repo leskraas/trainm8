@@ -358,7 +358,7 @@ export function WeekStrip({
 							scrubRef.current = null
 							setScrubbing(false)
 						}}
-						className="relative flex h-11 [touch-action:none] items-stretch overflow-hidden rounded-xl"
+						className="relative flex h-11 [touch-action:none] items-stretch overflow-hidden rounded-3xl"
 					>
 						{visible.map((week) => (
 							<StripWeek
@@ -386,7 +386,7 @@ export function WeekStrip({
 							<span
 								aria-hidden
 								data-strip-frame
-								className="border-primary pointer-events-none absolute inset-y-0 rounded-lg border-2"
+								className="border-primary pointer-events-none absolute inset-y-0 rounded-2xl border-2"
 								style={{
 									left: pct(frameStart),
 									width: `${((frameEnd - frameStart + 1) / n) * 100}%`,
@@ -467,7 +467,7 @@ function EdgeButton({
 					? SEASON_STRIP_LABELS.earlierName(weeks)
 					: SEASON_STRIP_LABELS.laterName(weeks)
 			}
-			className="text-muted-foreground pressable relative flex h-11 w-7 flex-none flex-col items-center justify-center rounded-lg text-[10px]/[1] font-semibold tabular-nums after:absolute after:-inset-x-2 after:inset-y-0 disabled:opacity-40"
+			className="text-muted-foreground pressable relative flex h-11 w-7 flex-none flex-col items-center justify-center rounded-2xl text-[10px]/[1] font-semibold tabular-nums after:absolute after:-inset-x-2 after:inset-y-0 disabled:opacity-40"
 		>
 			<Icon
 				name="chevron-right"

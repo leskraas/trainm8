@@ -64,9 +64,9 @@ export function DevAthleteSwitcher({
 
 	return (
 		// Above the phone's tab bar (ADR 0083), so it never covers a tab.
-		<div className="fixed bottom-[calc(var(--tab-bar-space)+0.75rem)] left-3 z-50 flex flex-col items-start gap-1 text-xs">
+		<div className="text-caption fixed bottom-[calc(var(--tab-bar-space)+0.75rem)] left-3 z-50 flex flex-col items-start gap-1 font-normal">
 			{open ? (
-				<div className="bg-background max-w-[15rem] rounded-md border-2 border-amber-500 shadow-lg">
+				<div className="bg-background max-w-[15rem] rounded-3xl border-2 border-amber-500 shadow-lg">
 					<div className="flex items-center justify-between gap-2 border-b px-2 py-1 text-amber-600 dark:text-amber-400">
 						<span className="font-mono">dev</span>
 						<span className="text-muted-foreground tabular-nums">

@@ -752,7 +752,7 @@ function LoadRecomputeNoticeBar({ line }: { line: LoadRecomputeLine }) {
 		<section
 			data-testid="load-recompute-notice"
 			aria-labelledby="load-recompute-kicker"
-			className="border-border flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2.5"
+			className="border-border/60 flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2.5"
 		>
 			<h2
 				id="load-recompute-kicker"

@@ -143,7 +143,7 @@ function StanzaLine({
 						<Wrapped token={block.series} renderToken={renderToken}>
 							<span
 								data-token-type="series"
-								className="text-muted-foreground ring-border rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums ring-1 ring-inset"
+								className="text-muted-foreground ring-border text-caption rounded-full px-1.5 py-0.5 font-bold whitespace-nowrap tabular-nums ring-1 ring-inset"
 							>
 								<span aria-hidden>
 									{block.series.text}
@@ -159,7 +159,7 @@ function StanzaLine({
 						<Wrapped token={block.repeat} renderToken={renderToken}>
 							<span
 								data-token-type="repeat"
-								className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums"
+								className="bg-muted text-muted-foreground text-caption rounded-full px-1.5 py-0.5 font-bold whitespace-nowrap tabular-nums"
 							>
 								{block.repeat.text}
 								{NOTATION_SEPARATORS.repeat}
@@ -297,9 +297,9 @@ function Wrapped({
 
 /**
  * The chip tint: the zone hue mixed ~22–26 % toward the card surface (§7.2),
- * so the same hues carry both themes. Static class strings for the Tailwind
- * compiler. Exported so the intensity popover's zone chips (§7.3) share the
- * exact tint the line's chip renders.
+ * which follows the zone's light or dark value per theme (ADR 0119 §3).
+ * Static class strings for the Tailwind compiler. Exported so the intensity
+ * popover's zone chips (§7.3) share the exact tint the line's chip renders.
  */
 export const ZONE_CHIP_TINT: Record<TrainingZone, string> = {
 	1: 'bg-[color-mix(in_srgb,var(--zone-1)_22%,var(--card))]',
@@ -310,7 +310,7 @@ export const ZONE_CHIP_TINT: Record<TrainingZone, string> = {
 }
 
 const CHIP_BASE =
-	'inline-flex items-baseline whitespace-nowrap rounded-md px-2 py-px text-[0.8em] font-semibold tabular-nums [font-variant-caps:small-caps]'
+	'inline-flex items-baseline whitespace-nowrap rounded-full px-2 py-px text-[0.8em] font-semibold tabular-nums [font-variant-caps:small-caps]'
 
 /**
  * The intensity chip — the line's ONLY chip-shaped element: authored value as

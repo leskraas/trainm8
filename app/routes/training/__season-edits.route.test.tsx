@@ -155,7 +155,9 @@ test('a text link into an edit reaches 44 px without growing its line', async ()
 		name: 'Endre navn eller lengde på en fase',
 	})
 	// An invisible `after:` box 12 px above and below a 20 px line: 44 px of
-	// target with no change to the reading's rhythm (ADR 0028 §2).
+	// target with no change to the reading's rhythm (ADR 0028 §2). The
+	// footnote step's own line is 18 px, so the link pins a 20 px one.
+	expect(link.classList).toContain('leading-5')
 	expect(link.classList).toContain('relative')
 	expect(link.classList).toContain('after:absolute')
 	expect(link.classList).toContain('after:-inset-y-3')

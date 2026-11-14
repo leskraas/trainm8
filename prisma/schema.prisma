@@ -1441,8 +1441,54 @@ model PlanOutline {
   /// typed, which is read off its rhythm instead (`outlineFamily`). The shape
   /// itself is still copied in and stays editable (ADR 0044 §2).
   family    String?
+  /// Present when **Plan Generation** made the plan (ADR 0120 §1): what it was
+  /// approved with, and the days its sessions were placed on.
+  generationRecord GenerationRecord?
 
   @@index([athleteId])
+}
+
+/// A plan's **Generation Record** (ADR 0120 §1): that **Plan Generation** made
+/// it, with which generator, Periodization Preset and intent, written in the
+/// same transaction as the placed sessions. Its existence is what "made by Plan
+/// Generation" means. A plan generated before the record existed has one from
+/// the data migration with no preset key and no intent (null reads as the
+/// default intent), and no days until its first re-lay freezes them.
+model GenerationRecord {
+  id String @id @default(cuid())
+
+  outline   PlanOutline @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  outlineId String      @unique
+
+  /// The `SeasonGenerator.id` that placed the season; a re-lay goes through
+  /// the implementation it names (ADR 0120 §2).
+  generatorId String
+  /// The Periodization Preset key approved, or null when never recorded.
+  presetKey   String?
+  /// 'first-season' | 'returning-from-injury' | 'deliberately-building', or
+  /// null when never recorded (read as 'deliberately-building').
+  intent      String?
+  createdAt   DateTime @default(now())
+
+  days GenerationRecordDay[]
+}
+
+/// One weekday a generated plan places a Discipline's sessions on: a bake of
+/// the athlete's **Training Availability** at approval (ADR 0112 §1), read by
+/// every re-lay even after the availability changed.
+model GenerationRecordDay {
+  id String @id @default(cuid())
+
+  record   GenerationRecord @relation(fields: [recordId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recordId String
+
+  discipline String
+  /// Monday-first, 0 = Monday (ADR 0019).
+  weekday    Int
+  /// 'long' | 'ordinary'.
+  role       String
+
+  @@unique([recordId, discipline, weekday])
 }
 
 /// One stretch of the season: its span, its intent, its loading/recovery rhythm

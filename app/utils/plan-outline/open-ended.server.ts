@@ -22,6 +22,7 @@ import {
 } from '#app/utils/load/week-replan-proposal.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
 import { CARDIO_DISCIPLINES } from '#app/utils/workout-schema.ts'
+import { relayGeneratedPlan } from '../plan-generation/relay.server.ts'
 import {
 	previewAttachEvent,
 	type AttachEventPreview,
@@ -34,6 +35,7 @@ import { outlinePreviewSelect } from './outline-preview.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
 import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
+import { readPlanWeekSource } from './week-source.server.ts'
 
 type AddPhasePayload = Extract<ProposalPayload, { kind: 'add-phase' }>
 
@@ -660,8 +662,11 @@ export async function relayPlanFrom(
  * at the new targets, so the week reaches its target with the athlete's
  * session in it rather than falling below it. Chosen over leaving the old
  * machine sessions in such a week, which would keep that week at the old
- * plan's numbers beside a new plan. A week the plan no longer reaches (or a
- * plan with no pattern) has its machine sessions cleared and nothing laid.
+ * plan's numbers beside a new plan. A plan Plan Generation made, with no
+ * Week Pattern, is laid again by its generator instead (ADR 0120 §3, §4).
+ * A week the plan no longer reaches, or a plan with nothing to lay (no
+ * pattern and no Generation Record), has its machine sessions cleared and
+ * nothing laid.
  * Returns how many weeks were touched.
  */
 async function relayFutureWeeks(
@@ -672,6 +677,20 @@ async function relayFutureWeeks(
 	now: Date,
 	{ onlyWeekKeys }: { onlyWeekKeys?: readonly string[] } = {},
 ): Promise<number> {
+	const source = await readPlanWeekSource(outlineId)
+	// A generated plan is laid again by its generator, over its weeks to its end
+	// (ADR 0120 §3).
+	if (source.kind === 'generated') {
+		const laid = await relayGeneratedPlan(
+			userId,
+			outlineId,
+			fromWeekKey,
+			timezone,
+			{ onlyWeekKeys },
+		)
+		return laid.filter((week) => week.sessions > 0 || week.removed > 0).length
+	}
+
 	const sessions = await prisma.workoutSession.findMany({
 		where: {
 			userId,
@@ -688,11 +707,7 @@ async function relayFutureWeeks(
 		.sort()
 	if (weekKeys.length === 0) return 0
 
-	const pattern = await prisma.weekPattern.findFirst({
-		where: { outlineId, days: { some: {} } },
-		orderBy: { orderIndex: 'asc' },
-		select: { id: true },
-	})
+	const pattern = source.kind === 'pattern' ? source.patternId : null
 	let touched = 0
 	for (const weekKey of weekKeys) {
 		const occupancy = await readWeekOccupancy(
@@ -705,7 +720,7 @@ async function relayFutureWeeks(
 		const restamped = pattern
 			? await stampWeekPattern(
 					userId,
-					{ patternId: pattern.id, weekKeys: [weekKey], replace: true },
+					{ patternId: pattern, weekKeys: [weekKey], replace: true },
 					now,
 					{ aroundKeptSessions: true },
 				)

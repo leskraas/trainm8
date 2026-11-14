@@ -436,7 +436,7 @@ const SeasonRow = memo(function SeasonRow({
 								onJump(row.key)
 							}}
 							aria-label={rowLabel(row.name)}
-							className="pressable focus-visible:outline-ring w-full rounded-sm text-left tabular-nums focus-visible:outline-2"
+							className="pressable focus-visible:outline-ring w-full rounded-2xl text-left tabular-nums focus-visible:outline-2"
 						>
 							{row.weekNumber}
 						</button>

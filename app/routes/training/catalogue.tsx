@@ -688,7 +688,7 @@ export default function CatalogueRoute({ loaderData }: Route.ComponentProps) {
 						{CATALOGUE_LABELS.noOwn}
 					</p>
 				) : (
-					<ul className="bg-card divide-border/60 mt-2 divide-y rounded-4xl px-4 shadow-xs">
+					<ul className="bg-card divide-border/60 ring-foreground/5 dark:ring-foreground/10 mt-2 divide-y rounded-4xl px-4 shadow-md ring-1">
 						{own.map((workout) => (
 							<OwnRow key={workout.id} workout={workout} />
 						))}
