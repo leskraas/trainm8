@@ -16,7 +16,7 @@ import {
 	type CatalogueTier,
 	type SessionArchetype,
 } from './catalogue.ts'
-import { PUBLISHED_WORKOUT_WHERE } from './community.ts'
+import { isPublished, PUBLISHED_WORKOUT_WHERE } from './community.ts'
 import { prisma } from './db.server.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import {
@@ -408,6 +408,8 @@ export async function resolveCatalogueOrigin(
 const placedProvenanceRowSelect = {
 	authorship: true,
 	description: true,
+	visibility: true,
+	ownerId: true,
 	catalogueEntry: {
 		select: {
 			citationAuthor: true,
@@ -437,6 +439,10 @@ type PlacedProvenanceRow = Prisma.WorkoutGetPayload<{
  * fork of it. `resolveCatalogueOrigin` keeps the full walk for the Catalogue's
  * "adapted from" line. A retired entry still counts.
  *
+ * The publisher's name is served only while the row is still published
+ * ({@link isPublished}, ADR 0051 §5): a taken-down row (ADR 0052 §2) or an
+ * orphan reads as "an athlete published it", with the non-vouch, and no name.
+ *
  * One query, two levels of nested select.
  */
 export async function readPlacedProvenance(
@@ -464,7 +470,7 @@ export async function readPlacedProvenance(
 		authorship: row.authorship,
 		description: row.description,
 		...row.catalogueEntry,
-		attribution: row.attribution,
+		attribution: isPublished(row) ? row.attribution : null,
 	})
 	if (provenance.kind === 'unsourced') return null
 	return {

@@ -742,6 +742,47 @@ test('a community session reads its Attribution, never a Citation, and says when
 	expect(JSON.stringify(takenDown)).not.toContain('Unsafe')
 })
 
+test('a placed session names its publisher only while the row is still published (ADR 0051 §5, ADR 0052 §2)', async () => {
+	const athlete = await createAthlete()
+	const author = await createAthlete()
+	const shared = await createSharedWorkout(author.id)
+	await createCatalogueEntry(shared.id, { archetype: 'threshold' })
+	await prisma.attribution.create({
+		data: {
+			workoutId: shared.id,
+			displayName: 'Erased Author',
+			publishedAt: new Date('2026-08-01T10:00:00Z'),
+		},
+	})
+	const placed = await placedCopy(shared.id, athlete.id)
+
+	// A takedown withdraws the row (`visibility = 'private'`), so no read path
+	// serves its published name; the line still says an athlete published it.
+	await prisma.workout.update({
+		where: { id: shared.id },
+		data: { visibility: 'private' },
+	})
+	await prisma.attribution.update({
+		where: { workoutId: shared.id },
+		data: { takenDownAt: new Date(), takedownReason: 'Unsafe to train' },
+	})
+	expect(await readPlacedProvenance(placed, null)).toEqual({
+		provenance: { kind: 'community', attribution: null },
+		takenDown: true,
+	})
+
+	// An orphan the raw `User` delete left `public`: still nobody's name.
+	await prisma.workout.update({
+		where: { id: shared.id },
+		data: { visibility: 'public' },
+	})
+	await prisma.user.delete({ where: { id: author.id } })
+	expect((await readPlacedProvenance(placed, null))?.provenance).toEqual({
+		kind: 'community',
+		attribution: null,
+	})
+})
+
 test('a retired entry still gives a placed session its Citation', async () => {
 	const athlete = await createAthlete()
 	const stock = await createCitedStock()

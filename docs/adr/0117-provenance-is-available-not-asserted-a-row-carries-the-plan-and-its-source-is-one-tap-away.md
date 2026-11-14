@@ -52,7 +52,11 @@ reached the calendar.
    itself (ADR 0052 §4), and, for an adopted session where that misses, one hop
    further, past the adoption fork (#460). A retired entry still counts. Where
    neither hop reaches a Catalogue Entry, the session has no source line and no
-   placeholder. "Changed by you" is read from `adoptedAt`.
+   placeholder. "Changed by you" is read from `adoptedAt`. A community row's
+   **Attribution** is read through `isPublished` like every other
+   non-owner-scoped read (ADR 0051 §5): once the row is taken down (ADR 0052 §2)
+   or left without an owner, the line says an athlete published it, with the
+   non-vouch, and names nobody.
 
    This narrows ADR 0053 §7's "by walking the chain and never assuming one hop"
    for this one reading. A full walk would cite a Stock Workout on a session the
