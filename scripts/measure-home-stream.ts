@@ -335,7 +335,11 @@ for (const [label, figures] of medians) {
 // names.
 const [first, ...rest] = [...medians]
 for (const [label, figures] of rest) {
-	const keys = NAV ? ['longestTask', 'shown'] : ['hydrated', 'longestTask']
+	// `weeksHydrated` beside `hydrated`: with a boundary per week, the Stream
+	// answers a tap before every week has hydrated (ADR 0119).
+	const keys = NAV
+		? ['longestTask', 'shown']
+		: ['hydrated', 'weeksHydrated', 'longestTask']
 	const over = Object.fromEntries(
 		keys.map((key) => [
 			key,
