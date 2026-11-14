@@ -69,7 +69,6 @@ import { AutopilotHistoryCard } from '../__autopilot-notice.tsx'
 import {
 	buildLoadRecomputeLine,
 	type LoadRecomputeLine,
-	type LoadRecomputeNotice,
 } from '../presenter.ts'
 import {
 	AHEAD_INITIAL,
