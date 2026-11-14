@@ -208,7 +208,7 @@ export async function countWeeksWithSessions(
 }
 
 /**
- * The one kept-slot query (ADR 0109 §7): the slots the plan's own sessions
+ * The one kept-slot query (ADR 0109 §6): the slots the plan's own sessions
  * that a re-lay keeps — adopted, or trained, so outside
  * {@link REPLACEABLE_SESSION} — fill in one week, counted per weekday and
  * Discipline for `fillKeptSlots`. A session the athlete wrote fills no slot.

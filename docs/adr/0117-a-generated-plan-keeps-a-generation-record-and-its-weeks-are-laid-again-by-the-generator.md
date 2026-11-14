@@ -11,7 +11,8 @@ replaces, and where the batch lives). Follows
 [ADR 0080](./0080-week-replan-proposes-and-the-athletes-sessions-need-a-yes.md)
 (ownership gates every machine write) and
 [ADR 0109](./0109-editing-the-activities-in-meg-re-lays-the-plan-from-the-first-unbegun-week.md)
-§7 as settled on #587 (the kept-slot rule is drawn out of the stamp once).
+§6 (a kept session stays on its day and fills its slot; the kept-slot rule is
+drawn out of the stamp once).
 
 ## Context
 
@@ -96,9 +97,9 @@ In each week, a re-lay of a generated plan:
    or adopted and not released) and any trained, skipped, missed or logged one.
    A kept session the plan laid fills its weekday's slot for its Discipline, by
    the same rule and the same function the stamp uses (`fillKeptSlots`, drawn
-   out of `stamp.server.ts` as ADR 0109 §7 on #587 names it; whichever lands
-   first draws it out). A session the athlete wrote (`authored`) stays where it
-   is and fills no slot, as with every stamp;
+   out of `stamp.server.ts`, the rule ADR 0109 §6 states; #587 draws out the
+   same rule, so whichever lands first draws it out). A session the athlete
+   wrote (`authored`) stays where it is and fills no slot, as with every stamp;
 2. keeps a replaceable session the plan laid when its **Stock Workout**
    (`copiedFromId`) still meets the criteria of an unfilled slot of the same
    Discipline in that week (`matchesCriteria`: catalogue phase, goal event,
