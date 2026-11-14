@@ -93,9 +93,14 @@ reached the calendar.
 - A session changed without being adopted keeps an unqualified source line. This
   covers a session placed from the Catalogue (`source: 'authored'`, which is
   edited in place) and a machine change by a **Juster** ease or a **Week
-  Replan**, which already leaves a **Replan Note** on the same page. Reading
-  "changed" from the prescription rather than from `adoptedAt` is the fix, owed
-  when the project leaves `poc`.
+  Replan** scale, which edits the steps in place and already leaves a **Replan
+  Note** on the same page. Reading "changed" from the prescription rather than
+  from `adoptedAt` is the fix, owed when the project leaves `poc`.
+- A session written by a copy that sets no `copiedFromId` has no line, even when
+  its Workout came from a Catalogue row: a **Week Replan** make-up or add,
+  copy-week and stamping all copy without the back-pointer. Those writers are
+  older than this ADR; carrying `copiedFromId` through them is owed when the
+  project leaves `poc`.
 - Account erasure splices `copiedFromId` past the erased rows (ADR 0051). If a
   Shared Workout was itself adapted from a Stock Workout, a session placed from
   it then reads the Stock Workout's Citation once its publisher deletes their
