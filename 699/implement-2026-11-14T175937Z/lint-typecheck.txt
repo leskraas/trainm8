@@ -1,0 +1,7 @@
+
+✖ 163 problems (0 errors, 163 warnings)
+  0 errors and 5 warnings potentially fixable with the `--fix` option.
+
+> typecheck
+> react-router typegen && tsc
+
