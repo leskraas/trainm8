@@ -15,7 +15,7 @@ const TEXT = /^text-(?:xs|sm|base|lg|xl|[2-9]xl)(?:\/[\w.[\]-]+)?$/
 
 /** Strips variant prefixes: everything up to the last `:` outside brackets,
  * then a leading or trailing `!`. */
-export function baseClass(token) {
+function baseClass(token) {
 	let depth = 0
 	let cut = 0
 	for (let i = 0; i < token.length; i++) {
@@ -28,7 +28,7 @@ export function baseClass(token) {
 }
 
 /** The off-scale class in `cls`, with the step to use, or null. */
-export function offScale(cls) {
+function offScale(cls) {
 	if (RADIUS.test(cls)) {
 		return `\`${cls}\` is off the luma radius steps: cards and sheets take \`rounded-4xl\`, fields, popovers and toggles \`rounded-3xl\`, items inside them \`rounded-2xl\`, pills, tabs and chips \`rounded-full\`, data marks \`rounded-[3px]\` (${DOC}, Radius).`
 	}
