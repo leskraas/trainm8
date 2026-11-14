@@ -8,6 +8,7 @@ import {
 	Scripts,
 	ScrollRestoration,
 	useLoaderData,
+	useLocation,
 } from 'react-router'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { type Route } from './+types/root.ts'
@@ -28,6 +29,7 @@ import {
 	useTheme,
 } from './routes/resources/theme-switch.tsx'
 import tailwindStyleSheetUrl from './styles/tailwind.css?url'
+import { showsTabBar } from './utils/app-tabs.ts'
 import { getUserId, logout } from './utils/auth.server.ts'
 import { ClientHintCheck, getHints } from './utils/client-hints.tsx'
 import { prisma } from './utils/db.server.ts'
@@ -165,6 +167,7 @@ function Document({
 	nonce,
 	theme = 'light',
 	themePreference = null,
+	tabBar = false,
 	env = {},
 }: {
 	children: React.ReactNode
@@ -172,11 +175,21 @@ function Document({
 	theme?: Theme
 	/** The athlete's explicit choice; `null` follows the OS. */
 	themePreference?: Theme | null
+	/** Whether the page draws the tab bar (`--tab-bar-space`, ADR 0083 §3). */
+	tabBar?: boolean
 	env?: Record<string, string | undefined>
 }) {
 	const allowIndexing = ENV.ALLOW_INDEXING !== 'false'
 	return (
-		<html lang="en" className={`${theme} h-full overflow-x-hidden`}>
+		<html
+			lang="en"
+			className={`${theme} h-full overflow-x-hidden`}
+			// What `tailwind.css` keys `--tab-bar-space` off. An attribute on the
+			// root, not `:root:has([data-tab-bar])`: a `:has()` on the root makes
+			// every node added anywhere restyle the whole page, which on the full
+			// Home Timeline was a long task per week hydrated (#503).
+			data-tab-bar-space={tabBar ? '' : undefined}
+		>
 			<head>
 				<ClientHintCheck nonce={nonce} />
 				<Meta />
@@ -256,11 +269,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 		optimisticMode === 'system'
 			? null
 			: (optimisticMode ?? data?.requestInfo.userPrefs.theme ?? null)
+	// The tab bar is drawn for a signed-in athlete wherever `TabBar` draws it
+	// (`WordmarkRow`, ADR 0083).
+	const { pathname } = useLocation()
+	const tabBar = useOptionalUser() != null && showsTabBar(pathname)
 	return (
 		<Document
 			nonce={nonce}
 			theme={theme}
 			themePreference={themePreference}
+			tabBar={tabBar}
 			env={data?.ENV}
 		>
 			{children}
