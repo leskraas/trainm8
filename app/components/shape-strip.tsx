@@ -6,8 +6,7 @@ import {
 } from '#app/utils/shape-strip.ts'
 
 /** Solid zone hues (the Training Zone role, a light and a dark value each,
- * ADR 0119 §3). Static
- * class strings for the Tailwind compiler. */
+ * ADR 0119 §3). Static class strings for the Tailwind compiler. */
 const ZONE_FILL: Record<TrainingZone, string> = {
 	1: 'bg-zone-1',
 	2: 'bg-zone-2',
