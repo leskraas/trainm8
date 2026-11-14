@@ -1,7 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { type Locator, type Page } from '@playwright/test'
-import { AHEAD_INITIAL } from '#app/routes/_home/timeline/anchoring.ts'
+import {
+	AHEAD_INITIAL,
+	AHEAD_PAD,
+} from '#app/routes/_home/timeline/anchoring.ts'
 import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -176,21 +179,87 @@ test('weeks that mount after the first paint never move the row the reader is re
 	await expect(stream).toBeVisible()
 	await untilHydrated(stream)
 	await untilFirstChunk(stream)
-	const weeks = () => stream.locator('[data-timeline-week]').count()
-	const mounted = await weeks()
+	const mounted = await stream.locator('[data-timeline-week]').count()
 
-	// Read toward the end of what is mounted, until the weeks ahead arrive.
+	// Read on to a screen short of where the weeks ahead are mounted
+	// (`AHEAD_PAD` from the end), so that nothing mounts on the way there.
 	const end = await stream.evaluate((el) => el.scrollHeight - el.clientHeight)
-	await scrollStreamTo(page, end - 400)
-	const reading = await readingRow(page)
-	expect(reading).not.toBeNull()
-	const before = (await rowTop(page, reading!))!
+	await scrollStreamTo(page, end - AHEAD_PAD - 300)
 
-	await expect.poll(weeks, { timeout: 15_000 }).toBeGreaterThan(mounted)
-	await page.waitForTimeout(300)
-	expect(
-		Math.abs((await rowTop(page, reading!))! - before),
-	).toBeLessThanOrEqual(1)
+	// Then read on the way a reader does, a little each frame, until the weeks
+	// ahead mount below, and on for half a second after. The row is judged in
+	// **painted frames** only: measured after each frame, before the next
+	// scroll step, against how far the reader has scrolled themselves. A
+	// layout read straight after a scroll write is one the browser has not
+	// painted yet: there the weeks just scrolled into view still have their
+	// estimated height (`content-visibility`), and the row moved 2px between
+	// that layout and the first frame that showed it (CI, #692).
+	const run = await stream.evaluate(
+		(el, mountedWeeks) =>
+			new Promise<{
+				key: string | null
+				weeksAtStart: number
+				weeksAtEnd: number
+				frames: number[]
+			}>((resolve) => {
+				const weeks = () => el.querySelectorAll('[data-timeline-week]').length
+				const box = () => el.getBoundingClientRect()
+				const weeksAtStart = weeks()
+				const frames: number[] = []
+				let key: string | null = null
+				let settle = 3
+				let scrolled = 0
+				let after = -1
+				const top = (row: Element) =>
+					row.getBoundingClientRect().top - box().top
+				const channel = new MessageChannel()
+				const afterPaint = () => {
+					if (settle > 0) {
+						// The jump above settles first: weeks sized for real, painted.
+						settle--
+					} else if (key == null) {
+						const row = [...el.querySelectorAll('[data-timeline-day]')].find(
+							(r) => {
+								const t = top(r)
+								return t >= 160 && t < box().height - 80
+							},
+						)
+						key = row?.getAttribute('data-timeline-day') ?? null
+						if (!key)
+							return resolve({ key, weeksAtStart, weeksAtEnd: weeks(), frames })
+					} else {
+						const row = el.querySelector(`[data-timeline-day="${key}"]`)
+						frames.push(Math.round((row ? top(row) : NaN) + scrolled))
+						if (after < 0 && weeks() > mountedWeeks) after = 30
+						if (after === 0 || frames.length > 600) {
+							return resolve({ key, weeksAtStart, weeksAtEnd: weeks(), frames })
+						}
+						if (after > 0) after--
+					}
+					if (key != null && after < 0) {
+						// One step of the reader's own scrolling, counted as it lands.
+						const from = el.scrollTop
+						const behavior = el.style.scrollBehavior
+						el.style.scrollBehavior = 'auto'
+						el.scrollTop = from + 24
+						el.style.scrollBehavior = behavior
+						scrolled += el.scrollTop - from
+					}
+					requestAnimationFrame(() => channel.port2.postMessage(null))
+				}
+				channel.port1.onmessage = afterPaint
+				requestAnimationFrame(() => channel.port2.postMessage(null))
+			}),
+		mounted,
+	)
+	expect(run.key).not.toBeNull()
+	// The weeks ahead mounted while the reader read, not before.
+	expect(run.weeksAtStart).toBe(mounted)
+	expect(run.weeksAtEnd).toBeGreaterThan(mounted)
+	expect(run.frames.length).toBeGreaterThan(30)
+	// Where the row would be had nothing but the reader's scrolling moved it.
+	const moved = run.frames.map((at) => Math.abs(at - run.frames[0]!))
+	expect(Math.max(...moved)).toBeLessThanOrEqual(1)
 })
 
 test('on a screen taller than the weeks the server renders ahead, today is parked before the first paint and stays there', async ({
@@ -223,41 +292,52 @@ test('on a screen taller than the weeks the server renders ahead, today is parke
 			source: 'authored',
 		})),
 	})
-	// Today's row from the stream's top on every frame from the moment the
-	// document is parsed: the landing script has run by then.
+	// Today's row from the stream's top in every frame the browser paints the
+	// list, from the document's first animation frame on, not from
+	// `DOMContentLoaded`: the browser paints what it has parsed before then,
+	// and a probe that waits for the event both misses those frames and, when
+	// the event comes late, records none at all (WebKit on CI, #692). A frame
+	// in which the list is held unpainted (`landingHoldScript`) is skipped.
 	await page.addInitScript(() => {
-		const tops: number[] = []
-		Object.assign(window, { __todayTops: tops })
-		const poll = () => {
+		const w = window as unknown as { __todayTops: number[]; __frames: number }
+		w.__todayTops = []
+		w.__frames = 0
+		const frame = () => {
+			w.__frames++
 			const stream = document.querySelector('[data-timeline-stream]')
 			const today = stream?.querySelector('[data-timeline-today]')
-			if (stream && today) {
-				tops.push(
+			if (stream && today && getComputedStyle(stream).visibility !== 'hidden') {
+				w.__todayTops.push(
 					Math.round(
 						today.getBoundingClientRect().top -
 							stream.getBoundingClientRect().top,
 					),
 				)
 			}
-			requestAnimationFrame(poll)
+			requestAnimationFrame(frame)
 		}
-		document.addEventListener('DOMContentLoaded', () =>
-			requestAnimationFrame(poll),
-		)
+		requestAnimationFrame(frame)
 	})
 
 	await navigate(HOME_TIMELINE_HREF)
 	const stream = page.getByTestId('timeline-stream')
 	await expect(stream).toBeVisible()
-	// Until the rest of the first chunk has been appended below, and a moment
-	// after, for anything that would move today once it has.
+	// Until the rest of the first chunk has been appended below, and until a
+	// good number of frames have painted the list after it, for anything that
+	// would move today once it has.
 	await untilHydrated(stream)
 	await untilFirstChunk(stream)
-	await page.waitForTimeout(1000)
+	const painted = () =>
+		page.evaluate(
+			() => (window as unknown as { __todayTops: number[] }).__todayTops.length,
+		)
+	const appended = await painted()
+	await expect
+		.poll(painted, { timeout: 15_000, message: 'frames painted the list' })
+		.toBeGreaterThan(appended + 30)
 	const tops = await page.evaluate(
 		() => (window as unknown as { __todayTops: number[] }).__todayTops,
 	)
-	expect(tops.length).toBeGreaterThan(0)
 	expect(new Set(tops)).toEqual(new Set([tops[0]]))
 })
 
