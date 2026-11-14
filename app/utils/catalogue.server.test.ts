@@ -15,6 +15,7 @@ import {
 	saveToCatalogueList,
 } from './catalogue.server.ts'
 import { prisma } from './db.server.ts'
+import { updateWorkoutSession } from './workout.server.ts'
 
 async function createAthlete() {
 	const userData = createUser()
@@ -688,6 +689,54 @@ test('an adopted session keeps its source through the adoption fork, two hops', 
 	// Without adoption the second hop is not taken: the Workout is the
 	// athlete's own fork, and the fork's content is theirs.
 	expect(await readPlacedProvenance(adopted, null)).toBeNull()
+})
+
+test('a generated session the athlete rewrites keeps its source through the real adoption fork (#460)', async () => {
+	const athlete = await createAthlete()
+	const stock = await createCitedStock()
+	const placed = await placedCopy(stock.id, athlete.id)
+	const generated = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: athlete.id,
+			workoutId: placed,
+			scheduledAt: new Date('2026-09-01T08:00:00.000Z'),
+			status: 'scheduled',
+			source: 'generated',
+		},
+	})
+
+	const result = await updateWorkoutSession(athlete.id, generated.id, {
+		title: 'My own threshold',
+		discipline: 'run',
+		intent: 'threshold',
+		scheduledAt: new Date('2026-09-01T08:00:00.000Z'),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: 2400,
+						intensity: { kind: 'zoneLabel' as const, label: 'Z4' },
+					},
+				],
+			},
+		],
+	})
+	expect(result.ok).toBe(true)
+
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: generated.id },
+		select: { workoutId: true, adoptedAt: true },
+	})
+	expect(session.adoptedAt).not.toBeNull()
+	expect(session.workoutId).not.toBe(placed)
+	expect(
+		(await readPlacedProvenance(session.workoutId, session.adoptedAt))
+			?.provenance.kind,
+	).toBe('corpus')
 })
 
 test('a session placed from the Catalogue reads the same provenance', async () => {
