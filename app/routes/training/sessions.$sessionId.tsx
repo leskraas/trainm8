@@ -116,6 +116,7 @@ import {
 } from '#app/utils/labels.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { withoutProvenanceNotice } from '#app/utils/plan-generation/provenance.ts'
 import {
 	type VsLastMetric,
 	buildVsLastComparison,
@@ -845,6 +846,13 @@ export default function SessionDetailRoute({
 		summary,
 	} = loaderData
 	const timeZone = useAthleteTimezone()
+	// The notice a convention or hand-written row opens with is said once, by
+	// the Session Provenance below it, as the Catalogue card does.
+	const rawDescription = session.workout?.description ?? null
+	const description =
+		rawDescription && placedProvenance
+			? withoutProvenanceNotice(rawDescription, placedProvenance.provenance)
+			: rawDescription
 	// The same headline Intensity Target the home surface shows, so the two agree
 	// (#130). Resolves the workout's authored target against the athlete's
 	// thresholds; null when there's no prescription or no truthful target. A
@@ -998,9 +1006,9 @@ export default function SessionDetailRoute({
 						isUnadoptedDetected(session) ||
 						archetype?.kind === 'read' ? (
 							<CardContent className="flex flex-col gap-2">
-								{session.workout?.description ? (
+								{description ? (
 									<p className="text-footnote text-muted-foreground">
-										{session.workout.description}
+										{description}
 									</p>
 								) : null}
 								{/* Session Provenance, last in the prose block, after the

@@ -6,7 +6,9 @@ import userEvent from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
 import { type SessionArchetypeView } from '#app/utils/archetype-classification/index.ts'
+import { CONVENTION_NOTICE } from '#app/utils/catalogue-corpus.ts'
 import { nbStoredReplanReason } from '#app/utils/labels.ts'
+import { type SessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import {
 	type SessionDetail,
 	type SimilarSession,
@@ -1567,4 +1569,38 @@ test('a done session with no Workout and no Recording opens a readable detail, n
 	await screen.findByRole('heading', { level: 1 })
 	expect(document.body.textContent).toMatch(/gjort/i)
 	expect(screen.queryByText(/404|not found|fant ikke/i)).not.toBeInTheDocument()
+})
+
+/** The real loader's `placedProvenance` beside the rest (ADR 0117 §5). */
+function withPlacedProvenance(
+	loader: (args: LoaderFunctionArgs) => Promise<Record<string, unknown>>,
+	provenance: SessionProvenance,
+) {
+	return async (args: LoaderFunctionArgs) => ({
+		...(await loader(args)),
+		placedProvenance: { provenance, takenDown: false },
+	})
+}
+
+test('a placed convention session states its notice once, in Norwegian, not again in the description (#475)', async () => {
+	const session = makeSession({
+		status: 'scheduled',
+		workout: {
+			...makeSession().workout!,
+			description: `${CONVENTION_NOTICE} Rolig løping hele veien.`,
+		},
+	})
+	renderRoute(
+		withPlacedProvenance(sessionDetailLoader(session), {
+			kind: 'convention',
+		}),
+	)
+
+	expect(
+		await screen.findByText(/^Vanlig trenerpraksis — trainm8 viser ikke/),
+	).toBeInTheDocument()
+	expect(screen.getByText('Rolig løping hele veien.')).toBeInTheDocument()
+	expect(
+		screen.queryByText(/Widely-used coaching convention/),
+	).not.toBeInTheDocument()
 })
