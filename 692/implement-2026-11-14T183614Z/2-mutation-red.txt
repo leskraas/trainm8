@@ -1,0 +1,19 @@
+# Mutation check (reverted, not committed): a 3px box at the top of the list that grows when the weeks ahead mount. WebKit run as is; Chromium run with overflow-anchor:none on the list content.
+[1A[2K[1/2] [webkit] › tests/e2e/home-reading-position.test.ts:168:1 › weeks that mount after the first paint never move the row the reader is reading
+[1A[2K[2/2] [chromium] › tests/e2e/home-reading-position.test.ts:168:1 › weeks that mount after the first paint never move the row the reader is reading
+[1A[2K  1) [webkit] › tests/e2e/home-reading-position.test.ts:168:1 › weeks that mount after the first paint never move the row the reader is reading 
+    Expected: <= [32m1[39m
+    Received:    [31m3[39m
+      261 | 	const moved = run.frames.map((at) => Math.abs(at - run.frames[0]!))
+    > 262 | 	expect(Math.max(...moved)).toBeLessThanOrEqual(1)
+[1A[2K  1 failed
+    [webkit] › tests/e2e/home-reading-position.test.ts:168:1 › weeks that mount after the first paint never move the row the reader is reading 
+  1 passed (4.6s)
+[1A[2K[1/1] [chromium] › tests/e2e/home-reading-position.test.ts:168:1 › weeks that mount after the first paint never move the row the reader is reading
+[1A[2K  1) [chromium] › tests/e2e/home-reading-position.test.ts:168:1 › weeks that mount after the first paint never move the row the reader is reading 
+    Expected: <= [32m1[39m
+    Received:    [31m3[39m
+      261 | 	const moved = run.frames.map((at) => Math.abs(at - run.frames[0]!))
+    > 262 | 	expect(Math.max(...moved)).toBeLessThanOrEqual(1)
+[1A[2K  1 failed
+    [chromium] › tests/e2e/home-reading-position.test.ts:168:1 › weeks that mount after the first paint never move the row the reader is reading 

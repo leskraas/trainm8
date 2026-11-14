@@ -1,0 +1,2 @@
+# whole file, chromium + webkit, 2 workers, 2 busy-loop CPU hogs, --repeat-each 6 --retries 0
+  60 passed (1.7m)

@@ -1,0 +1,57 @@
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
+import { prisma } from '#app/utils/db.server.ts'
+import { expect, middayTimezone, scrollStreamTo, test, untilHydrated } from '#tests/playwright-utils.ts'
+import { AHEAD_INITIAL } from '#app/routes/_home/timeline/anchoring.ts'
+
+test.use({ viewport: { width: 390, height: 844 } })
+const DAY = 86400000
+const RATE = Number(process.env.DIAG_RATE ?? 6)
+
+test('diag weeks mount', async ({ page, navigate, login }) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	const now = new Date()
+	await prisma.athleteProfile.create({ data: { userId: user.id, timezone: middayTimezone(now) } })
+	const offsets: number[] = []
+	for (let days = -21; days <= 84; days += days < 0 ? 1 : 2) offsets.push(days)
+	await prisma.workoutSession.createMany({
+		data: offsets.map((days) => ({ userId: user.id, scheduledAt: new Date(now.getTime() + days * DAY), status: days < 0 ? 'completed' : 'scheduled', tssValue: days < 0 ? 40 : null, plannedTssValue: 45, plannedTssConfidence: 'full', source: 'authored' })),
+	})
+	const cdp = await page.context().newCDPSession(page)
+	await cdp.send('Emulation.setCPUThrottlingRate', { rate: RATE })
+	await navigate(HOME_TIMELINE_HREF)
+	const stream = page.getByTestId('timeline-stream')
+	await expect(stream).toBeVisible()
+	await untilHydrated(stream)
+	await expect.poll(() => stream.evaluate((el) => { const w=[...el.querySelectorAll('[data-timeline-week]')]; return w.length-1-w.findIndex(x=>x.querySelector('[data-timeline-today]')) }), { timeout: 30000 }).toBeGreaterThanOrEqual(AHEAD_INITIAL)
+	const mounted = await stream.locator('[data-timeline-week]').count()
+	const end = await stream.evaluate((el) => el.scrollHeight - el.clientHeight)
+	if (!process.env.DIAG_SAME) await scrollStreamTo(page, end - 400)
+	const info = await stream.evaluate((el, [same, to]) => {
+		if (same) { el.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1 })); el.style.scrollBehavior='auto'; el.scrollTop = to as number; el.style.scrollBehavior='' }
+		const box = el.getBoundingClientRect()
+		const row = [...el.querySelectorAll('[data-timeline-day]')].find((r) => { const t = r.getBoundingClientRect().top; return t >= box.top + 160 && t < box.bottom - 80 })!
+		const key = row.getAttribute('data-timeline-day')!
+		const log: any[] = []
+		const snap = (tag: string) => {
+			const r = el.querySelector(`[data-timeline-day="${key}"]`)!
+			const weeks = [...el.querySelectorAll('[data-timeline-week]')].map((w) => Math.round(w.getBoundingClientRect().height*10)/10)
+			log.push({ tag, t: Math.round(performance.now()), top: r.getBoundingClientRect().top - el.getBoundingClientRect().top, st: el.scrollTop, sh: el.scrollHeight, weeks })
+		}
+		snap('start')
+		Object.assign(window, { __diag: log })
+		const mc = new MessageChannel(); mc.port1.onmessage = () => snap('post'); const shifts: any[] = []; Object.assign(window, { __shifts: shifts }); new PerformanceObserver((l) => { for (const e of l.getEntries() as any[]) shifts.push({ t: Math.round(e.startTime), v: e.value, rec: e.hadRecentInput, src: (e.sources ?? []).map((x: any) => (x.node?.getAttribute?.('data-timeline-day') ?? x.node?.getAttribute?.('data-timeline-week') ?? x.node?.nodeName) + ' ' + Math.round(x.previousRect.top) + '->' + Math.round(x.currentRect.top)) }) }).observe({ type: 'layout-shift' }); const f = () => { snap('raf'); mc.port2.postMessage(0); if (performance.now() - log[0].t < 1200) requestAnimationFrame(f) }
+		requestAnimationFrame(f)
+		return key
+	}, [!!process.env.DIAG_SAME, end - 400] as const)
+	await expect.poll(() => stream.locator('[data-timeline-week]').count(), { timeout: 15000 }).toBeGreaterThan(mounted)
+	await page.waitForTimeout(2000)
+	const log = await page.evaluate(() => (window as any).__diag as any[])
+	const first = log[0].top
+	const moves = log.filter((e, i) => i > 0 && Math.abs(e.top - log[i - 1].top) > 0.01)
+	console.log('DIAG', info, 'rate', RATE, 'start', JSON.stringify(log[0]))
+	for (const m of moves) { const i = log.indexOf(m); console.log('MOVE', JSON.stringify(log[i - 1]), '->', JSON.stringify(m)) }
+	const est0 = await stream.evaluate((el) => [...el.querySelectorAll('[data-timeline-week]')].map((w) => { const h = (w as HTMLElement).getBoundingClientRect().height; const e = (w as HTMLElement).style.containIntrinsicSize; (w as HTMLElement).style.contentVisibility='visible'; const r=(w as HTMLElement).getBoundingClientRect().height; (w as HTMLElement).style.contentVisibility=''; return `${w.getAttribute('data-timeline-week')} est=${e} now=${h} real=${r}` }))
+	console.log('SHIFTS', JSON.stringify(await page.evaluate(() => (window as any).__shifts)))
+	console.log('FINAL delta', log[log.length - 1].top - first)
+})

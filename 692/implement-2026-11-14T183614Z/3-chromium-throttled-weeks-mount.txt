@@ -1,0 +1,4 @@
+== CPU 4x, --repeat-each 10, retries 0
+  10 passed (22.6s)
+== CPU 6x, --repeat-each 10, retries 0
+  10 passed (25.5s)

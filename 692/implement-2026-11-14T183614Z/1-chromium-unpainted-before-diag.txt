@@ -1,0 +1,14 @@
+# diag at 95aeff3: the old test's jump-then-measure, with 'before' read in the scroll's own task (no frame between, as on a slow runner)
+# start = forced layout right after the scroll; raf = pre-lifecycle; post = after the frame painted; SHIFTS = Layout Instability entries
+DIAG 2026-12-15 rate 1 start {"tag":"start","t":856,"top":191,"st":3509,"sh":4524,"weeks":[376,376,376,457,488,460,488,462,490,462]}
+MOVE {"tag":"raf","t":877,"top":191,"st":3509,"sh":7534,"weeks":[376,376,376,457,488,460,488,462,490,462,490,462,490,462,490,462]} -> {"tag":"post","t":889,"top":189,"st":3509,"sh":7524,"weeks":[376,376,376,457,488,460,488,460,488,460,488,460,490,462,490,462]}
+SHIFTS [{"t":881,"v":0.0030946826303231145,"rec":false,"src":["BUTTON 63->63","::after 58->58","BUTTON 63->59","::after 58->58","SPAN 103->103"]}]
+FINAL delta -2
+DIAG 2026-12-15 rate 1 start {"tag":"start","t":889,"top":191,"st":3509,"sh":4524,"weeks":[376,376,376,457,488,460,488,462,490,462]}
+MOVE {"tag":"raf","t":916,"top":191,"st":3509,"sh":7534,"weeks":[376,376,376,457,488,460,488,462,490,462,490,462,490,462,490,462]} -> {"tag":"post","t":927,"top":189,"st":3509,"sh":7524,"weeks":[376,376,376,457,488,460,488,460,488,460,488,460,490,462,490,462]}
+SHIFTS [{"t":919,"v":0.0030946826303231145,"rec":false,"src":["BUTTON 63->63","::after 58->58","BUTTON 63->59","::after 58->58","SPAN 103->103"]}]
+FINAL delta -2
+DIAG 2026-12-15 rate 1 start {"tag":"start","t":506,"top":191,"st":3509,"sh":4524,"weeks":[376,376,376,457,488,460,488,462,490,462]}
+MOVE {"tag":"raf","t":528,"top":191,"st":3509,"sh":7534,"weeks":[376,376,376,457,488,460,488,462,490,462,490,462,490,462,490,462]} -> {"tag":"post","t":553,"top":189,"st":3509,"sh":7524,"weeks":[376,376,376,457,488,460,488,460,488,460,488,460,490,462,490,462]}
+SHIFTS [{"t":535,"v":0.0030946826303231145,"rec":false,"src":["BUTTON 63->63","::after 58->58","BUTTON 63->59","::after 58->58","SPAN 103->103"]}]
+FINAL delta -2
