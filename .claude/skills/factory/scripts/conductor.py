@@ -20,12 +20,17 @@ follows, so listings page themselves.
 Usage:
   conductor.py labels <o>/<r>                      # create the labels the factory uses
   conductor.py queue <o>/<r> --me <login> [--max N] [--skip 3,5] [--only N | --scan <scan>]
-  conductor.py dispatch <o>/<r> --me <login> [--live 208,design-scan]  # what each new session takes
+                     [--usage <file>]
+  conductor.py dispatch <o>/<r> --me <login> [--live 208,design-scan] [--usage <file>]
+                                                   # what each new session takes
+  conductor.py usage <file>                        # whether the subscription's limits allow new work
   conductor.py sessions <o>/<r>                    # the sessions /factory-dispatch started
   conductor.py claim <o>/<r> <n> --label <label> --me <login>
   conductor.py fetch <o>/<r> <n> --me <login> [--for <task>]  # an issue or PR, as a task reads it
   conductor.py apply <o>/<r> <result.json> --me <login> --from <label> [--repo-dir .]
   conductor.py merge <o>/<r> <pr> --me <login> [--label <label>]
+  conductor.py update <o>/<r> <pr> --me <login> --label <label> --resume qa|merge
+                                                   # bring a PR up to date without a run, when it can
   conductor.py release <o>/<r> <n> --me <login>    # give a stale run's task back
   conductor.py log <o>/<r> <issue> --me <login>    # the close log, for an issue merged by hand
   conductor.py note <o>/<r> <file> [--session <for>=<id> ...]  # post a report on the log issue
@@ -183,6 +188,18 @@ def autonomy(config):
     return value
 
 
+PHASES = ("poc", "build", "live", "maintain")
+
+
+def phase(config):
+    """Where the project is in its life, which sets the bar every task
+    builds to (questions.md, "The bar")."""
+    value = config.get("phase", "build")
+    if value not in PHASES:
+        raise ValueError(f"phase must be one of {', '.join(PHASES)}, not {value!r}")
+    return value
+
+
 SCHEDULES = ("hourly", "none")
 
 
@@ -209,11 +226,203 @@ def merge_method(config):
     return value
 
 
+MODELS = ("haiku", "sonnet", "opus", "fable")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+# Parts of a task that can take their own model or effort, beside the tasks.
+PARTS = ("review-read", "review-fix")
+
+
+def per_task(config, key, allowed):
+    """`models` or `effort`: `task=value` pairs, `*` for every task not named.
+    Returns the dict as written, checked."""
+    pairs = {}
+    for part in config.get(key, "").split(","):
+        if not part.strip():
+            continue
+        if "=" not in part:
+            raise ValueError(f"{key} takes task=value pairs, not {part.strip()!r}")
+        name, value = (s.strip() for s in part.split("=", 1))
+        if name != "*" and name not in TASKS and name not in PARTS:
+            name = name if name in TASKS else f"{name}-scan"
+            if name not in TASKS:
+                raise ValueError(f"{key} names an unknown task: {part.split('=')[0].strip()}")
+        if value not in allowed:
+            raise ValueError(f"{key} values are {', '.join(allowed)}, not {value!r}")
+        pairs[name] = value
+    return pairs
+
+
+def run_settings(config, task):
+    """The model and effort the orchestrator gives a task's subagent: the
+    task's own, else `*`, else nothing (the subagent inherits the session's).
+    Review's parts fall back to review's."""
+    picked = {}
+    for key, allowed, out in (("models", MODELS, "model"), ("effort", EFFORTS, "effort")):
+        pairs = per_task(config, key, allowed)
+        base = "review" if task in PARTS else task
+        value = pairs.get(task) or pairs.get(base) or pairs.get("*")
+        if value:
+            picked[out] = value
+    return picked
+
+
 def number_setting(config, key, default):
     try:
         return int(str(config.get(key, default)).replace("_", "").replace(",", ""))
     except ValueError:
         raise ValueError(f"{key} must be a whole number, not {config.get(key)!r}")
+
+
+def fraction_setting(config, key, default):
+    """A share between 0 and 1, written as `0.1` or `10%`."""
+    raw = str(config.get(key, default)).strip()
+    try:
+        value = float(raw[:-1]) / 100 if raw.endswith("%") else float(raw)
+    except ValueError:
+        raise ValueError(f"{key} must be a share such as 0.1 or 10%, not {raw!r}")
+    if not 0 <= value < 1:
+        raise ValueError(f"{key} must be at least 0 and below 1, not {raw!r}")
+    return value
+
+
+# ── Usage limits ────────────────────────────────────────────────────────────
+#
+# A subscription has a five-hour and a seven-day limit, shared with everything
+# else its owner does. Claude Code reports how much of each is used in the
+# `rate_limit_event`s of a session's transcript (`list_events` of the
+# claude-code-remote MCP server), under `rate_limit_info.unifiedWindows`. That
+# shape is not a public API: when it is missing, the gate stays open.
+
+DEFAULT_USAGE_RESERVE = 0.1
+WEEK = timedelta(days=7)
+
+
+def rate_limit_info(data):
+    """The newest `rate_limit_info` anywhere in `data`, as `list_events` or
+    `get_session` returns it (oldest first), or None. When the newest carries
+    no windows, it takes the windows of the newest one that does, so a bare
+    `rejected` or overage still counts alongside the numbers."""
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            if "unifiedWindows" in node or ("status" in node and "resetsAt" in node):
+                found.append(node)
+                return
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(data)
+    if not found:
+        return None
+    newest = dict(found[-1])
+    if not newest.get("unifiedWindows"):
+        with_windows = [n for n in found if n.get("unifiedWindows")]
+        if with_windows:
+            newest["unifiedWindows"] = with_windows[-1]["unifiedWindows"]
+    return newest
+
+
+def reset_time(node):
+    """When a window resets: `resetsAt` in epoch seconds or ISO 8601, or None."""
+    value = node.get("resetsAt")
+    if value is None or value == "":
+        return None
+    if isinstance(value, str) and not value.replace(".", "", 1).isdigit():
+        return parse_time(value)
+    return datetime.fromtimestamp(float(value), timezone.utc)
+
+
+def usage_gate(info, config, now):
+    """Whether the factory may run, given the subscription's usage. Finishing
+    comes before starting, so the gate has two levels. `hold` stops all work
+    but merges: the five-hour window used past `1 - usage-reserve`, the
+    seven-day window used that far, a refused window, or extra usage.
+    `hold_new` also stops new work (an issue no run has touched yet, and the
+    scans) while the seven-day window is used faster than the week passes:
+    its share of the week so far, at least one day's, less the reserve. A
+    window past its reset counts for nothing. `until` says when every hold
+    lifts on its own."""
+    reserve = fraction_setting(config, "usage-reserve", DEFAULT_USAGE_RESERVE)
+    if not info:
+        return {"known": False, "hold": False, "hold_new": False}
+    gate = {"known": True, "hold": False, "hold_new": False, "reserve": reserve,
+            "why": [], "until": None}
+
+    def hold(why, until, everything=True):
+        gate["hold"] = gate["hold"] or everything
+        gate["hold_new"] = True
+        gate["why"].append(why)
+        if until and (gate["until"] is None or until > gate["until"]):
+            gate["until"] = until
+
+    def live(node):
+        resets = reset_time(node)
+        return resets is None or resets > now
+
+    windows = {name: w for name, w in (info.get("unifiedWindows") or {}).items()
+               if isinstance(w, dict) and live(w)}
+    for name, window in windows.items():
+        if window.get("status") == "rejected":
+            hold(f"the {name} limit is spent", reset_time(window))
+    five = windows.get("five_hour")
+    if five and five.get("utilization") is not None:
+        used = float(five["utilization"])
+        gate["five_hour"] = used
+        if used >= 1 - reserve:
+            hold(f"{used:.0%} of the five-hour limit is used, the factory stops at "
+                 f"{1 - reserve:.0%}", reset_time(five))
+    week = windows.get("seven_day")
+    if week and week.get("utilization") is not None:
+        used, resets = float(week["utilization"]), reset_time(week)
+        gate["seven_day"] = used
+        if resets is None:
+            if used >= 1 - reserve:
+                hold(f"{used:.0%} of the weekly limit is used", None)
+        else:
+            elapsed = min(1.0, max(1 / 7, 1 - (resets - now) / WEEK))
+            pace = (1 - reserve) * elapsed
+            gate["weekly_pace"] = round(pace, 3)
+            if used >= pace:
+                # The pace reaches `used` when (1 - reserve) * elapsed = used.
+                catch_up = (resets - WEEK * (1 - used / (1 - reserve))
+                            if used < 1 - reserve else resets)
+                hold(f"{used:.0%} of the weekly limit is used, ahead of the {pace:.0%} the "
+                     f"week so far allows", max(catch_up, now), everything=used >= 1 - reserve)
+    top_live = live(info)
+    if not info.get("unifiedWindows") and top_live and \
+            info.get("status") in ("rejected", "allowed_warning"):
+        hold(f"the {info.get('rateLimitType', 'usage')} limit reports {info['status']}",
+             reset_time(info))
+    # Extra usage is paid past the limits: the factory never spends it. `overage`
+    # says whether the account could, so a report can warn that only the hold
+    # stands between a long batch and the bill.
+    status = info.get("overageStatus")
+    gate["overage"] = "unknown" if status is None else "off" if status == "rejected" else "on"
+    if info.get("isUsingOverage") and top_live:
+        hold("the account is spending extra usage, which the factory never does",
+             reset_time(info))
+    gate["why"] = "; ".join(gate["why"]) or None
+    gate["until"] = stamp(gate["until"]) if gate["until"] else None
+    return gate
+
+
+def read_usage(path, config, now):
+    """The usage gate from a file holding what `list_events` or `get_session`
+    returned, or None without a file. A file it can't read leaves the gate
+    open, with the reason in `error`, so the run still plans and merges."""
+    if not path:
+        return None
+    fraction_setting(config, "usage-reserve", DEFAULT_USAGE_RESERVE)
+    try:
+        with open(path) as fh:
+            return usage_gate(rate_limit_info(json.load(fh)), config, now)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+        return {"known": False, "hold": False, "hold_new": False,
+                "error": f"{error.__class__.__name__}: {error}"}
 
 
 def scans_enabled(config):
@@ -328,7 +537,7 @@ SEES_RUNS = {
 COLD = {"review", "qa"}
 REFRESH_BODY = {"implement", "update-branch"}  # tasks that see the PR body and may rewrite it
 
-# The settings each task's brief carries, beside `autonomy`.
+# The settings each task's brief carries, beside `autonomy` and `phase`.
 TASK_SETTINGS = {
     "explore": ["start"],
     "spec": [],
@@ -386,7 +595,7 @@ def view(item, task, me):
 def task_settings(config, task):
     if task not in TASK_SETTINGS:
         raise ValueError(f"no settings for task {task!r}")
-    picked = {"autonomy": autonomy(config)}
+    picked = {"autonomy": autonomy(config), "phase": phase(config)}
     picked.update({k: config[k] for k in TASK_SETTINGS[task] if k in config})
     return picked
 
@@ -537,7 +746,8 @@ def default_next(task, plan):
 
 ALLOWED_NEXT = {
     "explore": {"spec", "implement"},
-    "spec": {"design", "architecture", "implement"},
+    # review and qa only when spec rewrote a criterion of an issue with a PR
+    "spec": {"design", "architecture", "implement", "review", "qa"},
     "design": {"architecture", "implement"},
     "architecture": {"implement"},
     "implement": {"review"},
@@ -549,11 +759,26 @@ ALLOWED_BACK = {
     "design": {"spec"},
     "architecture": {"spec", "design"},
     "implement": {"spec", "design", "architecture"},
-    "review": {"implement"},
+    "review": {"implement", "spec"},
     "qa": {"implement", "review"},
     "update-branch": {"implement"},
 }
+# Tasks whose decision on an acceptance criterion sends the issue to spec
+# before QA judges the old text.
+CRITERION_TASKS = {"architecture", "implement", "review"}
+# A token count this round was guessed, not read from the Agent tool.
+ROUND_TOKENS = 10_000
 ON_PR = {"update-branch", "review", "qa", "merge"}
+
+
+def reviewed_head(pr):
+    """True when the PR's latest code-changing or reviewing run is a review
+    that went forward at the PR's current head."""
+    for run in reversed(markers((pr or {}).get("comments", []), "run")):
+        if run["task"] in ("implement", "update-branch", "review"):
+            return run["task"] == "review" and run["outcome"] == "forward" \
+                and run.get("head") == (pr or {}).get("head")
+    return False
 
 
 def limit_hit(runs, task, outcome, target, tokens, budget, failed):
@@ -621,6 +846,8 @@ def validate(result):
             raise ValueError("each decision needs a title, an answer and a reason")
         if d.get("door", "two-way") not in ("one-way", "two-way"):
             raise ValueError(f"door must be one-way or two-way, not {d.get('door')!r}")
+        if d.get("criterion") is not None and not str(d["criterion"]).isdigit():
+            raise ValueError("a decision's criterion is the acceptance criterion's number")
     for q in result.get("questions") or []:
         if not isinstance(q, dict) or not all(isinstance(q.get(k), str) for k in ("question", "recommended", "reason")):
             raise ValueError("each question needs question, recommended and reason")
@@ -635,6 +862,18 @@ def validate(result):
     for p in result.get("proposals") or []:
         if not isinstance(p, dict) or not p.get("title") or not p.get("body"):
             raise ValueError("each proposal needs a title and a body")
+        if p.get("door") is not None and p["door"] not in ("one-way", "two-way"):
+            raise ValueError(f"a proposal's door is one-way or two-way, not {p['door']!r}")
+        if p.get("size") is not None and p["size"] not in ("S", "M", "L"):
+            raise ValueError(f"a proposal's size is S, M or L, not {p['size']!r}")
+        if not isinstance(p.get("paths", []), list) or \
+                not all(isinstance(x, str) and x.strip() for x in p.get("paths", [])):
+            raise ValueError("a proposal's paths is a list of the files or folders it would change")
+    for r in result.get("resolved") or []:
+        if not isinstance(r, dict) or not str(r.get("number", "")).strip() or not r.get("reason"):
+            raise ValueError("each resolved proposal needs its number and a reason")
+    if (result.get("proposals") or result.get("resolved")) and task not in SCANS:
+        raise ValueError("only a scan files or resolves proposals")
     steps = result.get("human_steps") or []
     if not isinstance(steps, list) or not all(isinstance(x, str) and x.strip() for x in steps):
         raise ValueError("human_steps is a list of steps, each one line of text")
@@ -668,11 +907,20 @@ def decide(result, issue, pr, config, me, now, resume=None):
     if task in SCANS:
         if outcome not in ("done", "blocked"):
             raise ValueError(f"a scan ends done or blocked, not {outcome!r}")
+    elif outcome in ("forward", "back") and task in CRITERION_TASKS and \
+            any(d.get("criterion") is not None for d in result.get("decisions") or []):
+        # A decision that changes what a criterion asks goes to spec now, so
+        # QA never judges the old text against a build that differs by design.
+        outcome, target = "back", "spec"
     elif outcome == "forward":
         target = result.get("next") or (resume if task == "update-branch" and resume else None) \
             or default_next(task, plan)
         if target not in ALLOWED_NEXT.get(task, set()):
             raise ValueError(f"{task} cannot go forward to {target!r}")
+        if task == "spec" and target in ("review", "qa") and pr is None:
+            raise ValueError("spec goes forward to review or qa only on an issue with an open PR")
+        if task == "spec" and target == "qa" and not reviewed_head(pr):
+            target = "review"  # review always runs: QA only on a head review checked
         if task == "explore" and target == "implement" and level == "supervised":
             target = "spec"
         if target == "design" and config.get("design") == "off":
@@ -681,6 +929,9 @@ def decide(result, issue, pr, config, me, now, resume=None):
         target = result.get("next")
         if target not in ALLOWED_BACK.get(task, set()):
             raise ValueError(f"{task} cannot go back to {target!r}")
+        if task == "review" and target == "spec" and \
+                not any(d.get("criterion") is not None for d in result.get("decisions") or []):
+            raise ValueError("review goes back to spec only with a decision on a criterion")
     elif outcome == "done":
         if task != "explore" or not result.get("duplicate_of"):
             raise ValueError("only explore ends done, when it closes a duplicate")
@@ -692,7 +943,8 @@ def decide(result, issue, pr, config, me, now, resume=None):
     if outcome == "blocked":
         wait = {"reason": "blocked", "resume": task,
                 "why": "This run cannot go on until a human unblocks it."}
-    elif outcome == "done" and level == "supervised" and not resumes_gate(issue, pr, task):
+    elif outcome == "done" and task == "explore" and level == "supervised" \
+            and not resumes_gate(issue, pr, task):
         wait = {"reason": "gate", "resume": task,
                 "why": f"Explore found this a duplicate of #{result['duplicate_of']}. Say "
                        "\"yes\" to close it, or say why it isn't one."}
@@ -723,7 +975,7 @@ def decide(result, issue, pr, config, me, now, resume=None):
     shown_next = "human" if wait else (target or "none")
     marker = (f"<!-- agent:run task={task} outcome={outcome} next={shown_next}"
               f" tokens={tokens} at={stamp(now)}")
-    if result.get("tokens_estimated"):
+    if result.get("tokens_estimated") or (tokens and tokens % ROUND_TOKENS == 0):
         marker += " estimated=1"
     if result.get("head"):
         marker += f" head={result['head']}"
@@ -813,6 +1065,8 @@ def decision_line(decision, task, level="doors"):
             status = " **Awaiting approval.**"
     rejected = decision.get("rejected")
     rejected = f" Rejected: {rejected}." if rejected else ""
+    criterion = decision.get("criterion")
+    task = f"{task}, changes acceptance criterion {criterion}" if criterion is not None else task
     return (f"- **{decision['title'].strip()}** ({task}): {decision['answer'].strip()}, "
             f"because {decision['reason'].strip().rstrip('.')}.{rejected} {door_text}.{status}")
 
@@ -906,7 +1160,7 @@ def wait_section(decision, result, config):
     return "\n".join(lines)
 
 
-def handoff(decision, config, n, steps=None):
+def handoff(decision, config, n, steps=None, proposals=None):
     """The comment's last lines: what runs next on its own, what a human does,
     and what follows once they have. Every run comment ends with them, so a
     reader knows whether to act and what their action sets off. `steps` is
@@ -941,6 +1195,20 @@ def handoff(decision, config, n, steps=None):
             after = f"the factory runs `{target}` and carries the work on from there."
     else:
         auto, you = "nothing.", "nothing; this run finished the work."
+    started = (proposals or {}).get("started") or []
+    waiting = (proposals or {}).get("waiting") or []
+    if started:
+        refs = ", ".join(f"#{p}" for p in started)
+        auto = (f"{refs} {'start' if len(started) > 1 else 'starts'} at `spec` "
+                + ("at the next factory run, within the hour." if hourly
+                   else "when someone types `/factory`."))
+    if waiting:
+        refs = ", ".join(f"#{p}" for p in waiting)
+        who = addressee(config, "po")
+        you = (f"{'@' + who + ': ' if who else ''}choose which of {refs} to build: add "
+               "`agent:spec` to each you want, and close the rest. They change what a "
+               "human decides (a one-way door, a large change or a guarded file), so the "
+               "factory waits for you.")
     if steps:
         outside = f"the steps in #{steps}, which only a human can take; they hold up nothing here."
         you = (f"nothing for the factory. Outside it: {outside}" if you.startswith("nothing")
@@ -951,29 +1219,40 @@ def handoff(decision, config, n, steps=None):
     return "\n".join(lines)
 
 
-def comment_body(decision, result, comments, config, n=None, steps=None):
+def comment_body(decision, result, comments, config, n=None, steps=None, proposals=None):
     task = decision["task"]
     heading = f"## {TITLE[task]} · run {run_number(comments, task)}"
     parts = [decision["marker"], heading, "", result.get("comment", "").strip()]
     if result.get("decisions"):
         parts += ["", "### Decisions", ""]
         parts += [decision_line(d, task, autonomy(config)) for d in decision["decisions"]]
+    if proposals and any(proposals.values()):
+        parts += ["", "### Proposals", ""]
+        for p in proposals.get("started") or []:
+            parts.append(f"- #{p}: a two-way door of size S or M that touches no guarded file, "
+                         "so the factory builds it.")
+        for p in proposals.get("waiting") or []:
+            parts.append(f"- #{p}: waits for a human to choose it.")
+        for p in proposals.get("closed") or []:
+            parts.append(f"- #{p}: closed, it no longer holds.")
     if decision["wait"]:
         parts.append(wait_section(decision, result, config))
-    parts.append(handoff(decision, config, n, steps))
+    parts.append(handoff(decision, config, n, steps, proposals))
     return "\n".join(parts).rstrip() + "\n"
 
 
 # ── Queue ───────────────────────────────────────────────────────────────────
 
 def choose(items, issues, prs, me, config, now, deps_open, scans_due=(), skip=frozenset()):
-    """What can run now, in order: work on PRs first, the furthest along
-    first, then issues, then new issues and due scans. `items` are the open
-    items with an agent label; `deps_open` holds issue numbers with an open
-    dependency. A PR counts only when it carries the factory's `agent` label:
-    `review-pr` puts `agent:review` on other people's PRs for a moment while
-    it claims them."""
+    """What can run now, in order: finishing before starting. Started work
+    first, the furthest along first (PRs before issues), then `new` work: an
+    issue no run has touched, and due scans. `items` are the open items with
+    an agent label; `deps_open` holds issue numbers with an open dependency.
+    A PR counts only when it carries the factory's `agent` label: `review-pr`
+    puts `agent:review` on other people's PRs for a moment while it claims
+    them."""
     entries, waiting, running = [], [], []
+    with_pr = {pr.get("issue") for pr in prs.values()}
     for item in items:
         n = item["number"]
         names = labels_of(item)
@@ -1005,19 +1284,26 @@ def choose(items, issues, prs, me, config, now, deps_open, scans_due=(), skip=fr
         if item["kind"] == "pr" and entry["task"] in ("qa", "merge") and item.get("behind"):
             entry.update(task="update-branch", resume=entry["task"],
                          why=entry["why"] + " The branch is behind the default branch first.")
+            if entry["label"] == PREFIX + entry["resume"]:
+                entry["try_update"] = True  # the conductor tries it before a run does
         if entry["task"] == "merge":
             entry["deterministic"] = True
         if item["kind"] == "pr" and item.get("issue"):
             entry["issue"] = item["issue"]
         entries.append(entry)
+    for entry in entries:
+        item = issues.get(entry["number"])
+        if item and entry["number"] not in with_pr and not history(item, None):
+            entry["new"] = True
 
     def rank(entry):
         resumed = entry["label"] in (NEEDS_HUMAN, BLOCKED)
-        return (-CHAIN.index(entry["task"]), not resumed, order(entry["number"]))
+        return (entry.get("new", False), -CHAIN.index(entry["task"]), not resumed,
+                order(entry["number"]))
 
     entries.sort(key=rank)
-    entries += [{"number": None, "task": s, "label": None, "why": "Due after enough merges."}
-                for s in scans_due]
+    entries += [{"number": None, "task": s, "label": None, "new": True,
+                 "why": "Due after enough merges."} for s in scans_due]
     return {"run": entries, "waiting": sorted(waiting, key=order),
             "running": sorted(running, key=order)}
 
@@ -1137,11 +1423,108 @@ def glob_to_regex(pattern):
     return re.compile(out + "$")
 
 
+# The files that hold the factory's own rules and the agents' settings. A human
+# reads every change to them before a merge, whatever `human-paths` lists, so
+# no run can loosen what binds the next one.
+ALWAYS_HUMAN = ["docs/agents/factory.md", "**/AGENTS.md", "**/CLAUDE.md", ".claude/**", ".mcp.json"]
+
+
 def human_paths(config):
-    """The globs a human must see change before a merge (`human-paths`): a
-    directory ending in `/` covers everything inside it."""
+    """The globs a human must see change before a merge (`human-paths`, plus
+    `ALWAYS_HUMAN`): a directory ending in `/` covers everything inside it."""
     globs = [g.strip() for g in config.get("human-paths", "").split(",") if g.strip()]
-    return [g.rstrip("/") + "/**" if g.endswith("/") else g for g in globs]
+    globs = [g.rstrip("/") + "/**" if g.endswith("/") else g for g in globs]
+    return globs + [g for g in ALWAYS_HUMAN if g not in globs]
+
+
+# One-way doors the conductor sees in a PR's diff, so a door waits on what the
+# change does and not only on how a run classed it. Each kind has default
+# globs; a project adds its own as `door-paths: <kind>=<glob>, ...`.
+DOOR_KINDS = {
+    "migration": ["**/migrations/**", "drizzle/**/*.sql", "prisma/migrations/**"],
+    "dependency": ["**/package.json", "**/pyproject.toml", "**/requirements*.txt",
+                   "**/go.mod", "**/Cargo.toml", "**/Gemfile"],
+    "adr": ["docs/adr/**"],
+    "api": [],
+}
+# The kinds that are one-way in each phase. Before anyone outside the team
+# relies on the code, a migration and an API are two-way: data can be
+# reseeded and every client is ours (ADR-0014).
+PHASE_DOORS = {
+    "poc": set(),
+    "build": {"dependency", "adr"},
+    "live": {"migration", "dependency", "adr", "api"},
+    "maintain": {"migration", "dependency", "adr", "api"},
+}
+# Phases where a migration that loses data waits for a human at every
+# autonomy level: users' data is the one mistake no later run can fix.
+KEEPS_DATA = {"live", "maintain"}
+LOSES_DATA = re.compile(r"\b(?:DROP|TRUNCATE|DELETE\s+FROM|RENAME|ALTER\s+COLUMN\s+\S+\s+"
+                        r"(?:SET\s+DATA\s+)?TYPE)\b", re.I)
+MANIFEST_KEYS = {"name", "version", "description", "main", "type", "private", "license",
+                 "node", "npm", "pnpm", "packageManager"}
+DEPENDENCY_LINE = re.compile(r'^([+-])\s*"([^"]+)"\s*:\s*"[^"]*"\s*,?\s*$')
+
+
+def door_paths(config):
+    """The globs of each door kind: the defaults and the project's own."""
+    kinds = {k: list(v) for k, v in DOOR_KINDS.items()}
+    for pair in filter(None, (p.strip() for p in config.get("door-paths", "").split(","))):
+        kind, _, glob = pair.partition("=")
+        kind, glob = kind.strip(), glob.strip()
+        if kind not in kinds or not glob:
+            raise ValueError(f"door-paths takes <kind>=<glob> with a kind of "
+                             f"{', '.join(DOOR_KINDS)}, not {pair!r}")
+        kinds[kind].append(glob.rstrip("/") + "/**" if glob.endswith("/") else glob)
+    return kinds
+
+
+def new_dependencies(patch):
+    """The packages a `package.json` patch adds: a `"name": "..."` line added
+    whose name no removed line had, leaving out the manifest's own fields and
+    scripts that look the same."""
+    added, removed = set(), set()
+    for line in (patch or "").splitlines():
+        m = DEPENDENCY_LINE.match(line)
+        if m and m.group(2) not in MANIFEST_KEYS:
+            (added if m.group(1) == "+" else removed).add(m.group(2))
+    # A script is "name": "command"; a dependency's value starts like a version.
+    versions = re.compile(r'^\+\s*"([^"]+)"\s*:\s*"(?:[\^~<>=]*\d|npm:|workspace:|catalog:|'
+                          r'github:|git|https?:|file:|link:|\*|latest)')
+    looks = {versions.match(l).group(1) for l in (patch or "").splitlines() if versions.match(l)}
+    return sorted((added - removed) & looks)
+
+
+def doors_in(changed, config):
+    """The one-way doors a PR's files open in the project's phase, as
+    `{"file", "kind", "loses_data"}`: the kinds the phase counts, and in a
+    phase that keeps users' data, every migration that drops, truncates,
+    deletes, renames or retypes, or that edits, moves or removes an existing
+    one. A rename counts at its old path too, and a file GitHub sends without
+    its patch counts as the door its kind can be."""
+    level, stage = autonomy(config), phase(config)
+    kinds = door_paths(config)
+    found = []
+    for f in changed:
+        name, status = f["filename"], f.get("status", "modified")
+        paths = [name] + ([f["previous_filename"]] if f.get("previous_filename") else [])
+        unseen = "patch" not in f
+        for kind, globs in kinds.items():
+            if not touched(paths, globs):
+                continue
+            if kind == "adr" and status == "added":
+                continue
+            if kind == "dependency" and name.endswith("package.json") and not unseen \
+                    and not new_dependencies(f.get("patch")):
+                continue
+            added = "\n".join(l[1:] for l in (f.get("patch") or "").splitlines()
+                              if l.startswith("+"))
+            loses = kind == "migration" and stage in KEEPS_DATA \
+                and (status != "added" or unseen or bool(LOSES_DATA.search(added)))
+            if loses or (kind in PHASE_DOORS[stage] and doors_wait(level)):
+                found.append({"file": name, "kind": kind, "loses_data": loses})
+            break
+    return found
 
 
 def human_edits(config):
@@ -1157,12 +1540,13 @@ def touched(files, globs):
     return sorted(f for f in files if any(p.match(f) for p in patterns))
 
 
-def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=()):
+def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=(), merged_only=False,
+                  doors=()):
     """Whether the factory may merge the PR now: `merge`, `pending` (try
     again later), `update`, or `back`/`human` with the reason. A PR that
     changes a path in `globs`, or changes or removes an existing file in
-    `edit_globs`, merges only once a human has answered the gate that names
-    them."""
+    `edit_globs`, or opens one of `doors` (from `doors_in`), merges only once
+    a human has answered the gate that names them."""
     names = labels_of(pr)
     if pr["state"] != "open":
         return {"verdict": "human", "why": "The PR is no longer open."}
@@ -1173,6 +1557,11 @@ def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=()):
     if not pr["mergeable"]:
         return {"verdict": "update", "why": "The PR conflicts with the default branch."}
     head = verified_head(pr)
+    if head != pr["head"] and merged_only:
+        return {"verdict": "back", "next": "update-branch",
+                "why": f"QA verified {head}, and since then only merges of the default branch "
+                       f"moved the PR to {pr['head']}. `update-branch` checks they needed no "
+                       "judgement and carries QA forward, so no new QA run is needed."}
     if head != pr["head"]:
         return {"verdict": "back", "next": "qa",
                 "why": f"QA verified {head or 'no head'}, but the PR is at {pr['head']}."}
@@ -1185,11 +1574,22 @@ def merge_verdict(pr, checks, me, files=(), globs=(), edited=(), edit_globs=()):
         return {"verdict": "back", "next": "implement",
                 "why": "A check failed on the head QA verified."}
     guarded = sorted(set(touched(files, globs)) | set(touched(edited, edit_globs)))
-    if guarded and not resumes_gate(None, pr, "merge"):
-        return {"verdict": "gate", "files": guarded,
-                "why": "The PR changes files a human reads before a merge: "
-                       + ", ".join(f"`{f}`" for f in guarded)
-                       + ". Read them, and answer here to let the factory merge."}
+    if (guarded or doors) and not resumes_gate(None, pr, "merge"):
+        why = []
+        if guarded:
+            why.append("The PR changes files a human reads before a merge: "
+                       + ", ".join(f"`{f}`" for f in guarded) + ".")
+        if doors:
+            why.append("It opens one-way doors in this phase: "
+                       + ", ".join(f"`{d['file']}` ({d['kind']}"
+                                   + (", loses data" if d["loses_data"] else "") + ")"
+                                   for d in doors) + ".")
+        if any(d["loses_data"] for d in doors):
+            why.append("A migration that loses data waits for a human at every autonomy "
+                       "level while users rely on the product: check it runs as expand, "
+                       "then contract, or that the data may go.")
+        return {"verdict": "gate", "files": guarded + [d["file"] for d in doors],
+                "why": " ".join(why) + " Read them, and answer here to let the factory merge."}
     return {"verdict": "merge", "why": "QA passed on the head, checks are green."}
 
 
@@ -1862,14 +2262,31 @@ def scan_name(name):
     return name
 
 
-def cmd_queue(gh, config, me, limit, skip, now, only=None, scan=None):
+def settle(entry, config):
+    """Put the model and effort for the entry's subagent on it, and for
+    review the settings of its two parts."""
+    if entry["task"] == "merge":
+        return entry
+    entry.update(run_settings(config, entry["task"]))
+    if entry["task"] == "review":
+        entry["parts"] = {p: run_settings(config, p) for p in PARTS}
+    return entry
+
+
+def cmd_queue(gh, config, me, limit, skip, now, only=None, scan=None, usage=None):
     if scan is not None:
         scan = scan_name(scan)
         _, since = merges_since_scans(gh, config, now)
         entry = {"number": None, "task": scan, "label": None, "since": since[scan],
                  "why": "Asked for with --scan."}
-        return {"run": [entry], "batch": [entry], "waiting": [], "running": [],
-                "logs": [], "stale": []}
+        settle(entry, config)
+        out = {"run": [entry], "batch": [entry], "waiting": [], "running": [],
+               "logs": [], "stale": []}
+        if usage is not None:
+            out["usage"] = usage
+            if usage.get("hold_new", usage["hold"]):
+                out["batch"] = []
+        return out
     open_items = {}
     for name in [PREFIX + t for t in TASKS] + [NEEDS_HUMAN, BLOCKED, IN_PROGRESS, ENTRY]:
         for raw in gh.list(gh.r(f"issues?state=open&labels={quote(name)}")):
@@ -1910,7 +2327,18 @@ def cmd_queue(gh, config, me, limit, skip, now, only=None, scan=None):
         if entry["task"] in SCANS:
             entry["since"] = since.get(entry["task"])
     chosen["logs"] = missing_logs(gh, now)
-    chosen["batch"] = batch(chosen["run"], config)
+    for entry in chosen["run"]:
+        settle(entry, config)
+    runnable = chosen["run"]
+    if usage is not None:
+        chosen["usage"] = usage
+        if usage["hold"]:
+            # A merge spends no tokens; everything else waits for the limit.
+            runnable = [e for e in runnable if e.get("deterministic")]
+        elif usage.get("hold_new"):
+            # Started work may finish; new work waits for the pace.
+            runnable = [e for e in runnable if not e.get("new")]
+    chosen["batch"] = batch(runnable, config)
     if limit:
         chosen["run"] = chosen["run"][:limit]
         chosen["batch"] = chosen["batch"][:limit]
@@ -1925,32 +2353,70 @@ def session_key(number, parents):
     return str(parents.get(number) or number)
 
 
-def cmd_dispatch(gh, config, me, live, now):
+def key_order(key):
+    """Sorts session keys: issue numbers by number, then local keys and scans."""
+    return (0, int(key), "") if key.isdigit() else (1, 0, key)
+
+
+def cmd_dispatch(gh, config, me, live, now, usage=None):
     """What /factory-dispatch starts: one session per issue (with its PRs) and
-    per due scan, up to `parallel` sessions alive at once. `live` holds the
-    `for` keys of sessions still working. Merges need no session: the
-    dispatcher runs them itself."""
+    per due scan, up to `parallel` sessions alive at once, finishing before
+    starting. Started work takes the free sessions first; `new` work starts
+    only while fewer than `wip` issues are in flight (a live session, a run
+    holding a lock, or started work waiting for a session) and `usage` has
+    no `hold_new`. `live` holds the `for` keys of sessions still working.
+    Merges need no session: the dispatcher runs them itself. While `usage`
+    holds, nothing starts. `stuck` names the issues a run holds without a
+    live session: the dispatcher wakes their session before it starts more,
+    so each takes a seat of `parallel`; under `hold`, none is woken."""
     chosen = cmd_queue(gh, config, me, 0, set(), now)
     parents = chosen["parents"]
-    capacity = max(0, number_setting(config, "parallel", 3) - len(live))
+    wip = number_setting(config, "wip", number_setting(config, "parallel", 3))
+    hold_new = bool(usage and usage.get("hold_new", usage["hold"]))
     # An item a run still holds keeps its whole issue out of a new session,
     # and a live session's lock is never stale, however long it runs.
     stale = [n for n in chosen["stale"] if session_key(n, parents) not in live]
+    held = {session_key(n, parents) for n in chosen["running"]}
+    stuck = sorted(held - set(live) - {session_key(n, parents) for n in stale}, key=key_order)
+    # A stuck session takes a seat too: the dispatcher wakes it.
+    capacity = max(0, number_setting(config, "parallel", 3) - len(set(live) | set(stuck)))
+    if usage and usage["hold"]:
+        capacity = 0
+        stuck = []  # a woken session would spend what the hold keeps
     start, merges = [], []
-    taken = set(live) | {session_key(n, parents) for n in chosen["running"]}
+    taken = set(live) | held
+    # `wip` counts issues: a scan holds a session, never an issue's place.
+    in_flight = {k for k in set(live) | held if k not in SCANS} | {
+        session_key(e["number"], parents) for e in chosen["run"]
+        if e["number"] is not None and not e.get("new") and not e.get("deterministic")}
     for entry in chosen["run"]:
         key = entry["task"] if entry["number"] is None else session_key(entry["number"], parents)
         if key in taken:
             continue
-        taken.add(key)
         if entry.get("deterministic"):
+            taken.add(key)
             merges.append({"number": entry["number"], "label": entry["label"]})
-        elif len(start) < capacity:
-            start.append({"for": key, "task": entry["task"], "number": entry["number"],
-                          "why": entry["why"]})
-    return {"start": start, "merges": merges, "capacity": capacity, "live": sorted(live),
-            "waiting": chosen["waiting"], "running": chosen["running"],
-            "stale": stale, "logs": chosen["logs"]}
+            continue
+        if len(start) >= capacity:
+            continue
+        if entry.get("new"):
+            if hold_new or (entry["number"] is not None and len(in_flight) >= wip):
+                continue
+            if entry["number"] is not None:
+                in_flight.add(key)
+        taken.add(key)
+        start.append({"for": key, "task": entry["task"], "number": entry["number"],
+                      "why": entry["why"]})
+    if config.get("session-model"):
+        for entry in start:
+            entry["model"] = config["session-model"]
+    out = {"start": start, "merges": merges, "capacity": capacity, "wip": wip,
+           "in_flight": sorted(in_flight, key=key_order), "live": sorted(live),
+           "waiting": chosen["waiting"], "running": chosen["running"],
+           "stuck": stuck, "stale": stale, "logs": chosen["logs"]}
+    if usage is not None:
+        out["usage"] = usage
+    return out
 
 
 def cmd_sessions(gh, now):
@@ -2177,6 +2643,76 @@ def file_human_steps(gh, config, issue, steps, me):
     return created["number"]
 
 
+def guarded_paths(paths, config):
+    """The paths a proposal would change that a human reads before a merge:
+    a path inside a guarded glob, or a folder that holds one."""
+    globs = human_paths(config) + human_edits(config)
+    hit = set(touched(paths, globs))
+    for p in paths:
+        folder = p.rstrip("*").rstrip("/")
+        if folder in ("", ".") or any(g.split("*")[0].startswith(folder + "/") for g in globs):
+            hit.add(p)
+    return sorted(hit)
+
+
+def builds_itself(proposal, config):
+    """Whether a scan's proposal goes straight to `agent:spec`: the autonomy
+    lets the factory take two-way doors, the proposal is one (`door`), small
+    enough (`size` S or M), names the paths it changes, and none of them is a
+    file a human reads before a merge. Everything else waits for a human."""
+    return (autonomy(config) != "supervised"
+            and proposal.get("door") == "two-way"
+            and proposal.get("size") in ("S", "M")
+            and bool(proposal.get("paths"))
+            and not guarded_paths(proposal["paths"], config))
+
+
+def file_proposals(gh, config, result, task, me):
+    """File a scan's proposals and close the ones it found resolved. A
+    proposal the factory may build itself is labelled `agent:spec`; the rest
+    `agent:proposal`, for a human to choose. Returns the numbers by fate."""
+    out = {"started": [], "waiting": [], "closed": []}
+    proposals = result.get("proposals") or []
+    if proposals:
+        mine = re.compile(r"<!--\s*agent:proposal-from\s")
+        open_titles = {i["title"] for i in gh.list(gh.r("issues?state=open"))
+                       if not i.get("pull_request") and mine.search(i.get("body") or "")}
+    for proposal in proposals:
+        if proposal["title"] in open_titles:
+            continue
+        start = builds_itself(proposal, config)
+        meta = []
+        if proposal.get("door") or proposal.get("size"):
+            meta.append(f"**Door:** {proposal.get('door', '?')} · **Size:** {proposal.get('size', '?')}")
+        if proposal.get("paths"):
+            meta.append("**Paths:** " + ", ".join(f"`{p}`" for p in proposal["paths"]))
+        body = proposal["body"].rstrip()
+        if meta:
+            body += "\n\n" + "\n".join(meta)
+        created = gh.call("POST", gh.r("issues"), {
+            "title": proposal["title"],
+            "body": body + f"\n\n<!-- agent:proposal-from {task} -->\n",
+            "labels": [PREFIX + "spec" if start else PROPOSAL]})
+        out["started" if start else "waiting"].append(created["number"])
+        open_titles.add(proposal["title"])
+    for r in result.get("resolved") or []:
+        n = item_id(r["number"])
+        raw = gh.get(gh.r(f"issues/{n}"))
+        # Only an open proposal a scan filed, and nothing a run holds now.
+        if raw.get("state") != "open" or raw.get("pull_request") \
+                or "agent:proposal-from" not in (raw.get("body") or "") \
+                or (raw.get("user") or {}).get("login") != me \
+                or PROPOSAL not in {lb["name"] for lb in raw.get("labels", [])} \
+                or any(lb["name"].startswith(PREFIX) and lb["name"] != PROPOSAL
+                       or lb["name"] == ENTRY for lb in raw.get("labels", [])):
+            continue  # a run took it, or someone asked for it: not the scan's to close
+        gh.comment(n, f"The {TITLE[task].lower()} found that this no longer holds: "
+                      f"{r['reason'].strip()}\n")
+        gh.call("PATCH", gh.r(f"issues/{n}"), {"state": "closed", "state_reason": "not_planned"})
+        out["closed"].append(n)
+    return out
+
+
 def cmd_apply(gh, config, me, result, label, repo_dir, now):
     task = result["task"]
     resume = None
@@ -2185,6 +2721,12 @@ def cmd_apply(gh, config, me, result, label, repo_dir, now):
         resume = taken if taken in ("qa", "merge") else None
     n = result.get("item")
     item = gh.item(n) if n else None
+    if task == "update-branch" and resume is None and item:
+        # Merge sent the PR here because only merges of the default branch
+        # moved its head after QA: bring QA forward and go back to merge.
+        runs = markers(item["comments"], "run")
+        if runs and runs[-1]["task"] == "merge" and runs[-1].get("resume") == "merge":
+            resume = "merge"
     issue = pr = None
     if item and item["kind"] == "pr":
         pr = item
@@ -2232,10 +2774,11 @@ def cmd_apply(gh, config, me, result, label, repo_dir, now):
 
     next_n = pr["number"] if decision["label_on"] == "pr" and pr else (issue or {}).get("number")
     steps = file_human_steps(gh, config, issue, result.get("human_steps"), me) if issue else None
+    proposals = file_proposals(gh, config, result, task, me) if task in SCANS else None
     if decision["comment_on"] == "log":
         target_n = gh.log_issue()
         comments = gh.comments(target_n)
-        body = comment_body(decision, result, comments, config, next_n, steps)
+        body = comment_body(decision, result, comments, config, next_n, steps, proposals)
         body = f"<!-- agent:scan kind={task} at={stamp(now)} -->\n" + body
     else:
         target_n = pr["number"] if decision["comment_on"] == "pr" and pr else issue["number"]
@@ -2251,17 +2794,6 @@ def cmd_apply(gh, config, me, result, label, repo_dir, now):
     elif issue and decision["decisions"]:
         fresh = gh.get(gh.r(f"issues/{issue['number']}"))["body"] or ""
         gh.set_body(issue["number"], with_decisions(fresh, decision["decisions"], task, autonomy(config)))
-
-    filed = []
-    for proposal in result.get("proposals") or []:
-        open_titles = {i["title"] for i in gh.list(gh.r(f"issues?state=open&labels={quote(PROPOSAL)}"))}
-        if proposal["title"] in open_titles:
-            continue
-        created = gh.call("POST", gh.r("issues"), {
-            "title": proposal["title"],
-            "body": proposal["body"].rstrip() + f"\n\n<!-- agent:proposal-from {task} -->\n",
-            "labels": [PROPOSAL]})
-        filed.append(created["number"])
 
     tickets = []
     if issue and task == "spec" and result.get("tickets") and decision["wait"] is None:
@@ -2309,8 +2841,116 @@ def cmd_apply(gh, config, me, result, label, repo_dir, now):
             except GitHubError:
                 pass
     return {"comment": url, "next": decision["target"], "wait": decision["wait"],
-            "label": decision["add_label"], "proposals": filed, "tickets": tickets,
+            "label": decision["add_label"],
+            "proposals": (proposals or {}).get("started", []) + (proposals or {}).get("waiting", []),
+            "started": (proposals or {}).get("started", []),
+            "closed": (proposals or {}).get("closed", []), "tickets": tickets,
             "pr": pr["number"] if pr else None}
+
+
+MAX_MERGE_WALK = 20
+
+
+def only_merges(gh, base, head, default):
+    """True when the first-parent chain from `head` back to `base` holds only
+    merges whose second parent is on the default branch: GitHub's «Update
+    branch», or the factory's own update. Anything else on that chain, a fix
+    pushed after QA say, is not. The commits the merges brought in from the
+    default branch are not on the chain, so they are not inspected."""
+    try:
+        sha = head
+        for _ in range(MAX_MERGE_WALK):
+            if sha == base:
+                return sha != head
+            parents = [p["sha"] for p in gh.get(gh.r(f"commits/{quote(sha)}")).get("parents") or []]
+            if len(parents) != 2:
+                return False
+            status = gh.get(gh.r(f"compare/{quote(parents[1])}...{quote(default)}")).get("status")
+            if status not in ("ahead", "identical"):
+                return False
+            sha = parents[0]
+    except GitHubError:
+        return False
+    return False
+
+
+NUMBERED = re.compile(r"^(\d+)[-_]")
+
+
+def numbered_clash(ours, theirs):
+    """Files both sides added in one folder under one number (two ADRs 0012,
+    two migrations 0013): a merge git calls clean that still needs a run to
+    renumber. Returns the clashing pairs."""
+    def key(path):
+        folder, _, name = path.rpartition("/")
+        match = NUMBERED.match(name)
+        return (folder, int(match.group(1))) if match else None
+    seen = {key(f): f for f in theirs if key(f)}
+    return sorted((f, seen[key(f)]) for f in ours if key(f) in seen)
+
+
+def cmd_update(gh, config, me, n, now, label, resume):
+    """Bring a PR that is only behind the default branch up to date without a
+    run: GitHub merges the default branch in, the factory records a clean
+    `update-branch` at the new head, so QA's verdict carries forward, and the
+    label goes back for `resume`. Returns `agent: true` when a run must do it:
+    a conflict, a numbered file both sides added, or GitHub refusing."""
+    if not gh.remove_label(n, label):
+        return {"updated": False, "why": f"Another run took {label} first."}
+    gh.add_labels(n, [IN_PROGRESS])
+    try:
+        return update_now(gh, config, me, n, now, resume)
+    finally:
+        gh.remove_label(n, IN_PROGRESS)
+        gh.add_labels(n, [label])
+
+
+def update_now(gh, config, me, n, now, resume, wait=2, tries=10):
+    if getattr(gh, "kind", "github") == "local":
+        return {"updated": False, "agent": True, "why": "A local tracker updates in a run."}
+    pr = gh.item(n)
+    if not pr.get("mergeable"):
+        return {"updated": False, "agent": True,
+                "why": "The PR conflicts with the default branch, or GitHub can't tell yet."}
+    default = gh.default_branch()
+    ours = [f["filename"] for f in gh.list(gh.r(f"pulls/{n}/files")) if f.get("status") == "added"]
+    compare = gh.get(gh.r(f"compare/{quote(pr['head'])}...{quote(default)}"))
+    theirs = [f["filename"] for f in compare.get("files") or [] if f.get("status") == "added"]
+    clash = numbered_clash(ours, theirs)
+    if clash:
+        return {"updated": False, "agent": True,
+                "why": "Both sides added a numbered file: "
+                       + ", ".join(f"`{a}` and `{b}`" for a, b in clash) + "."}
+    try:
+        gh.call("PUT", gh.r(f"pulls/{n}/update-branch"), {"expected_head_sha": pr["head"]})
+    except GitHubError as error:
+        return {"updated": False, "agent": True, "why": f"GitHub refused the update: {error}"}
+    head = pr["head"]
+    for _ in range(tries):
+        head = gh.get(gh.r(f"pulls/{n}"))["head"]["sha"]
+        if head != pr["head"]:
+            break
+        if wait:
+            import time
+            time.sleep(wait)
+    if head != pr["head"] and not only_merges(gh, pr["head"], head, default):
+        # Something besides GitHub's merge landed while it ran (a push in the
+        # window): nobody verified it, so a run must look.
+        return {"updated": False, "agent": True,
+                "why": f"The head moved to {head}, and not only by GitHub's merge."}
+    if head == pr["head"]:
+        # GitHub merges in the background. The next merge sees that only a
+        # merge moved the head, and a cheap update-branch run carries QA on.
+        return {"updated": True, "pending": True,
+                "why": "GitHub is still merging; the head has not moved yet."}
+    gh.comment(n, f"<!-- agent:run task=update-branch outcome=forward next={resume} tokens=0"
+                  f" at={stamp(now)} head={head} clean=1 resume={resume} -->\n"
+                  f"## Update branch · by the conductor\n\nGitHub merged `{default}` into the "
+                  f"branch at `{head}` without a conflict, and no numbered file clashed, so no run "
+                  "was needed. CI checks the new head before the merge.\n"
+                  + handoff({"task": "update-branch", "wait": None, "target": resume}, config, n)
+                  + "\n")
+    return {"updated": True, "head": head}
 
 
 def cmd_merge(gh, config, me, n, now, label=PREFIX + "merge"):
@@ -2330,7 +2970,8 @@ def merge_now(gh, config, me, n, now):
 
     def stop(why, label, outcome="blocked", nxt=None, reason="blocked"):
         marker = (f"<!-- agent:run task=merge outcome={outcome} next={nxt or 'human'}"
-                  f" tokens=0 at={stamp(now)} -->")
+                  f" tokens=0 at={stamp(now)}"
+                  + (" resume=merge" if nxt == "update-branch" else "") + " -->")
         if not nxt:
             marker += f"\n<!-- agent:wait reason={reason} resume=merge at={stamp(now)} -->"
         wait = None if nxt else {"resume": "merge"}
@@ -2356,13 +2997,20 @@ def merge_now(gh, config, me, n, now):
             gh.add_labels(n, [PREFIX + "merge"])
             return {"merged": False, "pending": True,
                     "why": f"CI never ran on the head: {reason} The merge waits until CI runs."}
-    changed = gh.list(gh.r(f"pulls/{n}/files")) if human_paths(config) or human_edits(config) else []
-    files = [f["filename"] for f in changed]
+    changed = gh.list(gh.r(f"pulls/{n}/files"))
+    # A rename counts at its old path too, so moving a guarded file away waits.
+    files = [f["filename"] for f in changed] \
+        + [f["previous_filename"] for f in changed if f.get("previous_filename")]
     # A rename counts as a change to the old path too.
     edited = [f["filename"] for f in changed if f.get("status", "modified") != "added"] \
         + [f["previous_filename"] for f in changed if f.get("previous_filename")]
+    verified = verified_head(pr)
+    merged_only = bool(verified) and verified != pr["head"] and pr.get("mergeable") \
+        and only_merges(gh, verified, pr["head"], gh.default_branch())
     verdict = merge_verdict(pr, state, me, files, human_paths(config),
-                            edited, human_edits(config))
+                            edited, human_edits(config), merged_only,
+                            [d for d in doors_in(changed, config) if d["file"] not in
+                             touched(files, human_paths(config))])
     if verdict["verdict"] == "pending":
         gh.add_labels(n, [PREFIX + "merge"])
         return {"merged": False, "pending": True, "why": verdict["why"]}
@@ -2489,10 +3137,14 @@ def main():
     q.add_argument("--skip", default="")
     q.add_argument("--only", type=item_id)
     q.add_argument("--scan")
+    q.add_argument("--usage")
     d = sub.add_parser("dispatch")
     d.add_argument("repo")
     d.add_argument("--me", required=True)
     d.add_argument("--live", default="")
+    d.add_argument("--usage")
+    us = sub.add_parser("usage")
+    us.add_argument("file")
     sub.add_parser("sessions").add_argument("repo")
     c = sub.add_parser("claim")
     c.add_argument("repo")
@@ -2515,6 +3167,12 @@ def main():
     m.add_argument("number", type=item_id)
     m.add_argument("--me", required=True)
     m.add_argument("--label", default=PREFIX + "merge")
+    u = sub.add_parser("update")
+    u.add_argument("repo")
+    u.add_argument("number", type=item_id)
+    u.add_argument("--me", required=True)
+    u.add_argument("--label", required=True)
+    u.add_argument("--resume", required=True, choices=["qa", "merge"])
     r = sub.add_parser("release")
     r.add_argument("repo")
     r.add_argument("number", type=item_id)
@@ -2555,12 +3213,20 @@ def main():
             return
         if args.command == "config":
             task_list(config, "serial")
+            per_task(config, "models", MODELS)
+            per_task(config, "effort", EFFORTS)
             out({**config, "tracker": tracker(config), "entry": ENTRY,
-                 "autonomy": autonomy(config), "merge": merge_policy(config),
+                 "autonomy": autonomy(config), "phase": phase(config),
+                 "merge": merge_policy(config),
                  "human-paths": human_paths(config),
                  "merge-method": merge_method(config),
                  "budget": number_setting(config, "budget", DEFAULT_BUDGET),
+                 "usage-reserve": fraction_setting(config, "usage-reserve",
+                                                   DEFAULT_USAGE_RESERVE),
                  "scans": scans_enabled(config), "schedule": schedule(config)})
+            return
+        if args.command == "usage":
+            out(read_usage(args.file, config, now))
             return
         if args.command == "list":
             match = re.fullmatch(r"repos/([\w.-]+/[\w.-]+)/\S+", args.path)
@@ -2578,10 +3244,11 @@ def main():
             skip = {item_id(x) for x in args.skip.split(",") if x}
             if args.only is not None and args.scan:
                 raise ValueError("--only and --scan exclude each other")
-            out(cmd_queue(gh, config, args.me, args.max, skip, now, args.only, args.scan))
+            out(cmd_queue(gh, config, args.me, args.max, skip, now, args.only, args.scan,
+                          read_usage(args.usage, config, now)))
         elif args.command == "dispatch":
             live = {x for x in args.live.split(",") if x}
-            out(cmd_dispatch(gh, config, args.me, live, now))
+            out(cmd_dispatch(gh, config, args.me, live, now, read_usage(args.usage, config, now)))
         elif args.command == "sessions":
             out(cmd_sessions(gh, now))
         elif args.command == "claim":
@@ -2600,6 +3267,8 @@ def main():
             out(cmd_apply(gh, config, args.me, result, args.label, args.repo_dir, now))
         elif args.command == "merge":
             out(cmd_merge(gh, config, args.me, args.number, now, args.label))
+        elif args.command == "update":
+            out(cmd_update(gh, config, args.me, args.number, now, args.label, args.resume))
         elif args.command == "release":
             out(cmd_release(gh, args.number, args.me))
         elif args.command == "log":

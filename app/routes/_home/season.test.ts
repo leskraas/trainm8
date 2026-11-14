@@ -128,12 +128,16 @@ test('the full view reads the same timeline I dag reads', async () => {
 	const {
 		isAuthenticated: _,
 		now: todayNow,
+		// I dag's own read beside the timeline (#433): the full view has none.
+		weather,
 		...todayTimeline
 	} = today as Extract<typeof today, { isAuthenticated: true }>
 	const { now: fullNow, ...fullTimeline } = full
 	expect(fullNow).toBeInstanceOf(Date)
 	expect(todayNow).toBeInstanceOf(Date)
 	expect(fullTimeline).toEqual(todayTimeline)
+	expect(weather).toBeNull()
+	expect(full).not.toHaveProperty('weather')
 	expect(full.ledger).toHaveLength(2)
 })
 

@@ -1,6 +1,7 @@
 /**
  * The Blocks reading of the plan page (`plan.tsx`, #533): the phases with their
- * segments' progression, the guards above them, and Avansert below.
+ * segments' progression, and Avansert below. The plan's Guard Notices are not
+ * here: they stand in _Plan_'s lead (`PlanGuardNotices`, ADR 0118).
  */
 
 import {
@@ -24,7 +25,6 @@ import {
 	emphasisTerms,
 	qualitySessionCount,
 } from '#app/utils/plan-outline/quality-mix.ts'
-import { isCardioDiscipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.ts'
 import { FitToEventOffer } from './__fit-to-event.tsx'
 import {
@@ -45,11 +45,6 @@ import {
 	type EditableAnchorTrack,
 } from './__season-anchor-editor.tsx'
 import { SeasonChart } from './__season-chart.tsx'
-import {
-	RampGuardNotice,
-	AvailabilityFitNotice,
-	BandFitNotice,
-} from './__season-notices.tsx'
 import {
 	boundaryStepStanding,
 	SegmentProgressionForm,
@@ -103,27 +98,6 @@ export function BlocksReading({
 	const enduranceTracks = season.tracks.filter(
 		(track) => track.segments.length > 0,
 	)
-	// **Every** track's guard, not the endurance half of it: ADR 0047 §1 gave a
-	// strength segment the same ramp and the same boundary step, and the guard gained
-	// a second track to guard with them. Each line carries the track it came from, so
-	// a lifting warning can say where it opens instead of naming a phase as its
-	// subject.
-	const warnings = season.tracks.flatMap((track) =>
-		track.warnings.map((warning) => ({
-			...warning,
-			discipline: track.discipline,
-			lifting: !isCardioDiscipline(track.discipline),
-		})),
-	)
-	// Both fit checks, read off the season rather than derived here: the days check is
-	// the **combined** one across both tracks (ADR 0047 §4) and the hours one prices
-	// the weeks through the **Volume Conversion** (ADR 0050), and a component that
-	// recomputed either would put two overlapping claims about one week on the same
-	// page.
-	const availability = season.availabilityWarnings
-	const hoursFit = season.hoursWarnings
-	const dayClashes = season.dayClashWarnings
-
 	// The spark on each phase's closed card, read off the *first* track that prices
 	// its weeks. One track and never a sum: no figure spans two tracks in either
 	// direction (ADR 0046 §1), and a shape drawn from two currencies added together
@@ -137,46 +111,11 @@ export function BlocksReading({
 	)
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-6" data-blocks-reading>
 			{error ? (
 				<p role="alert" className="text-foreground-destructive text-footnote">
 					{error}
 				</p>
-			) : null}
-			{/* The guards **open** here, always, and above everything they are about:
-			    they warn and never block (ADR 0040 §12), which only works if the athlete
-			    reads them without asking, so none of the three sits behind a
-			    `Disclosure`. Hiding a warning before it has been read is a warning
-			    withheld — progressive disclosure is for controls, never for what the
-			    plan is trying to tell you.
-
-			    Closing one **after** reading it is the opposite act, and it is the
-			    athlete's (#399 story 95): see `DismissibleNotice`, which is where the
-			    distinction and the per-visit rule are written down. */}
-			{warnings.length > 0 ? (
-				<RampGuardNotice
-					warnings={warnings}
-					phases={season.phases}
-					anyStrength={warnings.some((warning) => warning.lifting)}
-				/>
-			) : null}
-			{availability.length > 0 ||
-			hoursFit.length > 0 ||
-			dayClashes.length > 0 ? (
-				<AvailabilityFitNotice
-					warnings={availability}
-					hoursWarnings={hoursFit}
-					dayClashes={dayClashes}
-					weeklyCapacityHours={season.weeklyCapacityHours}
-					startWeekKey={season.startWeekKey}
-				/>
-			) : null}
-			{season.bandWarnings.length > 0 ? (
-				<BandFitNotice
-					warnings={season.bandWarnings}
-					timezone={season.timezone}
-					startWeekKey={season.startWeekKey}
-				/>
 			) : null}
 
 			<ol aria-label={SESONG_PAGE_LABELS.phasesList} className="space-y-3">

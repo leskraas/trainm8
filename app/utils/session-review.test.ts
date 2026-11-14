@@ -11,6 +11,7 @@ function makeSession(overrides: Partial<ReviewSession> = {}): ReviewSession {
 		workout: {
 			blocks: [
 				{
+					sendOff: null,
 					repeatCount: 1,
 					steps: [{ durationSec: 1800, distanceM: null }],
 				},
@@ -49,7 +50,11 @@ test('sums prescribed duration (× repeatCount) and reads actual moving time', (
 		makeSession({
 			workout: {
 				blocks: [
-					{ repeatCount: 4, steps: [{ durationSec: 300, distanceM: null }] },
+					{
+						sendOff: null,
+						repeatCount: 4,
+						steps: [{ durationSec: 300, distanceM: null }],
+					},
 				],
 			},
 			recording: { durationSec: 1260, distanceM: null },
@@ -67,6 +72,7 @@ test('planned duration is null when a step cannot be timed, never a short total'
 			workout: {
 				blocks: [
 					{
+						sendOff: null,
 						repeatCount: 1,
 						steps: [
 							{ durationSec: 900, distanceM: null },
@@ -87,6 +93,7 @@ test('planned duration times a distance step at the athlete’s threshold pace',
 				discipline: 'run',
 				blocks: [
 					{
+						sendOff: null,
 						repeatCount: 1,
 						steps: [
 							{ durationSec: 900, distanceM: null },
@@ -123,7 +130,11 @@ test('planned duration is null when no step authors a duration', () => {
 		makeSession({
 			workout: {
 				blocks: [
-					{ repeatCount: 1, steps: [{ durationSec: null, distanceM: 5000 }] },
+					{
+						sendOff: null,
+						repeatCount: 1,
+						steps: [{ durationSec: null, distanceM: 5000 }],
+					},
 				],
 			},
 		}),
@@ -138,7 +149,11 @@ test('sums prescribed distance and reads actual distance', () => {
 		makeSession({
 			workout: {
 				blocks: [
-					{ repeatCount: 2, steps: [{ durationSec: null, distanceM: 2000 }] },
+					{
+						sendOff: null,
+						repeatCount: 2,
+						steps: [{ durationSec: null, distanceM: 2000 }],
+					},
 				],
 			},
 			recording: { durationSec: 900, distanceM: 4100 },

@@ -85,6 +85,18 @@ export const DefaultTrainingTimeSchema = z
 export const DEFAULT_TRAINING_TIME = '07:00'
 
 /**
+ * The athlete's **Default Training Time**, or the documented convention when
+ * they have not said (ADR 0044 §4): the one fallback every reader of "what
+ * time does a session go on" shares — the stamp, the catalogue, the plan
+ * generator, the authoring route and the **Forecast Hour** (ADR 0115 §3).
+ */
+export function trainingTimeOf(
+	profile: { defaultTrainingTime: string | null } | null | undefined,
+): string {
+	return profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+}
+
+/**
  * The **Weekly Capacity** in hours per Training Week (ADR 0050).
  *
  * Bounded rather than open: a capacity is hours in a week, and a week holds 168 of

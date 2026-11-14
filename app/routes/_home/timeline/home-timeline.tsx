@@ -51,6 +51,7 @@ import {
 } from '#app/utils/labels.ts'
 import { type AutopilotNotice } from '#app/utils/load/autopilot-notice.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
+import { type LoadRecomputeNoticeRecord } from '#app/utils/load/recompute-notice.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
@@ -65,11 +66,7 @@ import {
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { AutopilotHistoryCard } from '../__autopilot-notice.tsx'
-import {
-	buildLoadRecomputeLine,
-	type LoadRecomputeLine,
-	type LoadRecomputeNotice,
-} from '../presenter.ts'
+import { buildLoadRecomputeLine, type LoadRecomputeLine } from '../presenter.ts'
 import { type AwayFromToday, landingScript } from './anchoring.ts'
 import {
 	type ComposerContainer,
@@ -110,7 +107,7 @@ export type HomeTimelineData = {
 	sustained: SustainedDeviation | null
 	nudge: SessionNudge
 	thresholds: DisciplineThresholdMap
-	loadRecomputeNotice: LoadRecomputeNotice | null
+	loadRecomputeNotice: LoadRecomputeNoticeRecord | null
 	/**
 	 * The Ukeskiftet card's proposals (#505 stories 42–55): the closed week's,
 	 * while one still waits for an answer; null otherwise.

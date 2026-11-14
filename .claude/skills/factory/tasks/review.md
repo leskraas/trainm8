@@ -13,8 +13,12 @@ A task can't start subagents, so the orchestrator runs `review-pr`'s reviews:
 
 1. **Reviews**: one read-only subagent per review in `review-pr`'s step 1
    ("Collect findings"), for this PR, all in one message, each given the
-   issue the PR closes as the spec and writing its own report file.
-2. **Fix and route**: one subagent with every report, running steps 1–4.
+   issue the PR closes as the spec and writing its own report file, plus
+   one **qualities** review that reads the diff against every quality in
+   `references/qualities.md`, named in the issue or not. Each takes the
+   model and effort in the queue entry's `parts.review-read`.
+2. **Fix and route**: one subagent with every report, running steps 1–4,
+   with the model and effort in `parts.review-fix`.
 
 ## Steps
 
@@ -30,7 +34,11 @@ A task can't start subagents, so the orchestrator runs `review-pr`'s reviews:
    one. A fix that keeps a check red is reverted and becomes a finding left.
    Done when every fixable finding has its commit and the checks pass.
 3. **Leave the rest**: product behaviour the spec leaves open, or a trade-off
-   between two documented rules. A change that loosens a guard file the repo
+   between two documented rules. A finding that the build contradicts an
+   acceptance criterion by a decision someone already made (in `## Decisions`,
+   an ADR, a merged PR) is not left for QA to fail: settle it as a decision
+   with the criterion's number in `criterion` and its proposed new text in
+   `answer`, and the conductor sends the issue to spec before QA. A change that loosens a guard file the repo
    docs name (a check removed, a path exempted, a limit raised) is never
    yours to settle: revert it when the PR works without it, else return
    `blocked` naming it. A guard made stricter needs nothing. Settle each as a decision (`po` when it
@@ -40,11 +48,14 @@ A task can't start subagents, so the orchestrator runs `review-pr`'s reviews:
    and shown at the head, or medium and costlier to fix once code builds on
    it (a wrong abstraction, a duplicated rule, a missing test for new
    behaviour). Otherwise `forward` to QA. A problem the base branch already
-   has counts only when the PR copies it or newly reaches it.
+   has counts only when the PR copies it or newly reaches it. Under `poc` and
+   `maintain`, the phase's bar changes this route (`questions.md`, "The
+   bar").
 
 ## Result
 
-- **outcome**: `forward`, `back` (next `implement`), or `blocked`.
+- **outcome**: `forward`, `back` (next `implement`, or `spec` with a
+  decision on a criterion), or `blocked`.
 - **branch**, **head**: the PR's branch and its head after your fixes.
 - **inline**: the findings left, on their lines.
 - **decisions**: from step 3.

@@ -46,14 +46,30 @@ Read-only on the repo: everything you write goes in the result.
    Carry over `## Decisions` and every other `##` section the body already
    has. Each criterion describes the product behaviour that solves the
    problem, checkable by someone who didn't write it; the process ("merges
-   cleanly", "CI is green") belongs to other tasks. **Ambition**: solve the
-   problem properly for the user, with the error and empty states they will
-   meet, the data that must survive, and the cases next to the happy path.
-   Done when every criterion passes that test.
-5. **Plan** the tasks before `implement`: `design` when a user sees or touches
+   cleanly", "CI is green") belongs to other tasks. Walk the table in
+   `references/qualities.md`: each quality the change touches becomes a
+   criterion starting **Quality:**, with its measure (for a list users come
+   back to: "Quality: returning to the list within 30 s sends no data
+   request"). **Ambition** is what the phase's bar asks of spec
+   (`questions.md`, "The bar", and `qualities.md`, "The bar"). Done when
+   every criterion passes that test and every quality in the table is
+   either a criterion or untouched by the change.
+5. **A criterion sent back.** When implement, review or architecture sent
+   the issue here with a decision on a criterion (its line under
+   `## Decisions` says "changes acceptance criterion <n>", and its answer is
+   the proposed text), rewrite that criterion to what was decided, and keep
+   the old text under «Original input». Settle it as a
+   `po` decision: a change to what the user gets is the PO's call, so under
+   `doors` it waits for them. When the issue has an open PR, go forward with
+   `next` `qa` when the build already does what the new text asks, `review`
+   when it needs another read, and `implement` when it must change. The
+   conductor turns `qa` into `review` when review hasn't passed the PR's
+   current head: review always runs before QA. Skip the
+   steps below.
+6. **Plan** the tasks before `implement`: `design` when a user sees or touches
    something new, `architecture` when it touches a seam, the schema, an ADR or
-   a dependency. Review and QA always run.
-6. **Size.** One issue is one PR a reviewer can read: about twelve acceptance
+   a dependency, narrowed by the phase's bar. Review and QA always run.
+7. **Size.** One issue is one PR a reviewer can read: about twelve acceptance
    criteria at most. A bigger one becomes `tickets`, following
    `bredvid-engineering:to-tickets` steps 1–3: vertical slices in the standard
    shape, each with its own criteria and, in `depends_on`, the earlier slices
@@ -65,8 +81,9 @@ Read-only on the repo: everything you write goes in the result.
 
 - **outcome**: `forward`, or `blocked`.
 - **body**: the standard issue.
-- **plan**: the tasks from step 5, possibly empty.
-- **tickets**: from step 6, when the issue is too big for one PR.
+- **next**: after step 5 only, `qa`, `review` or `implement`.
+- **plan**: the tasks from step 6, possibly empty.
+- **tickets**: from step 7, when the issue is too big for one PR.
 - **decisions**: from step 3.
 - **comment**: what changed in the issue, the decisions you made, and, with
   tickets, the slices in order.
