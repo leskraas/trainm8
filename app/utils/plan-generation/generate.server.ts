@@ -551,7 +551,7 @@ export async function approveSeason(
 	if (!created.ok) return { ok: false, reason: created.reason }
 
 	// The placed sessions and the plan's Generation Record in one transaction,
-	// so a plan never holds a generated season without its record (ADR 0119 §1).
+	// so a plan never holds a generated season without its record (ADR 0120 §1).
 	const target = {
 		athleteId,
 		eventId,

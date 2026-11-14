@@ -1,5 +1,5 @@
 /**
- * **The kept-slot rule** (ADR 0109 §6, ADR 0119 §4): a session the plan laid
+ * **The kept-slot rule** (ADR 0109 §6, ADR 0120 §4): a session the plan laid
  * and keeps through a re-lay (adopted, or trained) fills its weekday's slot for
  * its **Discipline**, so the re-lay places no second session beside it. Stated
  * once, and read by every re-lay: the stamp's and a generated plan's.

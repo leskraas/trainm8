@@ -8,7 +8,7 @@ stays in trainm8 and still regenerates (§2), so §2 and §8 hold. A model
 implementation is ADR 0095's, and then §2's approval binds to the stored
 preview. **§1 and the consequence "Coexistence and regeneration remain unbuilt"
 amended by
-[ADR 0119](./0119-a-generated-plan-keeps-a-generation-record-and-its-weeks-are-laid-again-by-the-generator.md)**:
+[ADR 0120](./0120-a-generated-plan-keeps-a-generation-record-and-its-weeks-are-laid-again-by-the-generator.md)**:
 the seam also places weeks (`placeWeeks`), a generated plan keeps a **Generation
 Record**, and its weeks are laid again through the seam; the athlete rebuilding
 the season stays unbuilt.
@@ -249,7 +249,7 @@ plan** is `race-week` — a property of the week rather than of a block.
   does not carry.
 - **Coexistence and regeneration remain unbuilt**, as #456 scoped (laying a
   generated plan's weeks again, with the athlete's sessions in them, is built by
-  ADR 0119; the athlete rebuilding the season is not): what a mixed
+  ADR 0120; the athlete rebuilding the season is not): what a mixed
   manually-authored and generated Outline means on one Event, and precisely what
   regeneration touches. `adoptedAt IS NULL` is the eligibility predicate waiting
   for them (ADR 0016 §6 as amended by #460).

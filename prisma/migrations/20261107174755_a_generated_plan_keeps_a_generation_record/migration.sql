@@ -1,4 +1,4 @@
--- **A generated plan keeps a Generation Record** (ADR 0119, #686).
+-- **A generated plan keeps a Generation Record** (ADR 0120, #686).
 --
 -- **No stored number moves.** This adds two tables and writes one
 -- `GenerationRecord` row per plan Plan Generation made before the record
@@ -6,7 +6,7 @@
 -- authored is touched, so every athlete's numbers read exactly the same
 -- afterwards and no Load Recompute Notice is owed.
 --
--- ## The data part (ADR 0119 §5)
+-- ## The data part (ADR 0120 §5)
 --
 -- A Plan Outline was made by Plan Generation when it runs toward an Event, has
 -- no Week Pattern day, and holds a `generated` session whose Workout was copied
@@ -56,7 +56,7 @@ CREATE UNIQUE INDEX "GenerationRecord_outlineId_key" ON "GenerationRecord"("outl
 CREATE UNIQUE INDEX "GenerationRecordDay_recordId_discipline_weekday_key" ON "GenerationRecordDay"("recordId", "discipline", "weekday");
 
 
--- Plans Plan Generation made before this record existed (ADR 0119 §5).
+-- Plans Plan Generation made before this record existed (ADR 0120 §5).
 INSERT OR IGNORE INTO "GenerationRecord" ("id", "outlineId", "generatorId", "presetKey", "intent", "createdAt")
 SELECT 'genrec_' || o."id", o."id", 'deterministic-v1', NULL, NULL, '2026-11-07 00:00:00'
 FROM "PlanOutline" o

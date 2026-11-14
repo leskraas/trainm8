@@ -219,7 +219,7 @@ export function mixZones(
 
 /**
  * Place the weeks a request asks for: the one placement rule behind both the
- * whole season at approval and a stored plan's weeks laid again (ADR 0119 §2).
+ * whole season at approval and a stored plan's weeks laid again (ADR 0120 §2).
  *
  * Catalogue phase from the block's position (`race-week` in the plan's last
  * week), quality only in loading weeks, the long day last, and the
@@ -404,14 +404,14 @@ export function generateDeterministicSeason(
 	)
 
 	// The days the season is placed on, per Discipline with their role: what the
-	// Generation Record keeps, so a re-lay places on the same days (ADR 0119 §1).
+	// Generation Record keeps, so a re-lay places on the same days (ADR 0120 §1).
 	const days: GeneratedDay[] = (starter?.days ?? []).map((day) => ({
 		discipline: day.trackId as GenerationTrack['discipline'],
 		weekday: day.weekday,
 		role: day.role,
 	}))
 
-	// Every week of the season through the one placement rule (ADR 0119 §2),
+	// Every week of the season through the one placement rule (ADR 0120 §2),
 	// each track taking the preset's mix for the phase.
 	const placed = placeDeterministicWeeks(
 		{

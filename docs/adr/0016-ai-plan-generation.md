@@ -125,7 +125,7 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
    inheriting a column that never held one.
 
    **Amended by
-   [ADR 0119](./0119-a-generated-plan-keeps-a-generation-record-and-its-weeks-are-laid-again-by-the-generator.md)
+   [ADR 0120](./0120-a-generated-plan-keeps-a-generation-record-and-its-weeks-are-laid-again-by-the-generator.md)
    (#686).** The batch key is the plan's **Generation Record**, reached through
    `planOutlineId`, not a session column. Laying a generated plan's weeks again
    replaces only `REPLACEABLE_SESSION`s (the machine's, untrained, unlogged) in

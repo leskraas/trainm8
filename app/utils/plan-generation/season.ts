@@ -66,7 +66,7 @@ export type GenerationIntent = (typeof GENERATION_INTENTS)[number]
 
 /**
  * The intent approval uses when none was asked, and a Generation Record without
- * one is read as (ADR 0119 §5).
+ * one is read as (ADR 0120 §5).
  */
 export const DEFAULT_GENERATION_INTENT: GenerationIntent =
 	'deliberately-building'
@@ -291,7 +291,7 @@ export type GeneratedSeason = {
 	unfilled: UnfilledSlot[]
 	/**
 	 * The days the season was placed on, per Discipline with their role: what
-	 * approval keeps on the plan's **Generation Record** (ADR 0119 §1).
+	 * approval keeps on the plan's **Generation Record** (ADR 0120 §1).
 	 */
 	days: GeneratedDay[]
 	unavailable: GeneratedUnavailable[]
@@ -310,7 +310,7 @@ export type GeneratedDay = {
 }
 
 /**
- * What placing weeks needs (ADR 0119 §2): the plan's phases, each track's
+ * What placing weeks needs (ADR 0120 §2): the plan's phases, each track's
  * **Quality Session Mix** per phase and its days, the goal event, the level
  * floor, and which weeks. Built from a preset at approval, and from the stored
  * plan and its **Generation Record** on a re-lay (`generation-request.ts`).

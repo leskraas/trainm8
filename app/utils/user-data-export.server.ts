@@ -159,7 +159,7 @@ export async function exportUserData({
 		PlanOutlinePhase: await prisma.planOutlinePhase.findMany({
 			where: outline,
 		}),
-		// The Generation Record (ADR 0119): what a generated plan was made from.
+		// The Generation Record (ADR 0120): what a generated plan was made from.
 		GenerationRecord: await prisma.generationRecord.findMany({
 			where: outline,
 		}),
