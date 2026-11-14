@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	bestEffort,
@@ -218,6 +218,8 @@ test('a job with no registered handler fails rather than spinning', async () => 
 })
 
 test('failStaleJobs fails only jobs of its kind running since before the given moment', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+	onTestFinished(() => warn.mockRestore())
 	const longAgo = new Date(Date.now() - 60 * 60 * 1000)
 	const running = (kind: string, startedAt: Date, attempts = 1) =>
 		enqueueJob({ kind, maxAttempts: 2 }).then((job) =>
@@ -244,6 +246,28 @@ test('failStaleJobs fails only jobs of its kind running since before the given m
 	expect(await status(spent.id)).toBe('failed')
 	expect(await status(live.id)).toBe('running')
 	expect(await status(otherKind.id)).toBe('running')
+})
+
+test('failStaleJobs logs each job it fails, with its kind, id and new status', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+	onTestFinished(() => warn.mockRestore())
+	const stranded = await enqueueJob({ kind: 'one-shot', maxAttempts: 1 })
+	await prisma.job.update({
+		where: { id: stranded.id },
+		data: {
+			status: 'running',
+			attempts: 1,
+			startedAt: new Date(Date.now() - 60 * 60 * 1000),
+		},
+	})
+
+	await failStaleJobs({ kind: 'one-shot', startedBefore: new Date() })
+
+	expect(warn).toHaveBeenCalledWith('[jobs] failed a stale running job', {
+		kind: 'one-shot',
+		jobId: stranded.id,
+		status: 'failed',
+	})
 })
 
 test('failJob with a guard leaves a job that has moved on as it is', async () => {

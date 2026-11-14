@@ -197,27 +197,28 @@ const BACKOFF_BASE_MS = 1000
  * once `maxAttempts` is reached the job is terminal (`failed`).
  *
  * `onlyIf` guards the write: a job that no longer matches it (it moved on since
- * the caller read it) is left as it is.
+ * the caller read it) is left as it is. Returns the status written, or `null`
+ * when the guard left the job alone.
  */
 export async function failJob(
 	id: string,
 	error: unknown,
 	onlyIf: Prisma.JobWhereInput = {},
-): Promise<void> {
+): Promise<'pending' | 'failed' | null> {
 	const job = await prisma.job.findUniqueOrThrow({ where: { id } })
 	const message = error instanceof Error ? error.message : String(error)
 	const where = { ...onlyIf, id }
 
 	if (job.attempts >= job.maxAttempts) {
-		await prisma.job.updateMany({
+		const { count } = await prisma.job.updateMany({
 			where,
 			data: { status: 'failed', lastError: message },
 		})
-		return
+		return count ? 'failed' : null
 	}
 
 	const delayMs = BACKOFF_BASE_MS * 2 ** job.attempts
-	await prisma.job.updateMany({
+	const { count } = await prisma.job.updateMany({
 		where,
 		data: {
 			status: 'pending',
@@ -225,6 +226,7 @@ export async function failJob(
 			runAt: new Date(Date.now() + delayMs),
 		},
 	})
+	return count ? 'pending' : null
 }
 
 /**
@@ -254,11 +256,20 @@ export async function failStaleJobs({
 	})
 	for (const { id } of stale) {
 		// Guarded: a row that finished since the read is not set back to pending.
-		await failJob(
+		const status = await failJob(
 			id,
 			new Error('The worker stopped while this job was running'),
 			isStale,
 		)
+		// The queue logs no failure itself; without this line a stranded run that
+		// spent its attempts here would end `failed` with only `lastError` to say so.
+		if (status) {
+			console.warn('[jobs] failed a stale running job', {
+				kind,
+				jobId: id,
+				status,
+			})
+		}
 	}
 	return stale.length
 }

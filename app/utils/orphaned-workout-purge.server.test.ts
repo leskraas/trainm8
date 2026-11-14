@@ -1,4 +1,4 @@
-import { expect, test, vi } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { saveToCatalogueList } from './catalogue.server.ts'
 import { publishWorkout } from './community.server.ts'
@@ -231,6 +231,9 @@ test('a purge that fails partway erases nothing and is retried', async () => {
 })
 
 test('a purge a crash stranded in running is retried by the next boot', async () => {
+	// Boot logs the row it fails back.
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+	onTestFinished(() => warn.mockRestore())
 	await prisma.job.deleteMany({})
 	const { erasable } = await createOrphans()
 	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
@@ -268,6 +271,9 @@ test('a purge a crash stranded in running is retried by the next boot', async ()
 })
 
 test('a purge a quick restart stranded in running is retried by that boot', async () => {
+	// Boot logs the row it fails back.
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+	onTestFinished(() => warn.mockRestore())
 	await prisma.job.deleteMany({})
 	const job = await enqueueJob({ kind: ORPHANED_WORKOUT_PURGE_JOB_KIND })
 	// A deploy stopped the machine mid-purge and it was back within a minute:
