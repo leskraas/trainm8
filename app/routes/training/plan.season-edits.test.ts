@@ -513,6 +513,41 @@ test('a Season Anchor value change on the season’s start, already begun, is re
 	})
 })
 
+test('a Season Anchor confirm refused because its segment began meanwhile still offers the fresh start', async () => {
+	const { outlineId, trackId, cookie } = await setUp()
+	const start = await prisma.seasonAnchorSegment.findFirstOrThrow({
+		where: { trackId },
+		select: { fromWeekKey: true },
+	})
+	// A week began between the preview and its confirm: the confirm meets the
+	// same refusal the preview would now, and the same offer beside it.
+	const reply = replyOf(
+		await send(
+			[
+				['intent', 'apply-season-edit'],
+				['edit', 'season-anchor'],
+				['outlineId', outlineId],
+				['trackId', trackId],
+				['action', 'set'],
+				['setWeekKey', start.fromWeekKey],
+				['setValue', '4,5'],
+				['digest', 'shown-before-the-week-began'],
+			],
+			cookie,
+		),
+	)
+	expect(reply.init?.status).toBe(400)
+	expect(reply.data.seasonEdit?.refusal).toBe('segment-lived')
+	expect(reply.data.seasonEdit?.offer).toEqual({
+		kind: 'season-anchor',
+		trackId,
+		action: 'add',
+		fromWeekKey: '2026-10-12',
+		value: 4.5,
+	})
+	expect(await prisma.seasonAnchorSegment.count({ where: { trackId } })).toBe(1)
+})
+
 test('a stale Season Anchor confirm says nothing was saved and shows no new numbers', async () => {
 	const { outlineId, trackId, thirdWeek, cookie } = await setUp()
 	const reply = replyOf(

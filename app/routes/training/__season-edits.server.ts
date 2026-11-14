@@ -199,7 +199,13 @@ export async function seasonEditAction(
 					}
 				: {
 						edit: kind,
-						result: submission.reply({ formErrors: [message] }),
+						result: submission.reply({
+							formErrors: [SEASON_EDIT_REFUSAL_LABELS[fresh.reason]],
+						}),
+						// Refused now as a preview would be (a week began meanwhile),
+						// so with the same offer beside it (#673).
+						refusal: fresh.reason,
+						...('offer' in fresh && fresh.offer ? { offer: fresh.offer } : {}),
 					},
 			400,
 		)
