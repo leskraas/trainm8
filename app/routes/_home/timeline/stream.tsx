@@ -74,7 +74,6 @@ import {
 	ANNET_ACTION_LABELS,
 	CAP_LABELS,
 	DAY_ROW_LABELS,
-	DRIFT_MARK,
 	HORIZON_LABELS,
 	IMPORT_LINK_LABELS,
 	ownerGlyphName,
@@ -104,6 +103,7 @@ import {
 import { type RowChipTone } from './row-content.ts'
 import { TITLE_INSET, TITLE_INSET_BOX } from './row-inset.ts'
 import { StrengthLogPanel } from './strength-log-panel.tsx'
+import { DriftMark, TRACK_INK } from './track-marks.tsx'
 import {
 	TODAY_ATTR,
 	WEEK_ATTR,
@@ -606,16 +606,7 @@ export function TrackLine({
 						/>
 						<span className="text-muted-foreground">{track.unit}</span>
 					</span>
-					{track.driftLabel ? (
-						<span
-							role="img"
-							aria-label={track.driftLabel}
-							title={track.driftLabel}
-							className="text-status-under font-bold"
-						>
-							{DRIFT_MARK}
-						</span>
-					) : null}
+					{track.driftLabel ? <DriftMark label={track.driftLabel} /> : null}
 					{track.gradeLabel ? (
 						<span
 							data-week-grade={track.grade.status}
@@ -671,14 +662,6 @@ const TRACK_BORDER: Record<string, string> = {
 	bike: 'border-track-bike',
 	swim: 'border-track-swim',
 	strength: 'border-track-strength',
-}
-/** A track's name in its own colour: the `-ink` step of the hue, ≥ 5:1 on the
- * card and the page in both themes (#505 round 2). */
-const TRACK_INK: Record<string, string> = {
-	run: 'text-track-run-ink',
-	bike: 'text-track-bike-ink',
-	swim: 'text-track-swim-ink',
-	strength: 'text-track-strength-ink',
 }
 
 /** The done figure's colour: the verdict's, only once there is one. */
@@ -790,16 +773,7 @@ function TrackMeter({
 						· {track.sessionsLabel}
 					</span>
 				) : null}
-				{track.driftLabel ? (
-					<span
-						role="img"
-						aria-label={track.driftLabel}
-						title={track.driftLabel}
-						className="text-status-under font-bold"
-					>
-						{DRIFT_MARK}
-					</span>
-				) : null}
+				{track.driftLabel ? <DriftMark label={track.driftLabel} /> : null}
 				{track.gradeLabel ? (
 					<span
 						data-week-grade={track.grade.status}

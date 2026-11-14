@@ -55,6 +55,10 @@ import {
 import { Icon } from '#app/components/ui/icon.tsx'
 import { RadioGroup } from '#app/components/ui/radio-group.tsx'
 import {
+	DriftMark,
+	TRACK_INK,
+} from '#app/routes/_home/timeline/track-marks.tsx'
+import {
 	wordTrackWeek,
 	type TimelineTrackWeek,
 } from '#app/routes/_home/timeline/week-words.ts'
@@ -69,7 +73,6 @@ import {
 import {
 	APP_TAB_LABELS,
 	approxLabel,
-	DRIFT_MARK,
 	isoWeekSpanLabel,
 	NB_CATALOGUE_PHASE_LABELS,
 	NB_DISCIPLINE_LABELS,
@@ -94,8 +97,8 @@ import {
 	type GenerationRefusal,
 	type SeasonPreview,
 } from '#app/utils/plan-generation/generate.server.ts'
-import { type PreviewWeekVolumes } from '#app/utils/plan-generation/planned-volume.ts'
 import { type PlacedFit } from '#app/utils/plan-generation/placed-hours.ts'
+import { type PreviewWeekVolumes } from '#app/utils/plan-generation/planned-volume.ts'
 import {
 	GENERATION_INTENTS,
 	type GeneratedSession,
@@ -881,18 +884,6 @@ function weekFigures(
 }
 
 /**
- * A track's name in its own colour: the `-ink` step of the hue, AA as text in
- * both themes (ADR 0085, #505 round 2), as on Sesong. Literal classes, for
- * Tailwind.
- */
-const TRACK_INK: Record<string, string> = {
-	run: 'text-track-run-ink',
-	bike: 'text-track-bike-ink',
-	swim: 'text-track-swim-ink',
-	strength: 'text-track-strength-ink',
-}
-
-/**
  * One row per Training Track (#472): the track's name in its ink, then
  * `mål 32 km · planlagt 24 km +1 uten km ≠`. The **Week Target** and the
  * **Planned Volume** are two labelled figures, each with its unit, never blended.
@@ -958,14 +949,7 @@ function TrackFigureLine({ track }: { track: TimelineTrackWeek }) {
 	const drift = track.driftLabel ? (
 		<>
 			{'\u2009'}
-			<span
-				role="img"
-				aria-label={track.driftLabel}
-				title={track.driftLabel}
-				className="text-status-under font-bold"
-			>
-				{DRIFT_MARK}
-			</span>
+			<DriftMark label={track.driftLabel} />
 		</>
 	) : null
 	return (
