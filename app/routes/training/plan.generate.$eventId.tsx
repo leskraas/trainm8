@@ -254,10 +254,9 @@ export default function GenerateSeasonRoute({
 	const byWeek = new Map(
 		preview.weekVolumes.map((entry) => [entry.weekKey, entry]),
 	)
-	const figuresOf = (week: SeasonPreview['season']['weeks'][number]) => {
-		const entry = byWeek.get(week.weekKey)
-		return entry ? weekFigures(entry, preview.currentWeekKey) : null
-	}
+	// `weekVolumes` holds one entry per season week (`previewWeekVolumes`).
+	const figuresOf = (week: SeasonPreview['season']['weeks'][number]) =>
+		weekFigures(byWeek.get(week.weekKey)!, preview.currentWeekKey)
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -780,8 +779,8 @@ function WeekCard({
 }: {
 	week: SeasonPreview['season']['weeks'][number]
 	season: SeasonPreview['season']
-	/** The week's tracks, worded; null only if the read has no such week. */
-	figures: WeekFigures | null
+	/** The week's tracks, worded. */
+	figures: WeekFigures
 }) {
 	const phase = season.phases[week.phaseIndex]!
 	const sessions = season.sessions.filter(
@@ -822,7 +821,7 @@ function WeekCard({
 					{L.weekOf(week.weekIndex + 1, season.weeks.length)} ·{' '}
 					{nbPhaseName(phase.name)}
 				</p>
-				{figures ? <TrackFigures figures={figures} /> : null}
+				<TrackFigures figures={figures} />
 				{/* Placed Hours over the capacity: the week's own line, in the
 				    foreground, never behind a tap (#429). The amber marks it; the
 				    words carry it (RiseWarningNotice's voice). */}
