@@ -1417,7 +1417,8 @@ function SeasonAnchorEdit({
  * _regnet ut_, and a tap that opens how the number was worked out — the
  * hand-set weeks held, and the confirm in a sticky footer with the count, so
  * a preview as long as the season keeps its confirm in reach. After a stale
- * confirm the rows are dimmed and the confirm gives way to a fresh preview.
+ * confirm the rows are dimmed to the secondary text colour (never by opacity,
+ * which takes muted text under AA) and the confirm gives way to a fresh preview.
  */
 function SeasonAnchorPreviewPanel({
 	outlineId,
@@ -1465,13 +1466,13 @@ function SeasonAnchorPreviewPanel({
 			</h3>
 			<p
 				id={messageId}
-				className={cn('text-footnote', stale && 'opacity-50')}
+				className={cn('text-footnote', stale && 'text-muted-foreground')}
 				aria-live="polite"
 				data-season-edit-message
 			>
 				{preview.message}
 			</p>
-			<div className={cn('space-y-4', stale && 'opacity-50')}>
+			<div className={cn('space-y-4', stale && 'text-muted-foreground')}>
 				<RiseWarningNotice warnings={preview.warnings} />
 				{anchor.rows.length > 0 ? (
 					<div>
