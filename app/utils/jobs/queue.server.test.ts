@@ -233,12 +233,10 @@ test('failStaleJobs fails only jobs of its kind running since before the given m
 	const live = await running('one-shot', new Date())
 	const otherKind = await running('strava-backfill', longAgo)
 
-	expect(
-		await failStaleJobs({
-			kind: 'one-shot',
-			startedBefore: new Date(Date.now() - 10 * 60 * 1000),
-		}),
-	).toBe(2)
+	await failStaleJobs({
+		kind: 'one-shot',
+		startedBefore: new Date(Date.now() - 10 * 60 * 1000),
+	})
 
 	const status = async (id: string) =>
 		(await prisma.job.findUniqueOrThrow({ where: { id } })).status

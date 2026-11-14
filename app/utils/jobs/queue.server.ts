@@ -235,8 +235,8 @@ export async function failJob(
  * move it on. Each goes through {@link failJob}, so it is retried with backoff,
  * or ends `failed` once its attempts are spent. A caller passes a moment no live
  * run of the kind can have started before (this process's start, on the one
- * node that runs the worker), or a live run would be claimed twice. Returns
- * how many it failed.
+ * node that runs the worker), or a live run would be claimed twice. Each one
+ * it fails is logged.
  */
 export async function failStaleJobs({
 	kind,
@@ -244,7 +244,7 @@ export async function failStaleJobs({
 }: {
 	kind: string
 	startedBefore: Date
-}): Promise<number> {
+}): Promise<void> {
 	const isStale = {
 		kind,
 		status: 'running',
@@ -271,7 +271,6 @@ export async function failStaleJobs({
 			})
 		}
 	}
-	return stale.length
 }
 
 /**
