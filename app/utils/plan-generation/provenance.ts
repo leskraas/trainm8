@@ -139,7 +139,10 @@ export function isPlaceable(provenance: SessionProvenance): boolean {
  * The **Convention Row**'s slot line. Short where the description's notice is
  * long, and it does not restate it: the notice is the row's own words in the
  * session's description, and this is the slot saying which of the four kinds it
- * is. Both are shown, and neither is a substitute for the other.
+ * is. Neither is a substitute for the other. Where a surface shows the slot in
+ * Norwegian beside the description (the Catalogue card, the session page), it
+ * strips the English notice with {@link withoutProvenanceNotice}, so the kind
+ * is said once.
  */
 export const CONVENTION_SLOT_LINE =
 	'Coaching convention — trainm8 claims no published source for this session.'
