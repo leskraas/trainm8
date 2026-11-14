@@ -6,10 +6,15 @@ Status: Accepted · **§1 amended by
 `preview_season`, before any model implementation exists behind it. Approval
 stays in trainm8 and still regenerates (§2), so §2 and §8 hold. A model
 implementation is ADR 0095's, and then §2's approval binds to the stored
-preview. · **§6 clarified by
+preview. **§1 and the consequence "Coexistence and regeneration remain unbuilt"
+amended by
+[ADR 0120](./0120-a-generated-plan-keeps-a-generation-record-and-its-weeks-are-laid-again-by-the-generator.md)**:
+the seam also places weeks (`placeWeeks`), a generated plan keeps a **Generation
+Record**, and its weeks are laid again through the seam; the athlete rebuilding
+the season stays unbuilt. · **§6 clarified by
 [ADR 0121](./0121-a-generated-weeks-planned-volume-is-read-outside-the-seam-as-sesong-will-read-it.md)**:
-the sum of a week's placed sessions is a reading of the payload, not a field
-on it.
+the sum of a week's placed sessions is a reading of the payload, not a field on
+it.
 
 Resolves [#456](https://github.com/leskraas/trainm8/issues/456), the build
 ticket for the decision recorded on
@@ -245,7 +250,9 @@ plan** is `race-week` — a property of the week rather than of a block.
   (§6). Both are shown. Reconciling them needs either a rescaling rule the
   corpus forbids or a retrieval that filters by session size, which the corpus
   does not carry.
-- **Coexistence and regeneration remain unbuilt**, as #456 scoped: what a mixed
+- **Coexistence and regeneration remain unbuilt**, as #456 scoped (laying a
+  generated plan's weeks again, with the athlete's sessions in them, is built by
+  ADR 0120; the athlete rebuilding the season is not): what a mixed
   manually-authored and generated Outline means on one Event, and precisely what
   regeneration touches. `adoptedAt IS NULL` is the eligibility predicate waiting
   for them (ADR 0016 §6 as amended by #460).

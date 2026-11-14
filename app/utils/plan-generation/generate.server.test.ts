@@ -11,7 +11,6 @@ import { workoutCopySelect } from '../workout.server.ts'
 import {
 	approveSeason,
 	defaultPresetFor,
-	goalEventFor,
 	previewSeason,
 	readGenerationCorpus,
 	type GenerationAnswers,
@@ -20,6 +19,7 @@ import {
 	DETERMINISTIC_SEASON_GENERATOR,
 	type SeasonGenerator,
 } from './generator.ts'
+import { goalEventFor } from './goal-event.ts'
 import { type GeneratedSeason, type SeasonRequest } from './season.ts'
 
 async function createAthlete() {
@@ -582,6 +582,7 @@ function recordingGenerator() {
 			seen.push({ request, season })
 			return season
 		},
+		placeWeeks: DETERMINISTIC_SEASON_GENERATOR.placeWeeks,
 	}
 	return { generator, seen }
 }
@@ -684,6 +685,7 @@ test('a placed session whose id is not a Stock Workout is neither read into the 
 				})),
 			}
 		},
+		placeWeeks: DETERMINISTIC_SEASON_GENERATOR.placeWeeks,
 	}
 	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
 	// The drop is said where an operator reads it, with the id dropped, so a

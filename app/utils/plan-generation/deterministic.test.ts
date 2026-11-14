@@ -187,8 +187,8 @@ test('a recovery week keeps its rhythm: the 4th week of a 3:1 base carries no qu
 })
 
 test('the mix expands ascending by zone, the order every other surface states it in', () => {
-	expect(mixZones(presetFor('classic-linear'), 2)).toEqual([4, 5])
-	expect(mixZones(presetFor('classic-linear'), 3)).toEqual([])
+	expect(mixZones(presetFor('classic-linear').phases[2]!.mix)).toEqual([4, 5])
+	expect(mixZones(presetFor('classic-linear').phases[3]!.mix)).toEqual([])
 })
 
 test('a track with no Season Anchor prices every week Unavailable and still retrieves', () => {

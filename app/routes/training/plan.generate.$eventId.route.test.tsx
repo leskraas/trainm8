@@ -119,6 +119,7 @@ function preview(
 		weeks: [week()],
 		sessions: [session()],
 		unfilled: [],
+		days: [],
 		unavailable: [],
 		weekdaySource: 'default',
 		levelFloor: 'intermediate',
@@ -339,7 +340,9 @@ test('a week with no Season Anchor reads “—” for its target and still show
 		`Løpingmål —${PLAN_GENERATE_LABELS.targetUnavailable} · planlagt 8 km`,
 	])
 	// The dash is not spoken: a screen reader hears the target is unavailable.
-	expect(screen.getAllByText('—', { selector: '[aria-hidden]' })).toHaveLength(1)
+	expect(screen.getAllByText('—', { selector: '[aria-hidden]' })).toHaveLength(
+		1,
+	)
 	expect(screen.getByText(PLAN_GENERATE_LABELS.targetUnavailable)).toHaveClass(
 		'sr-only',
 	)
