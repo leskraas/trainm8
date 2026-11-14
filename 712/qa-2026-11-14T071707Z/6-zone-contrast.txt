@@ -1,0 +1,82 @@
+light {
+ "dark": false,
+ "zones": [
+  {
+   "i": 1,
+   "v": "oklch(0.6 0.12 250)",
+   "contrast_on_card": 3.93
+  },
+  {
+   "i": 2,
+   "v": "oklch(0.59 0.12 160)",
+   "contrast_on_card": 3.86
+  },
+  {
+   "i": 3,
+   "v": "oklch(0.65 0.13 95)",
+   "contrast_on_card": 3.24
+  },
+  {
+   "i": 4,
+   "v": "oklch(0.61 0.14 58)",
+   "contrast_on_card": 3.95
+  },
+  {
+   "i": 5,
+   "v": "oklch(0.55 0.19 22)",
+   "contrast_on_card": 5.33
+  }
+ ],
+ "card": "oklch(1 0 0)",
+ "hasZoneSection": true,
+ "zoneTextSample": [
+  "zone-1",
+  "zone-2",
+  "zone-3",
+  "zone-4",
+  "zone-5",
+  "zone-1"
+ ]
+}
+light plan h1s: [{"t":"Plan","cls":"text-heading min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]","fs":"18px","vis":true},{"t":"Variert og bygger seg opp","cls":"text-title text-balance [overflow-wrap:anywhere]","fs":"24px","vis":true}]
+dark {
+ "dark": true,
+ "zones": [
+  {
+   "i": 1,
+   "v": "oklch(0.72 0.11 250)",
+   "contrast_on_card": 7.21
+  },
+  {
+   "i": 2,
+   "v": "oklch(0.72 0.12 160)",
+   "contrast_on_card": 7.62
+  },
+  {
+   "i": 3,
+   "v": "oklch(0.76 0.12 95)",
+   "contrast_on_card": 8.34
+  },
+  {
+   "i": 4,
+   "v": "oklch(0.74 0.14 58)",
+   "contrast_on_card": 7.46
+  },
+  {
+   "i": 5,
+   "v": "oklch(0.67 0.16 22)",
+   "contrast_on_card": 5.56
+  }
+ ],
+ "card": "oklch(0.205 0.007 223.9)",
+ "hasZoneSection": true,
+ "zoneTextSample": [
+  "zone-1",
+  "zone-2",
+  "zone-3",
+  "zone-4",
+  "zone-5",
+  "zone-1"
+ ]
+}
+dark plan h1s: [{"t":"Plan","cls":"text-heading min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]","fs":"18px","vis":true},{"t":"Variert og bygger seg opp","cls":"text-title text-balance [overflow-wrap:anywhere]","fs":"24px","vis":true}]

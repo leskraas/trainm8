@@ -1,0 +1,19 @@
+$ vitest run app/utils/luma-steps-lint.test.ts
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > an off-scale corner and raw sizes fail in app/routes/training/__sets-popover.tsx, naming the step 332ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > an off-scale corner and raw sizes fail in app/components/page-header.tsx, naming the step 304ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > a template literal and a cn() argument are read too 313ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > bare `rounded`, `rounded-xs` and the large raw sizes fail too 93ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > every luma step and data-mark corner passes 54ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > the luma steps pass 47ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > app/components/ui/button.tsx sits outside the guard 267ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > app/routes/_auth/login.tsx sits outside the guard 262ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > app/routes/admin/moderation.tsx sits outside the guard 242ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > app/routes/_marketing/about.tsx sits outside the guard 58ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > app/routes/training/__prototype-variant-l.tsx sits outside the guard 220ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > app/routes/training/plan.test.tsx sits outside the guard 2057ms
+ ✓ app/utils/luma-steps-lint.test.ts > trainm8/luma-steps > the native-<select> guard still fires on a route 65ms
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+
+$ npm run lint (summary)
+✖ 153 problems (0 errors, 153 warnings)

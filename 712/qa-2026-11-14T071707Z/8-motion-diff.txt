@@ -1,0 +1,10 @@
+$ git diff origin/main...HEAD | grep motion-/animate-/duration-/transition lines changed
+-	'bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 duration-
++	'bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 duration-
+-					className="bg-input/50 focus-visible:ring-ring/30 duration-press h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-1 text-center text-base font-medium tabular-nums transition-[box-shadow] ease-out
++						'duration-press flex-1 px-1 text-center font-medium tabular-nums transition-[box-shadow] ease-out',
++[ADR 0085](0085-the-design-system-is-shadcn-base-luma-on-base-ui-and-motion-follows-one-scale.md)
+(end)
+
+$ tabular-nums added
+25

@@ -1,0 +1,3335 @@
+{
+ "report": [
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Se økta",
+     "tag": "A",
+     "w": 46,
+     "h": 26
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 4,
+    "3.35544e+07px": 15,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 4,
+    "11px": 3,
+    "24px": 2,
+    "13px": 13,
+    "12px": 10,
+    "18px": 3,
+    "15px": 19,
+    "14px": 1
+   },
+   "overflowEls": [
+    "BUTTON.group/button focus-visible:border-ring focus-visible:ring-ri",
+    "BUTTON.group/button focus-visible:border-ring focus-visible:ring-ri",
+    "svg.[object SVGAnimatedString]",
+    "use.[object SVGAnimatedString]"
+   ],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/",
+   "name": "today",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Nytt løp",
+     "tag": "A",
+     "w": 99,
+     "h": 32
+    },
+    {
+     "t": "Ny plan",
+     "tag": "A",
+     "w": 96,
+     "h": 32
+    },
+    {
+     "t": "Spring Half Marathon",
+     "tag": "A",
+     "w": 133,
+     "h": 15
+    },
+    {
+     "t": "Endre løpet",
+     "tag": "A",
+     "w": 129,
+     "h": 32
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "3.35544e+07px": 7,
+    "15.6px": 5,
+    "10.8px": 2,
+    "1px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 39,
+    "11px": 7,
+    "18px": 3,
+    "14px": 3,
+    "24px": 1,
+    "13px": 7,
+    "10px": 3,
+    "15px": 6,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 2,
+   "url": "http://localhost:3112/training/plan",
+   "name": "plan",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Åpne planen",
+     "tag": "A",
+     "w": 116,
+     "h": 32
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 12,
+    "3.35544e+07px": 14,
+    "10.8px": 7,
+    "13.2px": 3,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 3,
+    "18px": 6,
+    "13px": 9,
+    "15px": 14,
+    "14px": 8,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/training/plan/new",
+   "name": "plan-new",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Kondisjon (CTL)",
+     "tag": "BUTTON",
+     "w": 56,
+     "h": 16
+    },
+    {
+     "t": "Tretthet (ATL)",
+     "tag": "BUTTON",
+     "w": 46,
+     "h": 16
+    },
+    {
+     "t": "Form (TSB)",
+     "tag": "BUTTON",
+     "w": 29,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 3,
+    "3.35544e+07px": 5,
+    "10.8px": 12,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 11,
+    "11px": 8,
+    "18px": 3,
+    "15px": 3,
+    "13px": 20,
+    "12px": 5,
+    "24px": 3
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/me",
+   "name": "me",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Plan",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 26,
+    "13.2px": 31,
+    "3.35544e+07px": 66,
+    "10.8px": 1,
+    "5px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 34,
+    "11px": 3,
+    "18px": 2,
+    "13px": 142,
+    "14px": 65,
+    "15px": 38,
+    "12px": 26
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/training/catalogue",
+   "name": "bibliotek-catalogue",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Plan",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 7,
+    "3.35544e+07px": 4,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 3,
+    "18px": 4,
+    "13px": 26,
+    "15px": 26,
+    "14px": 3,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/training/programs",
+   "name": "programs",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Plan",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 2,
+    "13.2px": 1,
+    "3.35544e+07px": 2,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 3,
+    "18px": 1,
+    "14px": 1,
+    "13px": 37,
+    "15px": 798,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/library/exercises",
+   "name": "exercises",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Plan",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "Nytt løp",
+     "tag": "A",
+     "w": 99,
+     "h": 32
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 2,
+    "3.35544e+07px": 3,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 4,
+    "18px": 1,
+    "14px": 1,
+    "13px": 2,
+    "15px": 1,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/training/events",
+   "name": "events",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Løp",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 4,
+    "13.2px": 15,
+    "3.35544e+07px": 9,
+    "5px": 4,
+    "10.8px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 3,
+    "11px": 3,
+    "18px": 1,
+    "14px": 15,
+    "15px": 10,
+    "13px": 3,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/training/events/new",
+   "name": "event-new",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Kondisjon (CTL)",
+     "tag": "BUTTON",
+     "w": 56,
+     "h": 16
+    },
+    {
+     "t": "Tretthet (ATL)",
+     "tag": "BUTTON",
+     "w": 46,
+     "h": 16
+    },
+    {
+     "t": "Form (TSB)",
+     "tag": "BUTTON",
+     "w": 29,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 3,
+    "3.35544e+07px": 5,
+    "10.8px": 12,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 11,
+    "11px": 8,
+    "18px": 3,
+    "15px": 3,
+    "13px": 20,
+    "12px": 5,
+    "24px": 3
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/me",
+   "name": "imports",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til I dag",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "run",
+     "tag": "SELECT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "endurance",
+     "tag": "SELECT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 3,
+    "13.2px": 6,
+    "10.8px": 4,
+    "3.35544e+07px": 2,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 9,
+    "11px": 3,
+    "18px": 1,
+    "14px": 6,
+    "12px": 5,
+    "13px": 1
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/training/sessions/new",
+   "name": "session-new",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Spill av",
+     "tag": "BUTTON",
+     "w": 74,
+     "h": 32
+    },
+    {
+     "t": "Spill av",
+     "tag": "BUTTON",
+     "w": 74,
+     "h": 32
+    },
+    {
+     "t": "Spill av",
+     "tag": "BUTTON",
+     "w": 74,
+     "h": 32
+    },
+    {
+     "t": "lg",
+     "tag": "BUTTON",
+     "w": 47,
+     "h": 40
+    },
+    {
+     "t": "sm",
+     "tag": "BUTTON",
+     "w": 45,
+     "h": 32
+    },
+    {
+     "t": "xs",
+     "tag": "BUTTON",
+     "w": 35,
+     "h": 24
+    },
+    {
+     "t": "Legg til",
+     "tag": "BUTTON",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "Uke",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 36
+    },
+    {
+     "t": "Sesong",
+     "tag": "BUTTON",
+     "w": 73,
+     "h": 36
+    },
+    {
+     "t": "År",
+     "tag": "BUTTON",
+     "w": 40,
+     "h": 36
+    },
+    {
+     "t": "km",
+     "tag": "BUTTON",
+     "w": 44,
+     "h": 36
+    },
+    {
+     "t": "tid",
+     "tag": "BUTTON",
+     "w": 42,
+     "h": 36
+    },
+    {
+     "t": "Løping",
+     "tag": "BUTTON",
+     "w": 71,
+     "h": 36
+    },
+    {
+     "t": "Sykling",
+     "tag": "BUTTON",
+     "w": 76,
+     "h": 36
+    },
+    {
+     "t": "Styrke",
+     "tag": "BUTTON",
+     "w": 69,
+     "h": 36
+    },
+    {
+     "t": "Plan",
+     "tag": "BUTTON",
+     "w": 55,
+     "h": 27
+    },
+    {
+     "t": "Gjort",
+     "tag": "BUTTON",
+     "w": 59,
+     "h": 27
+    },
+    {
+     "t": "Notat",
+     "tag": "BUTTON",
+     "w": 63,
+     "h": 27
+    },
+    {
+     "t": "Låst",
+     "tag": "BUTTON",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "Info",
+     "tag": "BUTTON",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [
+    "muted-foreground",
+    "track-strength-ink",
+    "muted-foreground",
+    "track-strength-ink"
+   ],
+   "clamp": [],
+   "radii": {
+    "3.35544e+07px": 37,
+    "15.6px": 54,
+    "13.2px": 84,
+    "6px": 1,
+    "8.4px": 1,
+    "10.8px": 4,
+    "3px": 4,
+    "5px": 3,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 13,
+    "11px": 17,
+    "32px": 2,
+    "15px": 13,
+    "13px": 113,
+    "24px": 8,
+    "12px": 155,
+    "18px": 24,
+    "14px": 65
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/design",
+   "name": "design",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Nytt løp",
+     "tag": "A",
+     "w": 99,
+     "h": 32
+    },
+    {
+     "t": "Ny plan",
+     "tag": "A",
+     "w": 96,
+     "h": 32
+    },
+    {
+     "t": "Spring Half Marathon",
+     "tag": "A",
+     "w": 133,
+     "h": 15
+    },
+    {
+     "t": "Endre løpet",
+     "tag": "A",
+     "w": 129,
+     "h": 32
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "3.35544e+07px": 7,
+    "15.6px": 5,
+    "10.8px": 2,
+    "1px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 39,
+    "11px": 7,
+    "18px": 3,
+    "14px": 3,
+    "24px": 1,
+    "13px": 7,
+    "10px": 3,
+    "15px": 6,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 2,
+   "url": "http://localhost:3112/training/plan#bibliotek",
+   "name": "library",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til I dag",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 18,
+    "13.2px": 1,
+    "10.8px": 1,
+    "3.35544e+07px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 3,
+    "18px": 2,
+    "14px": 14,
+    "24px": 2,
+    "12px": 3,
+    "13px": 17,
+    "15px": 1
+   },
+   "overflowEls": [],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/training/sessions/cmwg20zfg00bj7d0io1y42p4n",
+   "name": "session",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Se økta",
+     "tag": "A",
+     "w": 46,
+     "h": 26
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 4,
+    "3.35544e+07px": 15,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 4,
+    "11px": 3,
+    "24px": 2,
+    "13px": 13,
+    "12px": 10,
+    "18px": 3,
+    "15px": 19,
+    "14px": 1
+   },
+   "overflowEls": [
+    "BUTTON.group/button focus-visible:border-ring focus-visible:ring-ri",
+    "BUTTON.group/button focus-visible:border-ring focus-visible:ring-ri",
+    "svg.[object SVGAnimatedString]",
+    "use.[object SVGAnimatedString]"
+   ],
+   "dark": false,
+   "h1": 1,
+   "url": "http://localhost:3112/",
+   "name": "start",
+   "scheme": "light"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Se økta",
+     "tag": "A",
+     "w": 46,
+     "h": 26
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 4,
+    "3.35544e+07px": 15,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 4,
+    "11px": 3,
+    "24px": 2,
+    "13px": 13,
+    "12px": 10,
+    "18px": 3,
+    "15px": 19,
+    "14px": 1
+   },
+   "overflowEls": [
+    "BUTTON.group/button focus-visible:border-ring focus-visible:ring-ri",
+    "BUTTON.group/button focus-visible:border-ring focus-visible:ring-ri",
+    "svg.[object SVGAnimatedString]",
+    "use.[object SVGAnimatedString]"
+   ],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/",
+   "name": "today",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Nytt løp",
+     "tag": "A",
+     "w": 99,
+     "h": 32
+    },
+    {
+     "t": "Ny plan",
+     "tag": "A",
+     "w": 96,
+     "h": 32
+    },
+    {
+     "t": "Spring Half Marathon",
+     "tag": "A",
+     "w": 133,
+     "h": 15
+    },
+    {
+     "t": "Endre løpet",
+     "tag": "A",
+     "w": 129,
+     "h": 32
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "3.35544e+07px": 7,
+    "15.6px": 5,
+    "10.8px": 2,
+    "1px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 39,
+    "11px": 7,
+    "18px": 3,
+    "14px": 3,
+    "24px": 1,
+    "13px": 7,
+    "10px": 3,
+    "15px": 6,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 2,
+   "url": "http://localhost:3112/training/plan",
+   "name": "plan",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Åpne planen",
+     "tag": "A",
+     "w": 116,
+     "h": 32
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 12,
+    "3.35544e+07px": 14,
+    "10.8px": 7,
+    "13.2px": 3,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 3,
+    "18px": 6,
+    "13px": 9,
+    "15px": 14,
+    "14px": 8,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/training/plan/new",
+   "name": "plan-new",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Kondisjon (CTL)",
+     "tag": "BUTTON",
+     "w": 56,
+     "h": 16
+    },
+    {
+     "t": "Tretthet (ATL)",
+     "tag": "BUTTON",
+     "w": 46,
+     "h": 16
+    },
+    {
+     "t": "Form (TSB)",
+     "tag": "BUTTON",
+     "w": 29,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 3,
+    "3.35544e+07px": 5,
+    "10.8px": 12,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 11,
+    "11px": 8,
+    "18px": 3,
+    "15px": 3,
+    "13px": 20,
+    "12px": 5,
+    "24px": 3
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/me",
+   "name": "me",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Plan",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Legg i kalenderen",
+     "tag": "A",
+     "w": 163,
+     "h": 32
+    },
+    {
+     "t": "Lagre",
+     "tag": "BUTTON",
+     "w": 84,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "Publiser",
+     "tag": "A",
+     "w": 80,
+     "h": 32
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 26,
+    "13.2px": 31,
+    "3.35544e+07px": 66,
+    "10.8px": 1,
+    "5px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 34,
+    "11px": 3,
+    "18px": 2,
+    "13px": 142,
+    "14px": 65,
+    "15px": 38,
+    "12px": 26
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/training/catalogue",
+   "name": "bibliotek-catalogue",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Plan",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 7,
+    "3.35544e+07px": 4,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 3,
+    "18px": 4,
+    "13px": 26,
+    "15px": 26,
+    "14px": 3,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/training/programs",
+   "name": "programs",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Plan",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 2,
+    "13.2px": 1,
+    "3.35544e+07px": 2,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 3,
+    "18px": 1,
+    "14px": 1,
+    "13px": 37,
+    "15px": 798,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/library/exercises",
+   "name": "exercises",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Plan",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "Nytt løp",
+     "tag": "A",
+     "w": 99,
+     "h": 32
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 2,
+    "3.35544e+07px": 3,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 4,
+    "18px": 1,
+    "14px": 1,
+    "13px": 2,
+    "15px": 1,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/training/events",
+   "name": "events",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til Løp",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 4,
+    "13.2px": 15,
+    "3.35544e+07px": 9,
+    "5px": 4,
+    "10.8px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 3,
+    "11px": 3,
+    "18px": 1,
+    "14px": 15,
+    "15px": 10,
+    "13px": 3,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/training/events/new",
+   "name": "event-new",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Kondisjon (CTL)",
+     "tag": "BUTTON",
+     "w": 56,
+     "h": 16
+    },
+    {
+     "t": "Tretthet (ATL)",
+     "tag": "BUTTON",
+     "w": 46,
+     "h": 16
+    },
+    {
+     "t": "Form (TSB)",
+     "tag": "BUTTON",
+     "w": 29,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 3,
+    "3.35544e+07px": 5,
+    "10.8px": 12,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 11,
+    "11px": 8,
+    "18px": 3,
+    "15px": 3,
+    "13px": 20,
+    "12px": 5,
+    "24px": 3
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/me",
+   "name": "imports",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til I dag",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "run",
+     "tag": "SELECT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "endurance",
+     "tag": "SELECT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 3,
+    "13.2px": 6,
+    "10.8px": 4,
+    "3.35544e+07px": 2,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 9,
+    "11px": 3,
+    "18px": 1,
+    "14px": 6,
+    "12px": 5,
+    "13px": 1
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/training/sessions/new",
+   "name": "session-new",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Spill av",
+     "tag": "BUTTON",
+     "w": 74,
+     "h": 32
+    },
+    {
+     "t": "Spill av",
+     "tag": "BUTTON",
+     "w": 74,
+     "h": 32
+    },
+    {
+     "t": "Spill av",
+     "tag": "BUTTON",
+     "w": 74,
+     "h": 32
+    },
+    {
+     "t": "lg",
+     "tag": "BUTTON",
+     "w": 47,
+     "h": 40
+    },
+    {
+     "t": "sm",
+     "tag": "BUTTON",
+     "w": 45,
+     "h": 32
+    },
+    {
+     "t": "xs",
+     "tag": "BUTTON",
+     "w": 35,
+     "h": 24
+    },
+    {
+     "t": "Legg til",
+     "tag": "BUTTON",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "SPAN",
+     "tag": "SPAN",
+     "w": 16,
+     "h": 16
+    },
+    {
+     "t": "INPUT",
+     "tag": "INPUT",
+     "w": 1,
+     "h": 1
+    },
+    {
+     "t": "Uke",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 36
+    },
+    {
+     "t": "Sesong",
+     "tag": "BUTTON",
+     "w": 73,
+     "h": 36
+    },
+    {
+     "t": "År",
+     "tag": "BUTTON",
+     "w": 40,
+     "h": 36
+    },
+    {
+     "t": "km",
+     "tag": "BUTTON",
+     "w": 44,
+     "h": 36
+    },
+    {
+     "t": "tid",
+     "tag": "BUTTON",
+     "w": 42,
+     "h": 36
+    },
+    {
+     "t": "Løping",
+     "tag": "BUTTON",
+     "w": 71,
+     "h": 36
+    },
+    {
+     "t": "Sykling",
+     "tag": "BUTTON",
+     "w": 76,
+     "h": 36
+    },
+    {
+     "t": "Styrke",
+     "tag": "BUTTON",
+     "w": 69,
+     "h": 36
+    },
+    {
+     "t": "Plan",
+     "tag": "BUTTON",
+     "w": 55,
+     "h": 27
+    },
+    {
+     "t": "Gjort",
+     "tag": "BUTTON",
+     "w": 59,
+     "h": 27
+    },
+    {
+     "t": "Notat",
+     "tag": "BUTTON",
+     "w": 63,
+     "h": 27
+    },
+    {
+     "t": "Låst",
+     "tag": "BUTTON",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "Info",
+     "tag": "BUTTON",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [
+    "muted-foreground",
+    "track-strength-ink",
+    "muted-foreground",
+    "track-strength-ink"
+   ],
+   "clamp": [],
+   "radii": {
+    "3.35544e+07px": 37,
+    "15.6px": 54,
+    "13.2px": 84,
+    "6px": 1,
+    "8.4px": 1,
+    "10.8px": 4,
+    "3px": 4,
+    "5px": 3,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 13,
+    "11px": 17,
+    "32px": 2,
+    "15px": 13,
+    "13px": 113,
+    "24px": 8,
+    "12px": 155,
+    "18px": 24,
+    "14px": 65
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/design",
+   "name": "design",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Nytt løp",
+     "tag": "A",
+     "w": 99,
+     "h": 32
+    },
+    {
+     "t": "Ny plan",
+     "tag": "A",
+     "w": 96,
+     "h": 32
+    },
+    {
+     "t": "Spring Half Marathon",
+     "tag": "A",
+     "w": 133,
+     "h": 15
+    },
+    {
+     "t": "Endre løpet",
+     "tag": "A",
+     "w": 129,
+     "h": 32
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "3.35544e+07px": 7,
+    "15.6px": 5,
+    "10.8px": 2,
+    "1px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 39,
+    "11px": 7,
+    "18px": 3,
+    "14px": 3,
+    "24px": 1,
+    "13px": 7,
+    "10px": 3,
+    "15px": 6,
+    "12px": 1
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 2,
+   "url": "http://localhost:3112/training/plan#bibliotek",
+   "name": "library",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Tilbake til I dag",
+     "tag": "A",
+     "w": 36,
+     "h": 36
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 18,
+    "13.2px": 1,
+    "10.8px": 1,
+    "3.35544e+07px": 1,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 2,
+    "11px": 3,
+    "18px": 2,
+    "14px": 14,
+    "24px": 2,
+    "12px": 3,
+    "13px": 17,
+    "15px": 1
+   },
+   "overflowEls": [],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/training/sessions/cmwg20zfg00bj7d0io1y42p4n",
+   "name": "session",
+   "scheme": "dark"
+  },
+  {
+   "sw": 390,
+   "cw": 390,
+   "sideways": false,
+   "small": [
+    {
+     "t": "Trainm8",
+     "tag": "A",
+     "w": 64,
+     "h": 22
+    },
+    {
+     "t": "System",
+     "tag": "BUTTON",
+     "w": 32,
+     "h": 32
+    },
+    {
+     "t": "Se økta",
+     "tag": "A",
+     "w": 46,
+     "h": 26
+    },
+    {
+     "t": "kody",
+     "tag": "BUTTON",
+     "w": 49,
+     "h": 24
+    }
+   ],
+   "clipped": [],
+   "clamp": [],
+   "radii": {
+    "15.6px": 4,
+    "3.35544e+07px": 15,
+    "9999px": 2
+   },
+   "sizes": {
+    "16px": 4,
+    "11px": 3,
+    "24px": 2,
+    "13px": 13,
+    "12px": 10,
+    "18px": 3,
+    "15px": 19,
+    "14px": 1
+   },
+   "overflowEls": [
+    "BUTTON.group/button focus-visible:border-ring focus-visible:ring-ri",
+    "BUTTON.group/button focus-visible:border-ring focus-visible:ring-ri",
+    "svg.[object SVGAnimatedString]",
+    "use.[object SVGAnimatedString]"
+   ],
+   "dark": true,
+   "h1": 1,
+   "url": "http://localhost:3112/",
+   "name": "start",
+   "scheme": "dark"
+  }
+ ],
+ "errors": []
+}
