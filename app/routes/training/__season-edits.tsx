@@ -51,7 +51,12 @@ import {
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
-import { formatNbDayMonth, formatNbVolumeFigure } from '#app/utils/format.ts'
+import {
+	formatNbDayMonth,
+	formatNbFieldNumber,
+	formatNbVolumeFigure,
+	parseNbDecimal,
+} from '#app/utils/format.ts'
 import {
 	nbTrackName,
 	NB_RHYTHM_CHOICE_LABELS,
@@ -687,10 +692,8 @@ function previewStillShown(
 }
 
 function sameTypedNumber(typed: string, shown: string): boolean {
-	const read = (raw: string) =>
-		raw.trim() === '' ? NaN : Number(raw.trim().replace(',', '.'))
-	const a = read(typed)
-	return Number.isFinite(a) && a === read(shown)
+	const a = parseNbDecimal(typed)
+	return Number.isFinite(a) && a === parseNbDecimal(shown)
 }
 
 /**
@@ -988,7 +991,7 @@ export function RiseWarningNotice({ warnings }: { warnings: string[] }) {
 function fieldFigure(value: number | null, currency: VolumeCurrency): string {
 	return value == null
 		? ''
-		: String(roundToCurrency(value, currency)).replace('.', ',')
+		: formatNbFieldNumber(roundToCurrency(value, currency))
 }
 
 /**
@@ -999,9 +1002,7 @@ function fieldFigure(value: number | null, currency: VolumeCurrency): string {
  * as they are.
  */
 function levelFigure(value: number | null): string {
-	return value == null
-		? ''
-		: String(Math.round(value * 1000) / 1000).replace('.', ',')
+	return value == null ? '' : formatNbFieldNumber(value, 3)
 }
 
 /** `40 km`, or a dash for an Unavailable week. */

@@ -15,6 +15,7 @@ import {
 	SEASON_ANCHOR_EDIT_LABELS,
 	SEASON_EDIT_LABELS,
 } from '#app/utils/labels.ts'
+import { parseNbDecimal } from '../format.ts'
 import { PhaseWeeksSchema, WeekKeySchema } from './authoring-schema.ts'
 import { RHYTHMS } from './derive.ts'
 import { type SeasonEdit, type SeasonEditKind } from './season-edit.ts'
@@ -51,7 +52,7 @@ const TargetField = z
 	.trim()
 	.min(1, SEASON_EDIT_LABELS.targetRequired)
 	.transform((raw, ctx) => {
-		const value = Number(raw.replace(',', '.'))
+		const value = parseNbDecimal(raw)
 		if (!Number.isFinite(value) || value < 0) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
@@ -132,7 +133,7 @@ const AnchorValueField = z
 	.string()
 	.trim()
 	.transform((raw, ctx) => {
-		const value = Number(raw.replace(',', '.'))
+		const value = parseNbDecimal(raw)
 		if (!Number.isFinite(value) || value <= 0) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
