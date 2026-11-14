@@ -81,7 +81,7 @@ test('a corpus row carries its Citation and locator, and never an Attribution or
 	expect(slot.querySelector('[data-non-vouch]')).toBeNull()
 })
 
-test('an adopted session leads its line with «Endret av deg» and keeps the source', async () => {
+test('an adopted session leads its line with «Endret av deg» and keeps its Session Provenance', async () => {
 	const slot = await renderSlot(
 		<ProvenanceSlot data-testid="slot" provenance={DENADAI} adopted />,
 	)

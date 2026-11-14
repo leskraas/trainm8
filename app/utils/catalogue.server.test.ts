@@ -676,7 +676,7 @@ test('a placed session reads its Citation from the row it was copied from (ADR 0
 	})
 })
 
-test('an adopted session keeps its source through the adoption fork, two hops', async () => {
+test('an adopted session keeps its Session Provenance through the adoption fork, two hops', async () => {
 	const athlete = await createAthlete()
 	const stock = await createCitedStock()
 	const placed = await placedCopy(stock.id, athlete.id)
@@ -691,7 +691,7 @@ test('an adopted session keeps its source through the adoption fork, two hops', 
 	expect(await readPlacedProvenance(adopted, null)).toBeNull()
 })
 
-test('a generated session the athlete rewrites keeps its source through the real adoption fork (#460)', async () => {
+test('a generated session the athlete rewrites keeps its Session Provenance through the real adoption fork (#460)', async () => {
 	const athlete = await createAthlete()
 	const stock = await createCitedStock()
 	const placed = await placedCopy(stock.id, athlete.id)
