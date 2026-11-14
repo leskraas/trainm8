@@ -91,18 +91,33 @@ export function PlanAdvanced({
 	useLayoutEffect(() => {
 		if (!addressed || openRef.current) return
 		setOpen(true)
-		// Landed by a hash (`#avansert`): the browser scrolled before the panel
-		// existed, so the target sits mid-screen. Once the panel has opened
-		// (`motion-collapse`), bring it to the top, unless the athlete has
-		// moved the page meanwhile: it never moves under a reader.
-		if (answered) return
+		// Landed by a hash (`#avansert`, or `?edit=…#season-edit-season-anchor`
+		// from the lead's Endre volumet, #673): the browser scrolled before the
+		// panel existed, so the target sits mid-screen or nowhere. Once the
+		// panel has opened (`motion-collapse`), bring it to the top, unless the
+		// athlete has moved the page meanwhile: it never moves under a reader.
+		if (!hashAddresses(location.hash)) return
 		const id = decodeURIComponent(location.hash.slice(1))
 		// The athlete's own scroll or tap cancels it; the browser's own jump to
 		// the hash does not.
-		const cancel = () => window.clearTimeout(timer)
+		let cancelled = false
+		const cancel = () => {
+			cancelled = true
+			window.clearTimeout(timer)
+		}
 		const timer = window.setTimeout(() => {
-			stopListening()
-			document.getElementById(id)?.scrollIntoView({ block: 'start' })
+			// On a slow phone the collapse can outlast its 200 ms: until it ends
+			// the page is too short to scroll the target to the top, so wait for
+			// whatever is still animating inside before scrolling.
+			const running =
+				document
+					.getElementById(ADVANCED_SECTION_ID)
+					?.getAnimations?.({ subtree: true }) ?? []
+			void Promise.allSettled(running.map((a) => a.finished)).then(() => {
+				stopListening()
+				if (cancelled) return
+				document.getElementById(id)?.scrollIntoView({ block: 'start' })
+			})
 		}, COLLAPSE_SETTLE_MS)
 		const stopListening = () => {
 			for (const type of READER_INPUT) window.removeEventListener(type, cancel)
@@ -114,7 +129,7 @@ export function PlanAdvanced({
 			cancel()
 			stopListening()
 		}
-	}, [addressed, answered, reply, location.key, location.hash])
+	}, [addressed, reply, location.key, location.hash])
 
 	const titleId = `${ADVANCED_SECTION_ID}-title`
 	return (

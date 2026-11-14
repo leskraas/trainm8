@@ -1044,6 +1044,25 @@ nobody can derive, and inventing it is the fabrication the building principle
 forbids. _Avoid_: Flag, moderation queue (the surface, not the thing), abuse
 report, strike
 
+**Account Erasure**: What deleting an account does to the **Workouts** the
+athlete wrote, as one act: every one is deleted, **Shared Workouts** included,
+except one another athlete's session, **Week Pattern** slot or **Program** day
+points at directly. That one is kept **unattributed**: private, its **Catalogue
+Entry** retired and its **Attribution** deleted, so it carries no author's name
+and nobody can publish it again. A surviving fork's lineage is spliced to its
+nearest surviving ancestor, so a **Citation** still resolves through it. An
+**Orphaned Workout** gets the same treatment (ADR 0051 §5, ADR 0121). Not a
+**withdrawal**: that is the author's own reversible act, and it keeps the
+Attribution. _Avoid_: account deletion (the whole act, not the Workout policy),
+withdrawn (for the kept row), sweep
+
+**Orphaned Workout**: An athlete-authored **Workout** with no owner: its
+author's account was deleted without **Account Erasure**, which every deletion
+before #641 was. Defined by asserted authorship plus a missing owner, never by
+the missing owner alone, which would take in every **Stock Workout**. _Avoid_:
+bare "orphan" (ADR 0051's retention rule also says it of a preserved pre-edit
+row no session holds any more), ownerless Workout, deleted Workout
+
 ### Session feedback
 
 **Session Log**: The athlete's post-session record for a Workout Session,
@@ -1202,20 +1221,25 @@ day in the athlete's local timezone (daily TSS totals, CTL, ATL, TSB). _Avoid_:
 Daily load, load row
 
 **Load Recompute Notice**: The one-time, athlete-visible explanation for a
-correction that moved a **Load Snapshot** number the athlete had already read —
-what changed, why, and the CTL it moved. Written by the one-shot backfill that
-caused the movement, shown as a bar above the **Home Timeline** until
-acknowledged. It exists because ADR 0008 forbids switching an athlete's numbers
-_silently_; where the athlete's own data has not changed there is nothing to opt
-into, so what is owed is an explanation rather than an offer (ADR 0046 §2). A
-correction the app has no written words for shows nothing at all — never a
-generic "some numbers changed". A correction may lower CTL (strength leaving the
-triad) or raise it (a pool swim's rest leaving its pace, ADR 0107); the line
-says which, from the day the correction moved CTL furthest in its own direction,
-and sizes the movement as the gap between the two rounded figures it prints. It
-is owed whenever a number the athlete read moved, so a corrected swim pace earns
-one even when CTL did not visibly move; the line then names no movement.
-_Avoid_: Banner, alert, migration message
+correction that moved a number the athlete had already read — what changed, why,
+and the CTL it moved, where it moved any. Each kind of correction moved either
+**load** (a **Load Snapshot** number) or **prescription** (bands, **Planned
+TSS**, **Adherence Bands**, chip tint), and says which. Written by the one-shot
+backfill that caused the movement, shown as a bar above the **Home Timeline**
+until acknowledged. It exists because ADR 0008 forbids switching an athlete's
+numbers _silently_; where the athlete's own data has not changed there is
+nothing to opt into, so what is owed is an explanation rather than an offer (ADR
+0046 §2). A correction the app has no written words for shows nothing at all —
+never a generic "some numbers changed". A correction may lower CTL (strength
+leaving the triad) or raise it (a pool swim's rest leaving its pace, ADR 0107);
+the line says which, from the day the correction moved CTL furthest in its own
+direction, and sizes the movement as the gap between the two rounded figures it
+prints. It is owed whenever a number the athlete read moved, so a corrected swim
+pace earns one even when CTL did not visibly move; the line then names no
+movement. A notice that moved no CTL beyond noise, and every prescription
+notice, carries no CTL figures at all: there is no movement to name, which is
+not an **Unavailable Metric** (ADR 0117). _Avoid_: Banner, alert, migration
+message
 
 **Load Formula**: The named method used to compute TSS for one session — one of
 `coggan` (power-based), `hrTSS` (heart-rate-based), `rTSS` (pace-based run),
@@ -2380,13 +2404,25 @@ act, and trainm8 placing one unasked is trainm8 vouching for what its own
 non-vouch says it does not. What it cannot do it **names**: no preset carries a
 **strength** segment, so a strength track is an **Unavailable Metric** stated on
 the payload, and a slot the corpus has nothing for is left empty and said out
-loud rather than backfilled. First surface: `/training/plan/generate/:eventId`,
-reached from the shape step; the review surface proper is still fog. _Avoid_: AI
-plan, auto-plan.
+loud rather than backfilled. A season is reviewed on the **Plan Preview** before
+approval and on _Plan_ after it; there is no separate review screen (ADR 0123).
+The plan it writes keeps a **Generation Record**, and its weeks are laid again by
+the generator until the athlete gives it a **Week Pattern** with days (ADR 0120).
+_Avoid_: AI plan, auto-plan.
+
+**Generation Record**: What a **Plan Outline** made by **Plan Generation** keeps
+of its approval: the generator that made it, the **Periodization Preset** and
+the intent it was approved with, and the weekdays it placed each **Discipline**
+on. Its existence is what makes a plan a generated one. The weekdays are frozen
+at approval, so laying a week again uses them even after the athlete's
+**Training Availability** changed (ADR 0120). _Avoid_: generation metadata,
+batch.
 
 **Model-Client Seam**: The one boundary a generated season comes through — a
 request type, the typed payload, and a function between them (`SeasonGenerator`,
-ADR 0016 §2, carried forward by ADR 0053 §1). The review surface, the approval
+ADR 0016 §2, carried forward by ADR 0053 §1). A second function places chosen
+weeks of a stored plan, which is how a generated plan's weeks are laid again by
+the implementation that made it (ADR 0120). The review surface, the approval
 step and the provenance rendering are written against the **payload**, so the
 thing producing it can be replaced without any of the three changing. **Not an
 inert seam**: it shipped with its implementation rather than as an interface
@@ -2408,15 +2444,18 @@ Citation", which was written before an uncited **Stock Workout** existed and
 would now silently delete about a third of the corpus — the **Convention Rows**,
 the **Hand-Written Rows**, and with them the only sessions that exist for race
 week. Nothing may claim a source it does not have, which is the rule that
-survives intact. _Avoid_: Citation (one of the four), source (overloaded with
-**Session Source**), attribution (that is the community one)
+survives intact. **Available, not asserted** (ADR 0123): a row carries the plan
+and its provenance is one tap away; an absence or a warning never waits behind
+that tap. _Avoid_: Citation (one of the four), source (overloaded with **Session
+Source**), attribution (that is the community one)
 
 **Plan Preview**: The transient, un-persisted result of a **Plan Generation**,
 reviewed before anything is written — live again with generation (ADR 0053 §8),
 after being retired alongside it (ADR 0044). **Nothing reaches the calendar
 unapproved**, and that is now a property of the payload's _type_: it carries no
 id the app minted, so it cannot be mistaken for a written plan. There is still
-no draft session state. _Avoid_: Draft (no draft session state exists).
+no draft session state. _Avoid_: Draft (no draft session state exists), generate
+preview (the route's nickname, not a second concept).
 
 **Generated Session**: A **Workout Session** whose **Session Source** is
 generation rather than manual authoring or recording — **produced again since
@@ -2515,10 +2554,10 @@ already models authored nested structure as rows while reserving JSON for value
 objects, so the invariants (one track per **Discipline**, one endurance segment
 per phase, zones 3–5 in a mix) are enforced by the database rather than by a
 validator (ADR 0044). The single authored periodization structure (ADR 0039);
-manual authoring is its only producer in V1, since **Plan Generation** is
-retired. Its phases are the mesocycles of periodization theory. _Avoid_:
-Periodization blob (what it was until ADR 0044), schedule template, mesocycle
-(as a UI/code term — recognized synonym for a phase only).
+written by manual authoring and by **Plan Generation** (ADR 0053), whose plans
+keep a **Generation Record**. Its phases are the mesocycles of periodization
+theory. _Avoid_: Periodization blob (what it was until ADR 0044), schedule
+template, mesocycle (as a UI/code term — recognized synonym for a phase only).
 
 **Plan Start Week**: The **Plan Outline**'s first **Training Week** — that
 week's Monday, stored as a `weekKey` (`YYYY-MM-DD` in the **Athlete Timezone**,
@@ -2697,8 +2736,12 @@ effect in the same week — a unique index on `(track, fromWeekKey)` — and the
 the next re-anchor is derived from it, so it can be edited but not removed, and
 weeks before it read as an **Unavailable Metric** rather than a fabricated
 number. A **Week Volume Override** survives a re-anchor untouched, still marked
-and still revertible (ADR 0044 §5). _Avoid_: Starting volume (ambiguous once
-there are segments), baseline (overloaded with threshold baselines).
+and still revertible (ADR 0044 §5). Corrected behind a preview in _Endre
+sesongen_ (ADR 0122), or directly under _Avansert_, where a track's first anchor
+is added. A fresh start is pre-filled with the level the **Volume Ramp** has
+reached at that week, the number its next loading week gets, never a week's
+target. _Avoid_: Starting volume (ambiguous once there are segments), baseline
+(overloaded with threshold baselines).
 
 **Volume Ramp**: The per-week rate of volume increase a **Training Track**
 authors per segment — the app's _upward_ counterpart to **Week Replan**'s
@@ -2728,6 +2771,18 @@ warning (all three claim something the evidence does not support), `RAMP_WARN` /
 `RAMP_HOT` (the retired prototype's two-level scheme). Its sibling on **Week
 Targets** — `weekRiseWarnings`, +10 % between two loading weeks — is ADR 0084's
 amendment to §12, not a week-over-week diff on every week.
+
+**Guard Notice**: One of the three warnings a plan gives about itself without
+being asked: the **Ramp Guard**, the availability fit notice (the two **Training
+Availability** fit checks and the day clashes) and the band fit notice (sessions
+whose `%1RM` sits outside the band their **Strength Goal** derives). Each
+**warns and never blocks**, is open on arrival, and can be closed once read, for
+that visit only: closing is the athlete's decision about a warning they have
+read, never disclosure that hides one they have not. They stand in _Plan_'s lead
+under the card, once each, and are about the plan being viewed (ADR 0118). The
+mix-disagreement notices and _Hva planen ikke kan si_ are statements about the
+plan, not Guard Notices. _Avoid_: Alert (they are standing content, not news),
+guard (alone, for the notice rather than the check behind it), warning banner.
 
 **Block Boundary Step**: The optional volume change a **Training Track** authors
 at a segment's opening, default `0` — expressing a deliberate volume drop
@@ -2914,18 +2969,21 @@ strength track. A missed session still counts: it was planned. A session with no
 number in the currency is **counted apart with its reason** ("+2 uten km") and
 never added as zero, so a week whose sessions are all unmeasured has no Planned
 Volume rather than a planned zero. Writing, moving or editing a session moves
-this number and never the **Week Target**. _Avoid_: Planned load (that is
-Planned TSS, per session), week sum.
+this number and never the **Week Target**. A **Season Generation** preview reads
+it over the week as approval would leave it: the sessions it places and the
+athlete's sessions already in that week, so the preview and _Sesong_ state one
+number (ADR 0124). _Avoid_: Planned load (that is Planned TSS, per session),
+week sum.
 
 **Placed Hours**: How long one generated **Training Week**'s placed endurance
-sessions take **at least**, in hours: every step the **Workout Reading** can time
-through the athlete's own thresholds, a **Send-Off** rep at its cycle time, summed.
-Exact only when every placed session was timed end to end and no slot went
-unfilled; otherwise a floor, and it reads _minst_. Read in the generate preview
-against the **Weekly Capacity** and stated, never fixed, where it is over (ADR
-0110 §4, ADR 0116). Not **Planned Volume**, which drops a whole session for one
-untimed step, so the two may differ on the same week. _Avoid_: Planned hours,
-session hours, week duration.
+sessions take **at least**, in hours: every step the **Workout Reading** can
+time through the athlete's own thresholds, a **Send-Off** rep at its cycle time,
+summed. Exact only when every placed session was timed end to end and no slot
+went unfilled; otherwise a floor, and it reads _minst_. Read in the **Plan
+Preview** against the **Weekly Capacity** and stated, never fixed, where it is
+over (ADR 0110 §4, ADR 0116). Not **Planned Volume**, which drops a whole
+session for one untimed step, so the two may differ on the same week. _Avoid_:
+Planned hours, session hours, week duration.
 
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the

@@ -19,10 +19,11 @@
  * every slot the **Catalogue** had nothing for are stated at the top, before the
  * season, where a source may sit behind a tap and an absence may not.
  *
- * **Provenance is available, not asserted.** Every placed session carries its
- * source line — a **Citation** on a corpus row, the convention or hand-written
- * notice on the two uncited kinds — in a quiet slot under the title rather than as
- * a badge competing with it.
+ * **Provenance is available, not asserted** (ADR 0123). A placed session's row
+ * carries the plan and nothing else; tapping it opens the session's **Session
+ * Provenance** — a **Citation** on a corpus row, the convention or hand-written
+ * notice on the two uncited kinds — in a panel directly below it
+ * (`__plan-preview-row.tsx`). Only the provenance waits behind the tap.
  *
  * The season is long: 27 weeks × 4 days is over a hundred rows at 390 px (ADR
  * 0028). The first four weeks are open and the rest sit behind one tap — the same
@@ -54,6 +55,14 @@ import {
 } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { RadioGroup } from '#app/components/ui/radio-group.tsx'
+import {
+	DriftMark,
+	TRACK_INK,
+} from '#app/routes/_home/timeline/track-marks.tsx'
+import {
+	wordTrackWeek,
+	type TimelineTrackWeek,
+} from '#app/routes/_home/timeline/week-words.ts'
 import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
@@ -68,7 +77,6 @@ import {
 	isoWeekSpanLabel,
 	NB_CATALOGUE_PHASE_LABELS,
 	NB_DISCIPLINE_LABELS,
-	NB_PATTERN_WEEKDAY_LABELS,
 	NB_SESSION_ARCHETYPE_LABELS,
 	NB_VOLUME_UNITS,
 	NB_WEEK_ROLE_LABELS,
@@ -76,7 +84,10 @@ import {
 	PLAN_GENERATE_LABELS,
 	PLAN_SHAPE_STEP_LABELS,
 	SESONG_NOTICE_LABELS,
+	unmeasuredCountLabel,
+	WEEK_FIGURE_LABELS,
 } from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import { type CapacityFit } from '#app/utils/plan-generation/capacity.ts'
 import {
 	approveSeason,
@@ -87,9 +98,9 @@ import {
 	type SeasonPreview,
 } from '#app/utils/plan-generation/generate.server.ts'
 import { type PlacedFit } from '#app/utils/plan-generation/placed-hours.ts'
+import { type PreviewWeekVolumes } from '#app/utils/plan-generation/planned-volume.ts'
 import {
 	GENERATION_INTENTS,
-	type GeneratedSession,
 	type GenerationIntent,
 	type UnfilledSlot,
 } from '#app/utils/plan-generation/season.ts'
@@ -99,14 +110,18 @@ import {
 	presetWeeks,
 	type PresetKey,
 } from '#app/utils/plan-outline/presets.ts'
+import { DRIFT_TOLERANCE } from '#app/utils/plan-outline/week-volumes.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.generate.$eventId.ts'
-import {
-	nbProvenanceNonVouch,
-	nbProvenanceSentence,
-} from './__catalogue-card.ts'
 import { CollapsibleSection, PlanCard } from './__plan-chrome.tsx'
 import { ChoiceCard } from './__plan-new-parts.tsx'
+import {
+	DayLine,
+	PlanPreviewRow,
+	planPreviewRowKey,
+	usePlanPreviewOpenRow,
+	type PlanPreviewOpenRow,
+} from './__plan-preview-row.tsx'
 import {
 	LoadProfile,
 	nbPresetName,
@@ -220,6 +235,8 @@ export default function GenerateSeasonRoute({
 }: Route.ComponentProps) {
 	const { preview, refusal, nearestFit } = loaderData
 	const [searchParams] = useSearchParams()
+	// The season's one open provenance panel (ADR 0123 §2).
+	const openRow = usePlanPreviewOpenRow()
 
 	if (!preview) {
 		return (
@@ -237,6 +254,14 @@ export default function GenerateSeasonRoute({
 	const { event, season, choice } = preview
 	const weeks = season.weeks
 	const fit = eventFit(season.startWeekKey, weeks.length, preview.eventWeekKey)
+	// Each week's tracks, worded as Sesong words them (`wordTrackWeek`), with the
+	// `≠` gated on the whole week holding a session, as Sesong gates it.
+	const byWeek = new Map(
+		preview.weekVolumes.map((entry) => [entry.weekKey, entry]),
+	)
+	// `weekVolumes` holds one entry per season week (`previewWeekVolumes`).
+	const figuresOf = (week: SeasonPreview['season']['weeks'][number]) =>
+		weekFigures(byWeek.get(week.weekKey)!, preview.currentWeekKey)
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -352,11 +377,20 @@ export default function GenerateSeasonRoute({
 						startWeekKey={season.startWeekKey}
 						weeks={weeks.length}
 					/>
+					{/* Once, above the weeks, never on a card (#472). */}
+					<p className="text-footnote text-muted-foreground">
+						{L.placedAsPublished(DRIFT_TOLERANCE * 100)}
+					</p>
 				</div>
 				<ul className="space-y-3">
 					{weeks.slice(0, WEEKS_SHOWN).map((week) => (
 						<li key={week.weekKey}>
-							<WeekCard week={week} season={season} />
+							<WeekCard
+								week={week}
+								season={season}
+								figures={figuresOf(week)}
+								openRow={openRow}
+							/>
 						</li>
 					))}
 				</ul>
@@ -375,7 +409,12 @@ export default function GenerateSeasonRoute({
 						<ul className="space-y-3">
 							{weeks.slice(WEEKS_SHOWN).map((week) => (
 								<li key={week.weekKey}>
-									<WeekCard week={week} season={season} />
+									<WeekCard
+										week={week}
+										season={season}
+										figures={figuresOf(week)}
+										openRow={openRow}
+									/>
 								</li>
 							))}
 						</ul>
@@ -747,9 +786,14 @@ function weeklyHours(hours: number, estimated: boolean): string {
 function WeekCard({
 	week,
 	season,
+	figures,
+	openRow,
 }: {
 	week: SeasonPreview['season']['weeks'][number]
 	season: SeasonPreview['season']
+	/** The week's tracks, worded. */
+	figures: WeekFigures
+	openRow: PlanPreviewOpenRow
 }) {
 	const phase = season.phases[week.phaseIndex]!
 	const sessions = season.sessions.filter(
@@ -790,26 +834,7 @@ function WeekCard({
 					{L.weekOf(week.weekIndex + 1, season.weeks.length)} ·{' '}
 					{nbPhaseName(phase.name)}
 				</p>
-				{/* One figure per track. The sport and its figure stay on one line
-				    while they fit; at 320 px with 200 % text the sport yields to its
-				    own line, and the figure never splits (`1 270,5 km`). */}
-				<p className="text-footnote flex flex-wrap gap-x-1.5 tabular-nums">
-					{week.targets.map((target, index) => (
-						<span key={target.discipline} className="contents">
-							{index > 0 ? <span aria-hidden>·</span> : null}
-							<span className="inline-flex min-w-0 flex-wrap gap-x-[0.25em]">
-								<span className="whitespace-nowrap">
-									{NB_DISCIPLINE_LABELS[target.discipline]}
-								</span>{' '}
-								<span className="whitespace-nowrap">
-									{target.value == null
-										? '—'
-										: formatNbVolumeTotal(target.value, target.currency)}
-								</span>
-							</span>
-						</span>
-					))}
-				</p>
+				<TrackFigures figures={figures} />
 				{/* Placed Hours over the capacity: the week's own line, in the
 				    foreground, never behind a tap (#429). The amber marks it; the
 				    words carry it (RiseWarningNotice's voice). */}
@@ -824,10 +849,11 @@ function WeekCard({
 				<ul className="divide-border/60 divide-y px-(--card-spacing)">
 					{sessions.map((session) => (
 						<li
-							key={`${session.weekday}-${session.discipline}-${session.entryId}`}
-							className="py-3 first:pt-1 last:pb-0"
+							key={planPreviewRowKey(session)}
+							// The row is its own 44 px button with its own padding.
+							className="py-1 first:pt-0 last:pb-0"
 						>
-							<SessionRow session={session} />
+							<PlanPreviewRow session={session} openRow={openRow} />
 						</li>
 					))}
 					{unfilled.map((slot) => (
@@ -841,6 +867,150 @@ function WeekCard({
 				</ul>
 			) : null}
 		</Card>
+	)
+}
+
+/** A preview week's tracks as the card reads them, and what it says beside them. */
+type WeekFigures = {
+	tracks: TimelineTrackWeek[]
+	existingSessions: number
+}
+
+/**
+ * A preview week's numbers, worded by the same call _Sesong_ words its weeks
+ * with (`wordTrackWeek`), so the drift rule, the unmeasured counts and the
+ * empty-week rule are _Sesong_'s and not a copy of them (ADR 0124 §5).
+ */
+function weekFigures(
+	entry: PreviewWeekVolumes,
+	currentWeekKey: string,
+): WeekFigures {
+	return {
+		tracks: entry.volumes.tracks.map((track) =>
+			wordTrackWeek(track, {
+				ahead: entry.weekKey > currentWeekKey,
+				hasSessions: entry.hasSessions,
+			}),
+		),
+		existingSessions: entry.existingSessions,
+	}
+}
+
+/**
+ * One row per Training Track (#472): the track's name in its ink, then
+ * `mål 32 km · planlagt 24 km +1 uten km ≠`. The **Week Target** and the
+ * **Planned Volume** are two labelled figures, each with its unit, never blended.
+ *
+ * The names share a column so the figures line up down the card: each row is a
+ * subgrid of the list's two columns, never `display: contents`, which WebKit has
+ * dropped from the accessibility tree. Where the card is narrow (large text) the
+ * name stacks above its figures. Only a value and its unit never break, the `·`
+ * hangs at the end of the target, and the `≠` sits inside the last figure, so a
+ * wrapped line starts with a label and the mark never stands alone.
+ *
+ * Static: the figures change only on a rebuild, which is a navigation.
+ */
+function TrackFigures({ figures }: { figures: WeekFigures }) {
+	return (
+		<div className="@container space-y-1">
+			{/* `role="list"` said outright: Tailwind's `list-style: none` makes
+			    WebKit drop the list role, and its name with it, for VoiceOver. */}
+			<ul
+				role="list"
+				aria-label={L.weekFiguresLabel}
+				className="text-footnote grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 gap-y-1 tabular-nums @max-[300px]:grid-cols-1"
+			>
+				{figures.tracks.map((track) => (
+					<li
+						key={track.trackId}
+						data-week-track={track.discipline}
+						className="col-span-full grid grid-cols-subgrid"
+					>
+						<span
+							className={cn(
+								'font-semibold [overflow-wrap:anywhere]',
+								TRACK_INK[track.discipline] ?? 'text-foreground',
+							)}
+						>
+							{track.name}
+						</span>
+						<TrackFigureLine track={track} />
+					</li>
+				))}
+			</ul>
+			{figures.existingSessions > 0 ? (
+				<p className="text-footnote text-muted-foreground">
+					{L.alreadyInWeek(figures.existingSessions)}
+				</p>
+			) : null}
+		</div>
+	)
+}
+
+/** `mål 32 km · planlagt 24 km +1 uten km ≠`, broken only between its parts. */
+function TrackFigureLine({ track }: { track: TimelineTrackWeek }) {
+	// `—` alone is not spoken, so an Unavailable target says so to a screen
+	// reader and shows the dash to the eye.
+	const target =
+		track.target == null ? (
+			<>
+				<span aria-hidden>—</span>
+				<span className="sr-only">{L.targetUnavailable}</span>
+			</>
+		) : (
+			formatNbVolumeTotal(track.target, track.currency)
+		)
+	// A sum, or, where every planned session lacks a number, what stands in its
+	// place (`2 økter uten km`); never `0 km` for sessions that are there. The
+	// sum is null only when that note is set (`total`, `wordTrackWeek`).
+	const planned =
+		track.planned != null
+			? formatNbVolumeTotal(track.planned, track.currency)
+			: track.figureNotes.planned
+	// When a count goes beside the sum is `wordTrackWeek`'s rule; the preview
+	// says it unsided (`+1 uten km`), as the design asks, since `planlagt` is
+	// already named on this line.
+	const beside =
+		track.plannedUnmeasuredLabel != null
+			? unmeasuredCountLabel(track.plannedUnmeasuredCount, track.currency)
+			: null
+	const drift = track.driftLabel ? (
+		<>
+			{'\u2009'}
+			<DriftMark label={track.driftLabel} />
+		</>
+	) : null
+	return (
+		<span className="min-w-0">
+			<span className="text-muted-foreground">{WEEK_FIGURE_LABELS.target}</span>{' '}
+			<span className="whitespace-nowrap">
+				<span className="font-medium">{target}</span>
+				<span className="text-muted-foreground" aria-hidden>
+					{'\u00a0·'}
+				</span>
+			</span>{' '}
+			<span className="text-muted-foreground">
+				{WEEK_FIGURE_LABELS.planned}
+			</span>{' '}
+			<span
+				className={cn(
+					'font-medium',
+					track.planned != null && 'whitespace-nowrap',
+				)}
+			>
+				{planned}
+				{beside ? null : drift}
+			</span>
+			{beside ? (
+				<>
+					{' '}
+					<span className="text-muted-foreground whitespace-nowrap">
+						{beside}
+						{drift}
+					</span>
+				</>
+			) : null}
+		</span>
 	)
 }
 
@@ -860,66 +1030,6 @@ function PlacedWeekLine({
 			<span className="font-semibold">{lead}</span>
 			{rest}
 		</p>
-	)
-}
-
-/** `Mandag · Løping` — the day and the sport a row sits on. */
-function DayLine({
-	weekday,
-	discipline,
-	extra,
-}: {
-	weekday: UnfilledSlot['weekday']
-	discipline: Discipline
-	extra?: readonly string[]
-}) {
-	return (
-		// A long archetype («Konkurransesimulering») breaks rather than pushing
-		// the card sideways at 320 px with 200 % text.
-		<p className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 [overflow-wrap:anywhere]">
-			<span className="text-foreground font-semibold">
-				{NB_PATTERN_WEEKDAY_LABELS[weekday]}
-			</span>
-			<span aria-hidden>·</span>
-			<span>{NB_DISCIPLINE_LABELS[discipline]}</span>
-			{extra?.map((part) => (
-				<span key={part} className="contents">
-					<span aria-hidden>·</span>
-					<span>{part}</span>
-				</span>
-			))}
-		</p>
-	)
-}
-
-function SessionRow({ session }: { session: GeneratedSession }) {
-	const nonVouch = nbProvenanceNonVouch(session.provenance)
-	return (
-		<div className="space-y-0.5">
-			<DayLine
-				weekday={session.weekday}
-				discipline={session.discipline}
-				extra={[
-					NB_SESSION_ARCHETYPE_LABELS[session.archetype],
-					...(session.zone == null ? [] : [L.zone(session.zone)]),
-				]}
-			/>
-			<p className="text-callout [overflow-wrap:anywhere]">{session.title}</p>
-			{/* The provenance slot: one position, four possible contents, and the
-			    community one is the only one that says trainm8 is not standing behind
-			    it. Read off the row rather than assumed to be a Citation. */}
-			<p
-				className="text-footnote text-muted-foreground [overflow-wrap:anywhere]"
-				data-provenance
-			>
-				{nbProvenanceSentence(session.provenance)}
-			</p>
-			{nonVouch ? (
-				<p className="text-footnote text-muted-foreground" data-non-vouch>
-					{nonVouch}
-				</p>
-			) : null}
-		</div>
 	)
 }
 

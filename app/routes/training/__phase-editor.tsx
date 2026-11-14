@@ -168,7 +168,7 @@ export function PhaseCard({
 			    used to begin with a Name field: the first thing an athlete saw on the
 			    block they came to understand was a text box. */}
 			{reading ? (
-				<p className="text-muted-foreground pb-2 text-sm">{reading}</p>
+				<p className="text-muted-foreground text-footnote pb-2">{reading}</p>
 			) : null}
 
 			{/* The Sesong edits first: name, length, rhythm and the easy week are
@@ -179,7 +179,9 @@ export function PhaseCard({
 				detail={SESONG_PHASE_LABELS.editDetail}
 			>
 				{phase.tapers ? null : (
-					<p className="text-sm">{NB_RHYTHM_CHOICE_LABELS[phase.rhythm]}</p>
+					<p className="text-footnote">
+						{NB_RHYTHM_CHOICE_LABELS[phase.rhythm]}
+					</p>
 				)}
 				<RecoveryPreview phase={phase} />
 				<div className="flex flex-col gap-1">
@@ -287,7 +289,7 @@ function RhythmFields({
 					// place: `weekRole` answers `taper` for every week of one before it
 					// ever looks at the rhythm. Said out loud rather than left as a choice
 					// that changes no week (ADR 0044 §8).
-					<p className="text-muted-foreground text-sm">
+					<p className="text-muted-foreground text-footnote">
 						{SESONG_PHASE_LABELS.taperRhythm}
 					</p>
 				) : (
@@ -375,7 +377,7 @@ function RecoveryPreview({ phase }: { phase: PhaseSpec }) {
 						key={index}
 						className={
 							role === 'loading'
-								? 'bg-muted text-muted-foreground text-caption rounded-full px-2 py-1 tabular-nums'
+								? 'bg-muted text-muted-foreground text-caption rounded-full px-2 py-1 font-normal tabular-nums'
 								: 'bg-primary/15 text-primary text-caption rounded-full px-2 py-1 font-semibold tabular-nums'
 						}
 					>
@@ -389,7 +391,7 @@ function RecoveryPreview({ phase }: { phase: PhaseSpec }) {
 					</span>
 				))}
 			</div>
-			<p className="text-muted-foreground text-sm">
+			<p className="text-muted-foreground text-footnote">
 				{phase.tapers
 					? SESONG_PHASE_LABELS.tapersAll
 					: recoveryWeeks.length === 0
@@ -484,7 +486,7 @@ export function AddPhaseForm({
 					</SelectContent>
 				</Select>
 				<input type="hidden" name="atIndex" value={atIndex} />
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-footnote">
 					{SESONG_PHASE_LABELS.growsForward}
 				</p>
 			</div>
@@ -528,7 +530,7 @@ export function DeletePlanSection({
 			<h2 id="delete-plan" className="sr-only">
 				{SESONG_PHASE_LABELS.delete}
 			</h2>
-			<p className="text-muted-foreground text-sm">
+			<p className="text-muted-foreground text-footnote">
 				{SESONG_PHASE_LABELS.deleteIntro(eventName)}
 			</p>
 			<AlertDialog>

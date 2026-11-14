@@ -157,7 +157,7 @@ function OutcomeCard({
 				</p>
 			) : null}
 			{item.provenance ? (
-				<p className="text-footnote text-muted-foreground border-border mt-3 border-t pt-3">
+				<p className="text-footnote text-muted-foreground border-border/60 mt-3 border-t pt-3">
 					{item.provenance}
 				</p>
 			) : null}

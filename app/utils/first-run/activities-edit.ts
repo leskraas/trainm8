@@ -52,10 +52,10 @@ import {
 	type LaidPhase,
 	type LaidSegment,
 } from '../plan-outline/philosophy.ts'
+import { fillKeptSlots } from '../plan-outline/kept-slots.ts'
 import { parsePinnedDays } from '../plan-outline/pinned-days.ts'
 import { type PresetFamily } from '../plan-outline/presets.ts'
 import {
-	fillKeptSlots,
 	planStamp,
 	stampWeekInput,
 	type StampSession,

@@ -352,7 +352,7 @@ function StartInvite() {
 				data-plan-start-invite
 				className={cn(
 					buttonVariants({ size: 'default' }),
-					'h-12 w-full text-base font-semibold sm:w-auto sm:px-8',
+					'text-body h-12 w-full font-semibold sm:w-auto sm:px-8',
 				)}
 			>
 				{PLAN_LEAD_LABELS.noPlanAction}

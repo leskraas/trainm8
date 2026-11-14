@@ -155,7 +155,7 @@ export function TrackRoster({
 				{tracks.map((track) => (
 					<li
 						key={track.trackId}
-						className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+						className="text-footnote flex flex-wrap items-center gap-x-2 gap-y-1"
 					>
 						{/* One run of text, not two flex items: as items, the detail wrapped
 						    whole onto its own line at 390 px and opened it with an orphaned

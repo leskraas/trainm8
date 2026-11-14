@@ -71,6 +71,7 @@ import { isOutlineResting } from './active-outline.server.ts'
 import { type PlacedSession } from './day-rule.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
+import { fillKeptSlots } from './kept-slots.ts'
 import { parsePinnedDays } from './pinned-days.ts'
 import { type QualityZone } from './quality-mix.ts'
 import {
@@ -80,8 +81,6 @@ import {
 } from './session-placement.ts'
 import { sessionZone, sessionZoneSelect } from './session-zone.ts'
 import {
-	fillKeptSlots,
-	keptSlotsOf,
 	mixDisagreements,
 	planStamp,
 	stampWeekInput,
@@ -104,7 +103,7 @@ import {
 } from './week-pattern.ts'
 import {
 	clearPlanWeek,
-	KEPT_PLAN_SESSION,
+	readKeptSlots,
 	readWeekOccupancy,
 } from './week-sessions.server.ts'
 
@@ -371,13 +370,13 @@ export async function stampWeekPattern(
 				plan.weekKey,
 				timezone,
 			)
-			const sessions = aroundKeptSessions
+			const toLay = aroundKeptSessions
 				? fillKeptSlots(
 						plan.sessions,
 						await readKeptSlots(tx, userId, outline.id, plan.weekKey, timezone),
 					)
 				: plan.sessions
-			for (const session of sessions) {
+			for (const session of toLay) {
 				const workoutId = await workoutForSession(
 					tx,
 					userId,
@@ -557,65 +556,6 @@ export async function readHeldSessions(
 		if (!shape) return []
 		const weekday = weekdayIndex(localDate(row.scheduledAt, timezone))
 		return isPatternWeekday(weekday) ? [placedOn(shape, weekday)] : []
-	})
-}
-
-/**
- * The slots the plan's own sessions fill in one week whatever a re-lay does:
- * the ones its gated clearing keeps (adopted, or trained), counted per
- * weekday and Discipline. One query, the plan's sessions that are neither
- * the athlete's own (`authored`) nor replaceable, so it reads
- * the same before the clearing (a preview) as after it (the write). Read
- * through `db`, so the stamp reads it inside its transaction.
- */
-export async function readKeptSlots(
-	db: Prisma.TransactionClient,
-	userId: string,
-	planOutlineId: string,
-	weekKey: string,
-	timezone: string,
-): Promise<Map<string, number>> {
-	return keptSlotsOf(
-		(
-			await readKeptPlanSessions(db, userId, planOutlineId, weekKey, timezone)
-		).flatMap((session) =>
-			session.workout
-				? [
-						{
-							weekday: weekdayIndex(localDate(session.scheduledAt, timezone)),
-							discipline: session.workout.discipline,
-						},
-					]
-				: [],
-		),
-	)
-}
-
-/**
- * The plan's own sessions in one week that its gated clearing keeps
- * ({@link KEPT_PLAN_SESSION}). What {@link readKeptSlots} counts.
- */
-async function readKeptPlanSessions(
-	db: Prisma.TransactionClient,
-	userId: string,
-	planOutlineId: string,
-	weekKey: string,
-	timezone: string,
-) {
-	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	return db.workoutSession.findMany({
-		where: {
-			userId,
-			planOutlineId,
-			scheduledAt: { gte: start, lte: end },
-			...KEPT_PLAN_SESSION,
-		},
-		orderBy: { scheduledAt: 'asc' },
-		select: {
-			id: true,
-			scheduledAt: true,
-			workout: { select: { discipline: true } },
-		},
 	})
 }
 

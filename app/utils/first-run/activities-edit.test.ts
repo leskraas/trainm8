@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { resolvedTracks, trackRetiredAt } from '../plan-outline/from-rows.ts'
-import {
-	keptSlotsOf,
-	planStamp,
-	type StampSession,
-} from '../plan-outline/stamp.ts'
+import { keptSlotsOf } from '../plan-outline/kept-slots.ts'
+import { planStamp, type StampSession } from '../plan-outline/stamp.ts'
 import { weekKeyAt } from '../plan-outline/week-keys.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import {

@@ -76,7 +76,7 @@ export function TabBar({ className }: { className?: string }) {
 									// neither selects its label nor pops the link callout.
 									'focus-visible:outline-ring active:bg-muted/60 flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px]/[1.1] font-semibold select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:-outline-offset-2',
 									// 44px to a pointer or a thumb on a tablet (ui-conventions §2.2).
-									'md:h-11 md:flex-row md:gap-1.5 md:rounded-full md:px-3.5 md:text-sm',
+									'md:text-footnote md:h-11 md:flex-row md:gap-1.5 md:rounded-full md:px-3.5',
 									active
 										? 'text-primary md:bg-primary/10'
 										: 'text-muted-foreground hover:text-foreground',

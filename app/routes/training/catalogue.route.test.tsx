@@ -5,12 +5,9 @@ import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
+import { type Citation } from '#app/utils/catalogue.ts'
 import { CATALOGUE_LABELS, NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
 import { type SessionProvenance } from '#app/utils/plan-generation/provenance.ts'
-import {
-	nbProvenanceNonVouch,
-	nbProvenanceSentence,
-} from './__catalogue-card.ts'
 import CatalogueRoute from './catalogue.tsx'
 
 const NO_FILTERS = {
@@ -24,17 +21,9 @@ const NO_FILTERS = {
 	q: undefined,
 }
 
-/** The loader's provenance slot for a reading, by the same functions it uses. */
-function slot(sourcing: SessionProvenance, adaptedFrom: string | null = null) {
-	return {
-		sentence: nbProvenanceSentence(sourcing),
-		publishedAt:
-			sourcing.kind === 'community'
-				? (sourcing.attribution?.publishedAt ?? null)
-				: null,
-		nonVouch: nbProvenanceNonVouch(sourcing),
-		adaptedFrom,
-	}
+/** The loader's provenance slot: the reading itself, worded by the slot. */
+function slot(reading: SessionProvenance, adaptedFrom: Citation | null = null) {
+	return { reading, adaptedFrom }
 }
 
 const DANIELS: SessionProvenance = {
@@ -214,9 +203,12 @@ test('a fork of a cited session says the source belongs to what it was forked fr
 			communityRow({
 				provenance: slot(
 					{ kind: 'community', attribution: null },
-					CATALOGUE_LABELS.adaptedFrom(
-						"Daniels — Daniels' Running Formula (2013)",
-					),
+					{
+						author: 'Daniels',
+						work: "Daniels' Running Formula",
+						year: 2013,
+						locator: null,
+					},
 				),
 			}),
 		],

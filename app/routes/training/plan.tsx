@@ -104,6 +104,7 @@ import {
 	readSeasonChartInputs,
 	withWeekStarts,
 } from '#app/utils/plan-outline/season-chart.server.ts'
+import { readSeasonAnchorChoices } from '#app/utils/plan-outline/season-edit.server.ts'
 import { readStampedMixWarnings } from '#app/utils/plan-outline/stamp.server.ts'
 import { readTrackDays } from '#app/utils/plan-outline/track-days.server.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
@@ -140,7 +141,7 @@ import {
 import { refuse } from './__plan-action.server.ts'
 import { PlanAdvanced } from './__plan-advanced.tsx'
 import { PillLink, PlanCard, SegmentedNav } from './__plan-chrome.tsx'
-import { PlanLeadCard } from './__plan-lead-card.tsx'
+import { PlanLeadCard, PlanLeadVolume } from './__plan-lead-card.tsx'
 import { nextEasyWeek as readNextEasyWeek } from './__plan-lead.ts'
 import {
 	TABS,
@@ -156,7 +157,10 @@ import { seasonFitnessOf } from './__season-chart.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditsCard } from './__season-edits.tsx'
 import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
-import { UnavailableReadingsNotice } from './__season-notices.tsx'
+import {
+	PlanGuardNotices,
+	UnavailableReadingsNotice,
+} from './__season-notices.tsx'
 import { readSeasonPicture } from './__season-picture.server.ts'
 import { SeasonPicture } from './__season-picture.tsx'
 import {
@@ -327,12 +331,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 	// _Bytt treningsform_ (ADR 0101 §2, #581): the Start Options again, laid
 	// from the week a switch would begin in for this plan's tracks and days.
-	const startOptions = await readPlanStartOptions(
-		userId,
-		season,
-		firstUnbegunWeekKey,
-		now,
-	)
+	// _Endre startnivået_ and the lead's _Ukevolum_ rows (#673, ADR 0122): each
+	// endurance track with a Season Anchor, its segments, and the weeks from the
+	// first unbegun one with the ramp's level there (the fresh-start pre-fill).
+	// Neither reads the other, so they are read side by side.
+	const [startOptions, anchorChoices] = await Promise.all([
+		readPlanStartOptions(userId, season, firstUnbegunWeekKey, now),
+		readSeasonAnchorChoices(userId, season.outlineId, firstUnbegunWeekKey),
+	])
 	const treningsform = startOptions ? treningsformViewOf(startOptions) : null
 
 	return {
@@ -347,6 +353,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		treningsform,
 		strengthOffer,
 		firstUnbegunWeekKey,
+		anchorChoices,
 		libraryLifts,
 		seasonEvents: {
 			events: upcomingEvents.slice(0, SEASON_EVENTS_SHOWN),
@@ -602,6 +609,7 @@ export default function PlanRoute({
 		seasonFitness,
 		nextEasyWeek,
 		trackDays,
+		anchorChoices,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -756,8 +764,21 @@ export default function PlanRoute({
 						</p>
 					) : null
 				}
+				// The plan's Guard Notices, under the card and before Bibliotek (ADR
+				// 0118). Keyed by the plan, so a dismissal belongs to one plan: the
+				// next `?outline=` or `?event=` page brings its notices back open
+				// even where their words match.
+				notices={<PlanGuardNotices key={season.outlineId} season={season} />}
 				className="lg:mx-auto lg:max-w-2xl"
 			>
+				{/* Ukevolum (#673): each endurance track's next week and the way to
+				    change its volume, behind the Season Anchor edit's preview. */}
+				<PlanLeadVolume
+					tracks={anchorChoices}
+					hasStrength={season.tracks.some(
+						(track) => track.discipline === 'strength',
+					)}
+				/>
 				{/* Bytt treningsform, after Legg til et løp (ADR 0101 §2): the Start
 				    Options again for this plan, switching only behind the preview. */}
 				{loaderData.treningsform ? (
@@ -816,6 +837,7 @@ export default function PlanRoute({
 								weeks={season.weeks}
 								phases={season.phases}
 								tracks={season.tracks}
+								anchorChoices={anchorChoices}
 								firstUnbegunWeekKey={firstUnbegunWeekKey}
 								reply={seasonEdit}
 							/>
@@ -1113,7 +1135,7 @@ function SeasonSpanHeadline({
 				return (
 					<li key={group.key} className="space-y-1">
 						{named ? (
-							<p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+							<p className="text-callout flex flex-wrap items-center gap-2">
 								<span>
 									{SESONG_PAGE_LABELS.spanTracks(
 										group.disciplines.map(nbTrackName),
@@ -1128,15 +1150,15 @@ function SeasonSpanHeadline({
 								) : null}
 							</p>
 						) : null}
-						{/* `text-xl`, not the page title's size: two spans sit side by side on
+						{/* `text-heading`, not the page title's size: two spans sit side by side on
 						    this card, and at 24px a figure like `55.0 km/wk → 73.8 km/wk` wraps
 						    mid-arrow in a half-width column — which reads as two numbers rather
 						    than as one span. */}
-						<p className="text-xl font-semibold tracking-tight text-balance tabular-nums">
+						<p className="text-heading text-balance tabular-nums">
 							{formatNbWeeklyVolume(group.span.anchor, group.currency)} →{' '}
 							{formatNbWeeklyVolume(group.span.peak, group.currency)}
 						</p>
-						<p className="text-muted-foreground text-sm">
+						<p className="text-muted-foreground text-footnote">
 							{group.marker === 'derived' &&
 							accumulatesAcrossDisciplines(group.currency)
 								? `${NB_ACCUMULATED_SPAN_LABELS[group.currency]} `

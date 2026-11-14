@@ -8,13 +8,8 @@
  *
  * Pure: the loader hands over the Workout tree it read for the page's rows.
  */
-import {
-	CONVENTION_NOTICE,
-	HAND_WRITTEN_NOTICE,
-} from '#app/utils/catalogue-corpus.ts'
-import { formatCitation } from '#app/utils/catalogue.ts'
-import { CATALOGUE_LABELS, NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
-import { type SessionProvenance } from '#app/utils/plan-generation/provenance.ts'
+import { CATALOGUE_LABELS } from '#app/utils/labels.ts'
+import { withoutProvenanceNotice } from '#app/utils/plan-generation/provenance.ts'
 import {
 	deriveWorkoutNotation,
 	notationSentence,
@@ -31,8 +26,8 @@ import { buildSessionSummary } from './__workout-detail-summary.ts'
 export function catalogueBlurb(description: string | null): string | null {
 	if (!description) return null
 	let text = description.trim()
-	for (const notice of [CONVENTION_NOTICE, HAND_WRITTEN_NOTICE]) {
-		if (text.startsWith(notice)) text = text.slice(notice.length)
+	for (const kind of ['convention', 'hand-written'] as const) {
+		text = withoutProvenanceNotice(text, kind)
 	}
 	text = text
 		.replace(/\*\*([^*]+)\*\*/g, '$1')
@@ -40,31 +35,6 @@ export function catalogueBlurb(description: string | null): string | null {
 		.replace(/\s+/g, ' ')
 		.trim()
 	return text === '' ? null : text
-}
-
-/** The provenance slot's first line, in Norwegian (`provenanceSentence`'s twin). */
-export function nbProvenanceSentence(provenance: SessionProvenance): string {
-	switch (provenance.kind) {
-		case 'corpus':
-			return NB_PROVENANCE_LABELS.source(formatCitation(provenance.citation))
-		case 'convention':
-			return NB_PROVENANCE_LABELS.convention
-		case 'hand-written':
-			return NB_PROVENANCE_LABELS.handWritten
-		case 'community':
-			return provenance.attribution
-				? NB_PROVENANCE_LABELS.publishedBy(provenance.attribution.displayName)
-				: NB_PROVENANCE_LABELS.unnamedPublisher
-		case 'unsourced':
-			return NB_PROVENANCE_LABELS.unsourced
-	}
-}
-
-/** trainm8's non-vouch, on the one kind that needs it (ADR 0052 §3). */
-export function nbProvenanceNonVouch(
-	provenance: SessionProvenance,
-): string | null {
-	return provenance.kind === 'community' ? NB_PROVENANCE_LABELS.nonVouch : null
 }
 
 /** The Workout tree a card reads — the loader's select, structurally. */

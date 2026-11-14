@@ -22,16 +22,23 @@ Read-only on the repo: your writes are evidence.
    nothing on screen shows it, the command and its output. Green CI is not
    evidence: a criterion without evidence has failed. Done when every
    criterion has a verdict and its evidence.
-5. **Check it runs as deployed.** When `deploy-check` is set and the PR
+5. **Measure the budgets** in the guide's `## Budgets`, each with its
+   command, on the flows the PR touches and the main flow
+   (`references/qualities.md`, "Budgets"). Measure **Quality:** criteria
+   the same way: the number, not the impression. Without a `## Budgets`
+   section, say so in your comment (`/factory-setup`). Done when every
+   budget has its number against its limit.
+6. **Check it runs as deployed.** When `deploy-check` is set and the PR
    touches what it covers, run it. A failure fails the PR, with its output as
    the evidence.
-6. **Check the head again**: `gh api repos/<o>/<r>/pulls/<pr> --jq .head.sha`.
+7. **Check the head again**: `gh api repos/<o>/<r>/pulls/<pr> --jq .head.sha`.
    A head that moved holds commits nobody reviewed or verified.
 
 ## Result
 
 - **outcome**: `forward` when every criterion passes on an unmoved head;
-  `back` with `next` `implement` when a criterion or the deploy check fails;
+  `back` with `next` `implement` when a criterion, a budget or the deploy
+  check fails;
   `back` with `next` `review` when the head moved; `blocked` when the app
   can't run here.
 - **head**: the commit you verified.
@@ -39,5 +46,6 @@ Read-only on the repo: your writes are evidence.
 - **evidence**: the evidence folder.
 - **comment**: the line "Verified at `<head>`. A push after this needs QA
   again.", then a table of the criteria (number, criterion, verdict,
-  `evidence:` link), and for each failure what you saw against what the
-  criterion asks. Name any criterion you drove without a feature file.
+  `evidence:` link), a table of the budgets (budget, limit, measured,
+  verdict), and for each failure what you saw against what the criterion
+  or budget asks. Name any criterion you drove without a feature file.

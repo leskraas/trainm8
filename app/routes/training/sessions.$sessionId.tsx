@@ -22,6 +22,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
+import { ProvenanceSlot } from '#app/components/provenance-slot.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
 import { ScoreStanza } from '#app/components/score-stanza.tsx'
 import { ShapeStrip } from '#app/components/shape-strip.tsx'
@@ -78,6 +79,7 @@ import {
 import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { readPlacedProvenance } from '#app/utils/catalogue.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	formatLoad,
@@ -114,6 +116,7 @@ import {
 } from '#app/utils/labels.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { withoutProvenanceNotice } from '#app/utils/plan-generation/provenance.ts'
 import {
 	type VsLastMetric,
 	buildVsLastComparison,
@@ -277,6 +280,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		exercises,
 		recentExerciseIds,
 		activeOutline,
+		placedProvenance,
 	] = await Promise.all([
 		getDisciplineThresholds(userId),
 		session.status === 'completed' && session.workout
@@ -305,6 +309,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		// the way I dag's row reads it (`trackCurrencies`, the first track per
 		// sport), so the page and the row it was opened from agree.
 		findActiveOutline(userId, new Date()),
+		// Where a session placed from the Catalogue came from (ADR 0123 §5): the
+		// placed copy's Catalogue Entry, one hop further past an adoption fork.
+		readPlacedProvenance(session.workout?.id, session.adoptedAt),
 	])
 
 	// A Simple Activity has no archetype to state or read (ADR 0015 §A): it is
@@ -392,6 +399,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		simpleActivity,
 		loggedSetCount,
 		loggedSetsByStep,
+		placedProvenance,
 		// Arket M: the session in its own numbers, the track's unit first. Built
 		// here, from the rows the page already loaded — the presenter is pure.
 		summary: buildSessionSummary({
@@ -834,9 +842,20 @@ export default function SessionDetailRoute({
 		simpleActivity,
 		loggedSetCount,
 		loggedSetsByStep,
+		placedProvenance,
 		summary,
 	} = loaderData
 	const timeZone = useAthleteTimezone()
+	// The notice a convention or hand-written row opens with is said once, by
+	// the Session Provenance below it, as the Catalogue card does.
+	const rawDescription = session.workout?.description ?? null
+	const description =
+		rawDescription && placedProvenance
+			? withoutProvenanceNotice(
+					rawDescription,
+					placedProvenance.provenance.kind,
+				)
+			: rawDescription
 	// The same headline Intensity Target the home surface shows, so the two agree
 	// (#130). Resolves the workout's authored target against the athlete's
 	// thresholds; null when there's no prescription or no truthful target. A
@@ -986,12 +1005,13 @@ export default function SessionDetailRoute({
 						    athlete adopts the structure — read off `adoptedAt` now that
 						    the origin survives the takeover (#460). */}
 						{session.workout?.description ||
+						placedProvenance ||
 						isUnadoptedDetected(session) ||
 						archetype?.kind === 'read' ? (
 							<CardContent className="flex flex-col gap-2">
-								{session.workout?.description ? (
+								{description ? (
 									<p className="text-footnote text-muted-foreground">
-										{session.workout.description}
+										{description}
 									</p>
 								) : null}
 								{isUnadoptedDetected(session) || archetype?.kind === 'read' ? (
@@ -1019,6 +1039,19 @@ export default function SessionDetailRoute({
 											</Badge>
 										) : null}
 									</div>
+								) : null}
+								{/* Session Provenance, last in the prose block, after the
+								    numbers (ADR 0123 §2): the session page is the tap from
+								    the row, so it is stated here, not behind a disclosure.
+								    "Endret av deg" reads `adoptedAt`. Nothing renders where
+								    the session came from no Catalogue row. */}
+								{placedProvenance ? (
+									<ProvenanceSlot
+										data-provenance
+										provenance={placedProvenance.provenance}
+										adopted={session.adoptedAt != null}
+										takenDown={placedProvenance.takenDown}
+									/>
 								) : null}
 							</CardContent>
 						) : null}
@@ -1259,7 +1292,7 @@ function ArchetypeToken({ view }: { view: SessionArchetypeView }) {
 	return (
 		<Popover>
 			<PopoverTrigger
-				className="focus-visible:ring-ring decoration-muted-foreground text-foreground relative rounded-sm font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:top-1/2 after:left-1/2 after:size-11 after:min-w-full after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:ring-2"
+				className="focus-visible:ring-ring decoration-muted-foreground text-foreground relative rounded-2xl font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:top-1/2 after:left-1/2 after:size-11 after:min-w-full after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:ring-2"
 				data-archetype={view.kind}
 			>
 				{word}
@@ -1478,7 +1511,7 @@ function SimpleActivityFacts({
 				>
 					{S.notMeasuredHeading}
 				</h3>
-				<dl className="divide-border mt-1 divide-y" data-not-measured>
+				<dl className="divide-border/60 mt-1 divide-y" data-not-measured>
 					{withheld.map((label) => (
 						<div
 							key={label}
@@ -1618,7 +1651,9 @@ function FigureTile({
 }) {
 	return (
 		<div className="bg-muted/60 rounded-3xl px-4 py-3">
-			<dt className="text-caption text-muted-foreground">{label}</dt>
+			<dt className="text-caption text-muted-foreground font-normal">
+				{label}
+			</dt>
 			<dd className="text-heading mt-1 tabular-nums">{value}</dd>
 			<dd className="text-footnote text-muted-foreground mt-0.5 tabular-nums">
 				{note}
@@ -1964,7 +1999,7 @@ function RecordingPanel({
 			<CardContent className="space-y-4">
 				{phaseBars.length > 0 ? (
 					<div className="space-y-1">
-						<p className="text-caption text-muted-foreground">
+						<p className="text-caption text-muted-foreground font-normal">
 							{L.recording.zones}
 						</p>
 						<ProfileBars bars={phaseBars} className="h-8" />
@@ -1974,7 +2009,9 @@ function RecordingPanel({
 				<dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
 					{metrics.map((m) => (
 						<div key={m.label} className="space-y-0.5">
-							<dt className="text-caption text-muted-foreground">{m.label}</dt>
+							<dt className="text-caption text-muted-foreground font-normal">
+								{m.label}
+							</dt>
 							<dd className="text-callout tabular-nums">{m.value}</dd>
 						</div>
 					))}
@@ -2174,7 +2211,10 @@ function SessionLogForm({
 				/>
 
 				<div className="space-y-2">
-					<p id={rpeLabelId} className="text-caption text-muted-foreground">
+					<p
+						id={rpeLabelId}
+						className="text-caption text-muted-foreground font-normal"
+					>
 						{L.log.rpe}
 					</p>
 					{/* Ten 44px targets (ADR 0028): five to a row on a phone, all ten

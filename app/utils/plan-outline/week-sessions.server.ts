@@ -27,11 +27,14 @@
 
 import { type Prisma } from '@prisma/client'
 import {
+	localDate,
 	weekBoundsFromMondayUTC,
+	weekdayIndex,
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
+import { keptSlotsOf } from './kept-slots.ts'
 
 /**
  * What makes a session the plan's to replace. Kept as a `where` fragment rather than
@@ -143,8 +146,23 @@ export async function clearPlanWeek(
 		},
 		select: { id: true, workoutId: true },
 	})
-	if (doomed.length === 0) return 0
+	await deletePlanSessions(tx, doomed)
+	return doomed.length
+}
 
+/**
+ * Delete the plan's sessions given, then their Workouts: the `workoutId` FK
+ * cascades, so deleting a Workout while its session still pointed at it would
+ * take the session with it — the ordering `deleteWorkoutSession` established.
+ * Every Workout here is the session's own copy, never a shared row. The one
+ * writer of that ordering, for the stamp's clearing and a generated re-lay
+ * alike.
+ */
+export async function deletePlanSessions(
+	tx: Prisma.TransactionClient,
+	doomed: ReadonlyArray<{ id: string; workoutId: string | null }>,
+): Promise<void> {
+	if (doomed.length === 0) return
 	await tx.workoutSession.deleteMany({
 		where: { id: { in: doomed.map((session) => session.id) } },
 	})
@@ -154,7 +172,6 @@ export async function clearPlanWeek(
 	if (workoutIds.length > 0) {
 		await tx.workout.deleteMany({ where: { id: { in: workoutIds } } })
 	}
-	return doomed.length
 }
 
 /**
@@ -199,4 +216,42 @@ export async function countWeeksWithSessions(
 		sessions.map((session) => weekMonday(session.scheduledAt, timezone)),
 	)
 	return weeks.size
+}
+
+/**
+ * The one kept-slot query (ADR 0109 §6): the slots the plan's own sessions
+ * that a re-lay keeps — adopted, or trained, so outside
+ * {@link REPLACEABLE_SESSION} — fill in one week, counted per weekday and
+ * Discipline for `fillKeptSlots`. A session the athlete wrote fills no slot.
+ * Read inside the re-lay's transaction.
+ */
+export async function readKeptSlots(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	planOutlineId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<Map<string, number>> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	const kept = await tx.workoutSession.findMany({
+		where: {
+			userId,
+			planOutlineId,
+			scheduledAt: { gte: start, lte: end },
+			...KEPT_PLAN_SESSION,
+		},
+		select: { scheduledAt: true, workout: { select: { discipline: true } } },
+	})
+	return keptSlotsOf(
+		kept.flatMap((session) =>
+			session.workout
+				? [
+						{
+							weekday: weekdayIndex(localDate(session.scheduledAt, timezone)),
+							discipline: session.workout.discipline,
+						},
+					]
+				: [],
+		),
+	)
 }

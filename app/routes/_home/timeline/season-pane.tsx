@@ -51,6 +51,7 @@ import {
 	type SeasonTableColumn,
 	type SeasonTableRow,
 } from './season-table.ts'
+import { TRACK_INK } from './track-marks.tsx'
 
 /** Tailwind's `lg`: where the season pane has room beside a readable list. */
 const LARGE_SCREEN = '(min-width: 1024px)'
@@ -114,14 +115,6 @@ const TRACK_BG: Record<string, string> = {
 	bike: 'bg-track-bike',
 	swim: 'bg-track-swim',
 	strength: 'bg-track-strength',
-}
-/** A track's name in its own colour: the `-ink` step, AA as text (ADR 0085,
- * #505 round 2). The fills above are marks and stay the hue. */
-const TRACK_INK: Record<string, string> = {
-	run: 'text-track-run-ink',
-	bike: 'text-track-bike-ink',
-	swim: 'text-track-swim-ink',
-	strength: 'text-track-strength-ink',
 }
 /** The done figure's ink: the verdict's, so the table reads like the header. */
 const GRADE_INK: Record<VolumeGrade, string> = {
@@ -436,7 +429,7 @@ const SeasonRow = memo(function SeasonRow({
 								onJump(row.key)
 							}}
 							aria-label={rowLabel(row.name)}
-							className="pressable focus-visible:outline-ring w-full rounded-sm text-left tabular-nums focus-visible:outline-2"
+							className="pressable focus-visible:outline-ring w-full rounded-2xl text-left tabular-nums focus-visible:outline-2"
 						>
 							{row.weekNumber}
 						</button>

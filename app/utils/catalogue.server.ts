@@ -16,9 +16,13 @@ import {
 	type CatalogueTier,
 	type SessionArchetype,
 } from './catalogue.ts'
-import { PUBLISHED_WORKOUT_WHERE } from './community.ts'
+import { isPublished, PUBLISHED_WORKOUT_WHERE } from './community.ts'
 import { prisma } from './db.server.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
+import {
+	readSessionProvenance,
+	type SessionProvenance,
+} from './plan-generation/provenance.ts'
 import {
 	MAX_LINEAGE_HOPS,
 	copyWorkout,
@@ -394,6 +398,101 @@ export async function resolveCatalogueOrigin(
 	}
 
 	return null
+}
+
+/**
+ * What the provenance slot shows of one lineage row, and nothing else. This
+ * reader runs over rows the viewer does not own, so `takedownReason` is never
+ * selected: it is the author's to read (ADR 0052 §2).
+ */
+const placedProvenanceRowSelect = {
+	id: true,
+	authorship: true,
+	description: true,
+	visibility: true,
+	ownerId: true,
+	catalogueEntry: {
+		select: {
+			citationAuthor: true,
+			citationWork: true,
+			citationYear: true,
+			citationLocator: true,
+		},
+	},
+	attribution: {
+		select: { displayName: true, publishedAt: true, takenDownAt: true },
+	},
+} satisfies Prisma.WorkoutSelect
+
+type PlacedProvenanceRow = Prisma.WorkoutGetPayload<{
+	select: typeof placedProvenanceRowSelect
+}>
+
+/**
+ * A placed session's **Session Provenance**, as the session page shows it
+ * (ADR 0123 §5), or `null` where it has none to state.
+ *
+ * The provenance is read off the **Catalogue Entry** of the Workout the placing act copied
+ * from: the session Workout's `copiedFrom` — never the Workout's own entry
+ * (ADR 0052 §4) — and, only for an adopted session where that misses, one hop
+ * further, past the adoption fork (#460). It does **not** walk the whole chain:
+ * that would cite a Stock Workout on a session the athlete built from their own
+ * fork of it. `resolveCatalogueOrigin` keeps the full walk for the Catalogue's
+ * "adapted from" line. A retired entry still counts.
+ *
+ * The publisher's name is served only while the row is still published
+ * ({@link isPublished}, ADR 0051 §5): a taken-down row (ADR 0052 §2) or an
+ * orphan reads as "an athlete published it", with the non-vouch, and no name.
+ *
+ * One Prisma call, two levels of nested select. Without the `relationJoins`
+ * preview feature Prisma reads each nested relation in its own SQL query, so
+ * this is a constant handful of round trips per session page, not one; it runs
+ * inside the loader's `Promise.all`, so it adds no waterfall.
+ */
+export async function readPlacedProvenance(
+	workoutId: string | null | undefined,
+	adoptedAt: Date | null,
+): Promise<{ provenance: SessionProvenance; takenDown: boolean } | null> {
+	if (!workoutId) return null
+	const workout = await prisma.workout.findUnique({
+		where: { id: workoutId },
+		select: {
+			copiedFrom: {
+				select: {
+					...placedProvenanceRowSelect,
+					copiedFrom: { select: placedProvenanceRowSelect },
+				},
+			},
+		},
+	})
+	const placed = workout?.copiedFrom ?? null
+	const candidates: Array<PlacedProvenanceRow | null> = [placed]
+	if (adoptedAt != null) candidates.push(placed?.copiedFrom ?? null)
+	const row = candidates.find((candidate) => candidate?.catalogueEntry != null)
+	if (!row?.catalogueEntry) return null
+	const provenance = readSessionProvenance({
+		authorship: row.authorship,
+		description: row.description,
+		...row.catalogueEntry,
+		attribution: isPublished(row) ? row.attribution : null,
+	})
+	if (provenance.kind === 'unsourced') {
+		// Broken data, not an absence: `isPlaceable` keeps such a row out of
+		// every plan, so a placed one means the corpus drifted under it (a
+		// notice reworded, a Citation cleared). Shown as nothing, logged.
+		console.warn(
+			'readPlacedProvenance: an unsourced Catalogue row was placed',
+			{
+				workoutId: row.id,
+				sessionWorkoutId: workoutId,
+			},
+		)
+		return null
+	}
+	return {
+		provenance,
+		takenDown: row.attribution?.takenDownAt != null,
+	}
 }
 
 /**

@@ -271,7 +271,10 @@ export function StartOptionWeekView({ card }: { card: StartWeekCard }) {
 						key={day.weekday}
 						className="text-footnote grid min-h-9 grid-cols-[1.75rem_minmax(0,1fr)] items-baseline gap-x-2 py-2"
 					>
-						<span aria-hidden className="text-muted-foreground text-caption">
+						<span
+							aria-hidden
+							className="text-muted-foreground text-caption font-normal"
+						>
 							{day.short}
 						</span>
 						<span className="sr-only">{day.weekday}: </span>

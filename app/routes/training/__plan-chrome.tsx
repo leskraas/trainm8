@@ -126,14 +126,17 @@ export function PillLink({
 	to,
 	children,
 	className,
+	'aria-label': ariaLabel,
 }: {
 	to: string
 	children: ReactNode
 	className?: string
+	'aria-label'?: string
 }) {
 	return (
 		<Link
 			to={to}
+			aria-label={ariaLabel}
 			className={cn(
 				buttonVariants({ variant: 'secondary', size: 'sm' }),
 				'rounded-full px-4',
@@ -187,7 +190,7 @@ export function PlanCard({
 			aria-labelledby={titleId}
 			// 16px inside on a phone, luma's 24px from `md` (ui-conventions §1.4).
 			className={cn(
-				'text-foreground gap-4 text-base [--card-spacing:--spacing(4)] md:[--card-spacing:--spacing(6)]',
+				'text-foreground text-body gap-4 [--card-spacing:--spacing(4)] md:[--card-spacing:--spacing(6)]',
 				className,
 			)}
 		>
@@ -311,9 +314,9 @@ export function Disclosure({
 				)}
 			>
 				<span className="min-w-0 flex-1">
-					<span className="block text-sm font-medium">{summary}</span>
+					<span className="text-callout block">{summary}</span>
 					{detail ? (
-						<span className="text-muted-foreground block text-xs">
+						<span className="text-muted-foreground text-caption block font-normal">
 							{detail}
 						</span>
 					) : null}

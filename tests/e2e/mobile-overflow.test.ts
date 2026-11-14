@@ -4,13 +4,19 @@ import * as setCookieParser from 'set-cookie-parser'
 import { autoSaveImport } from '#app/utils/activity-import.server.ts'
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
+import * as corpusCitations from '#app/utils/catalogue-corpus.citations.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	createFitnessGoalEvent,
 	createPlanOutline,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
-import { expect, openPlanAdvanced, test } from '#tests/playwright-utils.ts'
+import {
+	expect,
+	openPlanAdvanced,
+	test,
+	untilHydrated,
+} from '#tests/playwright-utils.ts'
 
 // Mirrors `onboardingEmailSessionKey` in
 // `app/routes/_auth/onboarding/index.tsx`. Inlined rather than imported: that
@@ -180,6 +186,313 @@ test('the season plan does not overflow at 390px', async ({
 	await page.goto('/training/plan?tab=weeks')
 	await expect(page.getByRole('heading', { name: 'Uke for uke' })).toBeVisible()
 	await expectNoHorizontalOverflow(page)
+})
+
+test('the Plan Preview with a provenance panel open does not overflow at 390px (#475)', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(150_000)
+	const user = await login()
+	const event = await prisma.event.create({
+		data: {
+			athleteId: user.id,
+			name: `Race ${faker.string.alphanumeric(8)}`,
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date(Date.now() + 17 * 7 * 24 * 60 * 60 * 1000),
+			disciplines: JSON.stringify(['run']),
+		},
+	})
+	await page.goto(`/training/plan/generate/${event.id}?anchor-run=40`)
+	// A placed row is one button; its provenance waits behind the tap (ADR 0123).
+	const row = page.locator('[data-session-row] > button').first()
+	await expect(row).toHaveAttribute('aria-expanded', 'false')
+	await expect(page.locator('[data-provenance-panel]')).toHaveCount(0)
+	await untilHydrated(row)
+	await row.click()
+	await expect(row).toHaveAttribute('aria-expanded', 'true')
+	await expect(page.locator('[data-provenance-panel]')).toBeVisible()
+	expect(
+		(await row.boundingBox())?.height,
+		'a row is a 44px target (ADR 0028)',
+	).toBeGreaterThanOrEqual(44)
+	await expectNoHorizontalOverflow(page)
+})
+
+test('a Plan Preview panel opened just above the tab bar scrolls clear of it, with no request (#475)', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(150_000)
+	const user = await login()
+	const event = await prisma.event.create({
+		data: {
+			athleteId: user.id,
+			name: `Race ${faker.string.alphanumeric(8)}`,
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date(Date.now() + 17 * 7 * 24 * 60 * 60 * 1000),
+			disciplines: JSON.stringify(['run']),
+		},
+	})
+	await page.goto(`/training/plan/generate/${event.id}?anchor-run=40`)
+	// A placed row is one button (ADR 0123).
+	const target = page.locator('[data-session-row]').getByRole('button').nth(3)
+	await untilHydrated(target)
+	const tabBar = page.locator('[data-tab-bar]')
+	// Put the row's bottom 16 px above the tab bar: on screen, so tapping it
+	// scrolls nothing, while its panel would open behind the bar.
+	const barTop = (await tabBar.boundingBox())!.y
+	const rowBox = (await target.boundingBox())!
+	await page.evaluate(
+		(by) => window.scrollBy({ top: by, behavior: 'instant' }),
+		rowBox.y + rowBox.height - (barTop - 16),
+	)
+
+	const requests: string[] = []
+	page.on('request', (request) => {
+		if (['document', 'fetch', 'xhr'].includes(request.resourceType())) {
+			requests.push(request.url())
+		}
+	})
+	await target.click()
+	await expect(target).toHaveAttribute('aria-expanded', 'true')
+	const panel = page.locator('[data-provenance-panel]')
+	await expect(panel).toBeVisible()
+	// The panel opens (200 ms), then scrolls into view.
+	await expect
+		.poll(async () => {
+			const bottom = await panel.evaluate(
+				(el) => el.getBoundingClientRect().bottom,
+			)
+			const top = await tabBar.evaluate((el) => el.getBoundingClientRect().top)
+			return bottom - top
+		}, 'the open panel ends above the tab bar, not behind it')
+		.toBeLessThanOrEqual(0)
+	// The panel renders from the payload already on the page.
+	expect(requests, 'opening a row makes no request').toEqual([])
+})
+
+test('the season plan with all three Guard Notices in its lead does not overflow at 390px', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	// A plan that sets off every guard (ADR 0118), as e2e fixture data only:
+	// a run track that climbs faster than the convention, a lifting block the
+	// one trainable weekday cannot hold, and a session outside the block's band.
+	const goal = await createFitnessGoalEvent(user.id, {
+		name: `Race ${faker.string.alphanumeric(8)}`,
+		startDate: new Date(Date.now() + 140 * 24 * 60 * 60 * 1000),
+		disciplines: ['run'],
+	})
+	const timezone = await getAthleteTimezone(user.id)
+	const startWeekKey = weekMonday(new Date(), timezone)
+	const created = await createPlanOutline(user.id, {
+		eventId: goal.id,
+		startWeekKey,
+		structure: { presetKey: 'classic-linear' },
+		tracks: [{ discipline: 'run', currency: 'km', anchorValue: 55 }],
+	})
+	expect(created.ok, 'the plan fixture failed to author').toBe(true)
+	const outlineId = created.ok ? created.outlineId : ''
+	// The Ramp Guard: +15 % a hard week against the convention's +8 %.
+	await prisma.trainingTrackSegment.updateMany({
+		where: { track: { outlineId }, kind: 'endurance' },
+		data: { ramp: 0.15 },
+	})
+	// The band fit notice's block: maximal strength, 80–100 % 1RM.
+	await prisma.trainingTrack.create({
+		data: {
+			outlineId,
+			discipline: 'strength',
+			currency: 'sets',
+			anchors: { create: [{ fromWeekKey: startWeekKey, value: 18 }] },
+			segments: {
+				create: [
+					{
+						kind: 'strength',
+						startWeekKey,
+						weeks: 4,
+						goal: 'maximal-strength',
+						sessionsPerWeek: 3,
+					},
+				],
+			},
+		},
+	})
+	// The availability fit notice: one trainable weekday for three lifts.
+	await prisma.athleteProfile.upsert({
+		where: { userId: user.id },
+		create: { userId: user.id, trainableWeekdays: JSON.stringify([1]) },
+		update: { trainableWeekdays: JSON.stringify([1]) },
+	})
+	// A session at 60 % 1RM in the plan's first week, outside that band.
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Knebøy',
+			discipline: 'strength',
+			intent: 'strength',
+			ownerId: user.id,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						steps: {
+							create: [
+								{
+									kind: 'strength',
+									orderIndex: 0,
+									sets: {
+										create: [
+											{ orderIndex: 0, kind: 'reps', reps: 5, pct1RM: 60 },
+										],
+									},
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			workoutId: workout.id,
+			scheduledAt: new Date(`${startWeekKey}T17:00:00Z`),
+			status: 'scheduled',
+		},
+	})
+
+	await navigate('/training/plan')
+	const lead = page.locator('[data-plan-lead]')
+	const notes = lead.getByRole('note')
+	await expect(notes).toHaveCount(3)
+	await expect(
+		page.getByRole('button', { name: /^Avansert\s*Filosofi/ }),
+	).toHaveAttribute('aria-expanded', 'false')
+	await expectNoHorizontalOverflow(page)
+
+	// Every tap target in them is at least 44px: each close button, and each
+	// link's invisible hit area (ui-conventions §2.2).
+	const targets = await lead
+		.locator('[data-plan-guards] :is(a, button)')
+		.evaluateAll((elements) =>
+			elements.map((element) => {
+				const box = element.getBoundingClientRect()
+				const after = getComputedStyle(element, '::after')
+				const extend = (side: string) =>
+					after.position === 'absolute'
+						? -parseFloat(after.getPropertyValue(side)) || 0
+						: 0
+				return {
+					name: element.getAttribute('aria-label') ?? element.textContent ?? '',
+					height: box.height + extend('top') + extend('bottom'),
+					width: box.width + extend('left') + extend('right'),
+				}
+			}),
+		)
+	expect(targets.length).toBeGreaterThanOrEqual(5)
+	for (const target of targets) {
+		expect(
+			target.height,
+			`${target.name} is under 44px tall`,
+		).toBeGreaterThanOrEqual(44)
+		expect(
+			target.width,
+			`${target.name} is under 44px wide`,
+		).toBeGreaterThanOrEqual(44)
+	}
+	// Phone-sized text: 16px, never the 14px that is for `md` and up.
+	const fontSizes = await lead
+		.locator('[data-plan-guards] [data-slot=alert-description]')
+		.evaluateAll((elements) =>
+			elements.map((element) => getComputedStyle(element).fontSize),
+		)
+	expect(fontSizes).toEqual(['16px', '16px', '16px'])
+
+	// Avansert open adds no second copy.
+	await openPlanAdvanced(page)
+	await expect(page.getByRole('note')).toHaveCount(3)
+	await expectNoHorizontalOverflow(page)
+})
+
+test('a session page carrying the longest Citation and a URL locator does not overflow at 390px (#475)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	// The corpus's longest work, read from the corpus so the case follows it; a
+	// URL is the locator that cannot break at a space.
+	const longest = Object.values(corpusCitations).reduce((a, b) =>
+		b.work.length > a.work.length ? b : a,
+	)
+	// The Stock Workout is nobody's, so the user's cleanup never reaches it: it
+	// is retired from the start (a retired entry still cites, and nothing can
+	// retrieve it) and deleted when the test ends.
+	const stock = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Eksplosiv styrke for løpsøkonomi',
+			discipline: 'run',
+			intent: 'threshold',
+			archetype: 'threshold',
+			authorship: 'system',
+		},
+	})
+	await prisma.catalogueEntry.create({
+		data: {
+			workoutId: stock.id,
+			workoutAuthorship: 'system',
+			archetype: 'threshold',
+			citationAuthor: longest.author,
+			citationWork: longest.work,
+			citationYear: longest.year,
+			citationLocator:
+				'https://runningwritings.com/2023/12/percentage-based-training-for-distance-runners-a-very-long-address.html',
+			retiredAt: new Date(),
+		},
+	})
+	try {
+		const placed = await prisma.workout.create({
+			select: { id: true },
+			data: {
+				title: 'Eksplosiv styrke for løpsøkonomi',
+				discipline: 'run',
+				intent: 'threshold',
+				ownerId: user.id,
+				copiedFromId: stock.id,
+			},
+		})
+		const session = await prisma.workoutSession.create({
+			select: { id: true },
+			data: {
+				userId: user.id,
+				workoutId: placed.id,
+				scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+				status: 'scheduled',
+				source: 'generated',
+				adoptedAt: new Date(),
+			},
+		})
+		await navigate('/training/sessions/:sessionId', { sessionId: session.id })
+		const line = page.locator('[data-provenance]')
+		await expect(line).toContainText(`Endret av deg · Kilde: ${longest.author}`)
+		await expect(line.getByRole('link')).toHaveAttribute(
+			'href',
+			/^https:\/\/runningwritings\.com\//,
+		)
+		await expectNoHorizontalOverflow(page)
+	} finally {
+		await prisma.workout.delete({ where: { id: stock.id } })
+	}
 })
 
 test('the Bibliotek and Meg tabs do not overflow, and the tab bar covers no content', async ({

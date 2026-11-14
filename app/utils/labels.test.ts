@@ -82,10 +82,14 @@ import {
 	HORIZON_LABELS,
 	horizonFillLabel,
 	HELD_NUMBER_LABELS,
+	seasonAnchorDerivationSentence,
 	seasonEditSentence,
 	weekRiseSentence,
 } from './labels.ts'
-import { LOAD_RECOMPUTE_KINDS } from './load/recompute-notice.ts'
+import {
+	LOAD_RECOMPUTE_KIND_DECLARATIONS,
+	LOAD_RECOMPUTE_KINDS,
+} from './load/recompute-notice.ts'
 import { INSUFFICIENT_DATA_WHYS, NO_CHANGE_WHYS } from './load/week-replan.ts'
 import { CLASH_REASONS } from './plan-outline/day-rule.ts'
 import {
@@ -243,10 +247,28 @@ test('every branch that holds a week has its own reason, so "keep" always says w
 	)
 })
 
-test('every Load Recompute Notice kind has its own words, so none renders blank', () => {
-	for (const kind of LOAD_RECOMPUTE_KINDS) {
-		expect(RECOMPUTE_NOTICE_LABELS.copy[kind].kicker).toBeTruthy()
-		expect(RECOMPUTE_NOTICE_LABELS.copy[kind].explanation).toBeTruthy()
+test('every Load Recompute Notice kind has its own words and declares what it moved (ADR 0117)', () => {
+	// Either side may gain a kind first; both must name every kind, so a kind
+	// with copy but no declaration, or a declaration but no copy, fails here.
+	const kinds = new Set<string>([
+		...Object.keys(RECOMPUTE_NOTICE_LABELS.copy),
+		...Object.keys(LOAD_RECOMPUTE_KIND_DECLARATIONS),
+	])
+	expect([...kinds].sort()).toEqual([...LOAD_RECOMPUTE_KINDS].sort())
+	const copy: Record<string, { kicker: string; explanation: string }> =
+		RECOMPUTE_NOTICE_LABELS.copy
+	const declarations: Record<string, { moved: string }> =
+		LOAD_RECOMPUTE_KIND_DECLARATIONS
+	for (const kind of kinds) {
+		expect({ kind, ...copy[kind] }).toEqual({
+			kind,
+			kicker: expect.stringMatching(/\S/),
+			explanation: expect.stringMatching(/\S/),
+		})
+		expect({ kind, moved: declarations[kind]?.moved }).toEqual({
+			kind,
+			moved: expect.stringMatching(/^(load|prescription)$/),
+		})
 	}
 })
 
@@ -748,4 +770,21 @@ test('a chosen day that is no longer a training day is named', () => {
 	expect(L.notAvailable([5, 6])).toBe(
 		'Lørdag og søndag er ikke treningsdager lenger. Ta dem bort, eller legg dem til i profilen din.',
 	)
+})
+
+test('the Season Anchor derivation never parts a percent from its sign', () => {
+	const sentence = seasonAnchorDerivationSentence({
+		anchor: { figure: '40 km', weekNumber: 41 },
+		ramps: [{ percent: '+2,5\u00a0%', loadingWeeks: 3, phaseName: 'Base' }],
+		boundarySteps: [{ percent: '−10\u00a0%', phaseName: 'Bygg' }],
+		role: 'recovery',
+		factorPercent: 70,
+		referenceWeekNumber: 43,
+		referenceIsAnchor: false,
+		phaseName: 'Base',
+	})
+	expect(sentence).toContain('+2,5\u00a0% for hver av de 3 harde ukene')
+	expect(sentence).toContain('−10\u00a0% inn i')
+	expect(sentence).toContain('70\u00a0% av uke 43')
+	expect(sentence).not.toMatch(/\d %/)
 })

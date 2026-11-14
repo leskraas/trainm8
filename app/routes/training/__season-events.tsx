@@ -71,7 +71,7 @@ export function SeasonEvents({
 			contentClassName="space-y-4"
 		>
 			{events.length > 0 ? (
-				<ul className="divide-border/70 divide-y">
+				<ul className="divide-border/60 divide-y">
 					{events.map(seasonEventOf).map((event) => (
 						<li key={event.id}>
 							<Link
@@ -88,7 +88,7 @@ export function SeasonEvents({
 									<span className="text-callout block font-semibold [overflow-wrap:anywhere]">
 										{event.name}
 									</span>
-									<span className="text-muted-foreground text-caption block">
+									<span className="text-muted-foreground text-caption block font-normal">
 										{event.kind
 											? `${NB_EVENT_KIND_LABELS[event.kind]} · `
 											: null}

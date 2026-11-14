@@ -13,10 +13,9 @@ import {
 	getDisciplineThresholds,
 	getLedgerWeek,
 } from '../training.server.ts'
-import { deriveLedgerStatus } from '../training.ts'
 import {
 	buildWeekVolumes,
-	volumeSessionOf,
+	ledgerVolumeSessions,
 	type WeekVolumes,
 } from './week-volumes.ts'
 
@@ -53,13 +52,7 @@ export async function getWeekVolumes(
 		closed: monday <= lastClosedWeekKey(now, timezone),
 		planStartWeekKey: plan ? weekMonday(plan.planStart, timezone) : null,
 		tracks: plan?.tracks ?? [],
-		sessions: sessions.map((session) =>
-			volumeSessionOf(session, {
-				dayKey: localDate(session.scheduledAt, timezone),
-				status: deriveLedgerStatus(session, now, timezone),
-				thresholds,
-			}),
-		),
+		sessions: ledgerVolumeSessions(sessions, { now, timezone, thresholds }),
 	})
 }
 

@@ -1,17 +1,29 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
+import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
-import { NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
+import { addDays } from '#app/utils/athlete-calendar.ts'
+import {
+	DRIFT_MARK_LABEL,
+	NB_PROVENANCE_LABELS,
+	PLAN_GENERATE_LABELS,
+} from '#app/utils/labels.ts'
 import { type SeasonPreview } from '#app/utils/plan-generation/generate.server.ts'
+import { previewWeekVolumes } from '#app/utils/plan-generation/planned-volume.ts'
 import { type SessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import {
 	type GeneratedSession,
 	type GeneratedWeek,
 } from '#app/utils/plan-generation/season.ts'
 import { PERIODIZATION_PRESETS } from '#app/utils/plan-outline/presets.ts'
+import {
+	type CurrencyFigures,
+	DRIFT_TOLERANCE,
+	type VolumeSession,
+} from '#app/utils/plan-outline/week-volumes.ts'
 import { nbPresetName } from './__preset-gallery.tsx'
 import GenerateSeasonRoute from './plan.generate.$eventId.tsx'
 
@@ -53,7 +65,79 @@ function session(overrides: Partial<GeneratedSession> = {}): GeneratedSession {
 	}
 }
 
-function preview(overrides: Partial<SeasonPreview['season']> = {}) {
+/** What a placed session prescribes, as the preview's server read hands it in. */
+type Prescribed = Partial<CurrencyFigures>
+
+/**
+ * A session the week model reads, on `dayKey`: placed by the generator, or one
+ * the athlete already had (`existing`).
+ */
+function volume(
+	dayKey: string,
+	prescribed: Prescribed,
+	overrides: Partial<VolumeSession> = {},
+): VolumeSession {
+	return {
+		dayKey,
+		status: 'planned',
+		discipline: 'run',
+		easy: false,
+		prescribed: { km: null, hours: null, tss: null, sets: null, ...prescribed },
+		recorded: null,
+		plannedZones: [],
+		doneZones: [],
+		countsInNoTrack: false,
+		...overrides,
+	}
+}
+
+/**
+ * The preview the loader returns, its week figures read through the same pure
+ * model the server reads them with. By default each placed session prescribes
+ * `km` 8; `prescribed` says otherwise, one entry per session in order.
+ */
+function preview(
+	overrides: Partial<SeasonPreview['season']> = {},
+	{
+		prescribed,
+		existing = [],
+	}: { prescribed?: Prescribed[]; existing?: VolumeSession[] } = {},
+) {
+	const season: SeasonPreview['season'] = {
+		generatorId: 'deterministic-v1',
+		presetKey: 'masters-2-1-short',
+		startWeekKey: '2026-01-05',
+		eventWeekKey: '2026-03-30',
+		phases: [
+			{
+				name: 'Base',
+				weeks: 4,
+				rhythm: '2:1',
+				tapers: false,
+				cataloguePhase: 'base',
+			},
+		],
+		tracks: [{ discipline: 'run', currency: 'km', anchorValue: 40 }],
+		weeks: [week()],
+		sessions: [session()],
+		unfilled: [],
+		days: [],
+		unavailable: [],
+		weekdaySource: 'default',
+		levelFloor: 'intermediate',
+		goalEvent: '10k',
+		capacity: { kind: 'unset' },
+		placed: { kind: 'unset' },
+		...overrides,
+	}
+	const placed = season.sessions.map((placedSession, index) =>
+		volume(
+			// The day the session is placed on: its weekday in its week.
+			addDays(placedSession.weekKey, placedSession.weekday),
+			prescribed?.[index] ?? { km: 8 },
+			{ discipline: placedSession.discipline },
+		),
+	)
 	const value: SeasonPreview = {
 		event: {
 			id: 'event-1',
@@ -61,32 +145,7 @@ function preview(overrides: Partial<SeasonPreview['season']> = {}) {
 			startDate: new Date('2026-04-04T09:00:00Z'),
 			disciplines: ['run'],
 		},
-		season: {
-			generatorId: 'deterministic-v1',
-			presetKey: 'masters-2-1-short',
-			startWeekKey: '2026-01-05',
-			eventWeekKey: '2026-03-30',
-			phases: [
-				{
-					name: 'Base',
-					weeks: 4,
-					rhythm: '2:1',
-					tapers: false,
-					cataloguePhase: 'base',
-				},
-			],
-			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 40 }],
-			weeks: [week()],
-			sessions: [session()],
-			unfilled: [],
-			unavailable: [],
-			weekdaySource: 'default',
-			levelFloor: 'intermediate',
-			goalEvent: '10k',
-			capacity: { kind: 'unset' },
-			placed: { kind: 'unset' },
-			...overrides,
-		},
+		season,
 		choice: {
 			presetKey: 'masters-2-1-short',
 			startWeekKey: '2026-01-05',
@@ -98,11 +157,20 @@ function preview(overrides: Partial<SeasonPreview['season']> = {}) {
 		timezone: 'UTC',
 		proposals: [],
 		weeklyCapacityHours: null,
+		weekVolumes: previewWeekVolumes({
+			season,
+			placed,
+			existing,
+			todayKey: '2026-01-05',
+		}),
 	}
 	return value
 }
 
-function renderScreen(season: Partial<SeasonPreview['season']> = {}) {
+function renderScreen(
+	season: Partial<SeasonPreview['season']> = {},
+	figures: Parameters<typeof preview>[1] = {},
+) {
 	const approved = vi.fn()
 	const App = createRoutesStub([
 		{
@@ -111,7 +179,7 @@ function renderScreen(season: Partial<SeasonPreview['season']> = {}) {
 				<GenerateSeasonRoute {...(props as any)} />
 			),
 			loader: () => ({
-				preview: preview(season),
+				preview: preview(season, figures),
 				refusal: null,
 				nearestFit: true,
 			}),
@@ -146,18 +214,62 @@ test('nothing reaches the calendar until the athlete says so', async () => {
 	).toBeInTheDocument()
 })
 
-test('a corpus session shows its Citation in the provenance slot', async () => {
+/** A placed session's row: one button, named by its day line and title. */
+function row(title: RegExp | string) {
+	return screen.findByRole('button', {
+		name:
+			typeof title === 'string'
+				? (accessibleName: string) => accessibleName.includes(title)
+				: title,
+	})
+}
+
+test('a row carries the plan and no Session Provenance until it is tapped (ADR 0123)', async () => {
 	renderScreen()
-	const slot = await screen.findByText(
-		/Kilde: Daniels — Daniels' Running Formula \(2013\)/,
+	const button = await row('5 × 1 km @ T')
+	// Day, sport, kind, zone and title name the row.
+	expect(button).toHaveAccessibleName(
+		/Tirsdag.*Løping.*Terskel.*sone\s4.*5 × 1 km @ T/,
 	)
-	expect(slot).toBeInTheDocument()
+	expect(button).toHaveAttribute('aria-expanded', 'false')
+	expect(screen.queryByText(/Kilde:/)).not.toBeInTheDocument()
+	expect(document.querySelector('[data-provenance]')).toBeNull()
+})
+
+test('tapping a corpus row opens its Citation below it; tapping again closes it', async () => {
+	const user = userEvent.setup()
+	renderScreen()
+	const button = await row('5 × 1 km @ T')
+	await user.click(button)
+	expect(button).toHaveAttribute('aria-expanded', 'true')
+	expect(
+		await screen.findByText(
+			/Kilde: Daniels — Daniels' Running Formula \(2013\)/,
+		),
+	).toBeInTheDocument()
 	expect(
 		screen.queryByText(NB_PROVENANCE_LABELS.nonVouch),
 	).not.toBeInTheDocument()
+
+	await user.click(button)
+	expect(button).toHaveAttribute('aria-expanded', 'false')
 })
 
-test('the two uncited stock kinds say so, each in its own words', async () => {
+test('a row controls its panel only while the panel exists', async () => {
+	const user = userEvent.setup()
+	renderScreen()
+	const button = await row('5 × 1 km @ T')
+	// The panel unmounts when closed, so a closed row points at nothing.
+	expect(button).not.toHaveAttribute('aria-controls')
+
+	await user.click(button)
+	const panelId = button.getAttribute('aria-controls')
+	expect(panelId).toBeTruthy()
+	expect(document.getElementById(panelId!)).toHaveTextContent(/Kilde:/)
+})
+
+test('one panel is open across the season, and Escape closes it back onto the row', async () => {
+	const user = userEvent.setup()
 	renderScreen({
 		sessions: [
 			session({ provenance: { kind: 'convention' }, title: 'Easy 60' }),
@@ -168,27 +280,77 @@ test('the two uncited stock kinds say so, each in its own words', async () => {
 			}),
 		],
 	})
+	const easy = await row('Easy 60')
+	const shakeout = await row('Shakeout')
+
+	await user.click(easy)
 	expect(
 		await screen.findByText(
 			/Vanlig trenerpraksis — trainm8 viser ikke til noen publisert/i,
 		),
 	).toBeInTheDocument()
+
+	await user.click(shakeout)
+	expect(easy).toHaveAttribute('aria-expanded', 'false')
+	expect(shakeout).toHaveAttribute('aria-expanded', 'true')
 	expect(
-		screen.getByText(/Skrevet av trainm8 — ingen publisert kilde/i),
+		await screen.findByText(/Skrevet av trainm8 — ingen publisert kilde/i),
 	).toBeInTheDocument()
+
+	await user.keyboard('{Escape}')
+	expect(shakeout).toHaveAttribute('aria-expanded', 'false')
+	expect(shakeout).toHaveFocus()
+
+	// Enter opens it from the keyboard, as a native button does.
+	await user.keyboard('{Enter}')
+	expect(shakeout).toHaveAttribute('aria-expanded', 'true')
+})
+
+test('Escape closes the open panel wherever focus is, and returns focus to its row', async () => {
+	const user = userEvent.setup()
+	renderScreen()
+	const button = await row('5 × 1 km @ T')
+	await user.click(button)
+	expect(button).toHaveAttribute('aria-expanded', 'true')
+	// Safari does not focus a clicked button, and a click elsewhere moves focus
+	// off the row: Escape still closes the panel (ADR 0030 rule 3).
+	act(() => (document.activeElement as HTMLElement | null)?.blur())
+	expect(button).not.toHaveFocus()
+
+	await user.keyboard('{Escape}')
+	expect(button).toHaveAttribute('aria-expanded', 'false')
+	expect(button).toHaveFocus()
+})
+
+test('Escape pressed in another control closes the panel and leaves focus where the athlete is', async () => {
+	const user = userEvent.setup()
+	renderScreen()
+	const button = await row('5 × 1 km @ T')
+	await user.click(button)
+	expect(button).toHaveAttribute('aria-expanded', 'true')
+	// The athlete has moved on to another control on the page.
+	const approve = screen.getByRole('button', {
+		name: /legg denne økta i kalenderen/i,
+	})
+	act(() => approve.focus())
+
+	await user.keyboard('{Escape}')
+	expect(button).toHaveAttribute('aria-expanded', 'false')
+	expect(approve).toHaveFocus()
 })
 
 test('a community session reads the slot without a Citation, and carries the non-vouch', async () => {
 	// Generation places no community row today, but the slot reads provenance
 	// rather than assuming a Citation — so a forked or adopted session still
 	// renders honestly.
+	const user = userEvent.setup()
 	const attributed: SessionProvenance = {
 		kind: 'community',
 		attribution: { displayName: 'Jo Kraas', publishedAt: new Date(0) },
 	}
 	renderScreen({
 		sessions: [
-			session({ provenance: attributed }),
+			session({ provenance: attributed, title: 'Attributed' }),
 			session({
 				weekday: 3,
 				provenance: { kind: 'community', attribution: null },
@@ -196,11 +358,18 @@ test('a community session reads the slot without a Citation, and carries the non
 			}),
 		],
 	})
-	expect(await screen.findByText('Publisert av Jo Kraas')).toBeInTheDocument()
+	await user.click(await row('Attributed'))
+	expect(await screen.findByText(/Publisert av Jo Kraas/)).toBeInTheDocument()
+	expect(screen.getByText(NB_PROVENANCE_LABELS.nonVouch)).toBeInTheDocument()
+	expect(screen.queryByText(/Kilde:/)).not.toBeInTheDocument()
+
+	await user.click(await row('Unattributed'))
 	expect(
-		screen.getByText('Publisert av en utøver — trainm8 kan ikke si hvem.'),
+		await screen.findByText(
+			'Publisert av en utøver — trainm8 kan ikke si hvem.',
+		),
 	).toBeInTheDocument()
-	expect(screen.getAllByText(NB_PROVENANCE_LABELS.nonVouch)).toHaveLength(2)
+	expect(screen.getAllByText(NB_PROVENANCE_LABELS.nonVouch)).toHaveLength(1)
 })
 
 test('the strength Unavailable is stated before the season, not hidden inside it', async () => {
@@ -238,15 +407,177 @@ test('an empty day is named rather than backfilled', async () => {
 			/ingenting å legge inn – terskel eller under terskel i grunntrening/i,
 		),
 	).toBeInTheDocument()
+	// An absence is never behind a tap: the unfilled row is no control (#429).
+	expect(screen.queryByRole('button', { name: /Onsdag/ })).toBeNull()
 })
 
-test('a week with no Season Anchor reads “—” rather than a number nobody typed', async () => {
+// The week's two numbers (#472): its Week Target and the Planned Volume of the
+// sessions it will hold, per track, worded as Sesong words them.
+
+/** Each track row of the first week card, as text, no-break spaces as spaces. */
+async function trackRows() {
+	const [list] = await screen.findAllByRole('list', {
+		name: PLAN_GENERATE_LABELS.weekFiguresLabel,
+	})
+	// Said outright: WebKit drops the list role of a `list-style: none` list.
+	expect(list).toHaveAttribute('role', 'list')
+	return within(list!)
+		.getAllByRole('listitem')
+		.map((item) => item.textContent?.replaceAll(/[\u00a0\u2009]/g, ' '))
+}
+
+test('a week card shows each track’s target and planned figure, labelled, with units', async () => {
+	renderScreen(
+		{ sessions: [session(), session({ weekday: 3 })] },
+		{ prescribed: [{ km: 20 }, { km: 18 }] },
+	)
+	expect(await trackRows()).toEqual(['Løpingmål 40 km · planlagt 38 km'])
+	expect(screen.queryByRole('img', { name: DRIFT_MARK_LABEL })).toBeNull()
+})
+
+test('a week with no Season Anchor reads “—” for its target and still shows what is planned', async () => {
 	renderScreen({
 		weeks: [
 			week({ targets: [{ discipline: 'run', currency: 'km', value: null }] }),
 		],
 	})
-	expect(await paragraph('Løping —')).toBeInTheDocument()
+	expect(await trackRows()).toEqual([
+		`Løpingmål —${PLAN_GENERATE_LABELS.targetUnavailable} · planlagt 8 km`,
+	])
+	// The dash is not spoken: a screen reader hears the target is unavailable.
+	expect(screen.getAllByText('—', { selector: '[aria-hidden]' })).toHaveLength(
+		1,
+	)
+	expect(screen.getByText(PLAN_GENERATE_LABELS.targetUnavailable)).toHaveClass(
+		'sr-only',
+	)
+})
+
+test('a session with no number in the unit is counted apart, never as zero, and keeps a short week unmarked', async () => {
+	renderScreen(
+		{ sessions: [session(), session({ weekday: 3 })] },
+		{ prescribed: [{ km: 20 }, { km: null }] },
+	)
+	expect(await trackRows()).toEqual([
+		'Løpingmål 40 km · planlagt 20 km +1 uten km',
+	])
+	expect(screen.queryByRole('img', { name: DRIFT_MARK_LABEL })).toBeNull()
+})
+
+test('a week whose sessions all lack a number says so instead of 0 km', async () => {
+	renderScreen(
+		{ sessions: [session(), session({ weekday: 3 })] },
+		{ prescribed: [{ km: null }, { km: null }] },
+	)
+	expect(await trackRows()).toEqual([
+		'Løpingmål 40 km · planlagt 2 økter uten km',
+	])
+})
+
+test('a week with nothing placed plans 0, carries no mark, and keeps its unfilled lines', async () => {
+	renderScreen({
+		sessions: [],
+		unfilled: [
+			{
+				weekIndex: 0,
+				weekKey: '2026-01-05',
+				weekday: 2,
+				discipline: 'run',
+				slot: 'quality',
+				zone: 4,
+				archetypes: ['threshold'],
+				cataloguePhase: 'base',
+			},
+		],
+	})
+	expect(await trackRows()).toEqual(['Løpingmål 40 km · planlagt 0 km'])
+	expect(
+		screen.getByText(/ingenting å legge inn – terskel/i),
+	).toBeInTheDocument()
+})
+
+test('≠ marks a week planned more than 10 % off, per week as on Sesong, and says what it means', async () => {
+	// Run has nothing placed while bike has a session: the week has sessions, so
+	// run's 0 against 40 is marked, as Sesong marks it after approval.
+	renderScreen(
+		{
+			tracks: [
+				{ discipline: 'run', currency: 'km', anchorValue: 40 },
+				{ discipline: 'bike', currency: 'hours', anchorValue: 4 },
+			],
+			weeks: [
+				week({
+					targets: [
+						{ discipline: 'run', currency: 'km', value: 40 },
+						{ discipline: 'bike', currency: 'hours', value: 4 },
+					],
+				}),
+			],
+			sessions: [session({ discipline: 'bike' })],
+		},
+		{ prescribed: [{ hours: 4.2 }] },
+	)
+	expect(await trackRows()).toEqual([
+		'Løpingmål 40 km · planlagt 0 km ≠',
+		'Syklingmål 4 t · planlagt 4,2 t',
+	])
+	expect(screen.getByRole('img', { name: DRIFT_MARK_LABEL })).toHaveTextContent(
+		'≠',
+	)
+})
+
+test('an hours track counts a session it cannot time apart, in the existing words', async () => {
+	renderScreen(
+		{
+			tracks: [{ discipline: 'bike', currency: 'hours', anchorValue: 4 }],
+			weeks: [
+				week({
+					targets: [{ discipline: 'bike', currency: 'hours', value: 4 }],
+				}),
+			],
+			sessions: [
+				session({ discipline: 'bike' }),
+				session({ discipline: 'bike', weekday: 3 }),
+			],
+		},
+		{ prescribed: [{ hours: 3 }, { hours: null }] },
+	)
+	expect(await trackRows()).toEqual([
+		'Syklingmål 4 t · planlagt 3 t +1 uten timer',
+	])
+})
+
+test('a session the athlete already has in the week is counted, and the card says so', async () => {
+	renderScreen(
+		{},
+		{
+			prescribed: [{ km: 20 }],
+			existing: [volume('2026-01-10', { km: 16 })],
+		},
+	)
+	expect(await trackRows()).toEqual(['Løpingmål 40 km · planlagt 36 km'])
+	expect(
+		screen.getByText(PLAN_GENERATE_LABELS.alreadyInWeek(1)),
+	).toBeInTheDocument()
+})
+
+test('the page says once, above the weeks, that sessions are placed as published', async () => {
+	renderScreen({
+		weeks: [week(), week({ weekIndex: 1, weekKey: '2026-01-12' })],
+	})
+	// `findByText` throws on a second match, so this is "said once".
+	const sentence = await screen.findByText((_, element) =>
+		element?.tagName === 'P'
+			? element.textContent ===
+				PLAN_GENERATE_LABELS.placedAsPublished(DRIFT_TOLERANCE * 100)
+			: false,
+	)
+	expect(sentence).toHaveTextContent(/≠ betyr at planlagt er mer enn 10 %/)
+	expect(
+		screen.getAllByRole('list', {
+			name: PLAN_GENERATE_LABELS.weekFiguresLabel,
+		}),
+	).toHaveLength(2)
 })
 
 test('the one question and the pre-selected shape read in Norwegian, as Sesong names them', async () => {

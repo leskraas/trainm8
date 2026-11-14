@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest'
+import { fillKeptSlots, keptSlotsOf } from './kept-slots.ts'
 import {
-	fillKeptSlots,
-	keptSlotsOf,
 	mixDisagreements,
 	planStamp,
 	type StampSession,

@@ -46,6 +46,7 @@ write only to the evidence folder.
   `duplicate_of`; or `blocked`.
 - **comment**, about twenty lines: the verdict and one line on why; whether
   the claims hold, with evidence; the blast radius; the door; the root cause
-  or the approach you would take; last, the open questions a human or the
-  spec must settle. An empty list of questions is a claim, and usually a
-  wrong one. A duplicate's comment is one line: why it is the same issue.
+  or the approach you would take; last, the open questions whose answer would
+  change what gets built, each with the answer you would bet on. An empty list
+  is a fine answer when the claims hold. A duplicate's comment is one line:
+  why it is the same issue.

@@ -177,26 +177,31 @@ export function ValidationSummaryLine({
 			// Focusable so the editor can land here when nothing anchors a
 			// rejection — §11.6's zero-step floor.
 			tabIndex={-1}
+			// Dark `foreground-destructive` reads 4.48:1 on the editor's muted/50
+			// well (under AA), so the lines take `destructive` in dark, as the
+			// overlay leads below do.
 			className={cn(
-				'text-body-xs mt-2 flex flex-col gap-1 pt-2 outline-none',
+				'text-footnote mt-2 flex flex-col gap-1 pt-2 outline-none',
 				className,
 			)}
 		>
-			<p className="text-destructive font-medium">
+			<p className="text-foreground-destructive dark:text-destructive font-medium">
 				{describeErrorCount(items.length)}
 			</p>
 			<ul className="flex flex-col gap-0.5">
 				{items.map((item) => (
 					<li key={item.path} data-validation-summary-item>
 						{item.anchor.level === 'floor' ? (
-							<span className="text-destructive/90">{item.message}</span>
+							<span className="text-foreground-destructive dark:text-destructive">
+								{item.message}
+							</span>
 						) : (
 							<button
 								type="button"
 								onClick={() => onActivate(item)}
 								// A real 44px row (ADR 0028): `after:` hit areas would overlap
 								// their neighbours in a list this tight and steal the tap.
-								className="text-destructive inline-flex min-h-11 cursor-pointer items-center text-left underline-offset-2 hover:underline focus-visible:underline"
+								className="text-foreground-destructive dark:text-destructive inline-flex min-h-11 cursor-pointer items-center text-left underline-offset-2 hover:underline focus-visible:underline"
 							>
 								{item.message}
 							</button>
@@ -227,7 +232,7 @@ export function MenuErrorLead({ message }: { message: string | null }) {
 	return (
 		<div
 			data-slot="menu-error"
-			className="text-destructive max-w-64 px-2 py-1.5 text-xs font-normal text-wrap"
+			className="text-foreground-destructive dark:text-destructive text-footnote max-w-64 px-2 py-1.5 font-normal text-wrap"
 		>
 			{message}
 		</div>
@@ -250,7 +255,10 @@ export function PopoverErrorLead({
 	return (
 		<div data-slot="popover-error" className="flex flex-col gap-1">
 			{present.map((message) => (
-				<p key={message} className="text-destructive text-xs">
+				<p
+					key={message}
+					className="text-foreground-destructive dark:text-destructive text-footnote"
+				>
 					{message}
 				</p>
 			))}

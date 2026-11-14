@@ -115,6 +115,7 @@ import {
 	type PresetPhase,
 } from './presets.ts'
 import { proposeTrack } from './proposal.ts'
+import { editAnchorList } from './season-anchors.ts'
 import {
 	proposeStarterPattern,
 	type StarterProposal,
@@ -1100,30 +1101,24 @@ export async function removeSeasonAnchorSegment(
 	const remove = SeasonAnchorRemoveSchema.parse(input)
 
 	// The track's whole anchor list, because "is this the earliest one" is a
-	// question about the siblings and not about the row. Ordered by the week key,
-	// which sorts chronologically because it is `YYYY-MM-DD`.
+	// question about the siblings and not about the row.
 	const track = await prisma.trainingTrack.findFirst({
 		where: { id: remove.trackId, outline: { athleteId } },
 		select: {
 			id: true,
-			anchors: {
-				select: { fromWeekKey: true, value: true },
-				orderBy: { fromWeekKey: 'asc' },
-			},
+			anchors: { select: { fromWeekKey: true, value: true } },
 		},
 	})
 	if (!track) return { ok: false, reason: 'track-not-found' }
 
-	const held = track.anchors.find(
-		(anchor) => anchor.fromWeekKey === remove.fromWeekKey,
-	)
-	if (!held) return { ok: false, reason: 'anchor-not-found' }
-	// A retirement anchor is the athlete's "I stopped" from _Meg_ (ADR 0109
-	// §3): taking it away would bring the sport back with no days to lay.
-	if (held.value === 0) return { ok: false, reason: 'retired-track' }
-	if (track.anchors[0]?.fromWeekKey === remove.fromWeekKey) {
-		return { ok: false, reason: 'earliest-anchor' }
-	}
+	// The list's own rule, shared with the Sesong edit's preview (ADR 0122 §1),
+	// so the two writers cannot disagree about which segment may go — a
+	// retirement anchor (ADR 0109 §3) included.
+	const edited = editAnchorList(track.anchors, {
+		action: 'remove',
+		fromWeekKey: remove.fromWeekKey,
+	})
+	if (!edited.ok) return edited
 
 	await prisma.seasonAnchorSegment.deleteMany({
 		where: { trackId: track.id, fromWeekKey: remove.fromWeekKey },

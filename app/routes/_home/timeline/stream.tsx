@@ -74,7 +74,6 @@ import {
 	ANNET_ACTION_LABELS,
 	CAP_LABELS,
 	DAY_ROW_LABELS,
-	DRIFT_MARK,
 	HORIZON_LABELS,
 	IMPORT_LINK_LABELS,
 	ownerGlyphName,
@@ -104,6 +103,7 @@ import {
 import { type RowChipTone } from './row-content.ts'
 import { TITLE_INSET, TITLE_INSET_BOX } from './row-inset.ts'
 import { StrengthLogPanel } from './strength-log-panel.tsx'
+import { DriftMark, TRACK_INK } from './track-marks.tsx'
 import {
 	TODAY_ATTR,
 	WEEK_ATTR,
@@ -233,7 +233,7 @@ function HorizonDivider({ far }: { far: boolean }) {
 			data-horizon-divider
 			role="separator"
 			aria-label={`${HORIZON_LABELS.name}: ${far ? HORIZON_LABELS.far : HORIZON_LABELS.plan}`}
-			className="border-foreground/30 bg-background text-muted-foreground text-caption flex min-h-11 items-center gap-1.5 border-t-[1.5px] border-dashed px-4 pt-3 pb-2"
+			className="border-foreground/30 bg-background text-muted-foreground text-caption flex min-h-11 items-center gap-1.5 border-t-[1.5px] border-dashed px-4 pt-3 pb-2 font-normal"
 		>
 			<span className="text-foreground text-overline uppercase">
 				{HORIZON_LABELS.name}
@@ -606,16 +606,7 @@ export function TrackLine({
 						/>
 						<span className="text-muted-foreground">{track.unit}</span>
 					</span>
-					{track.driftLabel ? (
-						<span
-							role="img"
-							aria-label={track.driftLabel}
-							title={track.driftLabel}
-							className="text-status-under font-bold"
-						>
-							{DRIFT_MARK}
-						</span>
-					) : null}
+					{track.driftLabel ? <DriftMark label={track.driftLabel} /> : null}
 					{track.gradeLabel ? (
 						<span
 							data-week-grade={track.grade.status}
@@ -671,14 +662,6 @@ const TRACK_BORDER: Record<string, string> = {
 	bike: 'border-track-bike',
 	swim: 'border-track-swim',
 	strength: 'border-track-strength',
-}
-/** A track's name in its own colour: the `-ink` step of the hue, ≥ 5:1 on the
- * card and the page in both themes (#505 round 2). */
-const TRACK_INK: Record<string, string> = {
-	run: 'text-track-run-ink',
-	bike: 'text-track-bike-ink',
-	swim: 'text-track-swim-ink',
-	strength: 'text-track-strength-ink',
 }
 
 /** The done figure's colour: the verdict's, only once there is one. */
@@ -790,16 +773,7 @@ function TrackMeter({
 						· {track.sessionsLabel}
 					</span>
 				) : null}
-				{track.driftLabel ? (
-					<span
-						role="img"
-						aria-label={track.driftLabel}
-						title={track.driftLabel}
-						className="text-status-under font-bold"
-					>
-						{DRIFT_MARK}
-					</span>
-				) : null}
+				{track.driftLabel ? <DriftMark label={track.driftLabel} /> : null}
 				{track.gradeLabel ? (
 					<span
 						data-week-grade={track.grade.status}
@@ -1530,7 +1504,7 @@ export function StartCap({
 	reachWeeks: number
 }) {
 	return (
-		<div className="border-border flex flex-col gap-1 border-b px-4 pt-5 pb-3.5">
+		<div className="border-border/60 flex flex-col gap-1 border-b px-4 pt-5 pb-3.5">
 			<span className="text-muted-foreground text-footnote font-semibold">
 				{CAP_LABELS.readsBackTo(reachesBackToLabel)}
 			</span>
@@ -1560,7 +1534,7 @@ export function EndCap({ cap }: { cap: TimelineEndCap }) {
 	return (
 		<div
 			data-end-cap={cap.plan}
-			className="border-border flex flex-col gap-2.5 border-t p-4"
+			className="border-border/60 flex flex-col gap-2.5 border-t p-4"
 		>
 			<span className="text-foreground text-callout font-semibold">
 				{CAP_LABELS.writtenThrough(cap.writtenThroughLabel)}

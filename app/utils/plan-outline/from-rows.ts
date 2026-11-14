@@ -254,24 +254,7 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 	)
 
 	return rows.tracks.map((track) => {
-		const spec: TrackSpec = {
-			currency: track.currency as VolumeCurrency,
-			anchors: track.anchors.map((anchor) => ({
-				fromWeekIndex: weekIndexOf(rows.startWeekKey, anchor.fromWeekKey),
-				value: anchor.value,
-			})),
-			// Both kinds are resolved. A strength segment is no longer filtered out
-			// here — ADR 0047 §1 gives it the same anchor-and-ramp progression, so what
-			// it needs is a derivation walk of its own, not exclusion from the spec.
-			segments: track.segments.flatMap((segment) =>
-				segmentSpec(segment, rows.startWeekKey, phaseIndexById),
-			),
-			overrides: track.overrides.map((override) => ({
-				weekIndex: weekIndexOf(rows.startWeekKey, override.weekKey),
-				value: override.value,
-			})),
-		}
-
+		const spec = trackSpecOf(rows, track, phaseIndexById)
 		const discipline = track.discipline as Discipline
 		const walk = walkFor(discipline)
 
@@ -304,6 +287,43 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 			warnings: rampWarnings(phases, spec.segments),
 		}
 	})
+}
+
+/**
+ * One stored track as the derivation's input, in index space — what
+ * `resolvedTracks` prices, for a caller that asks `derive.ts` one more
+ * question of the same spec (the derivation behind a week, ADR 0122 §1).
+ */
+export function trackSpec(rows: OutlineRows, track: TrackRow): TrackSpec {
+	return trackSpecOf(
+		rows,
+		track,
+		new Map(orderedPhases(rows).map((phase, index) => [phase.id, index])),
+	)
+}
+
+function trackSpecOf(
+	rows: OutlineRows,
+	track: TrackRow,
+	phaseIndexById: Map<string, number>,
+): TrackSpec {
+	return {
+		currency: track.currency as VolumeCurrency,
+		anchors: track.anchors.map((anchor) => ({
+			fromWeekIndex: weekIndexOf(rows.startWeekKey, anchor.fromWeekKey),
+			value: anchor.value,
+		})),
+		// Both kinds are resolved. A strength segment is no longer filtered out
+		// here — ADR 0047 §1 gives it the same anchor-and-ramp progression, so what
+		// it needs is a derivation walk of its own, not exclusion from the spec.
+		segments: track.segments.flatMap((segment) =>
+			segmentSpec(segment, rows.startWeekKey, phaseIndexById),
+		),
+		overrides: track.overrides.map((override) => ({
+			weekIndex: weekIndexOf(rows.startWeekKey, override.weekKey),
+			value: override.value,
+		})),
+	}
 }
 
 /**

@@ -43,7 +43,6 @@ import {
 import { outlineFamily } from '../plan-outline/presets.ts'
 import {
 	readHeldSessions,
-	readKeptSlots,
 	stampWeekPattern,
 } from '../plan-outline/stamp.server.ts'
 import { PROPOSED_STRENGTH_GOAL } from '../plan-outline/strength-offer.server.ts'
@@ -52,6 +51,7 @@ import { isPatternWeekday } from '../plan-outline/week-pattern.ts'
 import {
 	clearPlanWeek,
 	KEPT_PLAN_SESSION,
+	readKeptSlots,
 } from '../plan-outline/week-sessions.server.ts'
 import { plannedMinutes } from '../prescribed-duration.ts'
 import { createSimpleActivityWorkout } from '../simple-activity.server.ts'
