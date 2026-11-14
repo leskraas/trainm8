@@ -10,14 +10,13 @@ import { ACTION_TITLE_LABELS, ACTION_VALUE_LABELS } from '#app/utils/labels.ts'
 import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
 import {
 	buildWeekVolumes,
-	volumeSessionOf,
+	ledgerVolumeSessions,
 } from '#app/utils/plan-outline/week-volumes.ts'
 import {
 	getActivePlan,
 	getDisciplineThresholds,
 	ledgerSessionSelect,
 } from '#app/utils/training.server.ts'
-import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { defineAction } from './define.ts'
 import {
 	platformsOver,
@@ -101,13 +100,10 @@ export const getSeasonAction = defineAction({
 		])
 		const todayKey = localDate(ctx.now, ctx.timezone)
 		const closedKey = lastClosedWeekKey(ctx.now, ctx.timezone)
-		const sessions = rows.map((session) => {
-			const dayKey = localDate(session.scheduledAt, ctx.timezone)
-			return volumeSessionOf(session, {
-				dayKey,
-				status: deriveLedgerStatus(session, ctx.now, ctx.timezone),
-				thresholds,
-			})
+		const sessions = ledgerVolumeSessions(rows, {
+			now: ctx.now,
+			timezone: ctx.timezone,
+			thresholds,
 		})
 
 		// The athlete typed the event's name: it crosses as theirs (ADR 0092 §7).

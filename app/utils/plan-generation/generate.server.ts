@@ -78,8 +78,8 @@ import {
 import { readConversionContexts } from '../plan-outline/volume-conversion.server.ts'
 import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
 import {
-	prescriptionVolumeOf,
-	volumeSessionOf,
+	ledgerVolumeSessions,
+	placedVolumeSession,
 } from '../plan-outline/week-volumes.ts'
 import { getDisciplineThresholds, getLedgerWeeks } from '../training.server.ts'
 import { deriveLedgerStatus } from '../training.ts'
@@ -531,7 +531,7 @@ export async function previewSeason(
  * ({@link readStockWorkouts}, the one reader `writeSessions` uses too), on the
  * day and with the status it will have once written ({@link placedAt}). The
  * athlete's sessions already in the season's weeks come in one range read with
- * the ledger's select and through `volumeSessionOf`, as _Sesong_ reads them:
+ * the ledger's select and through `ledgerVolumeSessions`, as _Sesong_ reads them:
  * approval deletes none of them, so the week's planned figure counts them. A
  * placed session whose Stock Workout is gone is left out, as approval leaves it
  * out. Nothing is resolved, rescaled or written (ADR 0053 §6, §8).
@@ -566,27 +566,18 @@ async function readPreviewWeekVolumes(
 			if (!workout) return []
 			const scheduledAt = placedAt(session, trainingTime, timezone)
 			return [
-				{
-					...prescriptionVolumeOf(workout, { thresholds }),
+				placedVolumeSession(workout, {
 					dayKey: addDays(session.weekKey, session.weekday),
 					status: deriveLedgerStatus(
-						{ status: 'scheduled', scheduledAt },
+						{ status: PLACED_STATUS, scheduledAt },
 						now,
 						timezone,
 					),
-					recorded: null,
-					doneZones: [],
-					countsInNoTrack: false,
-				},
+					thresholds,
+				}),
 			]
 		}),
-		existing: existing.map((session) =>
-			volumeSessionOf(session, {
-				dayKey: localDate(session.scheduledAt, timezone),
-				status: deriveLedgerStatus(session, now, timezone),
-				thresholds,
-			}),
-		),
+		existing: ledgerVolumeSessions(existing, { now, timezone, thresholds }),
 	})
 }
 
@@ -731,7 +722,7 @@ async function writeSessions(
 					userId: athleteId,
 					workoutId: copy.id,
 					scheduledAt: placedAt(session, trainingTime, timezone),
-					status: 'scheduled',
+					status: PLACED_STATUS,
 					source: 'generated',
 					targetEventId: eventId,
 					// The plan that laid it: what clearing and counting scope by (ADR 0079).
@@ -782,6 +773,9 @@ const stockWorkoutSelect = {
 type StockWorkout = Prisma.WorkoutGetPayload<{
 	select: typeof stockWorkoutSelect
 }>
+
+/** The status a placed session is written with, and previewed as. */
+const PLACED_STATUS = 'scheduled'
 
 /**
  * When a placed session is written: its weekday in its week, at the athlete's

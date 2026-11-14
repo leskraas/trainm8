@@ -27,7 +27,7 @@
 // the edge — `labels.ts` owns the Norwegian (ADR 0081) and the home presenter
 // applies it — so `labels.ts` can name these codes by type alone.
 
-import { addDays, weekdayIndex } from '../athlete-calendar.ts'
+import { addDays, localDate, weekdayIndex } from '../athlete-calendar.ts'
 import { sumBlockSets } from '../dashboard.ts'
 import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import {
@@ -51,7 +51,11 @@ import {
 	type SimpleActivityWorkout,
 } from '../simple-activity.ts'
 import { type LedgerSession } from '../training.server.ts'
-import { getSessionDiscipline, type LedgerStatus } from '../training.ts'
+import {
+	deriveLedgerStatus,
+	getSessionDiscipline,
+	type LedgerStatus,
+} from '../training.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
 	roundToCurrency,
@@ -340,6 +344,56 @@ export function prescriptionVolumeOf(
 				),
 			) ?? [],
 	}
+}
+
+/**
+ * A session not yet written, as the week model will read it once it is: its
+ * Workout through {@link prescriptionVolumeOf}, on its day and with its status,
+ * nothing recorded and in no Annet by choice. The generate preview reads each
+ * session it places through it (ADR 0119 §3), with no fake ledger row.
+ */
+export function placedVolumeSession(
+	workout: PrescriptionWorkout,
+	{
+		dayKey,
+		status,
+		thresholds,
+	}: {
+		dayKey: string
+		status: LedgerStatus
+		thresholds: DisciplineThresholdMap
+	},
+): VolumeSession {
+	return {
+		...prescriptionVolumeOf(workout, { thresholds }),
+		dayKey,
+		status,
+		recorded: null,
+		doneZones: [],
+		countsInNoTrack: false,
+	}
+}
+
+/**
+ * Ledger rows as the week model reads them: each on its local day in the
+ * Athlete Timezone, with the status the ledger derives for it at `now`. The one
+ * mapping _Sesong_'s readers and the generate preview share.
+ */
+export function ledgerVolumeSessions(
+	rows: readonly LedgerSession[],
+	{
+		now,
+		timezone,
+		thresholds,
+	}: { now: Date; timezone: string; thresholds: DisciplineThresholdMap },
+): VolumeSession[] {
+	return rows.map((session) =>
+		volumeSessionOf(session, {
+			dayKey: localDate(session.scheduledAt, timezone),
+			status: deriveLedgerStatus(session, now, timezone),
+			thresholds,
+		}),
+	)
 }
 
 /**
