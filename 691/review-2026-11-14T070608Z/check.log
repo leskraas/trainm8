@@ -1,0 +1,14 @@
+✖ 153 problems (0 errors, 153 warnings)
+  0 errors and 5 warnings potentially fixable with the `--fix` option.
+
+> typecheck
+> react-router typegen && tsc
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/27]⎯
+
+
+ Test Files  9 failed | 421 passed (430)
+      Tests  24 failed | 6518 passed (6542)
+   Start at  06:37:06
+   Duration  447.92s (transform 26.15s, setup 309.62s, import 128.12s, tests 800.95s, environment 38.81s)
+
