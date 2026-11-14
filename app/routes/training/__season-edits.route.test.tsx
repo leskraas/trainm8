@@ -392,3 +392,30 @@ test('the confirm takes no second tap while the edit is being applied', async ()
 	fireEvent.click(confirm)
 	await waitFor(() => expect(confirm).toBeDisabled())
 })
+
+test('a refused value change names only the lived weeks its segment covers', async () => {
+	// Segments from uke 51 and uke 1; the first unbegun week is uke 2. The
+	// segment from uke 51 stops where the next one starts: it covers 51–52,
+	// not 51–1.
+	const choice = anchorChoice([
+		{ fromWeekKey: '2029-12-17', value: 30 },
+		{ fromWeekKey: '2029-12-31', value: 34 },
+	])
+	renderAnchorEdit(choice, {
+		edit: 'season-anchor',
+		refusal: 'segment-lived',
+		result: {
+			status: 'error',
+			initialValue: {
+				trackId: RUN,
+				action: 'set',
+				setWeekKey: '2029-12-17',
+				setValue: '50',
+			},
+			error: {},
+		},
+	})
+
+	const refusal = await screen.findByText(/Startnivået fra uke 51/)
+	expect(refusal).toHaveTextContent('gjelder også uke 51–52, som du har trent')
+})

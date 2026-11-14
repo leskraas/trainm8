@@ -1195,6 +1195,16 @@ function SeasonAnchorEdit({
 	const lived = reply?.refusal === 'segment-lived'
 	const offer = lived && reply?.offer?.action !== 'remove' ? reply?.offer : null
 	const livedFrom = form.value?.setWeekKey ?? shownEdit?.fromWeekKey
+	// The lived weeks the segment covers: up to the week before the first
+	// unbegun one, or before the next segment when that one took over first.
+	const nextSegment = track.anchors.find(
+		(anchor) => livedFrom != null && anchor.fromWeekKey > livedFrom,
+	)
+	const livedTo = weekBefore(
+		nextSegment && nextSegment.fromWeekKey < firstUnbegunWeekKey
+			? nextSegment.fromWeekKey
+			: firstUnbegunWeekKey,
+	)
 
 	const act = (name: 'add' | 'set' | 'remove') =>
 		action === name ? undefined : true
@@ -1224,7 +1234,7 @@ function SeasonAnchorEdit({
 							{livedFrom
 								? SEASON_ANCHOR_EDIT_LABELS.lived(
 										isoWeekNumber(livedFrom),
-										isoWeekNumber(weekBefore(firstUnbegunWeekKey)),
+										isoWeekNumber(livedTo),
 									)
 								: SEASON_EDIT_REFUSAL_LABELS['segment-lived']}
 						</p>
