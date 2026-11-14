@@ -115,7 +115,7 @@ export async function eraseOrphanedWorkouts(
  * athlete's row or at an Orphaned Workout. They stay as the guard the rule
  * states, for a row a future path or an unmigrated database could still hold.
  */
-function scopeQueries(scope: ErasureScope): {
+function scopeFilters(scope: ErasureScope): {
 	candidates: Prisma.WorkoutWhereInput
 	heldElsewhere: Prisma.WorkoutWhereInput
 } {
@@ -152,8 +152,8 @@ async function erase(
 	tx: Prisma.TransactionClient,
 	scope: ErasureScope,
 ): Promise<AccountErasure> {
-	const { candidates, heldElsewhere } = scopeQueries(scope)
-	const rows = await tx.workout.findMany({
+	const { candidates, heldElsewhere } = scopeFilters(scope)
+	const candidateRows = await tx.workout.findMany({
 		where: candidates,
 		select: { id: true, copiedFromId: true },
 	})
@@ -163,7 +163,7 @@ async function erase(
 	})
 	const kept = new Set(heldRows.map((row) => row.id))
 	const parentOf = new Map(
-		rows
+		candidateRows
 			.filter((row) => !kept.has(row.id))
 			.map((row) => [row.id, row.copiedFromId]),
 	)
