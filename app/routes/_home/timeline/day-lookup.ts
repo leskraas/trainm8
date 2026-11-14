@@ -2,7 +2,7 @@
  * A day of the season by its key, and its name — read by the day pane, the
  * Sheet and the composer, so the three name a day the same way.
  */
-import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
+import { mondayOfDay, weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { dayPaneTitle } from '#app/utils/labels.ts'
 import {
 	type TimelineDay,
@@ -20,8 +20,9 @@ export function findDay(
 	weeks: readonly TimelineWeek[],
 	key: string,
 ): { week: TimelineWeek; day: TimelineDay } | null {
+	const monday = mondayOfDay(key)
 	for (const week of weeks) {
-		if (key < week.key || key > addDays(week.key, 6)) continue
+		if (week.key !== monday) continue
 		const day = weekDays(week).find((row) => row.key === key)
 		return day ? { week, day } : null
 	}
