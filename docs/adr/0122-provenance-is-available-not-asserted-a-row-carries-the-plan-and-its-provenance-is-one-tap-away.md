@@ -111,4 +111,10 @@ reached the calendar.
   Shared Workout was itself adapted from a Stock Workout, a session placed from
   it then reads the Stock Workout's Citation once its publisher deletes their
   account. This is the one path by which community content can still look cited,
-  and it is owed the same `poc` follow-up.
+  and it is owed the same `poc` follow-up. Where the Shared Workout has no
+  surviving ancestor, the splice leaves `copiedFromId` null: the session then
+  has no line at all, and a community session loses its non-vouch with its
+  byline. The boot job that erases older orphans (#468) runs the same splice, so
+  a community row whose publisher was deleted before account erasure existed
+  ends the same way. Both are owed the same follow-up: a splice that keeps a
+  community reading.
