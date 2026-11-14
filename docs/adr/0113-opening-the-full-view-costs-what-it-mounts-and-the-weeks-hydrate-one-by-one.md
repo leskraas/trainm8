@@ -185,7 +185,10 @@ these, in order, re-measuring after each:
   entries, and parses only what starts with `{`.
 - **The fallback is built**: the server renders this week and the next
   (`AHEAD_LANDING`), and an effect appends the rest of `AHEAD_INITIAL` in a
-  transition once the frame has hydrated, below the reader.
+  transition once the frame has hydrated, below the reader. Until it lands,
+  the list ends in a screen's height of room (`h-dvh`): two weeks can be
+  shorter than the Stream on a tall screen or a late-week landing, and the
+  landing would be clamped short of its target and move once the weeks came.
 - **What is left is not the presenter or hydration.** After both, at 4×, the
   longest task is 1.6% longer than the seed season's by URL and 2.6% by
   navigation, and "hydrated" is 20.7% later pooled over 24 interleaved runs
