@@ -110,6 +110,7 @@ import {
 	presetWeeks,
 	type PresetKey,
 } from '#app/utils/plan-outline/presets.ts'
+import { DRIFT_TOLERANCE } from '#app/utils/plan-outline/week-volumes.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.generate.$eventId.ts'
 import { CollapsibleSection, PlanCard } from './__plan-chrome.tsx'
@@ -378,7 +379,7 @@ export default function GenerateSeasonRoute({
 					/>
 					{/* Once, above the weeks, never on a card (#472). */}
 					<p className="text-footnote text-muted-foreground">
-						{L.placedAsPublished}
+						{L.placedAsPublished(DRIFT_TOLERANCE * 100)}
 					</p>
 				</div>
 				<ul className="space-y-3">

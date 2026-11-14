@@ -132,11 +132,13 @@ export const PLAN_GENERATE_LABELS = {
 	/**
 	 * Said once under «Sesongen», never on a card (#472): why a week's target and
 	 * the sum of its sessions can be two numbers (ADR 0053 §6), and what `≠`
-	 * means, since the preview has no meter or tooltip to teach it. `≠ betyr` and
-	 * `10 %` are held together by no-break spaces.
+	 * means, since the preview has no meter or tooltip to teach it. The percent
+	 * is the caller's (`DRIFT_TOLERANCE`, which this runtime leaf does not
+	 * import), so the sentence and the mark never disagree. `≠ betyr` and the
+	 * percent are held together by no-break spaces.
 	 */
-	placedAsPublished:
-		'Øktene legges inn slik kilden publiserte dem og skaleres aldri for å treffe ukemålet, så målet og summen av øktene kan være to ulike tall. ≠\u00a0betyr at planlagt er mer enn 10\u00a0% unna målet.',
+	placedAsPublished: (percent: number) =>
+		`Øktene legges inn slik kilden publiserte dem og skaleres aldri for å treffe ukemålet, så målet og summen av øktene kan være to ulike tall. ≠\u00a0betyr at planlagt er mer enn ${Math.round(percent)}\u00a0% unna målet.`,
 	/**
 	 * What a screen reader hears for a Week Target that is an **Unavailable
 	 * Metric**, where the card shows `—`, which is not spoken.

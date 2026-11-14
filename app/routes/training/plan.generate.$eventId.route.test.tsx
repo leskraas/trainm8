@@ -21,6 +21,7 @@ import {
 import { PERIODIZATION_PRESETS } from '#app/utils/plan-outline/presets.ts'
 import {
 	type CurrencyFigures,
+	DRIFT_TOLERANCE,
 	type VolumeSession,
 } from '#app/utils/plan-outline/week-volumes.ts'
 import { nbPresetName } from './__preset-gallery.tsx'
@@ -567,7 +568,8 @@ test('the page says once, above the weeks, that sessions are placed as published
 	// `findByText` throws on a second match, so this is "said once".
 	const sentence = await screen.findByText((_, element) =>
 		element?.tagName === 'P'
-			? element.textContent === PLAN_GENERATE_LABELS.placedAsPublished
+			? element.textContent ===
+					PLAN_GENERATE_LABELS.placedAsPublished(DRIFT_TOLERANCE * 100)
 			: false,
 	)
 	expect(sentence).toHaveTextContent(/≠ betyr at planlagt er mer enn 10 %/)
