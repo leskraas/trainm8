@@ -17,7 +17,7 @@ import { FeelingFlow, LiftsSummary, LiveChange } from './__flows.tsx'
 import { cap, longDate, num1 } from './__fmt.ts'
 import { IconCheck } from './__icons.tsx'
 import { FocusCard } from './__overlay.tsx'
-import { Bubble, Chip, Chips, Turn } from './__ui.tsx'
+import { Bubble, Chip, Chips, Turn, cx } from './__ui.tsx'
 
 export async function loader({ request, params }: Route.LoaderArgs) {
 	const r = await run<StrengthSessionOutput>(request, 'strength_session', {
@@ -430,9 +430,7 @@ function SetRow({
 
 	return (
 		<div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-			<div
-				className={`prat-set${set.warmup ? 'warm' : ''}${done ? 'done' : ''}`}
-			>
+			<div className={cx('prat-set', set.warmup && 'warm', done && 'done')}>
 				<span className="idx num" title={set.warmup ? 'Oppvarming' : undefined}>
 					{n}
 				</span>

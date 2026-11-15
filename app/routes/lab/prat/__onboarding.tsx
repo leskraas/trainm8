@@ -37,6 +37,7 @@ import {
 	Turn,
 	Typing,
 	WeekdayToggles,
+	cx,
 } from './__ui.tsx'
 
 type StepKey =
@@ -816,7 +817,7 @@ export function IntervalsCard({ onDone }: { onDone?: (ok: boolean) => void }) {
 			<Chips>
 				<button
 					type="submit"
-					className={`prat-chip primary${busy ? 'busy' : ''}`}
+					className={cx('prat-chip', 'primary', busy && 'busy')}
 					disabled={busy || !key.trim()}
 				>
 					<span>{busy ? 'Kobler til …' : 'Koble til'}</span>
@@ -842,7 +843,7 @@ export function UploadCard({
 				20 filer om gangen.
 			</span>
 			<label
-				className={`prat-chip primary${busy ? 'busy' : ''}`}
+				className={cx('prat-chip', 'primary', busy && 'busy')}
 				style={{ alignSelf: 'flex-start' }}
 			>
 				<span>{busy ? 'Laster opp …' : 'Velg filer'}</span>
@@ -1153,7 +1154,7 @@ export function GoalForm({
 			<Chips>
 				<button
 					type="submit"
-					className={`prat-chip primary${busy ? 'busy' : ''}`}
+					className={cx('prat-chip', 'primary', busy && 'busy')}
 					disabled={busy || !name.trim() || !date}
 				>
 					<span>Lagre målet</span>

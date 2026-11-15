@@ -23,6 +23,11 @@ import {
 } from './__lib.ts'
 import { markUndone, usePsLines, type PsLine } from './__ps.ts'
 
+/** Class names joined with spaces, falsy ones dropped. */
+export function cx(...names: Array<string | false | null | undefined>) {
+	return names.filter(Boolean).join(' ')
+}
+
 export const EASE_OUT = [0.23, 1, 0.32, 1] as const
 export const EASE_DRAWER = [0.32, 0.72, 0, 1] as const
 
@@ -285,7 +290,7 @@ export function Stamp({
 	fresh?: boolean
 }) {
 	return (
-		<span className={`b-stamp${fresh ? 'b-stamp-in' : ''}`}>{children}</span>
+		<span className={cx('b-stamp', fresh && 'b-stamp-in')}>{children}</span>
 	)
 }
 

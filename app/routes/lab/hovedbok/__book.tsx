@@ -47,6 +47,7 @@ import {
 	BASE,
 	callCap,
 	Confirm,
+	cx,
 	type FULL_COLS,
 	Layer,
 	NumPad,
@@ -741,7 +742,7 @@ export function Book({
 							<th
 								key={c}
 								scope="col"
-								className={`${c === 'dag' ? 'lk' : ''}${COL_INFO[c].num ? 'num' : ''}`}
+								className={cx(c === 'dag' && 'lk', COL_INFO[c].num && 'num')}
 							>
 								<button
 									type="button"
@@ -1486,7 +1487,7 @@ function DayRowView({ r, ctx }: { r: DayRow; ctx: RowCtx }) {
 				)
 			case 'forslag':
 				return (
-					<td key={c} className={`c${prop ? 'prop' : ''}`}>
+					<td key={c} className={cx('c', prop && 'prop')}>
 						{prop ? (
 							<button
 								type="button"
@@ -1500,7 +1501,7 @@ function DayRowView({ r, ctx }: { r: DayRow; ctx: RowCtx }) {
 				)
 			case 'faktisk':
 				return (
-					<td key={c} ref={actRef} className={`c${ambiguous ? 'amb' : ''}`}>
+					<td key={c} ref={actRef} className={cx('c', ambiguous && 'amb')}>
 						{ambiguous ? (
 							<button
 								type="button"

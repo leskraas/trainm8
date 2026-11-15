@@ -11,6 +11,11 @@ import { IconUndo, SportIcon } from './__icons.tsx'
 
 // ── reduced motion ──────────────────────────────────────────────────────────
 
+/** Class names joined with spaces, falsy ones dropped. */
+export function cx(...names: Array<string | false | null | undefined>) {
+	return names.filter(Boolean).join(' ')
+}
+
 export function useReduced() {
 	const [reduced, setReduced] = useState(false)
 	useEffect(() => {
@@ -45,7 +50,7 @@ export function Turn({
 }) {
 	return (
 		<div
-			className={`prat-turn ${who}${enter ? 'enter' : ''}`}
+			className={cx('prat-turn', who, enter && 'enter')}
 			id={id ? `melding-${id}` : undefined}
 		>
 			{children}
@@ -160,7 +165,13 @@ export function Chip({
 	return (
 		<button
 			type="button"
-			className={`prat-chip${primary ? 'primary' : ''}${danger ? 'danger' : ''}${quiet ? 'quiet' : ''}${busy ? 'busy' : ''}`}
+			className={cx(
+				'prat-chip',
+				primary && 'primary',
+				danger && 'danger',
+				quiet && 'quiet',
+				busy && 'busy',
+			)}
 			onClick={(e) => {
 				rememberChip(e.currentTarget)
 				onClick?.()
@@ -465,7 +476,7 @@ export function HoldButton({
 	return (
 		<button
 			type="button"
-			className={`prat-hold${holding ? 'holding' : ''}`}
+			className={cx('prat-hold', holding && 'holding')}
 			disabled={disabled}
 			onPointerDown={start}
 			onPointerUp={stop}

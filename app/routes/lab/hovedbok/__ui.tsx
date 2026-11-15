@@ -14,6 +14,11 @@ import { type CapabilityResult } from '#app/lab/engine/define.ts'
 
 export const BASE = '/lab/hovedbok'
 
+/** Class names joined with spaces, falsy ones dropped. */
+export function cx(...names: Array<string | false | null | undefined>) {
+	return names.filter(Boolean).join(' ')
+}
+
 // ── styles ───────────────────────────────────────────────────────────────────
 
 export const CSS = String.raw`
@@ -462,7 +467,7 @@ export function HbProvider({ children }: { children: ReactNode }) {
 		<HbCtx.Provider value={value}>
 			{children}
 			<div
-				className={`hb-toast${toastState?.error ? 'err' : ''}`}
+				className={cx('hb-toast', toastState?.error && 'err')}
 				data-off={!toastOn}
 				role="status"
 				aria-live="polite"

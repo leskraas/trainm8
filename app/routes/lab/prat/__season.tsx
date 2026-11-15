@@ -11,6 +11,7 @@ import {
 	plural,
 	shortDate,
 } from './__fmt.ts'
+import { cx } from './__ui.tsx'
 
 const PHASE_COLORS = [
 	'var(--seg-easy)',
@@ -36,7 +37,7 @@ export function PhaseStrip({
 			{phases.map((p, i) => (
 				<div
 					key={`${p.name}-${i}`}
-					className={`prat-phase${current === p.name ? 'now' : ''}`}
+					className={cx('prat-phase', current === p.name && 'now')}
 					style={{ flexGrow: p.weeks / total, flexBasis: 0 }}
 				>
 					<i style={{ background: PHASE_COLORS[i % PHASE_COLORS.length] }} />
@@ -72,14 +73,18 @@ export function WeekSquares({
 				return (
 					<div
 						key={d.date}
-						className={`prat-day7${empty && blocked?.includes(d.weekday) ? 'off' : ''}${changed ? 'changed' : ''}`}
+						className={cx(
+							'prat-day7',
+							empty && blocked?.includes(d.weekday) && 'off',
+							changed && 'changed',
+						)}
 						title={changed ? 'Endret' : undefined}
 					>
 						<b>{WEEKDAY_SHORT[d.weekday]}</b>
 						{d.sessions.map((s, j) => (
 							<span
 								key={j}
-								className={`s${s.effort === 'hard' ? 'hard' : ''}`}
+								className={cx('s', s.effort === 'hard' && 'hard')}
 								title={`${s.title}, ${minutesText(s.minutes)}`}
 							>
 								<span className="num">{s.minutes}</span>′ {s.title}

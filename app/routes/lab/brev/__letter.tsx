@@ -34,7 +34,15 @@ import {
 	addDays,
 } from './__lib.ts'
 import { addPs } from './__ps.ts'
-import { ErrorLine, N, PlanArrow, PsLines, Unknown, useWrite } from './__ui.tsx'
+import {
+	ErrorLine,
+	N,
+	PlanArrow,
+	PsLines,
+	Unknown,
+	cx,
+	useWrite,
+} from './__ui.tsx'
 
 export function SessionSentence({ s }: { s: SessionCard }) {
 	const plannedMin = known(s.planned.durationS)
@@ -281,7 +289,7 @@ export function WeekLetter({
 
 	return (
 		<article
-			className={`b-sheet${isNew ? 'b-new-letter' : ''}`}
+			className={cx('b-sheet', isNew && 'b-new-letter')}
 			aria-labelledby={`wk-${week.weekKey}`}
 		>
 			<header style={{ marginBottom: 18 }}>
