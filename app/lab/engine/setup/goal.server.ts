@@ -371,6 +371,20 @@ export async function applyGoalUndo(
 			if (!event)
 				return { ok: false, code: 'not-found', message: 'Fant ikke målet.' }
 			if (!sameGoal(fieldsOf(event), undo.after)) return CHANGED
+			// A plan that runs toward the goal goes with it (cascade): refused,
+			// as set_goal refuses to delete a goal a plan runs toward.
+			const plan = await prisma.planOutline.findFirst({
+				where: { eventId: undo.id, athleteId: userId },
+				select: { id: true },
+			})
+			if (plan) {
+				return {
+					ok: false,
+					code: 'goal-has-plan',
+					message:
+						'Planen din er bygd mot dette målet. Fjern målet for å begynne på nytt.',
+				}
+			}
 			await deleteEvent(userId, undo.id)
 			return { ok: true }
 		}

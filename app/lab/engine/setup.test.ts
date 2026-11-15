@@ -445,6 +445,28 @@ describe('goal', () => {
 		expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(1)
 	})
 
+	test('undoing a set goal is refused once a plan runs toward it, and the plan stands', async () => {
+		const userId = await createAthlete()
+		await answerTheBasics(userId)
+		const set = await run(userId, 'set_goal', {
+			kind: 'event',
+			name: 'Oslo halvmaraton',
+			date: '2030-05-11',
+			sport: 'run',
+		})
+		await run(userId, 'accept_plan')
+		expect((await findActiveOutline(userId, NOW))?.event?.name).toBe(
+			'Oslo halvmaraton',
+		)
+
+		expect(
+			await run(userId, 'undo_goal_change', { undo: set.value.undo }),
+		).toMatchObject({ ok: false, code: 'goal-has-plan' })
+		expect((await findActiveOutline(userId, NOW))?.event?.name).toBe(
+			'Oslo halvmaraton',
+		)
+	})
+
 	test('a goal date in the past is refused', async () => {
 		const userId = await createAthlete()
 		expect(
