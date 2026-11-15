@@ -331,6 +331,7 @@ export async function applyGoalUndo(
 	userId: string,
 	undo: GoalUndo,
 	now: Date,
+	timezone: string,
 ): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
 	switch (undo.kind) {
 		case 'restore': {
@@ -366,6 +367,14 @@ export async function applyGoalUndo(
 			return { ok: true }
 		}
 		case 'recreate': {
+			// set_goal's own rule: a goal's day is after today.
+			if (undo.fields.date && undo.fields.date <= localDate(now, timezone)) {
+				return {
+					ok: false,
+					code: 'date-past',
+					message: 'Målets dag har vært. Det kan ikke angres.',
+				}
+			}
 			// The goal comes back under its own id, so a second use of the
 			// token (or two at once) meets the first one's row and is refused.
 			try {
@@ -386,6 +395,20 @@ export async function applyGoalUndo(
 			if (!event)
 				return { ok: false, code: 'not-found', message: 'Fant ikke målet.' }
 			if (!sameGoal(fieldsOf(event), undo.after)) return CHANGED
+			// A plan that runs toward the goal goes with it (cascade): refused,
+			// as set_goal refuses to delete a goal a plan runs toward.
+			const plan = await prisma.planOutline.findFirst({
+				where: { eventId: undo.id, athleteId: userId },
+				select: { id: true },
+			})
+			if (plan) {
+				return {
+					ok: false,
+					code: 'goal-has-plan',
+					message:
+						'Planen din er bygd mot dette målet. Fjern målet for å begynne på nytt.',
+				}
+			}
 			await deleteEvent(userId, undo.id)
 			return { ok: true }
 		}

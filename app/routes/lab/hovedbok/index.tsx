@@ -88,7 +88,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		let from = mondayOf(addDays(today, -7 * 12))
 		const asked = clampFra(fra, a.recordings.first, today)
 		if (asked && asked.from < from) from = asked.from
-		const notes = asked?.cut ? [asked.cut] : []
+		// Said only where the table does start there.
+		const notes = asked?.cut && asked.from === from ? [asked.cut] : []
 		const errors: string[] = []
 		if (a.recordings.count > 0) {
 			const h = await allSessions(request, from, today)
@@ -134,7 +135,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		from = p.firstWeek
 	const asked = clampFra(fra, firstData, today)
 	if (asked && asked.from < from) from = asked.from
-	const notes = asked?.cut ? [asked.cut] : []
+	// Said only where the table does start there.
+	const notes = asked?.cut && asked.from === from ? [asked.cut] : []
 	const goalDate =
 		(goal?.ok ? goal.value.goal?.date : null) ?? p?.goal.date ?? null
 	let to = addDays(mondayOf(today), 13)

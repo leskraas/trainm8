@@ -452,6 +452,7 @@ export function HbProvider({ children }: { children: ReactNode }) {
 		async (id: string) => {
 			const e = log.find((x) => x.id === id)
 			if (!e?.token || e.undone) return
+			// The log is the real account's: demo data never writes to it.
 			if (demo) {
 				toast(DEMO_REFUSED, { error: true })
 				return

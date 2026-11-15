@@ -727,7 +727,7 @@ const undo_goal_change = defineCapability({
 	run: async (ctx, input) => {
 		const undo = readGoalUndo(ctx.userId, input.undo)
 		if (!undo) return fail('invalid-undo', 'Det kan ikke angres.')
-		const applied = await applyGoalUndo(ctx.userId, undo, ctx.now)
+		const applied = await applyGoalUndo(ctx.userId, undo, ctx.now, ctx.timezone)
 		if (!applied.ok) return fail(applied.code, applied.message)
 		return ok(await withUndo(ctx, null))
 	},
