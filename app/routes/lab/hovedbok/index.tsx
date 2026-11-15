@@ -35,7 +35,7 @@ import {
 	UNIT_LABEL,
 } from './__format.ts'
 import { SetupSheet } from './__sheet.tsx'
-import { BASE, callCap, ErrorBar, Shell, useHb } from './__ui.tsx'
+import { BASE, callCap, DEMO_REFUSED, ErrorBar, Shell, useHb } from './__ui.tsx'
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const url = new URL(request.url)
@@ -174,8 +174,10 @@ function BookView({ d }: { d: BookLoader }) {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
-	// Let the plan catch up (closing a finished week) once per visit.
+	// Let the plan catch up (closing a finished week) once per visit. Never
+	// on demo data: that would write to the athlete's real plan.
 	useEffect(() => {
+		if (d.demo) return
 		try {
 			if (sessionStorage.getItem('hovedbok.refreshed')) return
 			sessionStorage.setItem('hovedbok.refreshed', '1')
@@ -324,6 +326,10 @@ function BookView({ d }: { d: BookLoader }) {
 						type="button"
 						className="btn sm"
 						onClick={async () => {
+							if (d.demo) {
+								toast(DEMO_REFUSED, { error: true })
+								return
+							}
 							let failed = 0
 							for (const w of waiting) {
 								const r = await callCap('answer_proposal', {

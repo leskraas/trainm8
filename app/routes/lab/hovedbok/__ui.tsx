@@ -9,7 +9,13 @@ import {
 	type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useLocation, useNavigate, useRevalidator } from 'react-router'
+import {
+	Link,
+	useLocation,
+	useNavigate,
+	useRevalidator,
+	useSearchParams,
+} from 'react-router'
 import { type CapabilityResult } from '#app/lab/engine/define.ts'
 
 export const BASE = '/lab/hovedbok'
@@ -282,6 +288,8 @@ type Ctx = {
 	prefs: Prefs
 	setPrefs: (p: Partial<Prefs>) => void
 	busy: boolean
+	/** `?demo=1`: the made-up athlete. Writes are refused, never sent. */
+	demo: boolean
 }
 const HbCtx = createContext<Ctx | null>(null)
 export function useHb() {
@@ -289,6 +297,9 @@ export function useHb() {
 	if (!c) throw new Error('Hovedbok context missing')
 	return c
 }
+
+export const DEMO_REFUSED =
+	'Demodata: endringer virker ikke her. Gå til dine tall for å endre.'
 
 const LOG_KEY = 'hovedbok.logg.v1'
 const PREF_KEY = 'hovedbok.visning.v1'
@@ -316,6 +327,8 @@ export function HbProvider({ children }: { children: ReactNode }) {
 	const [busy, setBusy] = useState(false)
 	const revalidator = useRevalidator()
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const [params] = useSearchParams()
+	const demo = params.get('demo') === '1'
 
 	useEffect(() => {
 		setLog(readLS<LogEntry[]>(LOG_KEY, []))
@@ -374,6 +387,15 @@ export function HbProvider({ children }: { children: ReactNode }) {
 				goal?: boolean
 			} | null,
 		) => {
+			if (demo) {
+				const r: CapabilityResult<O> = {
+					ok: false,
+					code: 'demo',
+					message: DEMO_REFUSED,
+				}
+				toast(r.message, { error: true })
+				return r
+			}
 			setBusy(true)
 			const r = await callCap<O>(name, input)
 			setBusy(false)
@@ -403,7 +425,7 @@ export function HbProvider({ children }: { children: ReactNode }) {
 			void revalidator.revalidate()
 			return r
 		},
-		[push, toast, revalidator],
+		[push, toast, revalidator, demo],
 	)
 
 	const undoEntry = useCallback(
@@ -459,8 +481,9 @@ export function HbProvider({ children }: { children: ReactNode }) {
 			prefs,
 			setPrefs,
 			busy,
+			demo,
 		}),
-		[log, push, mark, toast, act, undoEntry, prefs, setPrefs, busy],
+		[log, push, mark, toast, act, undoEntry, prefs, setPrefs, busy, demo],
 	)
 
 	return (
