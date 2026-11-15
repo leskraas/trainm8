@@ -24,20 +24,20 @@ and live in each for a few days.
 2. **One switch.** The chosen app is a cookie (`trainm8_app`). `/` opens the
    chosen app's home; a small pill in the top-right corner of every page, in
    every app, switches. `/lab` is the gallery. A Lab App lives under
-   `/lab/<key>/` and owns the whole page: `root.tsx` renders no wordmark row
-   and no tabs there.
+   `/lab/<key>/` and owns the whole page: `root.tsx` renders no wordmark row and
+   no tabs there.
 3. **One read model.** Every Lab App reads the **Lab Snapshot**
    (`app/lab/snapshot.server.ts`), built from the typed reads of ADR 0092
    (`get_today`, `list_sessions`, `get_season`, `get_training_load`) and
-   flattened to `number | null`. The building principle holds in the lab: a
-   null is an Unavailable Metric, shown as missing, never as 0, and no Lab App
+   flattened to `number | null`. The building principle holds in the lab: a null
+   is an Unavailable Metric, shown as missing, never as 0, and no Lab App
    computes a number of its own that would pass as measured. A **demo athlete**
    stands in when the athlete has nothing to show or asks for `?demo=1`, and
    every app says when it is showing demo data.
-4. **Writes reuse what exists.** A Lab App writes only through existing
-   resource routes and actions; anything it cannot do yet links to the classic
-   page. New write paths a Lab App needs are built as actions (ADR 0092), so
-   the classic app, the MCP server and every Lab App share them.
+4. **Writes reuse what exists.** A Lab App writes only through existing resource
+   routes and actions; anything it cannot do yet links to the classic page. New
+   write paths a Lab App needs are built as actions (ADR 0092), so the classic
+   app, the MCP server and every Lab App share them.
 5. **Lab code is outside the luma lint** (ADR 0119 §2): each app's look is the
    experiment. The design rules in CLAUDE.md (Emil's skills, the mobile
    checklist) still apply to every app.
@@ -45,6 +45,17 @@ and live in each for a few days.
    `agent:*` issues on the classic app are parked (label `parked`, with a
    comment naming the label they had), not closed. New work is filed as
    `lab:<key>` issues. The classic app gets fixes only when it breaks.
+
+7. **Each app holds one axis, and says what it costs.** Borrowed from the
+   `prototype-ui` divergence method: every registry entry names the axis it
+   diverges on (interaction, density, metaphor, medium, control), when it is the
+   right answer and what it costs. Two apps that differ only in look are one
+   app. The set stays at six or fewer. The switch is harness chrome: the same in
+   every app, number keys `1`–`6` flip instantly, no animation on the swap.
+8. **`riff`, `drop`, `keep`.** The owner steers with three words on an issue:
+   `riff <key>` starts a new round of apps around one they liked, `drop <key>`
+   deletes one (archived first on `lab-archive/<key>`, linked from the issue),
+   `keep <key>` picks the direction and ends the lab.
 
 ## Consequences
 

@@ -22,13 +22,43 @@ type Template = {
 
 // Monday … Sunday.
 const WEEK: (Template | null)[] = [
-	{ discipline: 'strength', title: 'Styrke: knebøy og markløft', durationMin: 50, km: null, tss: 35 },
-	{ discipline: 'run', title: 'Intervaller 6 × 4 min', durationMin: 60, km: 11, tss: 78 },
-	{ discipline: 'bike', title: 'Rolig sykkel', durationMin: 75, km: 30, tss: 52 },
-	{ discipline: 'run', title: 'Terskel 3 × 10 min', durationMin: 65, km: 12, tss: 82 },
+	{
+		discipline: 'strength',
+		title: 'Styrke: knebøy og markløft',
+		durationMin: 50,
+		km: null,
+		tss: 35,
+	},
+	{
+		discipline: 'run',
+		title: 'Intervaller 6 × 4 min',
+		durationMin: 60,
+		km: 11,
+		tss: 78,
+	},
+	{
+		discipline: 'bike',
+		title: 'Rolig sykkel',
+		durationMin: 75,
+		km: 30,
+		tss: 52,
+	},
+	{
+		discipline: 'run',
+		title: 'Terskel 3 × 10 min',
+		durationMin: 65,
+		km: 12,
+		tss: 82,
+	},
 	null,
 	{ discipline: 'run', title: 'Langtur', durationMin: 110, km: 21, tss: 115 },
-	{ discipline: 'swim', title: 'Teknikksvøm', durationMin: 40, km: 1.8, tss: 30 },
+	{
+		discipline: 'swim',
+		title: 'Teknikksvøm',
+		durationMin: 40,
+		km: 1.8,
+		tss: 30,
+	},
 ]
 
 function hash(s: string): number {
@@ -106,9 +136,27 @@ export function demoSnapshot(
 	const last = days[days.length - 1]!
 
 	const weekTracks = (scale: number): LabTrack[] => [
-		{ discipline: 'run', currency: 'km', target: Math.round(44 * scale), planned: Math.round(44 * scale), actual: null },
-		{ discipline: 'bike', currency: 'hours', target: Math.round(1.25 * scale * 10) / 10, planned: Math.round(1.25 * scale * 10) / 10, actual: null },
-		{ discipline: 'strength', currency: 'sets', target: 12, planned: 12, actual: null },
+		{
+			discipline: 'run',
+			currency: 'km',
+			target: Math.round(44 * scale),
+			planned: Math.round(44 * scale),
+			actual: null,
+		},
+		{
+			discipline: 'bike',
+			currency: 'hours',
+			target: Math.round(1.25 * scale * 10) / 10,
+			planned: Math.round(1.25 * scale * 10) / 10,
+			actual: null,
+		},
+		{
+			discipline: 'strength',
+			currency: 'sets',
+			target: 12,
+			planned: 12,
+			actual: null,
+		},
 	]
 
 	const thisWeekDone = sessions.filter(
@@ -134,7 +182,18 @@ export function demoSnapshot(
 					: thisWeekDone.filter((s) => s.discipline === 'strength').length * 6,
 	}))
 
-	const phases = ['Grunn', 'Grunn', 'Grunn', 'Bygg', 'Bygg', 'Bygg', 'Topp', 'Topp', 'Nedtrapping', 'Løp']
+	const phases = [
+		'Grunn',
+		'Grunn',
+		'Grunn',
+		'Bygg',
+		'Bygg',
+		'Bygg',
+		'Topp',
+		'Topp',
+		'Nedtrapping',
+		'Løp',
+	]
 	const seasonWeeks = Array.from({ length: 11 }, (_, i) => {
 		const scale = i % 4 === 3 ? 0.7 : 1 + i * 0.05
 		return {

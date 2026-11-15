@@ -27,9 +27,9 @@ export default function LabIndex({ loaderData }: Route.ComponentProps) {
 				</h1>
 				<p className="mt-5 max-w-2xl text-[17px] leading-relaxed text-white/65">
 					Hver app er en hel brukerreise med egen logikk, eget språk og eget
-					utseende, over de samme treningsdataene dine. Velg en, bruk den
-					noen dager, og bytt med bryteren øverst til høyre. Det du savner og
-					det som irriterer deg er svaret.
+					utseende, over de samme treningsdataene dine. Velg en, bruk den noen
+					dager, og bytt med bryteren øverst til høyre. Det du savner og det som
+					irriterer deg er svaret.
 				</p>
 				<Form
 					method="post"
@@ -68,6 +68,19 @@ export default function LabIndex({ loaderData }: Route.ComponentProps) {
 								<span className="mt-2 block text-[13px] leading-snug text-white/55">
 									{v.bet}
 								</span>
+								<span className="mt-4 grid gap-1 border-t border-white/10 pt-3 text-[12px] leading-snug">
+									<span className="font-mono text-white/45">
+										Akse · {v.axis}
+									</span>
+									<span className="text-white/70">
+										<span className="text-white/45">Vinner når </span>
+										{v.winsWhen.charAt(0).toLowerCase() + v.winsWhen.slice(1)}
+									</span>
+									<span className="text-white/70">
+										<span className="text-white/45">Koster: </span>
+										{v.costs}
+									</span>
+								</span>
 								<span
 									aria-hidden
 									className="absolute top-5 right-5 size-10 rounded-full opacity-90 transition-transform duration-300 ease-out group-hover:scale-110"
@@ -80,7 +93,7 @@ export default function LabIndex({ loaderData }: Route.ComponentProps) {
 				<p className="mt-10 text-[13px] text-white/40">
 					Har du ingen treningsdata ennå, viser appene en demoutøver. Legg til
 					<code className="mx-1 text-white/70">?demo=1</code> i adressen for å
-					se demoutøveren uansett.
+					se demoutøveren uansett. Tastene 1–6 bytter app hvor som helst.
 				</p>
 			</div>
 		</main>

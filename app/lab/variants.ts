@@ -16,6 +16,15 @@ export type LabVariant = {
 	idea: string
 	/** What is radically different about it, for the gallery. */
 	bet: string
+	/**
+	 * The axis it diverges on, in a phrase. No two apps share a position on
+	 * the same axis: two apps that would differ only in look are one app.
+	 */
+	axis: string
+	/** When it is the right answer. */
+	winsWhen: string
+	/** What it costs, said honestly. */
+	costs: string
 	home: string
 	/** The swatch the switcher shows for it. */
 	swatch: string
@@ -28,6 +37,9 @@ export const LAB_VARIANTS = [
 		idea: 'Appen slik den var: I dag, Trening, Meg.',
 		bet: 'Faner, kort og skjemaer. Referansen alle de andre måles mot.',
 		home: '/',
+		axis: 'Faner og skjermer (referansen)',
+		winsWhen: 'Du vil ha alt på sin faste plass og navigerer selv.',
+		costs: 'Mye å velge mellom; lett å bli et dashbord ingen åpner.',
 		swatch: '#5b8c7a',
 	},
 	{
@@ -36,6 +48,9 @@ export const LAB_VARIANTS = [
 		idea: 'Hele appen er en samtale med treneren din.',
 		bet: 'Ingen faner, ingen skjermer. Planen, økta og formen kommer som meldinger, og du svarer med knapper eller tekst.',
 		home: '/lab/samtale',
+		axis: 'Samhandling: dialog i stedet for navigasjon',
+		winsWhen: 'Du vil bli fortalt hva du skal gjøre, og spørre når du lurer.',
+		costs: 'Vanskelig å få oversikt; alt ligger i en tråd.',
 		swatch: '#7c5cff',
 	},
 	{
@@ -44,6 +59,9 @@ export const LAB_VARIANTS = [
 		idea: 'Én ting av gangen, i fullskjerm.',
 		bet: 'En kortstokk av beslutninger: dagens økt, i morgen, uka. Sveip for å gå videre. Kjempestor typografi, null navigasjon.',
 		home: '/lab/stabel',
+		axis: 'Tetthet: én beslutning per skjerm',
+		winsWhen: 'Du åpner appen for å vite én ting: hva skal jeg i dag?',
+		costs: 'Ingen oversikt, ingen snarveier; uka er seks sveip unna.',
 		swatch: '#ff5a1f',
 	},
 	{
@@ -52,6 +70,9 @@ export const LAB_VARIANTS = [
 		idea: 'Sesongen er et landskap du går gjennom.',
 		bet: 'En romlig reise mot løpet: fjellet er belastningen, stien er ukene, du er prikken. Zoom fra sesong til dag.',
 		home: '/lab/terreng',
+		axis: 'Metafor: romlig reise i stedet for tall',
+		winsWhen: 'Motivasjon og retning betyr mer enn presisjon.',
+		costs: 'Tallene blir pynt; tar plass og tid å lese.',
 		swatch: '#2f9e6f',
 	},
 	{
@@ -60,6 +81,9 @@ export const LAB_VARIANTS = [
 		idea: 'En treningsdagbok på papir, ikke et dashbord.',
 		bet: 'Redaksjonell typografi, uke for uke som oppslag i en notatbok. Planen og det du gjorde står skrevet, ikke tegnet.',
 		home: '/lab/dagbok',
+		axis: 'Medium: ord i stedet for grafer',
+		winsWhen: 'Du vil reflektere over treningen, ikke styre den.',
+		costs: 'Treg å skanne; tall gjemmer seg i setninger.',
 		swatch: '#b08a4f',
 	},
 	{
@@ -68,6 +92,9 @@ export const LAB_VARIANTS = [
 		idea: 'Alt på én skjerm, styrt med tastatur.',
 		bet: 'Tett, mørk terminal for den som vil se tallene: belastning, uker og økter i rutenett, kommandolinje i stedet for menyer.',
 		home: '/lab/cockpit',
+		axis: 'Kontroll: maksimal tetthet, tastaturstyrt',
+		winsWhen: 'Du vil se alt og grave selv.',
+		costs: 'Overveldende på mobil; krever at du kan kommandoene.',
 		swatch: '#e5c600',
 	},
 ] as const satisfies readonly LabVariant[]

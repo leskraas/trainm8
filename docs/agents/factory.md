@@ -62,6 +62,24 @@ a direction (`GOAL.md`, "Right now"). For every task and scan:
   change. Proposals for a new app must differ in journey, not only in look.
 - **Honest.** Every number a Lab App shows comes from the Lab Snapshot or a
   typed action; a null is shown as missing. Demo data is labelled as such.
+- **One axis each** (from the `prototype-ui` skill). Every app in
+  `app/lab/variants.ts` names the `axis` it diverges on, `winsWhen` and `costs`.
+  A new app must take a position on an axis no other app holds; two apps that
+  would differ only in look are one app. Keep the set at six or fewer, Klassisk
+  included: more dilutes the comparison.
+- **The owner's three words.** An issue or comment from the owner saying
+  - `riff <key>`: start a new round around that app: spec two or three new apps
+    that keep what the owner liked in it and diverge from it on other axes, and
+    propose deleting the apps the owner has stopped opening;
+  - `drop <key>`: delete that app (its routes and registry entry), after pushing
+    it to the branch `lab-archive/<key>` and linking that branch on the issue,
+    so the experiment is kept as a primary source but not on `main`;
+  - `keep <key>`: the direction is chosen. Write the ADR that makes it the app,
+    then specs that move it to `/` and delete every other Lab App (each archived
+    as above) and the switch. The parked issues are re-triaged against it.
+- **The switch is chrome, not a contestant.** `app/lab/lab-switcher.tsx` looks
+  the same in every app and is never restyled to fit one; switching apps never
+  animates.
 
 ## Why these values
 

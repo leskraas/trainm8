@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Form, Link, useLocation } from 'react-router'
+import { Form, Link, useLocation, useSubmit } from 'react-router'
 import { LAB_VARIANTS, labVariant, variantOfPath } from './variants.ts'
 
 /**
@@ -7,12 +7,41 @@ import { LAB_VARIANTS, labVariant, variantOfPath } from './variants.ts'
  * every page, in every app, that opens the list of apps. It is deliberately
  * the same everywhere and quiet, so it never becomes part of any one app's
  * design. Choosing an app remembers it and opens that app's home.
+ *
+ * Like a prototype picker, the number keys `1`–`6` switch apps instantly from
+ * anywhere (not while typing, not with a modifier held). The swap itself never
+ * animates: flipping between apps is the thing the owner does most.
  */
 export function LabSwitcher() {
 	const location = useLocation()
 	const current = labVariant(variantOfPath(location.pathname))
 	const [open, setOpen] = useState(false)
 	const panelRef = useRef<HTMLDivElement>(null)
+	const submit = useSubmit()
+
+	useEffect(() => {
+		function onKey(e: KeyboardEvent) {
+			if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+			const target = e.target as HTMLElement | null
+			if (
+				target &&
+				(/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) ||
+					target.isContentEditable)
+			) {
+				return
+			}
+			const n = Number.parseInt(e.key, 10)
+			const next = LAB_VARIANTS[n - 1]
+			if (!next || next.key === current.key) return
+			e.preventDefault()
+			void submit(
+				{ app: next.key },
+				{ method: 'post', action: '/resources/lab-app' },
+			)
+		}
+		window.addEventListener('keydown', onKey)
+		return () => window.removeEventListener('keydown', onKey)
+	}, [current.key, submit])
 
 	useEffect(() => {
 		setOpen(false)
@@ -60,13 +89,13 @@ export function LabSwitcher() {
 			<div
 				role="menu"
 				data-open={open}
-				className="absolute top-10 right-0 w-[min(20rem,calc(100vw-1rem))] origin-top-right scale-95 overflow-hidden rounded-[20px] bg-neutral-950/95 text-white opacity-0 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl transition-[opacity,transform] duration-150 ease-out pointer-events-none data-[open=true]:pointer-events-auto data-[open=true]:scale-100 data-[open=true]:opacity-100 motion-reduce:transition-none"
+				className="pointer-events-none absolute top-10 right-0 w-[min(20rem,calc(100vw-1rem))] origin-top-right scale-95 overflow-hidden rounded-[20px] bg-neutral-950/95 text-white opacity-0 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl transition-[opacity,transform] duration-150 ease-out data-[open=true]:pointer-events-auto data-[open=true]:scale-100 data-[open=true]:opacity-100 motion-reduce:transition-none"
 			>
 				<div className="px-4 pt-3 pb-1 text-[11px] font-semibold tracking-[0.12em] text-white/45 uppercase">
 					App-lab · velg app
 				</div>
 				<Form method="post" action="/resources/lab-app" className="p-1.5">
-					{LAB_VARIANTS.map((v) => {
+					{LAB_VARIANTS.map((v, i) => {
 						const isCurrent = v.key === current.key
 						return (
 							<button
@@ -86,7 +115,7 @@ export function LabSwitcher() {
 										boxShadow: isCurrent ? '0 0 0 2px #fff' : undefined,
 									}}
 								/>
-								<span className="min-w-0">
+								<span className="min-w-0 flex-1">
 									<span className="block text-[15px] leading-tight font-semibold">
 										{v.name}
 										{isCurrent ? (
@@ -99,6 +128,9 @@ export function LabSwitcher() {
 										{v.idea}
 									</span>
 								</span>
+								<kbd className="mt-0.5 hidden font-mono text-[11px] text-white/35 sm:block">
+									{i + 1}
+								</kbd>
 							</button>
 						)
 					})}
