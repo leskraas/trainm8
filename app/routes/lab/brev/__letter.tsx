@@ -183,7 +183,14 @@ function DayLine({
 			<Link
 				to={`${BASE}/dag/${date}`}
 				prefetch="intent"
-				style={{ textDecoration: 'none', display: 'block' }}
+				style={{
+					textDecoration: 'none',
+					display: 'block',
+					// A long press opens the PS; it must not select the text.
+					userSelect: 'none',
+					WebkitUserSelect: 'none',
+					WebkitTouchCallout: 'none',
+				}}
 				onPointerDown={(e) => {
 					fired.current = false
 					start.current = { x: e.clientX, y: e.clientY }
@@ -215,7 +222,7 @@ function DayLine({
 				<strong style={{ fontWeight: 600 }}>
 					{date === today ? 'I dag' : cap(DAY_NAME[weekdayFromDate(date)])}:
 				</strong>{' '}
-				<span style={{ userSelect: 'text' }}>{children}</span>
+				<span>{children}</span>
 			</Link>
 		</li>
 	)
