@@ -544,7 +544,7 @@ Input:
 ```ts
 {
 	from: DayKey
-	to: DayKey // at most 366 days after from
+	to: DayKey // at most 365 days after from: 366 days, both ends counted
 	sport?: Sport
 	cursor?: string // nextCursor from the previous page
 	limit?: number // 1–100, default 50

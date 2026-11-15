@@ -362,6 +362,19 @@ function PathView({
 			}}
 		>
 			<div ref={pinchLayer} style={{ willChange: 'transform' }}>
+				{data.sessionsError ? (
+					<p
+						className="sti-err"
+						role="alert"
+						style={{
+							padding: '16px 16px 0',
+							maxWidth: 520,
+							margin: '0 auto',
+						}}
+					>
+						Øktene langs stien kom ikke: {data.sessionsError}
+					</p>
+				) : null}
 				{wide ? (
 					<div
 						style={{
