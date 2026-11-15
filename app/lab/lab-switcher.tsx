@@ -21,7 +21,12 @@ export function LabSwitcher() {
 
 	useEffect(() => {
 		function onKey(e: KeyboardEvent) {
+			// Another handler (a number pad, a form) already took the key, or
+			// the key is part of a chord, a held key or an IME composition.
+			if (e.defaultPrevented || e.repeat || e.isComposing) return
 			if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+			// A modal dialog owns the keyboard while it is open.
+			if (document.querySelector('[aria-modal="true"]')) return
 			const target = e.target as HTMLElement | null
 			if (
 				target &&

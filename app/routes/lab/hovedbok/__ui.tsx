@@ -700,7 +700,10 @@ export function NumPad({
 		'⌫',
 	]
 	useEffect(() => {
+		// Capture phase, and every handled key is marked as taken, so nothing
+		// else on the page (the app switcher's number keys) acts on it too.
 		function k(e: KeyboardEvent) {
+			if (e.metaKey || e.ctrlKey || e.altKey) return
 			if (/^[0-9]$/.test(e.key)) setV((x) => (x + e.key).slice(0, 6))
 			else if (e.key === 'Backspace') setV((x) => x.slice(0, -1))
 			else if ((e.key === ',' || e.key === '.') && decimals)
@@ -708,9 +711,11 @@ export function NumPad({
 			else if (e.key === 'Enter')
 				onDone(v === '' ? null : Number(v.replace(',', '.')))
 			else if (e.key === 'Escape') onCancel()
+			else return
+			e.preventDefault()
 		}
-		window.addEventListener('keydown', k)
-		return () => window.removeEventListener('keydown', k)
+		window.addEventListener('keydown', k, true)
+		return () => window.removeEventListener('keydown', k, true)
 	}, [v, decimals, onDone, onCancel])
 	return (
 		<Layer>
