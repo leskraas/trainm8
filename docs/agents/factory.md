@@ -46,8 +46,8 @@ a direction (`GOAL.md`, "Right now"). For every task and scan:
   actions under `app/actions/` when a Lab App needs a write that doesn't exist.
   The classic app (`/`, `/training`, `/settings`, ...) gets a change only when
   it is broken or a Lab App needs a shared action.
-- **Issues.** Lab work is labelled `lab` plus `lab:<key>` (`lab:samtale`,
-  `lab:stabel`, `lab:terreng`, `lab:dagbok`, `lab:cockpit`, or `lab:ny` for a
+- **Issues.** Lab work is labelled `lab` plus `lab:<key>` (`lab:brev`,
+  `lab:prat`, `lab:sti`, `lab:tommel`, `lab:hovedbok`, or `lab:ny` for a
   new app). Older `agent:*` issues on the classic app were moved to `parked`
   with a comment naming their label; leave them parked. A spec for an issue
   without a `lab` label stops with `agent:needs-human` and the question "Is this

@@ -1738,8 +1738,8 @@ behind one switch, so the owner can live in each and find out what trainm8
 should be (ADR 0125). The chosen app is remembered and `/` opens it. _Avoid:_
 A/B test (nothing is measured on other users), theme (each is a whole journey).
 
-**Lab App**: One app in the **App Lab**, under `/lab/<key>/`: _Samtale_,
-_Stabel_, _Terreng_, _Dagbok_, _Cockpit_, and _Klassisk_ (the app as it was).
+**Lab App**: One app in the **App Lab**, under `/lab/<key>/`: _Brev_,
+_Prat_, _Sti_, _Tommel_, _Hovedbok_, and _Klassisk_ (the app as it was).
 
 **Lab Snapshot**: The one plain read model every **Lab App** draws from, built
 from the typed reads and flattened to `number | null` (a null is an

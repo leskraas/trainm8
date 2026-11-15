@@ -16,10 +16,13 @@ and live in each for a few days.
 
 1. **Several whole apps, not variants of one.** Each **Lab App** is a complete
    user journey with its own structure, navigation (or none), language,
-   typography, colour and motion: _Samtale_ (a conversation with a coach),
-   _Stabel_ (one full-screen card at a time), _Terreng_ (the season as a
-   landscape), _Dagbok_ (a paper training diary), _Cockpit_ (a dense
-   keyboard-driven panel). _Klassisk_ is the app as it was, kept as the
+   typography, colour and motion: _Brev_ (one honest letter a week), _Prat_
+   (the plan explained and negotiated in a dialogue), _Sti_ (the season as a
+   path through a landscape), _Tommel_ (the app decides, the athlete answers
+   yes or no), _Hovedbok_ (everything in one dense table, edited in its cells).
+   The concepts were invented from the product brief alone
+   (`docs/lab/product-brief.md`, `docs/lab/concepts/`), by a designer who saw
+   nothing of the existing app. _Klassisk_ is the app as it was, kept as the
    reference. The registry is `app/lab/variants.ts`.
 2. **One switch.** The chosen app is a cookie (`trainm8_app`). `/` opens the
    chosen app's home; a small pill in the top-right corner of every page, in
@@ -48,7 +51,7 @@ and live in each for a few days.
 
 7. **Each app holds one axis, and says what it costs.** Borrowed from the
    `prototype-ui` divergence method: every registry entry names the axis it
-   diverges on (interaction, density, metaphor, medium, control), when it is the
+   diverges on (rhythm of use, interaction, metaphor, who decides, density), when it is the
    right answer and what it costs. Two apps that differ only in look are one
    app. The set stays at six or fewer. The switch is harness chrome: the same in
    every app, number keys `1`–`6` flip instantly, no animation on the swap.

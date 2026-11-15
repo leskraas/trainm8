@@ -85,8 +85,8 @@ built now contradicts them._
 
 **Find out what trainm8 should be by living in several whole, different apps.**
 (ADR 0125.) The owner doesn't like the classic app and can't yet say why, so
-production runs several complete apps behind one switch: Samtale, Stabel,
-Terreng, Dagbok, Cockpit, and Klassisk as the reference. Until the owner picks a
+production runs several complete apps behind one switch: Brev, Prat, Sti,
+Tommel, Hovedbok, and Klassisk as the reference. Until the owner picks a
 direction, the factory works **only** on the App Lab:
 
 - deepen each Lab App so it can carry a real day of use (its own writes, its own
