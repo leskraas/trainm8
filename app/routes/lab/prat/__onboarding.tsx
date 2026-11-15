@@ -105,10 +105,18 @@ export function Onboarding({ data }: { data: OnboardingData }) {
 		setError(null)
 		// The first answer also tells the engine the browser's timezone, so
 		// days and weeks are this athlete's, not UTC's.
+		// Marked sent only once it lands: a failed try is tried again with the
+		// next answer.
 		if (!timezoneSent.current) {
-			timezoneSent.current = true
 			const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-			if (tz) await ask('set_timezone', { timezone: tz }, { revalidate: false })
+			if (tz) {
+				const sent = await ask(
+					'set_timezone',
+					{ timezone: tz },
+					{ revalidate: false },
+				)
+				if (sent.ok) timezoneSent.current = true
+			}
 		}
 		const r = await ask<O>(name, input)
 		setBusy(false)

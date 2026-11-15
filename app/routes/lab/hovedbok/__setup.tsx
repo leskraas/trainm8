@@ -56,10 +56,14 @@ let timezoneSent = false
 function useSetupWrite(log: boolean) {
 	const { act, demo } = useHb()
 	return async (name: string, input: unknown, what: string) => {
+		// Marked sent only once it lands: a failed try is tried again with the
+		// next answer.
 		if (!log && !demo && !timezoneSent) {
-			timezoneSent = true
 			const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-			if (tz) await callCap('set_timezone', { timezone: tz })
+			if (tz) {
+				const r = await callCap('set_timezone', { timezone: tz })
+				if (r.ok) timezoneSent = true
+			}
 		}
 		return act<{ note?: string }>(name, input, (v) =>
 			log ? { what: v.note ? `${what}. ${v.note}` : what } : null,
