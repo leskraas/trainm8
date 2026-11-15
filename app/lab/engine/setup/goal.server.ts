@@ -4,6 +4,7 @@
  * plan, which is a proposal the athlete accepts (with a digest, so what lands
  * is what they saw).
  */
+import { Prisma } from '@prisma/client'
 import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -27,13 +28,13 @@ import {
 } from '#app/utils/plan-outline/open-ended.server.ts'
 import { findActiveOutline } from '#app/utils/training.server.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
+import { openUndo, sealUndo } from '../sessions/undo-token.server.ts'
 import {
 	type Goal,
 	type GoalOutput,
 	type GoalPlanProposal,
 	type Sport,
 } from '../setup.types.ts'
-import { openUndo, sealUndo } from '../sessions/undo-token.server.ts'
 import { clockText } from './common.ts'
 import { towardGoalOf } from './onboarding.server.ts'
 
@@ -244,8 +245,12 @@ export function fieldsOf(event: EventRecord): GoalFields {
 	}
 }
 
-export async function createGoal(userId: string, fields: GoalFields) {
-	return createEvent(userId, authoringInputOf(fields))
+export async function createGoal(
+	userId: string,
+	fields: GoalFields,
+	id?: string,
+) {
+	return createEvent(userId, authoringInputOf(fields), { id })
 }
 
 /**
@@ -277,7 +282,7 @@ export async function updateGoalFields(
 export type GoalUndo =
 	| { kind: 'restore'; id: string; fields: GoalFields; after: GoalFields }
 	| { kind: 'uncancel'; id: string }
-	| { kind: 'recreate'; fields: GoalFields }
+	| { kind: 'recreate'; id: string; fields: GoalFields }
 	| { kind: 'delete'; id: string; after: GoalFields }
 
 const GOAL_UNDO = 'lab-undo-goal'
@@ -326,7 +331,6 @@ export async function applyGoalUndo(
 	userId: string,
 	undo: GoalUndo,
 	now: Date,
-	timezone: string,
 ): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
 	switch (undo.kind) {
 		case 'restore': {
@@ -362,8 +366,19 @@ export async function applyGoalUndo(
 			return { ok: true }
 		}
 		case 'recreate': {
-			if (await findGoal(userId, now, timezone)) return CHANGED
-			await createGoal(userId, undo.fields)
+			// The goal comes back under its own id, so a second use of the
+			// token (or two at once) meets the first one's row and is refused.
+			try {
+				await createGoal(userId, undo.fields, undo.id)
+			} catch (error) {
+				if (
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === 'P2002'
+				) {
+					return CHANGED
+				}
+				throw error
+			}
 			return { ok: true }
 		}
 		case 'delete': {

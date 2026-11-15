@@ -445,6 +445,39 @@ describe('goal', () => {
 		expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(1)
 	})
 
+	test('a removed goal comes back by undo though a later event remains, and only once', async () => {
+		const userId = await createAthlete()
+		await run(userId, 'set_goal', {
+			kind: 'event',
+			name: 'Sykkelritt',
+			date: '2030-08-01',
+			sport: 'bike',
+		})
+		await prisma.event.create({
+			data: {
+				athleteId: userId,
+				name: 'Høstløp',
+				kind: 'race',
+				priority: 'B',
+				disciplines: '["run"]',
+				startDate: new Date('2030-10-01T00:00:00Z'),
+				status: 'planned',
+			},
+		})
+		const removed = await run(userId, 'remove_goal')
+		expect(removed.value.removed).toBe('deleted')
+		const [first, second] = await Promise.all([
+			run(userId, 'undo_goal_change', { undo: removed.value.undo }),
+			run(userId, 'undo_goal_change', { undo: removed.value.undo }),
+		])
+		expect([first.ok, second.ok].sort()).toEqual([false, true])
+		expect(
+			await prisma.event.count({
+				where: { athleteId: userId, name: 'Sykkelritt' },
+			}),
+		).toBe(1)
+	})
+
 	test('a goal date in the past is refused', async () => {
 		const userId = await createAthlete()
 		expect(

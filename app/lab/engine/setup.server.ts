@@ -569,7 +569,11 @@ const set_goal = defineCapability({
 			return ok(
 				await withUndo(
 					ctx,
-					goalUndoToken(ctx.userId, { kind: 'recreate', fields }),
+					goalUndoToken(ctx.userId, {
+						kind: 'recreate',
+						id: found.event.id,
+						fields,
+					}),
 				),
 			)
 		}
@@ -705,7 +709,11 @@ const remove_goal = defineCapability({
 		return ok<RemoveGoalOutput>({
 			removed: 'deleted',
 			planStopped: false,
-			undo: goalUndoToken(ctx.userId, { kind: 'recreate', fields }),
+			undo: goalUndoToken(ctx.userId, {
+				kind: 'recreate',
+				id: found.event.id,
+				fields,
+			}),
 		})
 	},
 })
@@ -719,7 +727,7 @@ const undo_goal_change = defineCapability({
 	run: async (ctx, input) => {
 		const undo = readGoalUndo(ctx.userId, input.undo)
 		if (!undo) return fail('invalid-undo', 'Det kan ikke angres.')
-		const applied = await applyGoalUndo(ctx.userId, undo, ctx.now, ctx.timezone)
+		const applied = await applyGoalUndo(ctx.userId, undo, ctx.now)
 		if (!applied.ok) return fail(applied.code, applied.message)
 		return ok(await withUndo(ctx, null))
 	},

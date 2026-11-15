@@ -57,9 +57,12 @@ async function ownSessionIdOrNull(
 export async function createEvent(
 	athleteId: string,
 	input: EventAuthoringInput,
+	/** Bring back a removed event under its own id (an undo). */
+	options: { id?: string } = {},
 ): Promise<EventRecord> {
 	return prisma.event.create({
 		data: {
+			...(options.id ? { id: options.id } : {}),
 			athleteId,
 			...serializeInput(input),
 			resultSessionId: await ownSessionIdOrNull(
