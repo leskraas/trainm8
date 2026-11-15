@@ -26,6 +26,7 @@ import { Book, type BookData } from './__book.tsx'
 import { allSessions, cap } from './__engine.server.ts'
 import {
 	addDays,
+	dateMedium,
 	dayShort,
 	isDayKey,
 	isoWeek,
@@ -36,6 +37,34 @@ import {
 } from './__format.ts'
 import { SetupSheet } from './__sheet.tsx'
 import { BASE, callCap, DEMO_REFUSED, ErrorBar, Shell, useHb } from './__ui.tsx'
+
+/** How far back `?fra=` may reach, whatever the link says. */
+const MAX_BACK_DAYS = 5 * 365
+
+/**
+ * `?fra=` raised to a floor: the week of the first data there is, and never
+ * more than five years back. Without a floor `?fra=0001-01-01` would walk
+ * two thousand years of empty windows. Says on screen when it was raised.
+ */
+function clampFra(
+	fra: string | null,
+	firstData: string | null | undefined,
+	today: string,
+): { from: string; cut: string | null } | null {
+	if (!isDayKey(fra)) return null
+	const yearsFloor = mondayOf(addDays(today, -MAX_BACK_DAYS))
+	const dataFloor = mondayOf(firstData ?? today)
+	const floor = dataFloor > yearsFloor ? dataFloor : yearsFloor
+	const want = mondayOf(fra)
+	if (want >= floor) return { from: want, cut: null }
+	return {
+		from: floor,
+		cut:
+			floor === dataFloor
+				? `Viser fra ${dateMedium(floor)}: det finnes ingen data før det.`
+				: `Viser fra ${dateMedium(floor)}: Hovedbok går høyst fem år tilbake.`,
+	}
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const url = new URL(request.url)
@@ -57,7 +86,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 		])
 		let history: SessionCard[] = []
 		let from = mondayOf(addDays(today, -7 * 12))
-		if (isDayKey(fra) && fra < from) from = mondayOf(fra)
+		const asked = clampFra(fra, a.recordings.first, today)
+		if (asked && asked.from < from) from = asked.from
+		const notes = asked?.cut ? [asked.cut] : []
 		const errors: string[] = []
 		if (a.recordings.count > 0) {
 			const h = await allSessions(request, from, today)
@@ -75,6 +106,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			history,
 			from,
 			errors,
+			notes,
 		}
 	}
 
@@ -100,7 +132,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 			: mondayOf(today)
 	if (p && p.firstWeek < from && p.firstWeek >= addDays(today, -364))
 		from = p.firstWeek
-	if (isDayKey(fra) && fra < from) from = mondayOf(fra)
+	const asked = clampFra(fra, firstData, today)
+	if (asked && asked.from < from) from = asked.from
+	const notes = asked?.cut ? [asked.cut] : []
 	const goalDate =
 		(goal?.ok ? goal.value.goal?.date : null) ?? p?.goal.date ?? null
 	let to = addDays(mondayOf(today), 13)
@@ -132,7 +166,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		eased,
 		goal: goal?.ok ? goal.value.goal : null,
 		thresholdPace: run?.values.thresholdPacePerKm ?? null,
-		canLoadOlder: !!a.recordings.first && a.recordings.first < from,
+		canLoadOlder:
+			!asked?.cut && !!a.recordings.first && a.recordings.first < from,
 	}
 	return {
 		kind: 'book' as const,
@@ -143,6 +178,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		proposals: props.ok ? props.value : null,
 		progressGoal: progress.ok ? progress.value.goal : null,
 		errors,
+		notes,
 	}
 }
 
@@ -290,6 +326,11 @@ function BookView({ d }: { d: BookLoader }) {
 			) : null}
 			{d.errors.map((m, i) => (
 				<ErrorBar key={i} message={m} />
+			))}
+			{d.notes.map((m, i) => (
+				<div key={i} className="hb-bar" role="status">
+					<span>{m}</span>
+				</div>
 			))}
 			{waiting.length ? (
 				<div className="hb-bar draft" role="status">
