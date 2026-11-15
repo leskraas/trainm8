@@ -23,7 +23,7 @@ export default function LabIndex({ loaderData }: Route.ComponentProps) {
 					Trainm8 · App-lab
 				</p>
 				<h1 className="mt-3 max-w-3xl text-[clamp(2.4rem,7vw,5rem)] leading-[0.95] font-black tracking-[-0.03em]">
-					Seks helt ulike apper. Bo i én om gangen.
+					Fem helt nye apper og den gamle. Bo i én om gangen.
 				</h1>
 				<p className="mt-5 max-w-2xl text-[17px] leading-relaxed text-white/65">
 					Hver app er en hel brukerreise med egen logikk, eget språk og eget
@@ -91,9 +91,9 @@ export default function LabIndex({ loaderData }: Route.ComponentProps) {
 					})}
 				</Form>
 				<p className="mt-10 text-[13px] text-white/40">
-					Har du ingen treningsdata ennå, viser appene en demoutøver. Legg til
-					<code className="mx-1 text-white/70">?demo=1</code> i adressen for å
-					se demoutøveren uansett. Tastene 1–6 bytter app hvor som helst.
+					Alle appene bruker de samme treningsdataene dine, og hver tar deg
+					gjennom hele reisen fra første åpning. Tastene 1–6 bytter app hvor som
+					helst.
 				</p>
 			</div>
 		</main>

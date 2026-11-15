@@ -1738,12 +1738,13 @@ behind one switch, so the owner can live in each and find out what trainm8
 should be (ADR 0125). The chosen app is remembered and `/` opens it. _Avoid:_
 A/B test (nothing is measured on other users), theme (each is a whole journey).
 
-**Lab App**: One app in the **App Lab**, under `/lab/<key>/`: _Brev_,
-_Prat_, _Sti_, _Tommel_, _Hovedbok_, and _Klassisk_ (the app as it was).
+**Lab App**: One app in the **App Lab**, under `/lab/<key>/`: _Brev_, _Prat_,
+_Sti_, _Tommel_, _Hovedbok_, and _Klassisk_ (the app as it was).
 
-**Lab Snapshot**: The one plain read model every **Lab App** draws from, built
-from the typed reads and flattened to `number | null` (a null is an
-**Unavailable Metric**). Falls back to a labelled demo athlete.
+**Lab Engine**: The one way a **Lab App** reads and changes data: named
+capabilities in product language over the existing domain, documented as a
+contract in `docs/lab/capabilities/`. Every number is a value or null with a
+reason (an **Unavailable Metric**). _Avoid_: API (too generic), backend.
 
 **The Tape**: _Built (the home rebuild, `cd0928b`)._ The single bi-directional
 past↔future timeline of **Workout Sessions**, anchored on today — and, since the
@@ -2418,9 +2419,9 @@ non-vouch says it does not. What it cannot do it **names**: no preset carries a
 the payload, and a slot the corpus has nothing for is left empty and said out
 loud rather than backfilled. A season is reviewed on the **Plan Preview** before
 approval and on _Plan_ after it; there is no separate review screen (ADR 0123).
-The plan it writes keeps a **Generation Record**, and its weeks are laid again by
-the generator until the athlete gives it a **Week Pattern** with days (ADR 0120).
-_Avoid_: AI plan, auto-plan.
+The plan it writes keeps a **Generation Record**, and its weeks are laid again
+by the generator until the athlete gives it a **Week Pattern** with days (ADR
+0120). _Avoid_: AI plan, auto-plan.
 
 **Generation Record**: What a **Plan Outline** made by **Plan Generation** keeps
 of its approval: the generator that made it, the **Periodization Preset** and

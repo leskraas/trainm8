@@ -47,11 +47,11 @@ a direction (`GOAL.md`, "Right now"). For every task and scan:
   The classic app (`/`, `/training`, `/settings`, ...) gets a change only when
   it is broken or a Lab App needs a shared action.
 - **Issues.** Lab work is labelled `lab` plus `lab:<key>` (`lab:brev`,
-  `lab:prat`, `lab:sti`, `lab:tommel`, `lab:hovedbok`, or `lab:ny` for a
-  new app). Older `agent:*` issues on the classic app were moved to `parked`
-  with a comment naming their label; leave them parked. A spec for an issue
-  without a `lab` label stops with `agent:needs-human` and the question "Is this
-  App Lab work?".
+  `lab:prat`, `lab:sti`, `lab:tommel`, `lab:hovedbok`, or `lab:ny` for a new
+  app). Older `agent:*` issues on the classic app were moved to `parked` with a
+  comment naming their label; leave them parked. A spec for an issue without a
+  `lab` label stops with `agent:needs-human` and the question "Is this App Lab
+  work?".
 - **Scans.** The design scan audits the Lab Apps (each against its own idea in
   `app/lab/variants.ts`, never against the classic design system), and files
   `lab:<key>` proposals. The architecture scan looks only at `app/lab/**`,
@@ -60,8 +60,8 @@ a direction (`GOAL.md`, "Right now"). For every task and scan:
 - **Bold.** Each Lab App is an experiment in a whole different journey; a change
   that makes one app look more like another, or like Klassisk, is the wrong
   change. Proposals for a new app must differ in journey, not only in look.
-- **Honest.** Every number a Lab App shows comes from the Lab Snapshot or a
-  typed action; a null is shown as missing. Demo data is labelled as such.
+- **Honest.** Every number a Lab App shows comes from the Lab Engine; a null is
+  shown as missing. Demo data is labelled as such.
 - **One axis each** (from the `prototype-ui` skill). Every app in
   `app/lab/variants.ts` names the `axis` it diverges on, `winsWhen` and `costs`.
   A new app must take a position on an axis no other app holds; two apps that
