@@ -17,6 +17,7 @@ import {
 	useSearchParams,
 } from 'react-router'
 import { type CapabilityResult } from '#app/lab/engine/define.ts'
+import { useOptionalUser } from '#app/utils/user.ts'
 
 export const BASE = '/lab/hovedbok'
 
@@ -301,7 +302,8 @@ export function useHb() {
 export const DEMO_REFUSED =
 	'Demodata: endringer virker ikke her. Gå til dine tall for å endre.'
 
-const LOG_KEY = 'hovedbok.logg.v1'
+/** Per account: a second account on this browser never sees the first's log. */
+const logKey = (userId: string) => `hovedbok.logg.v1:${userId}`
 const PREF_KEY = 'hovedbok.visning.v1'
 function readLS<T>(key: string, fallback: T): T {
 	try {
@@ -329,9 +331,13 @@ export function HbProvider({ children }: { children: ReactNode }) {
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const [params] = useSearchParams()
 	const demo = params.get('demo') === '1'
+	const userId = useOptionalUser()?.id ?? null
 
 	useEffect(() => {
-		setLog(readLS<LogEntry[]>(LOG_KEY, []))
+		setLog(userId ? readLS<LogEntry[]>(logKey(userId), []) : [])
+	}, [userId])
+
+	useEffect(() => {
 		const p = readLS<Prefs>(PREF_KEY, DEFAULT_PREFS)
 		const known = new Set(p.cols?.map((c) => c.key) ?? [])
 		const cols = [
@@ -344,10 +350,13 @@ export function HbProvider({ children }: { children: ReactNode }) {
 		setPrefsState({ ...DEFAULT_PREFS, ...p, cols })
 	}, [])
 
-	const save = useCallback((next: LogEntry[]) => {
-		writeLS(LOG_KEY, next.slice(0, 300))
-		return next
-	}, [])
+	const save = useCallback(
+		(next: LogEntry[]) => {
+			if (userId) writeLS(logKey(userId), next.slice(0, 300))
+			return next
+		},
+		[userId],
+	)
 
 	const push = useCallback(
 		(e: Omit<LogEntry, 'id' | 'at'>) => {
