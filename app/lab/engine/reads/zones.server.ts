@@ -16,6 +16,7 @@ import {
 	resolveIntensity,
 } from '#app/utils/zones/index.ts'
 import { type CapabilityCtx } from '../define.ts'
+import { nbRecipeName, nbZoneCaption } from '../nb.ts'
 import { type SportZones, type ZonesOutput } from '../reads.types.ts'
 import { maybe, sportName } from './shared.server.ts'
 
@@ -93,7 +94,7 @@ export async function readZones(ctx: CapabilityCtx): Promise<ZonesOutput> {
 			model: recipe
 				? {
 						id: recipe.id,
-						name: recipe.name,
+						name: nbRecipeName(recipe.id, recipe.name),
 						chosenBy:
 							row?.zoneSystemSource === 'athlete'
 								? 'athlete'
@@ -106,7 +107,7 @@ export async function readZones(ctx: CapabilityCtx): Promise<ZonesOutput> {
 				: null,
 			models: listRecipesForDiscipline(discipline).map((r) => ({
 				id: r.id,
-				name: r.name,
+				name: nbRecipeName(r.id, r.name),
 			})),
 			zones: (recipe?.zones ?? []).map((band) => {
 				const resolved = resolveIntensity(
@@ -120,7 +121,9 @@ export async function readZones(ctx: CapabilityCtx): Promise<ZonesOutput> {
 				const pace = range(resolved.paceMin, resolved.paceMax)
 				return {
 					label: band.label,
-					description: band.description ?? null,
+					description: band.description
+						? nbZoneCaption(band.description)
+						: null,
 					step: band.zone ?? null,
 					heartRate: range(resolved.hrMin, resolved.hrMax),
 					power: range(resolved.powerMin, resolved.powerMax),

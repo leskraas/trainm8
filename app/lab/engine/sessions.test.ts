@@ -317,6 +317,45 @@ describe('doing and recording', () => {
 		).toMatchObject({ ok: false, code: 'not-understood' })
 	})
 
+	test('add_session reads every example the contract gives', async () => {
+		const userId = await athlete()
+		await prisma.athleteProfile.update({
+			where: { userId },
+			data: { sports: JSON.stringify(['bike', 'run']) },
+		})
+		const cases: Array<[string, Record<string, unknown>, string]> = [
+			['45 min rolig', { sport: 'run' }, 'run'],
+			['4x8 min terskel', { sport: 'run' }, 'run'],
+			['3x10 knebøy', {}, 'strength'],
+			['3x10 knebøy', { sport: 'strength' }, 'strength'],
+			['3x10 knebøy 60 kg', {}, 'strength'],
+			['3x10 knebøy 60 kg', { sport: 'strength' }, 'strength'],
+			['knebøy 3x10 60kg', {}, 'strength'],
+			['løp 45 min rolig', {}, 'run'],
+			['sykkel 1 t rolig', {}, 'bike'],
+			['svømming 30 min', {}, 'swim'],
+			['45 min rolig', {}, 'bike'],
+		]
+		for (const [sentence, hint, sport] of cases) {
+			const added = await value(userId, 'add_session', {
+				date: '2030-01-04',
+				sentence,
+				...hint,
+			})
+			expect({ ...added.changed[0], sentence }).toMatchObject({
+				sport,
+				title: sentence,
+			})
+			expect({
+				sentence,
+				guessed: added.sportGuessedBecause !== null,
+			}).toEqual({
+				sentence,
+				guessed: sentence === '45 min rolig' && !('sport' in hint),
+			})
+		}
+	})
+
 	test('add_session can say it was already done, with a note and outside the plan', async () => {
 		const userId = await athlete()
 		const done = await value(userId, 'add_session', {

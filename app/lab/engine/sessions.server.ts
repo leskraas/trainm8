@@ -63,6 +63,11 @@ import {
 	activeRunFor,
 	finishStrengthSession,
 } from '#app/utils/strength-runner.server.ts'
+import {
+	type CardioDiscipline,
+	type Discipline,
+	isCardioDiscipline,
+} from '#app/utils/workout-schema.ts'
 import { MAX_SENTENCE_LENGTH } from '#app/utils/workout-sentence.ts'
 import {
 	deleteWorkoutSession,
@@ -71,6 +76,7 @@ import {
 	setCountsInNoTrack,
 	undoMarkSessionDone,
 } from '#app/utils/workout.server.ts'
+import { readSentenceExercises } from '#app/utils/writing-line.server.ts'
 import {
 	type CapabilityCtx,
 	type CapabilityResult,
@@ -96,6 +102,7 @@ import {
 	type MoveResult,
 } from './sessions/move.server.ts'
 import { answerableProposalIds } from './sessions/proposals.server.ts'
+import { readAddSentence } from './sessions/sentence.ts'
 import { readSnapshot, readSnapshots } from './sessions/snapshot.server.ts'
 import {
 	defaultLoadOf,
@@ -292,6 +299,26 @@ const deleteSession = defineCapability({
 	},
 })
 
+/** The athlete's main endurance sport: the first they train, when they said. */
+async function mainSportOf(userId: string): Promise<CardioDiscipline | null> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { sports: true },
+	})
+	let sports: unknown
+	try {
+		sports = JSON.parse(profile?.sports ?? 'null')
+	} catch {
+		return null
+	}
+	if (!Array.isArray(sports)) return null
+	const main = sports.find(
+		(sport): sport is CardioDiscipline =>
+			typeof sport === 'string' && isCardioDiscipline(sport as Discipline),
+	)
+	return main ?? null
+}
+
 const addSession = defineCapability({
 	name: 'add_session',
 	kind: 'write',
@@ -308,6 +335,7 @@ const addSession = defineCapability({
 	}),
 	async run(ctx, input): Promise<CapabilityResult<AddSessionOutput>> {
 		let sessionId: string
+		let sportGuessedBecause: string | null = null
 		if (input.copyOf) {
 			const copied = await copySessionToDay({
 				userId: ctx.userId,
@@ -318,14 +346,26 @@ const addSession = defineCapability({
 			if (!copied.ok) return fail('not-found', NOT_FOUND)
 			sessionId = copied.sessionId
 		} else if (input.sentence) {
-			const written = await writeSessionOnDay({
-				userId: ctx.userId,
-				dateKey: input.date,
-				discipline: input.sport ?? null,
+			const exercises = await readSentenceExercises(ctx.userId)
+			const read = readAddSentence({
 				sentence: input.sentence,
-				timezone: ctx.timezone,
+				sport: input.sport ?? null,
+				mainSport: await mainSportOf(ctx.userId),
+				exercises,
 			})
-			if (!written.ok) {
+			const written = read
+				? await writeSessionOnDay({
+						userId: ctx.userId,
+						dateKey: input.date,
+						discipline: read.discipline,
+						sentence: read.sentence,
+						title: input.sentence,
+						timezone: ctx.timezone,
+						exercises,
+					})
+				: null
+			sportGuessedBecause = read?.sportGuessedBecause ?? null
+			if (!written?.ok) {
 				return fail(
 					'not-understood',
 					'Skjønte ikke økta. Prøv for eksempel «45 min rolig» eller «3x10 knebøy».',
@@ -375,6 +415,7 @@ const addSession = defineCapability({
 		return ok({
 			changed: await snapshots(ctx, [sessionId]),
 			sessionId,
+			sportGuessedBecause,
 			notDoneBecause:
 				input.alreadyDone && !done
 					? begun

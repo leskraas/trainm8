@@ -27,6 +27,7 @@ import {
 import { type LoadValue } from '#app/utils/strength-log.ts'
 // The outcome sentences in Norwegian, as the strength logger says them.
 import { type LoadTarget } from '#app/utils/workout-schema.ts'
+import { nbLoadUnavailable, nbStrengthSentence } from '../nb.ts'
 import {
 	type LiftResult,
 	type Plates,
@@ -174,8 +175,9 @@ function setOf(
 	} else if (row.resolvedLoad?.kind === 'resolved') {
 		kg = row.resolvedLoad.kg
 	} else if (row.resolvedLoad?.kind === 'unavailable') {
-		why = row.resolvedLoad.text
-		fix = row.resolvedLoad.fix
+		const said = nbLoadUnavailable(row.resolvedLoad)
+		why = said.why
+		fix = said.fix
 	} else if (row.prescribedLoad?.kind === 'absolute') {
 		kg = row.prescribedLoad.kg
 	} else if (row.prescribedLoad == null) {
@@ -227,7 +229,22 @@ export function defaultLoadOf(exercise: LogExercise): {
 	why?: string
 } {
 	const working = buildWorkingLoad(exercise)
-	if (working.kind === 'absent') return { load: null, why: working.text }
+	if (working.kind === 'absent') {
+		// The working load reads the first row that says anything about its
+		// load; when that row's load is unavailable, its sentence is the
+		// resolver's English one, said here in Norwegian.
+		const row =
+			exercise.rows.find(
+				(r) => r.prescribedLoad != null || r.resolvedLoad != null,
+			) ?? exercise.rows[0]
+		return {
+			load: null,
+			why:
+				row?.resolvedLoad?.kind === 'unavailable'
+					? nbLoadUnavailable(row.resolvedLoad).why
+					: working.text,
+		}
+	}
 	const value = workingLoadValue(working)
 	return value
 		? { load: value }
@@ -249,7 +266,9 @@ function exerciseOf(exercise: LogExercise): StrengthExercise {
 			...exercise.rows.map((row) => setOf(row, exercise, false)),
 		],
 		noWarmupBecause:
-			exercise.warmupRows.length > 0 ? null : exercise.warmupUnavailable,
+			exercise.warmupRows.length > 0
+				? null
+				: nbStrengthSentence(exercise.warmupUnavailable),
 	}
 }
 

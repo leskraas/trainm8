@@ -610,6 +610,15 @@ export type DeleteAccountInput = {
 }
 export type DeleteAccountOutput = {
 	deleted: true
-	/** Sessions and workouts erased; workouts others still use are kept without the athlete's name. */
+	/** Sessions erased: every session on the calendar, planned, done or uploaded. */
+	sessionsErased: number
+	/** Recordings erased: activities uploaded from a file or synced from a watch or service. */
+	recordingsErased: number
+	/**
+	 * Written session plans erased (the steps and targets behind planned or
+	 * written sessions). An uploaded recording has no written plan, so an athlete
+	 * who only uploaded has 0 here. A plan someone else still uses is kept,
+	 * without the athlete's name.
+	 */
 	workoutsErased: number
 }

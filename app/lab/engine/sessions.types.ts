@@ -107,6 +107,12 @@ export type AddSessionInput = {
 export type AddSessionOutput = {
 	changed: SessionSnapshot[]
 	sessionId: string
+	/**
+	 * The words did not say which sport and no `sport` was given: what was
+	 * assumed (the athlete's main sport, or running), to show beside the
+	 * session so the athlete can change it. Null when nothing was assumed.
+	 */
+	sportGuessedBecause: string | null
 	/** Asked for `alreadyDone` but it could not be marked: why. */
 	notDoneBecause: string | null
 } & UndoPart

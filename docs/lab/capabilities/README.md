@@ -55,5 +55,14 @@ documents describe them in full:
 - **Proposals:** read them with `proposals`, answer them with `answer_proposal`
   / `accept_round` / `accept_all_proposals`; changes the plan made on its own
   are listed there too and undone with `undo_change` / `undo_all_changes`.
+- **Language.** Every word the engine writes is Norwegian bokmål: sport names,
+  block names (`Oppvarming`, `Hoveddel`, `Nedjogg` on a run, `Nedkjøling`
+  otherwise), durations in a session's line (`1 t 30 min`), zone descriptions
+  (`rolig/utholdenhet`), zone model names (`Daniels fart, 5 soner`), phase names
+  (`Grunntrening`, `Oppbygging`, `Spissing`, `Nedtrapping`), strength loads
+  (`kroppsvekt`) and every `why`. What a person wrote stays as written: session
+  titles, descriptions, step notes, a phase or block the athlete named
+  themselves, and exercise names from the exercise library (some are English, as
+  the library names them). Show text as it comes; do not translate it again.
 - **Demo data** only when you pass `demo: true` to a read, and it comes back
   with `source: 'demo'`. Say so on screen.

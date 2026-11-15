@@ -22,6 +22,7 @@ import {
 	ledgerSessionSelect,
 } from '#app/utils/training.server.ts'
 import { type CapabilityCtx } from '../define.ts'
+import { nbPhaseName } from '../nb.ts'
 import {
 	type PhasePosition,
 	type SportVolume,
@@ -51,7 +52,7 @@ export function phasePosition(
 	for (const phase of plan.phases) {
 		if (index < start + phase.weeks) {
 			return {
-				name: phase.name,
+				name: nbPhaseName(phase.name),
 				planWeek: index + 1,
 				planWeeks: total,
 				phaseWeek: index - start + 1,

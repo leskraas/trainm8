@@ -7,7 +7,7 @@ import {
 	getOrCreateAthleteProfile,
 	getThresholdHistory,
 } from '#app/utils/athlete.server.ts'
-import { MEG_ZONE_RECIPE_LABELS } from '#app/utils/labels.ts'
+import { MEG_ZONE_RECIPE_LABELS, nbZoneCaption } from '#app/utils/labels.ts'
 import {
 	defaultRecipeIdFor,
 	getRecipe,
@@ -68,7 +68,9 @@ function zonesOf(row: ProfileRow | undefined, sport: Sport): Zone[] {
 			{ kind: 'zoneLabel', label: band.label },
 			profile,
 		)
-		const description = band.description ?? null
+		const description = band.description
+			? nbZoneCaption(band.description)
+			: null
 		if ('unavailable' in resolved && resolved.unavailable) {
 			return {
 				label: band.label,

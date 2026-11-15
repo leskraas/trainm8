@@ -402,6 +402,9 @@ type PlanOutput = {
 }
 ```
 
+- Phase names are Norwegian: the standard phases read `Grunntrening`,
+  `Oppbygging`, `Spissing`, `Nedtrapping`; a phase the athlete named reads as
+  they wrote it. `weeks[].phase` is the same name.
 - A plan's last week may fall short of, or past, its event; show it as it is.
 - `projectedFitnessOnGoalDay` is `null` for a plan with no date, with no history
   yet, or when some week's load cannot be priced; `why` says which.
@@ -418,8 +421,8 @@ Output `SessionOutput` = `SessionCard` and:
 ```ts
 {
 	source: 'athlete' | 'demo'
-	description: string | null
-	summary: string | null // the whole session in one line
+	description: string | null // as its author wrote it (may be in any language)
+	summary: string | null // the whole session in one line, e.g. '10 min Rolig Oppvarming → 1 t 30 min Rolig Hoveddel'
 	structure: SessionBlock[] | null // null: nothing planned (a recording)
 	comparison: {
 		load: { planned: Num; actual: Num }
@@ -440,7 +443,7 @@ Output `SessionOutput` = `SessionCard` and:
 }
 
 type SessionBlock = {
-	name: string | null // 'Oppvarming', 'Drag', …
+	name: string | null // 'Oppvarming', 'Hoveddel', 'Nedjogg', 'Intervaller', or the author's own name
 	repeat: number // 6 × …
 	series: number // 3 × (13 × 30/15)
 	restBetweenSeriesS: number | null
@@ -455,8 +458,8 @@ type SessionBlock = {
 		exercise: { id: string; name: string } | null
 		sets: number | null
 		restBetweenSetsS: number | null
-		note: string | null
-		text: string // the step in one line
+		note: string | null // the author's note, as written
+		text: string // the step in one line: '1 t 10 min Rolig (4:36–5:14 /km)'
 	}[]
 }
 
@@ -703,7 +706,7 @@ type ZonesOutput = {
 		models: { id: string; name: string }[] // the others to choose from
 		zones: {
 			label: string // 'Z2', 'E', 'I-3'
-			description: string | null
+			description: string | null // Norwegian: 'rolig/utholdenhet', 'terskel'
 			step: number | null // on the common 1–5 scale
 			heartRate: { min: number | null; max: number | null } | null
 			power: { min: number | null; max: number | null } | null

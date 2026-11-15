@@ -1012,9 +1012,20 @@ const delete_account = defineCapability({
 			)
 		}
 		try {
+			// What the athlete thinks of as their training: every session on
+			// their calendar (planned, done, or brought in from a file or a
+			// watch) and every recording. Counted first, since they go with the
+			// account; `workoutsErased` counts only written plans, so an athlete
+			// who only uploaded has none.
+			const [sessionsErased, recordingsErased] = await Promise.all([
+				prisma.workoutSession.count({ where: { userId: ctx.userId } }),
+				prisma.activityImport.count({ where: { athleteId: ctx.userId } }),
+			])
 			const erased = await deleteAccount(ctx.userId)
 			return ok<DeleteAccountOutput>({
 				deleted: true,
+				sessionsErased,
+				recordingsErased,
 				workoutsErased: erased.erased,
 			})
 		} catch (error) {

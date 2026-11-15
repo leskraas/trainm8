@@ -146,14 +146,29 @@ The athlete will not, or did not, do it.
 An extra session the athlete did, or wants to do.
 
 - Input `AddSessionInput`: `date`, and one of
-  - `sentence` — the athlete's own words: `45 min rolig`, `4x8 min terskel`,
-    `3x10 knebøy 60 kg` (with `sport` as a hint when the words do not say);
+  - `sentence` — the athlete's own words. The session's title is the sentence
+    exactly as typed. What it reads:
+    - endurance: `45 min rolig`, `4x8 min terskel`, `løp 45 min rolig`,
+      `45 min rolig jogg`, `sykkel 1 t rolig`, `svømming 30 min`. A sport word
+      anywhere (`løp`, `løping`, `jogg`, `sykkel`, `sykling`, `svøm`, `svømming`
+      …) names the sport;
+    - strength: an exercise and its sets in either order, with an optional load
+      — `3x10 knebøy`, `3x10 knebøy 60 kg`, `knebøy 3x10 60kg`,
+      `3x10 knebøy, 3x8 benkpress 40 kg`. An exercise name makes it a strength
+      session whatever `sport` says;
+    - `sport` (`run | bike | swim | strength`) is a hint for words that name no
+      sport. With no hint, `45 min rolig` becomes the athlete's main sport (the
+      first endurance sport they train), or a run when they have not said;
+      `sportGuessedBecause` then says so.
   - `sport` alone (`run | bike | swim`) — a 45-minute easy session;
   - `copyOf` — another of the athlete's sessions, copied onto `date`.
 - Optional: `alreadyDone` (a day that has begun only; not strength — log its
   sets), `note`, `countsTowardPlan: false` (a bike commute).
 - Output `AddSessionOutput`: `sessionId`, `changed`, `notDoneBecause` (set when
-  `alreadyDone` was asked and could not be), undo (removes it again).
+  `alreadyDone` was asked and could not be), `sportGuessedBecause` (set when the
+  sport was assumed, e.g. "Ordene sa ikke hvilken idrett, så økta ble sykling,
+  hovedidretten din." — show it beside the session so the athlete can fix it
+  with `delete_session` or `undo` and a new sentence), undo (removes it again).
 - Fails `not-understood` (the sentence could not be read: let the athlete
   rephrase), `needs-sentence` (strength needs its lifts), `not-found`
   (`copyOf`), `invalid-input` (none of the three given).

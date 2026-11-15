@@ -606,4 +606,38 @@ describe('settings', () => {
 		expect(deleted.value.deleted).toBe(true)
 		expect(await prisma.user.count({ where: { id: userId } })).toBe(0)
 	})
+
+	test('delete counts an uploaded session, which has no written plan', async () => {
+		const userId = await createAthlete()
+		const startedAt = new Date('2026-01-02T07:00:00Z')
+		const recording = await prisma.activityImport.create({
+			data: {
+				athleteId: userId,
+				externalProvider: 'manual',
+				externalId: `upload-${userId}`,
+				startedAt,
+				endedAt: new Date(startedAt.getTime() + 3600_000),
+				durationSec: 3600,
+				discipline: 'run',
+				rawJson: '{}',
+			},
+			select: { id: true },
+		})
+		await prisma.workoutSession.create({
+			data: {
+				userId,
+				scheduledAt: startedAt,
+				status: 'completed',
+				source: 'recorded',
+				recordingId: recording.id,
+			},
+		})
+		const deleted = await run(userId, 'delete_account', { confirm: 'SLETT' })
+		expect(deleted.value).toEqual({
+			deleted: true,
+			sessionsErased: 1,
+			recordingsErased: 1,
+			workoutsErased: 0,
+		})
+	})
 })

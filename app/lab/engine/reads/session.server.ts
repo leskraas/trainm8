@@ -22,7 +22,6 @@ import {
 	getStrengthLogView,
 	type LogRow,
 } from '#app/utils/strength-log.server.ts'
-import { loadValueText } from '#app/utils/strength-log.ts'
 import { getDisciplineThresholds } from '#app/utils/training.server.ts'
 import {
 	blockSentence,
@@ -34,6 +33,7 @@ import {
 } from '#app/utils/workout-notation.ts'
 import { resolveIntensity } from '#app/utils/zones/resolve.ts'
 import { type CapabilityCtx } from '../define.ts'
+import { nbBlockName, nbHours, nbLoadValueText } from '../nb.ts'
 import {
 	type Allowed,
 	type RecordingSummary,
@@ -120,10 +120,12 @@ export function stepTarget(
  * `*`; the read says that per target (`resolvedText`), so the line drops it.
  */
 function plainNotation(text: string): string {
-	return text
-		.replace(/\*/g, '')
-		.replace(/\s{2,}/g, ' ')
-		.trim()
+	return nbHours(
+		text
+			.replace(/\*/g, '')
+			.replace(/\s{2,}/g, ' ')
+			.trim(),
+	)
 }
 
 const yes: Allowed = { allowed: true, why: null }
@@ -258,13 +260,13 @@ function strengthSetOf(row: LogRow, warmup: boolean) {
 					reps: row.logged.reps,
 					durationS: row.logged.durationSec,
 					kg: row.logged.effectiveKg,
-					loadText: row.logged.load ? loadValueText(row.logged.load) : null,
+					loadText: row.logged.load ? nbLoadValueText(row.logged.load) : null,
 					repsInReserve: row.logged.rir,
 					outcome: row.logged.outcome,
 				}
 			: null,
 		lastTime: row.ghost
-			? `${loadValueText(row.ghost.load)}${row.ghost.reps != null ? ` × ${row.ghost.reps}` : ''}`
+			? `${nbLoadValueText(row.ghost.load)}${row.ghost.reps != null ? ` × ${row.ghost.reps}` : ''}`
 			: null,
 	} satisfies StrengthExercise['sets'][number]
 }
@@ -321,11 +323,20 @@ export async function readSession(
 	let structure: SessionBlock[] | null = null
 	let summary: string | null = null
 	if (workout) {
-		const notation = deriveWorkoutNotation(workoutToNotationInput(workout), {
+		// Block names the domain wrote in English (`Warm-up`, `Main set`) read
+		// in Norwegian in the line and the name alike; the author's own stay.
+		const named = {
+			...workout,
+			blocks: workout.blocks.map((block) => ({
+				...block,
+				name: nbBlockName(block.name, workout.discipline),
+			})),
+		}
+		const notation = deriveWorkoutNotation(workoutToNotationInput(named), {
 			thresholds,
 		})
 		summary = plainNotation(notationSentence(notation)) || null
-		structure = workout.blocks.map((block, bi) => {
+		structure = named.blocks.map((block, bi) => {
 			const nBlock = notation.blocks[bi]
 			return {
 				name: block.name,

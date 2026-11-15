@@ -12,6 +12,7 @@ import { projectFitnessToRace } from '#app/utils/load/fitness-projection.ts'
 import { getCurrentLoad } from '#app/utils/load/snapshot.server.ts'
 import { type ActivePlan, getActivePlan } from '#app/utils/training.server.ts'
 import { type CapabilityCtx } from '../define.ts'
+import { nbPhaseName } from '../nb.ts'
 import {
 	type Num,
 	type PlanOutput,
@@ -111,7 +112,7 @@ export async function readPlan(ctx: CapabilityCtx): Promise<PlanOutput> {
 		}
 		const first = addDays(firstWeek, 7 * start)
 		const out = {
-			name: phase.name,
+			name: nbPhaseName(phase.name),
 			weeks: phase.weeks,
 			firstWeek: first,
 			lastWeek: addDays(first, 7 * (phase.weeks - 1)),
@@ -123,7 +124,7 @@ export async function readPlan(ctx: CapabilityCtx): Promise<PlanOutput> {
 		return out
 	})
 	const phaseOfWeek = plan.phases.flatMap((p) =>
-		Array.from({ length: p.weeks }, () => p.name),
+		Array.from({ length: p.weeks }, () => nbPhaseName(p.name)),
 	)
 	const family = plan.family
 	return {
