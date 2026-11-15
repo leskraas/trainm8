@@ -1733,6 +1733,18 @@ anywhere (ADR 0115). _Avoid_: Location, position, address, home (alone)
 
 ### App structure
 
+**App Lab**: Several whole, different apps running side by side in production
+behind one switch, so the owner can live in each and find out what trainm8
+should be (ADR 0125). The chosen app is remembered and `/` opens it. _Avoid:_
+A/B test (nothing is measured on other users), theme (each is a whole journey).
+
+**Lab App**: One app in the **App Lab**, under `/lab/<key>/`: _Samtale_,
+_Stabel_, _Terreng_, _Dagbok_, _Cockpit_, and _Klassisk_ (the app as it was).
+
+**Lab Snapshot**: The one plain read model every **Lab App** draws from, built
+from the typed reads and flattened to `number | null` (a null is an
+**Unavailable Metric**). Falls back to a labelled demo athlete.
+
 **The Tape**: _Built (the home rebuild, `cd0928b`)._ The single bi-directional
 past↔future timeline of **Workout Sessions**, anchored on today — and, since the
 rebuild, the app's home navigation model rather than a long-term idea. It

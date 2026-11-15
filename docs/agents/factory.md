@@ -37,6 +37,32 @@ models: update-branch=sonnet, qa=sonnet, design-scan=sonnet, *=opus
 effort: update-branch=medium, qa=medium, implement=medium, review-fix=medium, *=high
 ```
 
+## Focus: the App Lab only (ADR 0125)
+
+From 2026-11-15 the factory works **only** on the App Lab until the owner picks
+a direction (`GOAL.md`, "Right now"). For every task and scan:
+
+- **Scope.** Work lives in `app/lab/**` and `app/routes/lab/**`, plus new
+  actions under `app/actions/` when a Lab App needs a write that doesn't exist.
+  The classic app (`/`, `/training`, `/settings`, ...) gets a change only when
+  it is broken or a Lab App needs a shared action.
+- **Issues.** Lab work is labelled `lab` plus `lab:<key>` (`lab:samtale`,
+  `lab:stabel`, `lab:terreng`, `lab:dagbok`, `lab:cockpit`, or `lab:ny` for a
+  new app). Older `agent:*` issues on the classic app were moved to `parked`
+  with a comment naming their label; leave them parked. A spec for an issue
+  without a `lab` label stops with `agent:needs-human` and the question "Is this
+  App Lab work?".
+- **Scans.** The design scan audits the Lab Apps (each against its own idea in
+  `app/lab/variants.ts`, never against the classic design system), and files
+  `lab:<key>` proposals. The architecture scan looks only at `app/lab/**`,
+  `app/routes/lab/**` and the actions they read. The retro asks whether a Lab
+  App should be deleted or a new one tried.
+- **Bold.** Each Lab App is an experiment in a whole different journey; a change
+  that makes one app look more like another, or like Klassisk, is the wrong
+  change. Proposals for a new app must differ in journey, not only in look.
+- **Honest.** Every number a Lab App shows comes from the Lab Snapshot or a
+  typed action; a null is shown as missing. Demo data is labelled as such.
+
 ## Why these values
 
 - **Autonomy `full`, merge `agent`**: a solo project; the factory decides,
