@@ -30,7 +30,16 @@ export const EVENT_STATUSES = ['planned', 'completed', 'cancelled'] as const
 export type EventStatus = (typeof EVENT_STATUSES)[number]
 
 export const EventTargetSchema = z.discriminatedUnion('kind', [
-	z.object({ kind: z.literal('time'), seconds: z.number().int().positive() }),
+	z.object({
+		kind: z.literal('time'),
+		seconds: z.number().int().positive(),
+		/**
+		 * The distance the finish time is over, where the athlete gave one
+		 * (`21,1 km på 1:45:00`). Optional, so a time stored before it existed
+		 * reads unchanged.
+		 */
+		meters: z.number().int().positive().optional(),
+	}),
 	z.object({ kind: z.literal('pace'), secPerKm: z.number().positive() }),
 	z.object({
 		kind: z.literal('distance'),
