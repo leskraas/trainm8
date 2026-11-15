@@ -642,6 +642,24 @@ export function Book({
 			// else: stays in placing mode, tap a day
 		}
 	}
+	/**
+	 * A cancelled gesture (the system took the pointer) puts everything back
+	 * and does nothing: no done, no skip, no move.
+	 */
+	function onCancel(e: React.PointerEvent<HTMLTableRowElement>) {
+		const g = gesture.current
+		if (!g || g.id !== e.pointerId) return
+		if (g.timer) clearTimeout(g.timer)
+		gesture.current = null
+		setTx(g.row, 0, 0)
+		setHint(null)
+		if (g.mode === 'lift') {
+			setLifted(null)
+			dropRef.current?.classList.remove('drop')
+			dropRef.current = null
+			setPlacing(null)
+		}
+	}
 	async function placeExplicit(
 		s: SessionCard,
 		date: string,
@@ -693,6 +711,7 @@ export function Book({
 		onDown,
 		onMove,
 		onUp,
+		onCancel,
 		fits,
 		lifted,
 	}
@@ -936,6 +955,7 @@ type RowCtx = {
 	) => void
 	onMove: (e: React.PointerEvent<HTMLTableRowElement>) => void
 	onUp: (e: React.PointerEvent<HTMLTableRowElement>) => void
+	onCancel: (e: React.PointerEvent<HTMLTableRowElement>) => void
 	fits: boolean
 	lifted: string | null
 }
@@ -1610,7 +1630,7 @@ function DayRowView({ r, ctx }: { r: DayRow; ctx: RowCtx }) {
 				onPointerDown={(e) => ctx.onDown(e, s)}
 				onPointerMove={ctx.onMove}
 				onPointerUp={ctx.onUp}
-				onPointerCancel={ctx.onUp}
+				onPointerCancel={ctx.onCancel}
 				onClick={(e) => {
 					if (placing && (e.target as HTMLElement).tagName === 'TD')
 						void ctx.place(r.date, s)
