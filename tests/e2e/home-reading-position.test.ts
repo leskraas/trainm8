@@ -199,7 +199,9 @@ test('weeks that mount after the first paint never move the row the reader is re
 			new Promise<{
 				key: string | null
 				weeksAtStart: number
+				weeksAtKey: number
 				weeksAtEnd: number
+				framesBeforeMount: number
 				frames: number[]
 			}>((resolve) => {
 				const weeks = () => el.querySelectorAll('[data-timeline-week]').length
@@ -207,11 +209,21 @@ test('weeks that mount after the first paint never move the row the reader is re
 				const weeksAtStart = weeks()
 				const frames: number[] = []
 				let key: string | null = null
+				let weeksAtKey = -1
+				let framesBeforeMount = 0
 				let settle = 3
 				let scrolled = 0
 				let after = -1
 				const top = (row: Element) =>
 					row.getBoundingClientRect().top - box().top
+				const result = () => ({
+					key,
+					weeksAtStart,
+					weeksAtKey,
+					weeksAtEnd: weeks(),
+					framesBeforeMount,
+					frames,
+				})
 				const channel = new MessageChannel()
 				const afterPaint = () => {
 					if (settle > 0) {
@@ -225,15 +237,14 @@ test('weeks that mount after the first paint never move the row the reader is re
 							},
 						)
 						key = row?.getAttribute('data-timeline-day') ?? null
-						if (!key)
-							return resolve({ key, weeksAtStart, weeksAtEnd: weeks(), frames })
+						weeksAtKey = weeks()
+						if (!key) return resolve(result())
 					} else {
 						const row = el.querySelector(`[data-timeline-day="${key}"]`)
 						frames.push(Math.round((row ? top(row) : NaN) + scrolled))
 						if (after < 0 && weeks() > mountedWeeks) after = 30
-						if (after === 0 || frames.length > 600) {
-							return resolve({ key, weeksAtStart, weeksAtEnd: weeks(), frames })
-						}
+						if (after < 0) framesBeforeMount++
+						if (after === 0 || frames.length > 600) return resolve(result())
 						if (after > 0) after--
 					}
 					if (key != null && after < 0) {
@@ -253,10 +264,12 @@ test('weeks that mount after the first paint never move the row the reader is re
 		mounted,
 	)
 	expect(run.key).not.toBeNull()
-	// The weeks ahead mounted while the reader read, not before.
+	// The weeks ahead mounted while the reader read, not before: none had when
+	// the row was picked, and the row was measured across scroll steps first.
 	expect(run.weeksAtStart).toBe(mounted)
+	expect(run.weeksAtKey).toBe(mounted)
+	expect(run.framesBeforeMount).toBeGreaterThanOrEqual(2)
 	expect(run.weeksAtEnd).toBeGreaterThan(mounted)
-	expect(run.frames.length).toBeGreaterThan(30)
 	// Where the row would be had nothing but the reader's scrolling moved it.
 	const moved = run.frames.map((at) => Math.abs(at - run.frames[0]!))
 	expect(Math.max(...moved)).toBeLessThanOrEqual(1)
@@ -299,11 +312,9 @@ test('on a screen taller than the weeks the server renders ahead, today is parke
 	// the event comes late, records none at all (WebKit on CI, #692). A frame
 	// in which the list is held unpainted (`landingHoldScript`) is skipped.
 	await page.addInitScript(() => {
-		const w = window as unknown as { __todayTops: number[]; __frames: number }
+		const w = window as unknown as { __todayTops: number[] }
 		w.__todayTops = []
-		w.__frames = 0
 		const frame = () => {
-			w.__frames++
 			const stream = document.querySelector('[data-timeline-stream]')
 			const today = stream?.querySelector('[data-timeline-today]')
 			if (stream && today && getComputedStyle(stream).visibility !== 'hidden') {
