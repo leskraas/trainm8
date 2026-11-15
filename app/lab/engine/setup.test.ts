@@ -5,8 +5,8 @@ import { prisma } from '#app/utils/db.server.ts'
 import { findActiveOutline } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { type CapabilityCtx } from './define.ts'
-import { SETUP_CAPABILITIES } from './setup.server.ts'
 import { applyGoalUndo, readGoalUndo } from './setup/goal.server.ts'
+import { SETUP_CAPABILITIES } from './setup.server.ts'
 
 // The setup capabilities against a real database: a brand-new athlete gets
 // started one answer at a time, sees real weeks, says yes, sets a goal and

@@ -27,13 +27,13 @@ import {
 } from '#app/utils/plan-outline/open-ended.server.ts'
 import { findActiveOutline } from '#app/utils/training.server.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
+import { openUndo, sealUndo } from '../sessions/undo-token.server.ts'
 import {
 	type Goal,
 	type GoalOutput,
 	type GoalPlanProposal,
 	type Sport,
 } from '../setup.types.ts'
-import { openUndo, sealUndo } from '../sessions/undo-token.server.ts'
 import { clockText } from './common.ts'
 import { towardGoalOf } from './onboarding.server.ts'
 
