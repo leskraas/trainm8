@@ -112,9 +112,12 @@ export async function writeSessionOnDay({
 	sentence,
 	timezone,
 	exercises,
+	title,
 }: {
 	userId: string
 	dateKey: string
+	/** The session's name when it is not the sentence read (see `buildWrittenSession`). */
+	title?: string
 	/** The chip; a discipline word or a lift in the sentence wins over it. */
 	discipline: Discipline | null
 	sentence: string
@@ -130,6 +133,7 @@ export async function writeSessionOnDay({
 	const scheduledAt = await scheduledAtOn(userId, dateKey, timezone)
 	const input = buildWrittenSession({
 		sentence,
+		title,
 		discipline,
 		scheduledAt,
 		exercises: exercises ?? (await readSentenceExercises(userId)),

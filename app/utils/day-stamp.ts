@@ -138,8 +138,14 @@ export function buildWrittenSession({
 	discipline,
 	scheduledAt,
 	exercises,
+	title,
 }: {
 	sentence: string
+	/**
+	 * The session's name, when the words read are not the words the athlete
+	 * typed (a caller that reordered them); the sentence itself otherwise.
+	 */
+	title?: string
 	/** The chip; `strength` is allowed, since a lift names its own sport. */
 	discipline: Discipline | null
 	scheduledAt: Date
@@ -150,7 +156,7 @@ export function buildWrittenSession({
 	if (!parsed.structure || !parsed.intent) return null
 	return {
 		...parsed.structure,
-		title: sentence.trim().replace(/\s+/g, ' ').slice(0, TITLE_MAX),
+		title: (title ?? sentence).trim().replace(/\s+/g, ' ').slice(0, TITLE_MAX),
 		intent: parsed.intent,
 		scheduledAt,
 	}

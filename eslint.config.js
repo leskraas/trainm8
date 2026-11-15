@@ -126,6 +126,9 @@ export default [
 			'app/**/__prototype-*',
 			'app/components/prototype-switcher.tsx',
 			'app/routes/training/plan.prototype.tsx',
+			// The App Lab (ADR 0125): each app owns its own look on purpose.
+			'app/lab/**',
+			'app/routes/lab/**',
 			'**/*.test.{ts,tsx}',
 		],
 		plugins: { trainm8 },

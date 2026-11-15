@@ -81,6 +81,24 @@ built now contradicts them._
 - **Shared Training** — inviting a training partner to a planned **Workout
   Session**. Forward-looking coordination around the plan, never a feed.
 
+## Right now: the App Lab (overrides everything below)
+
+**Find out what trainm8 should be by living in several whole, different apps.**
+(ADR 0125.) The owner doesn't like the classic app and can't yet say why, so
+production runs several complete apps behind one switch: Brev, Prat, Sti,
+Tommel, Hovedbok, and Klassisk as the reference. Until the owner picks a
+direction, the factory works **only** on the App Lab:
+
+- deepen each Lab App so it can carry a real day of use (its own writes, its own
+  edge cases, real data first, demo data only as a fallback);
+- turn the owner's feedback (issues labelled `lab:<key>`) into changes;
+- propose new, radically different apps when one is missing from the set, and
+  deletions when one has been tried and lost;
+- keep every app honest: no number a Lab App shows is invented.
+
+The classic app gets fixes only when it breaks. The North-star below is
+suspended until a Lab direction wins.
+
 ## North-star / Current focus
 
 **The loop closes: your plan adapts to what you actually did.**

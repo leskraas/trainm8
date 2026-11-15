@@ -8,6 +8,7 @@ import {
 	Scripts,
 	ScrollRestoration,
 	useLoaderData,
+	useLocation,
 } from 'react-router'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { type Route } from './+types/root.ts'
@@ -21,6 +22,7 @@ import { buttonVariants } from './components/ui/button.tsx'
 import { href as iconsHref } from './components/ui/icon.tsx'
 import { Toaster } from './components/ui/sonner.tsx'
 import { WordmarkRow } from './components/wordmark-row.tsx'
+import { LabSwitcher } from './lab/lab-switcher.tsx'
 import {
 	ThemeSwitch,
 	useOptimisticThemeMode,
@@ -272,14 +274,19 @@ function App() {
 	const data = useLoaderData<typeof loader>()
 	const user = useOptionalUser()
 	const theme = useTheme()
+	const location = useLocation()
 	useToast(data.toast)
+	// An App Lab app (ADR 0125) owns the whole page: no wordmark row, no tabs.
+	const isLabPage = /^\/lab(\/|$)/.test(location.pathname)
 
 	return (
 		<OpenImgContextProvider
 			optimizerEndpoint="/resources/images"
 			getSrc={getImgSrc}
 		>
-			{user ? (
+			{user && isLabPage ? (
+				<Outlet />
+			) : user ? (
 				<div className="flex min-h-screen flex-col pr-[env(safe-area-inset-right)] pb-(--tab-bar-space) pl-[env(safe-area-inset-left)]">
 					{/*
 						The four tabs (ADR 0083, superseding #178's embedded
@@ -320,6 +327,7 @@ function App() {
 			)}
 			<Toaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
+			{user ? <LabSwitcher /> : null}
 			{data.devAthletes ? (
 				<DevAthleteSwitcher
 					athletes={data.devAthletes}

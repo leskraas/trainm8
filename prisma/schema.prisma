@@ -1235,6 +1235,15 @@ model AthleteProfile {
   // keeps weekday sessions short; they never change a Quality Session Mix.
   // "[]" = skipped, null = never asked (an athlete from before #571).
   sessionPreferences String?
+  // The start's other answers, kept as they are given so an athlete can answer
+  // them one at a time and in any order (the Lab Engine's getting started):
+  // the endurance sports they train, main sport first (JSON array of "run" |
+  // "bike" | "swim"), the Simple Activities they do (JSON array of Activity
+  // Kinds), and the hours a week they train now. Null = never said; "[]" =
+  // said none. Their own answers, never derived from history.
+  sports             String?
+  simpleActivities   String?
+  currentWeeklyHours Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
