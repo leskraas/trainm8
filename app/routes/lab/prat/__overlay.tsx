@@ -36,9 +36,23 @@ function useFocusInside(ref: React.RefObject<HTMLElement | null>) {
 	useEffect(() => {
 		const prev = document.activeElement as HTMLElement | null
 		const t = window.setTimeout(() => {
-			ref.current
-				?.querySelector<HTMLElement>('button, input, textarea, select, a[href]')
-				?.focus({ preventScroll: true })
+			const root = ref.current
+			if (!root) return
+			// The first one that can take focus: a hidden close button (the
+			// desktop sheet) or a disabled one cannot.
+			const first = Array.from(
+				root.querySelectorAll<HTMLElement>(
+					'button, input, textarea, select, a[href], [tabindex]:not([tabindex="-1"])',
+				),
+			).find(
+				(el) =>
+					!(el as HTMLButtonElement).disabled && el.getClientRects().length > 0,
+			)
+			if (first) first.focus({ preventScroll: true })
+			else {
+				if (!root.hasAttribute('tabindex')) root.setAttribute('tabindex', '-1')
+				root.focus({ preventScroll: true })
+			}
 		}, 30)
 		return () => {
 			window.clearTimeout(t)
