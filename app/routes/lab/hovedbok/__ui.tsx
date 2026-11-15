@@ -303,7 +303,7 @@ export const DEMO_REFUSED =
 	'Demodata: endringer virker ikke her. Gå til dine tall for å endre.'
 
 /** Per account: a second account on this browser never sees the first's log. */
-const logKey = (userId: string) => `hovedbok.logg.v1:${userId}`
+export const logKey = (userId: string) => `hovedbok.logg.v1:${userId}`
 const PREF_KEY = 'hovedbok.visning.v1'
 function readLS<T>(key: string, fallback: T): T {
 	try {
@@ -441,6 +441,11 @@ export function HbProvider({ children }: { children: ReactNode }) {
 		async (id: string) => {
 			const e = log.find((x) => x.id === id)
 			if (!e?.token || e.undone) return
+			// The log is the real account's: demo data never writes to it.
+			if (demo) {
+				toast(DEMO_REFUSED, { error: true })
+				return
+			}
 			setBusy(true)
 			const isGoal = e.token.startsWith('goal:')
 			const r = isGoal
@@ -456,7 +461,7 @@ export function HbProvider({ children }: { children: ReactNode }) {
 			toast(`Angret: ${e.what}`)
 			void revalidator.revalidate()
 		},
-		[log, mark, toast, revalidator],
+		[log, mark, toast, revalidator, demo],
 	)
 
 	const setPrefs = useCallback((p: Partial<Prefs>) => {

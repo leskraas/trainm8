@@ -13,6 +13,7 @@ import {
 	type ThresholdValues,
 	type Zone,
 } from '#app/lab/engine/setup.types.ts'
+import { useOptionalUser } from '#app/utils/user.ts'
 import { type Route } from './+types/innstillinger.$seksjon.ts'
 import { cap } from './__engine.server.ts'
 import { n0, pace, SPORT_NAME } from './__format.ts'
@@ -32,6 +33,7 @@ import {
 	callCap,
 	ErrorBar,
 	FULL_COLS,
+	logKey,
 	Q,
 	Shell,
 	useFlash,
@@ -553,6 +555,7 @@ function TimeCell({
 
 function Account({ d }: { d: D }) {
 	const { act, log } = useHb()
+	const userId = useOptionalUser()?.id ?? null
 	const [open, setOpen] = useState(false)
 	const [typed, setTyped] = useState('')
 	const [busy, setBusy] = useState(false)
@@ -742,6 +745,7 @@ function Account({ d }: { d: D }) {
 											setBusy(false)
 											if (!r.ok) return setErr(r.message)
 											try {
+												if (userId) localStorage.removeItem(logKey(userId))
 												localStorage.removeItem('hovedbok.logg.v1')
 												localStorage.removeItem('hovedbok.visning.v1')
 											} catch {
