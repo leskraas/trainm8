@@ -6,6 +6,7 @@ import { findActiveOutline } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { type CapabilityCtx } from './define.ts'
 import { SETUP_CAPABILITIES } from './setup.server.ts'
+import { applyGoalUndo, readGoalUndo } from './setup/goal.server.ts'
 
 // The setup capabilities against a real database: a brand-new athlete gets
 // started one answer at a time, sees real weeks, says yes, sets a goal and
@@ -465,6 +466,29 @@ describe('goal', () => {
 		expect((await findActiveOutline(userId, NOW))?.event?.name).toBe(
 			'Oslo halvmaraton',
 		)
+	})
+
+	test('a removed goal is not brought back once its day has passed', async () => {
+		const userId = await createAthlete()
+		await run(userId, 'set_goal', {
+			kind: 'event',
+			name: 'Vinterløpet',
+			date: '2030-01-20',
+			sport: 'run',
+		})
+		const removed = await run(userId, 'remove_goal')
+		expect(removed.value.removed).toBe('deleted')
+		const undo = readGoalUndo(userId, removed.value.undo)
+		expect(undo).not.toBeNull()
+		expect(
+			await applyGoalUndo(
+				userId,
+				undo!,
+				new Date('2030-02-01T12:00:00Z'),
+				'Europe/Oslo',
+			),
+		).toMatchObject({ ok: false, code: 'date-past' })
+		expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(0)
 	})
 
 	test('a goal date in the past is refused', async () => {

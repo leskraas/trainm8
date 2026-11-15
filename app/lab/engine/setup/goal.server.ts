@@ -363,6 +363,14 @@ export async function applyGoalUndo(
 		}
 		case 'recreate': {
 			if (await findGoal(userId, now, timezone)) return CHANGED
+			// set_goal's own rule: a goal's day is after today.
+			if (undo.fields.date && undo.fields.date <= localDate(now, timezone)) {
+				return {
+					ok: false,
+					code: 'date-past',
+					message: 'Målets dag har vært. Det kan ikke angres.',
+				}
+			}
 			await createGoal(userId, undo.fields)
 			return { ok: true }
 		}
