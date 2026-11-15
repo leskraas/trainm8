@@ -305,6 +305,17 @@ export const DEMO_REFUSED =
 /** Per account: a second account on this browser never sees the first's log. */
 const logKey = (userId: string) => `hovedbok.logg.v1:${userId}`
 const PREF_KEY = 'hovedbok.visning.v1'
+
+/** What this device keeps for an account, gone when the account is. */
+export function forgetHbDevice(userId: string | null) {
+	try {
+		if (userId) window.localStorage.removeItem(logKey(userId))
+		window.localStorage.removeItem('hovedbok.logg.v1')
+		window.localStorage.removeItem(PREF_KEY)
+	} catch {
+		/* nothing kept */
+	}
+}
 function readLS<T>(key: string, fallback: T): T {
 	try {
 		const raw = window.localStorage.getItem(key)
@@ -441,6 +452,10 @@ export function HbProvider({ children }: { children: ReactNode }) {
 		async (id: string) => {
 			const e = log.find((x) => x.id === id)
 			if (!e?.token || e.undone) return
+			if (demo) {
+				toast(DEMO_REFUSED, { error: true })
+				return
+			}
 			setBusy(true)
 			const isGoal = e.token.startsWith('goal:')
 			const r = isGoal
@@ -456,7 +471,7 @@ export function HbProvider({ children }: { children: ReactNode }) {
 			toast(`Angret: ${e.what}`)
 			void revalidator.revalidate()
 		},
-		[log, mark, toast, revalidator],
+		[log, mark, toast, revalidator, demo],
 	)
 
 	const setPrefs = useCallback((p: Partial<Prefs>) => {
