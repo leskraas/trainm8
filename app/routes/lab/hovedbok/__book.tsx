@@ -2461,8 +2461,25 @@ export function StrengthTable({
 	sessionId: string
 	canLog: { allowed: boolean; why: string | null }
 }) {
-	const { act } = useHb()
+	const { act, demo } = useHb()
 	const q = useRead<StrengthSessionOutput>('strength_session', { sessionId })
+	// Opening the sets of a session not begun starts it, once: a program's
+	// working weights are taken at this moment, as in the other apps.
+	const started = useRef(false)
+	const read = q.state
+	const setRead = q.setState
+	useEffect(() => {
+		if (started.current || demo || !canLog.allowed) return
+		if (!read?.ok) return
+		const v = read.value
+		if (v.session.state !== 'planned' || v.loggedWorkingSets > 0) return
+		started.current = true
+		void callCap<StrengthSessionOutput>('start_strength_session', {
+			sessionId,
+		}).then((r) => {
+			if (r.ok) setRead(r)
+		})
+	}, [read, demo, canLog.allowed, sessionId, setRead])
 	const [pad, setPad] = useState<{
 		stepId: string
 		setIndex: number
