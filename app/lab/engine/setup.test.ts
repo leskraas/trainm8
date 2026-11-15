@@ -395,6 +395,56 @@ describe('goal', () => {
 		).toMatchObject({ ok: false, code: 'invalid-undo' })
 	})
 
+	test('a goal undo token is signed, works once and only while its goal stands', async () => {
+		const userId = await createAthlete()
+		await run(userId, 'set_goal', {
+			kind: 'event',
+			name: 'Sykkelritt',
+			date: '2030-08-01',
+			sport: 'bike',
+			distanceKm: 100,
+		})
+
+		const forged = Buffer.from(
+			JSON.stringify({
+				area: 'goal',
+				kind: 'recreate',
+				fields: {
+					name: 'x',
+					date: 'not-a-date',
+					sport: 'run',
+					distanceKm: -1,
+					targetSeconds: null,
+				},
+			}),
+		).toString('base64url')
+		expect(
+			await run(userId, 'undo_goal_change', { undo: forged }),
+		).toMatchObject({ ok: false, code: 'invalid-undo' })
+
+		const updated = await run(userId, 'update_goal', { name: 'Styrkeprøven' })
+		const other = await createAthlete()
+		expect(
+			await run(other, 'undo_goal_change', { undo: updated.value.undo }),
+		).toMatchObject({ ok: false, code: 'invalid-undo' })
+
+		await run(userId, 'update_goal', { name: 'Trondheim–Oslo' })
+		expect(
+			await run(userId, 'undo_goal_change', { undo: updated.value.undo }),
+		).toMatchObject({ ok: false, code: 'changed' })
+		expect((await run(userId, 'goal')).value.goal.name).toBe('Trondheim–Oslo')
+
+		const removed = await run(userId, 'remove_goal')
+		expect(removed.value.removed).toBe('deleted')
+		expect(
+			(await run(userId, 'undo_goal_change', { undo: removed.value.undo })).ok,
+		).toBe(true)
+		expect(
+			await run(userId, 'undo_goal_change', { undo: removed.value.undo }),
+		).toMatchObject({ ok: false, code: 'changed' })
+		expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(1)
+	})
+
 	test('a goal date in the past is refused', async () => {
 		const userId = await createAthlete()
 		expect(

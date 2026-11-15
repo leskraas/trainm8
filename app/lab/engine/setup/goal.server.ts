@@ -33,7 +33,8 @@ import {
 	type GoalPlanProposal,
 	type Sport,
 } from '../setup.types.ts'
-import { clockText, decodeUndo, encodeUndo } from './common.ts'
+import { openUndo, sealUndo } from '../sessions/undo-token.server.ts'
+import { clockText } from './common.ts'
 import { towardGoalOf } from './onboarding.server.ts'
 
 export const ATTACH_REFUSAL_MESSAGES: Record<AttachEventRefusal, string> = {
@@ -269,19 +270,26 @@ export async function updateGoalFields(
 
 // ── Undo ─────────────────────────────────────────────────────────────────────
 
-type GoalUndo =
-	| { kind: 'restore'; id: string; fields: GoalFields }
+/**
+ * What a goal write needs to be taken back. `after` is the goal as the write
+ * left it: an undo refuses once the goal has moved on from that.
+ */
+export type GoalUndo =
+	| { kind: 'restore'; id: string; fields: GoalFields; after: GoalFields }
 	| { kind: 'uncancel'; id: string }
 	| { kind: 'recreate'; fields: GoalFields }
-	| { kind: 'delete'; id: string }
+	| { kind: 'delete'; id: string; after: GoalFields }
 
-export function goalUndoToken(undo: GoalUndo): string {
-	return encodeUndo({ area: 'goal', ...undo })
+const GOAL_UNDO = 'lab-undo-goal'
+
+/** A signed token, tied to the athlete, for undo_goal_change. */
+export function goalUndoToken(userId: string, undo: GoalUndo): string {
+	return sealUndo(GOAL_UNDO, userId, undo)
 }
 
-export function readGoalUndo(token: string): GoalUndo | null {
-	const value = decodeUndo(token) as (GoalUndo & { area?: string }) | null
-	if (!value || value.area !== 'goal') return null
+export function readGoalUndo(userId: string, token: string): GoalUndo | null {
+	const value = openUndo(GOAL_UNDO, userId, token) as GoalUndo | null
+	if (!value) return null
 	if (
 		value.kind === 'restore' ||
 		value.kind === 'uncancel' ||
@@ -293,16 +301,39 @@ export function readGoalUndo(token: string): GoalUndo | null {
 	return null
 }
 
+function sameGoal(a: GoalFields, b: GoalFields): boolean {
+	return JSON.stringify(fieldsKey(a)) === JSON.stringify(fieldsKey(b))
+}
+
+function fieldsKey(f: GoalFields) {
+	return [
+		f.name,
+		f.date,
+		f.sport,
+		f.disciplines ?? [f.sport],
+		f.distanceKm,
+		f.targetSeconds,
+	]
+}
+
+const CHANGED = {
+	ok: false as const,
+	code: 'changed',
+	message: 'Målet er endret siden. Det kan ikke angres.',
+}
+
 export async function applyGoalUndo(
 	userId: string,
 	undo: GoalUndo,
 	now: Date,
+	timezone: string,
 ): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
 	switch (undo.kind) {
 		case 'restore': {
 			const event = await getEventById(userId, undo.id)
 			if (!event)
 				return { ok: false, code: 'not-found', message: 'Fant ikke målet.' }
+			if (!sameGoal(fieldsOf(event), undo.after)) return CHANGED
 			await updateGoalFields(userId, event, undo.fields)
 			return { ok: true }
 		}
@@ -310,6 +341,7 @@ export async function applyGoalUndo(
 			const event = await getEventById(userId, undo.id)
 			if (!event)
 				return { ok: false, code: 'not-found', message: 'Fant ikke målet.' }
+			if (event.status !== 'cancelled') return CHANGED
 			const active = await findActiveOutline(userId, now)
 			const ownPlan = await prisma.planOutline.findFirst({
 				where: { eventId: undo.id, athleteId: userId },
@@ -330,13 +362,16 @@ export async function applyGoalUndo(
 			return { ok: true }
 		}
 		case 'recreate': {
+			if (await findGoal(userId, now, timezone)) return CHANGED
 			await createGoal(userId, undo.fields)
 			return { ok: true }
 		}
 		case 'delete': {
-			const deleted = await deleteEvent(userId, undo.id)
-			if (!deleted)
+			const event = await getEventById(userId, undo.id)
+			if (!event)
 				return { ok: false, code: 'not-found', message: 'Fant ikke målet.' }
+			if (!sameGoal(fieldsOf(event), undo.after)) return CHANGED
+			await deleteEvent(userId, undo.id)
 			return { ok: true }
 		}
 	}
