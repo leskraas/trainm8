@@ -328,7 +328,7 @@ export function buildEase(
 	}
 }
 
-function buildProposal(
+export function buildProposal(
 	proposal: WeekChangeProposal,
 	todayKey: string,
 	timezone: string,
