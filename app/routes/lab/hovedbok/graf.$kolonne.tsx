@@ -63,7 +63,9 @@ const COLS = {
 type ColKey = keyof typeof COLS
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-	const key = (params.kolonne in COLS ? params.kolonne : 'form') as ColKey
+	const key = (
+		Object.hasOwn(COLS, params.kolonne) ? params.kolonne : 'form'
+	) as ColKey
 	const me = await cap<AthleteOutput>(request, 'athlete')
 	if (!me.ok) return { kind: 'error' as const, message: me.message }
 	const today = me.value.today
