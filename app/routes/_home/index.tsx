@@ -1,4 +1,4 @@
-import { useLoaderData } from 'react-router'
+import { redirect, useLoaderData } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import {
 	Tooltip,
@@ -6,6 +6,8 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
+import { getChosenVariant } from '#app/lab/variant.server.ts'
+import { labVariant } from '#app/lab/variants.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { HOME_TIMELINE_FULL_VIEW_LABELS } from '#app/utils/labels.ts'
@@ -23,6 +25,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
+	// The App Lab (ADR 0125): `/` opens the app the athlete chose last.
+	const chosen = await getChosenVariant(request)
+	if (chosen !== 'klassisk') throw redirect(labVariant(chosen).home)
 	// The weather is read beside the timeline, never inside it (ADR 0115 §3):
 	// the full view shares `readHomeTimeline` and shows no weather. A MET that
 	// errors or is slow costs I dag at most its 2-second cut, never an error.
