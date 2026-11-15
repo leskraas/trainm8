@@ -2466,6 +2466,10 @@ export function StrengthTable({
 	// Opening the sets of a session not begun starts it, once: a program's
 	// working weights are taken at this moment, as in the other apps.
 	const started = useRef(false)
+	// Until the start answers, the sets wait: a quick entry would log against
+	// the weights from before the program's were taken.
+	const [starting, setStarting] = useState(false)
+	const [startError, setStartError] = useState<string | null>(null)
 	const read = q.state
 	const setRead = q.setState
 	useEffect(() => {
@@ -2474,10 +2478,13 @@ export function StrengthTable({
 		const v = read.value
 		if (v.session.state !== 'planned' || v.loggedWorkingSets > 0) return
 		started.current = true
+		setStarting(true)
 		void callCap<StrengthSessionOutput>('start_strength_session', {
 			sessionId,
 		}).then((r) => {
+			setStarting(false)
 			if (r.ok) setRead(r)
+			else setStartError(r.message)
 		})
 	}, [read, demo, canLog.allowed, sessionId, setRead])
 	const [pad, setPad] = useState<{
@@ -2491,6 +2498,7 @@ export function StrengthTable({
 	const [finished, setFinished] = useState<string | null>(null)
 	if (!q.state) return <div className="why">Henter settene …</div>
 	if (!q.state.ok) return <div className="why">{q.state.message}</div>
+	if (starting) return <div className="why">Starter økta …</div>
 	const st = q.state.value
 	let volume = 0
 	let volumeUnknown = false
@@ -2514,6 +2522,12 @@ export function StrengthTable({
 	}
 	return (
 		<div style={{ marginTop: 6 }}>
+			{startError ? (
+				<div className="why">
+					Fikk ikke startet økta: {startError} Vektene er fra før programmet ble
+					lest.
+				</div>
+			) : null}
 			{st.program ? (
 				<div className="why">Program: {st.program.name}</div>
 			) : null}
