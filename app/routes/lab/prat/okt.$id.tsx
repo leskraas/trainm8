@@ -314,6 +314,7 @@ function SessionDetail({ s }: { s: SessionOutput }) {
 						<span>Notat</span>
 						<textarea
 							className="prat-input"
+							aria-label="Notat"
 							value={note}
 							maxLength={2000}
 							onChange={(e) => {

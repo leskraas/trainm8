@@ -28,6 +28,26 @@ function insetFor(rect: DOMRect, box: DOMRect) {
 }
 
 /**
+ * Focus moves into a dialog when it opens and back to where it was when it
+ * closes, so a keyboard or screen reader follows the overlay. (Escape is
+ * handled by each overlay's own close.)
+ */
+function useFocusInside(ref: React.RefObject<HTMLElement | null>) {
+	useEffect(() => {
+		const prev = document.activeElement as HTMLElement | null
+		const t = window.setTimeout(() => {
+			ref.current
+				?.querySelector<HTMLElement>('button, input, textarea, select, a[href]')
+				?.focus({ preventScroll: true })
+		}, 30)
+		return () => {
+			window.clearTimeout(t)
+			if (prev?.isConnected) prev.focus({ preventScroll: true })
+		}
+	}, [ref])
+}
+
+/**
  * A card from the thread, expanded to the whole screen. It grows out of the
  * card that was tapped and shrinks back into it.
  */
@@ -44,6 +64,7 @@ export function FocusCard({
 	const from = useRef<DOMRect | null>(null)
 	const navigate = useNavigate()
 	const closing = useRef(false)
+	useFocusInside(ref)
 
 	useLayoutEffect(() => {
 		const el = ref.current
@@ -171,6 +192,7 @@ export function Sheet({
 	const navigate = useNavigate()
 	const drag = useRef<{ y: number; t: number; dy: number } | null>(null)
 	const closing = useRef(false)
+	useFocusInside(ref)
 	const desktop = () => window.matchMedia('(min-width: 1100px)').matches
 
 	useLayoutEffect(() => {
