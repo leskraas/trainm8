@@ -171,7 +171,7 @@ test('today: the day’s sessions, form withheld before the trust gate, and no i
 	expect(today.weather).toBeNull()
 	expect(today.weatherWhy).toEqual(expect.any(String))
 	expect(today.weatherWhy).not.toContain('Meg')
-	expect(today.proposalsWaiting).toBe(0)
+	expect(today.proposalsWaiting).toEqual({ value: 0, why: null })
 })
 
 test('week: seven days Monday first, sessions on their days, and the load verdict', async () => {
@@ -420,7 +420,7 @@ test('proposals: a waiting proposal says what it would change and why, and shows
 		change: { kind: 'scale', factor: 0.9, wholeWeek: false },
 	})
 	const today = await value(world.userId, 'today')
-	expect(today.proposalsWaiting).toBe(1)
+	expect(today.proposalsWaiting).toEqual({ value: 1, why: null })
 	const week = await value(world.userId, 'week', { date: TODAY })
 	expect(week.proposals.map((p: { kind: string }) => p.kind)).toEqual(['scale'])
 })

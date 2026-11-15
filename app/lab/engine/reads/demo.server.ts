@@ -30,6 +30,7 @@ import {
 	type WeekRole,
 } from '../reads.types.ts'
 import {
+	known,
 	loadVerdict,
 	sportName,
 	verdictOf,
@@ -464,7 +465,7 @@ export function demoToday(now: Date, timezone: string): TodayOutput {
 		},
 		week: sportsOf(w, w.monday),
 		phase: phaseAt(w, w.monday),
-		proposalsWaiting: 0,
+		proposalsWaiting: known(0),
 		changesMade: 0,
 		weather: {
 			at: new Date(`${w.today}T16:00:00Z`).toISOString(),
