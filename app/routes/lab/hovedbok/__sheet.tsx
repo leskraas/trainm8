@@ -31,6 +31,7 @@ export type SetupData = {
 	history: SessionCard[]
 	from: string
 	errors: string[]
+	notes: string[]
 }
 
 const MISSING: Record<string, string> = { sports: 'idrett', level: 'erfaring' }
@@ -65,9 +66,18 @@ export function SetupSheet({ d }: { d: SetupData }) {
 					<div className="wrap">Fyll inn det du vet. Tomt er lov.</div>
 				</div>
 			}
-			bars={d.errors.map((m, i) => (
-				<ErrorBar key={i} message={m} />
-			))}
+			bars={
+				<>
+					{d.errors.map((m, i) => (
+						<ErrorBar key={i} message={m} />
+					))}
+					{d.notes.map((m, i) => (
+						<div key={i} className="hb-bar" role="status">
+							<span>{m}</span>
+						</div>
+					))}
+				</>
+			}
 			scrollRef={scrollRef}
 		>
 			<div className="hb-page" style={{ paddingBottom: 8 }}>

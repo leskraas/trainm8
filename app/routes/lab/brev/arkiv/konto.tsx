@@ -7,7 +7,7 @@ import {
 } from '#app/lab/engine/setup.types.ts'
 import { BASE } from '../__lib.ts'
 import { NameSheet } from '../__sheets.tsx'
-import { ErrorLine, useWrite } from '../__ui.tsx'
+import { ErrorLine, cx, useWrite } from '../__ui.tsx'
 import { type Route } from './+types/konto.ts'
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -99,7 +99,7 @@ export default function Konto({ loaderData }: Route.ComponentProps) {
 				<div className="b-row">
 					<button
 						type="button"
-						className={`b-btn${a.adjustAutomatically ? '' : 'b-btn-ghost'}`}
+						className={cx('b-btn', !a.adjustAutomatically && 'b-btn-ghost')}
 						aria-pressed={a.adjustAutomatically}
 						disabled={prefs.pending}
 						onClick={() => void prefs.call({ adjustAutomatically: true })}
@@ -108,7 +108,7 @@ export default function Konto({ loaderData }: Route.ComponentProps) {
 					</button>
 					<button
 						type="button"
-						className={`b-btn${!a.adjustAutomatically ? '' : 'b-btn-ghost'}`}
+						className={cx('b-btn', a.adjustAutomatically && 'b-btn-ghost')}
 						aria-pressed={!a.adjustAutomatically}
 						disabled={prefs.pending}
 						onClick={() => void prefs.call({ adjustAutomatically: false })}

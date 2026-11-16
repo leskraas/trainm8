@@ -1,5 +1,7 @@
 import { Link, Outlet, useLocation } from 'react-router'
+import { useOptionalUser } from '#app/utils/user.ts'
 import { BASE } from './__lib.ts'
+import { setPsOwner } from './__ps.ts'
 import { BREV_CSS } from './__ui.tsx'
 
 export const meta = () => [
@@ -18,6 +20,8 @@ export const meta = () => [
 
 export default function BrevLayout() {
 	const { pathname } = useLocation()
+	// Before any child reads the PS lines: they are this account's.
+	setPsOwner(useOptionalUser()?.id ?? null)
 	const quiet =
 		pathname.startsWith(`${BASE}/arkiv`) ||
 		pathname.startsWith(`${BASE}/velkommen`) ||

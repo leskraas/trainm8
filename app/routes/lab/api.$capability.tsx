@@ -15,13 +15,17 @@ import { type Route } from './+types/api.$capability.ts'
  *   data with an `input` field holding JSON, or (for file uploads) multipart
  *   form data the capability reads from the request itself.
  *
- * Answers `{ ok: true, value }` or `{ ok: false, code, message }`.
+ * Answers `{ ok: true, value }` or `{ ok: false, code, message }` (422 when a
+ * capability fails). Every answer is the athlete's own data, so none is
+ * stored by the browser or anything in between.
  */
+const NO_STORE = { 'Cache-Control': 'private, no-store' }
+
 function capabilityOf(name: string | undefined): CapabilityName {
 	if (!name || !isCapabilityName(name)) {
 		throw data(
 			{ ok: false, code: 'unknown', message: 'Ukjent handling.' },
-			{ status: 404 },
+			{ status: 404, headers: NO_STORE },
 		)
 	}
 	return name
@@ -42,11 +46,15 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	if (cap?.kind !== 'read') {
 		throw data(
 			{ ok: false, code: 'method', message: 'Bruk POST.' },
-			{ status: 405 },
+			{ status: 405, headers: NO_STORE },
 		)
 	}
 	const input = parseJson(new URL(request.url).searchParams.get('input'))
-	return Response.json(await runCapability(request, name, input as never))
+	const result = await runCapability(request, name, input as never)
+	return Response.json(result, {
+		status: result.ok ? 200 : 422,
+		headers: NO_STORE,
+	})
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -61,5 +69,8 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 	// multipart: the capability reads the request body itself.
 	const result = await runCapability(request, name, input as never)
-	return Response.json(result, { status: result.ok ? 200 : 422 })
+	return Response.json(result, {
+		status: result.ok ? 200 : 422,
+		headers: NO_STORE,
+	})
 }

@@ -8,7 +8,7 @@ import { IconBook, IconGear, IconMenu, IconSend } from './__icons.tsx'
 import { Onboarding } from './__onboarding.tsx'
 import { ThreadView } from './__thread.tsx'
 import { type LayoutData, type ThreadData } from './__types.ts'
-import { Bubble, Mine, Turn, Typing } from './__ui.tsx'
+import { Bubble, Mine, Turn, Typing, cx } from './__ui.tsx'
 
 export function Shell({ data }: { data: LayoutData }) {
 	if (data.mode === 'error') {
@@ -307,7 +307,10 @@ function Composer({ data }: { data: ThreadData }) {
 							<button
 								key={q.label}
 								type="button"
-								className={`prat-chip${q.label === 'Hvordan går det?' ? 'primary' : 'quiet'}`}
+								className={cx(
+									'prat-chip',
+									q.label === 'Hvordan går det?' ? 'primary' : 'quiet',
+								)}
 								onClick={q.run}
 							>
 								<span>{q.label}</span>

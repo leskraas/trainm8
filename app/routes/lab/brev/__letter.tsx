@@ -34,7 +34,15 @@ import {
 	addDays,
 } from './__lib.ts'
 import { addPs } from './__ps.ts'
-import { ErrorLine, N, PlanArrow, PsLines, Unknown, useWrite } from './__ui.tsx'
+import {
+	ErrorLine,
+	N,
+	PlanArrow,
+	PsLines,
+	Unknown,
+	cx,
+	useWrite,
+} from './__ui.tsx'
 
 export function SessionSentence({ s }: { s: SessionCard }) {
 	const plannedMin = known(s.planned.durationS)
@@ -175,7 +183,14 @@ function DayLine({
 			<Link
 				to={`${BASE}/dag/${date}`}
 				prefetch="intent"
-				style={{ textDecoration: 'none', display: 'block' }}
+				style={{
+					textDecoration: 'none',
+					display: 'block',
+					// A long press opens the PS; it must not select the text.
+					userSelect: 'none',
+					WebkitUserSelect: 'none',
+					WebkitTouchCallout: 'none',
+				}}
 				onPointerDown={(e) => {
 					fired.current = false
 					start.current = { x: e.clientX, y: e.clientY }
@@ -207,7 +222,7 @@ function DayLine({
 				<strong style={{ fontWeight: 600 }}>
 					{date === today ? 'I dag' : cap(DAY_NAME[weekdayFromDate(date)])}:
 				</strong>{' '}
-				<span style={{ userSelect: 'text' }}>{children}</span>
+				<span>{children}</span>
 			</Link>
 		</li>
 	)
@@ -281,7 +296,7 @@ export function WeekLetter({
 
 	return (
 		<article
-			className={`b-sheet${isNew ? 'b-new-letter' : ''}`}
+			className={cx('b-sheet', isNew && 'b-new-letter')}
 			aria-labelledby={`wk-${week.weekKey}`}
 		>
 			<header style={{ marginBottom: 18 }}>

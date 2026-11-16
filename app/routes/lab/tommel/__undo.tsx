@@ -8,6 +8,7 @@ import {
 	type ReactNode,
 } from 'react'
 import { useRevalidator } from 'react-router'
+import { useOptionalUser } from '#app/utils/user.ts'
 import { cap } from './__api.ts'
 import { ArrowBack, cx } from './__ui.tsx'
 
@@ -28,19 +29,28 @@ export type Change = {
 	failed?: string
 }
 
-const LOG_KEY = 'tommel:changes'
+/**
+ * Whose changes these are. Kept per account, so a second account on this
+ * browser never sees the first's. Set by the UndoProvider.
+ */
+let owner: string | null = null
+const logKey = () => (owner ? `tommel:changes:${owner}` : null)
 
 export function readChanges(): Change[] {
+	const key = logKey()
+	if (!key) return []
 	try {
-		return JSON.parse(localStorage.getItem(LOG_KEY) ?? '[]') as Change[]
+		return JSON.parse(localStorage.getItem(key) ?? '[]') as Change[]
 	} catch {
 		return []
 	}
 }
 
 function writeChanges(list: Change[]) {
+	const key = logKey()
+	if (!key) return
 	try {
-		localStorage.setItem(LOG_KEY, JSON.stringify(list.slice(0, 40)))
+		localStorage.setItem(key, JSON.stringify(list.slice(0, 40)))
 	} catch {
 		// Private mode: the stripe still works; the list will not remember.
 	}
@@ -66,6 +76,8 @@ export function useUndo() {
 }
 
 export function UndoProvider({ children }: { children: ReactNode }) {
+	// Before any child reads the list: it is this account's.
+	owner = useOptionalUser()?.id ?? null
 	const [stripe, setStripe] = useState<
 		(Change & { state: 'open' | 'done' | 'error'; msg?: string }) | null
 	>(null)

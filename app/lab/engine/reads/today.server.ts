@@ -141,7 +141,7 @@ export async function readToday(ctx: CapabilityCtx): Promise<TodayOutput> {
 		readiness,
 		week: volumes.tracks.map(sportVolumeOf),
 		phase: phasePosition(plan, weekKey, ctx.timezone),
-		proposalsWaiting: num(day?.openProposals).value ?? 0,
+		proposalsWaiting: num(day?.openProposals),
 		changesMade: notice?.undoable ?? 0,
 		weather:
 			weather?.status === 'available'

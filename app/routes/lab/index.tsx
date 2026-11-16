@@ -51,7 +51,7 @@ export default function LabIndex({ loaderData }: Route.ComponentProps) {
 							>
 								<span className="flex items-center gap-2 pr-14">
 									<span className="font-mono text-[12px] text-white/45">
-										{String(i).padStart(2, '0')}
+										{i + 1}
 									</span>
 									{chosen ? (
 										<span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-black">

@@ -37,6 +37,7 @@ import {
 	Turn,
 	Typing,
 	WeekdayToggles,
+	cx,
 } from './__ui.tsx'
 
 type StepKey =
@@ -92,6 +93,7 @@ export function Onboarding({ data }: { data: OnboardingData }) {
 	const [dayCount, setDayCount] = useState<number | null>(null)
 	const ask = useAsk()
 	const firstActive = useRef<StepKey | null>(null)
+	const timezoneSent = useRef(false)
 
 	const setFlag = (patch: Partial<Flags>) => {
 		writeFlags({ ...flags, ...patch, u: athlete.username })
@@ -101,6 +103,21 @@ export function Onboarding({ data }: { data: OnboardingData }) {
 	async function write<O>(name: string, input: unknown) {
 		setBusy(true)
 		setError(null)
+		// The first answer also tells the engine the browser's timezone, so
+		// days and weeks are this athlete's, not UTC's.
+		// Marked sent only once it lands: a failed try is tried again with the
+		// next answer.
+		if (!timezoneSent.current) {
+			const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+			if (tz) {
+				const sent = await ask(
+					'set_timezone',
+					{ timezone: tz },
+					{ revalidate: false },
+				)
+				if (sent.ok) timezoneSent.current = true
+			}
+		}
 		const r = await ask<O>(name, input)
 		setBusy(false)
 		if (!r.ok) setError(r.message)
@@ -816,7 +833,7 @@ export function IntervalsCard({ onDone }: { onDone?: (ok: boolean) => void }) {
 			<Chips>
 				<button
 					type="submit"
-					className={`prat-chip primary${busy ? 'busy' : ''}`}
+					className={cx('prat-chip', 'primary', busy && 'busy')}
 					disabled={busy || !key.trim()}
 				>
 					<span>{busy ? 'Kobler til …' : 'Koble til'}</span>
@@ -842,7 +859,7 @@ export function UploadCard({
 				20 filer om gangen.
 			</span>
 			<label
-				className={`prat-chip primary${busy ? 'busy' : ''}`}
+				className={cx('prat-chip', 'primary', busy && 'busy')}
 				style={{ alignSelf: 'flex-start' }}
 			>
 				<span>{busy ? 'Laster opp …' : 'Velg filer'}</span>
@@ -1153,7 +1170,7 @@ export function GoalForm({
 			<Chips>
 				<button
 					type="submit"
-					className={`prat-chip primary${busy ? 'busy' : ''}`}
+					className={cx('prat-chip', 'primary', busy && 'busy')}
 					disabled={busy || !name.trim() || !date}
 				>
 					<span>Lagre målet</span>
