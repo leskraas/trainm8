@@ -11,7 +11,12 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
-import { buildTimelineSeason, buildTodayRow } from './presenter.ts'
+import {
+	buildTimelineSeason,
+	buildTodayRow,
+	type TimelineWeek,
+	weekDays,
+} from './presenter.ts'
 import {
 	buildWeekChangeCard,
 	easedLine,
@@ -190,10 +195,8 @@ function nextDay(key: string, days: number): string {
  * is a row (ADR 0065 §1), so "which days have something on them" is a question
  * about the sessions rather than about the row count.
  */
-function withSessions(week: {
-	rows: Array<{ key: string; sessions: unknown[] }>
-}) {
-	return week.rows
+function withSessions(week: TimelineWeek) {
+	return weekDays(week)
 		.filter((day) => day.sessions.length > 0)
 		.map((day) => day.key)
 }
@@ -225,7 +228,7 @@ describe('the season is every week, with no holes', () => {
 		// Seven days behind today with nothing on any of them: seven rows all the
 		// same, as a calendar draws an empty week (ADR 0086).
 		expect(withSessions(result.weeks[1]!)).toEqual([])
-		expect(result.weeks[1]?.rows).toHaveLength(7)
+		expect(weekDays(result.weeks[1]!)).toHaveLength(7)
 		expect(result.weeks[1]?.shape).toBe('past')
 	})
 
@@ -254,7 +257,7 @@ describe('the season is every week, with no holes', () => {
 		const thisWeek = result.weeks.find((week) => week.isNow)!
 		// The order is the calendar's, not the ledger's — and forward of today it
 		// is the calendar even where the ledger has nothing to say.
-		expect(thisWeek.rows.map((row) => row.dayLabel)).toEqual([
+		expect(weekDays(thisWeek).map((row) => row.dayLabel)).toEqual([
 			'man',
 			'tir',
 			'ons',
@@ -284,7 +287,7 @@ describe('the season is every week, with no holes', () => {
 
 describe('a row is a day, and a day owns its sessions', () => {
 	test('a day names itself, and the session on it hangs off that name', () => {
-		const day = season([on(0)]).weeks[0]!.rows.find((row) => row.isToday)!
+		const day = weekDays(season([on(0)]).weeks[0]!).find((row) => row.isToday)!
 		expect(day.key).toBe('2030-02-20')
 		expect(day.dayLabel).toBe('ons')
 		expect(day.isToday).toBe(true)
@@ -300,7 +303,7 @@ describe('a row is a day, and a day owns its sessions', () => {
 		])
 		const thisWeek = result.weeks.find((week) => week.isNow)!
 		expect(withSessions(thisWeek)).toEqual(['2030-02-20'])
-		const today = thisWeek.rows.find((day) => day.isToday)!
+		const today = weekDays(thisWeek).find((day) => day.isToday)!
 		expect(today.sessions.map((session) => session.id)).toEqual([
 			'morning',
 			'evening',
@@ -317,7 +320,7 @@ describe('a row is a day, and a day owns its sessions', () => {
 	test('days come out in calendar order, whatever order they arrive in', () => {
 		const result = season([on(2), on(-2), on(0)])
 		const thisWeek = result.weeks.find((week) => week.isNow)!
-		expect(thisWeek.rows.map((day) => day.key)).toEqual([
+		expect(weekDays(thisWeek).map((day) => day.key)).toEqual([
 			'2030-02-18',
 			'2030-02-19',
 			'2030-02-20',
@@ -341,7 +344,7 @@ describe('a row is a day, and a day owns its sessions', () => {
 			timezone: 'Europe/Oslo',
 		})
 		const holding = (result: ReturnType<typeof buildTimelineSeason>) =>
-			result.weeks[0]?.rows.find((day) =>
+			weekDays(result.weeks[0]!).find((day) =>
 				day.sessions.some((session) => session.id === 'late'),
 			)
 		expect(holding(utc)?.key).toBe('2030-02-20')
@@ -363,7 +366,7 @@ describe('from today forward, every day is a row', () => {
 		// ahead of it, and none folds into another (ADR 0086, overriding #505
 		// story 30).
 		const thisWeek = season([]).weeks.find((week) => week.isNow)!
-		expect(thisWeek.rows.map((day) => day.key)).toEqual([
+		expect(weekDays(thisWeek).map((day) => day.key)).toEqual([
 			'2030-02-18',
 			'2030-02-19',
 			'2030-02-20',
@@ -372,14 +375,16 @@ describe('from today forward, every day is a row', () => {
 			'2030-02-23',
 			'2030-02-24',
 		])
-		expect(thisWeek.rows.every((day) => day.sessions.length === 0)).toBe(true)
+		expect(weekDays(thisWeek).every((day) => day.sessions.length === 0)).toBe(
+			true,
+		)
 	})
 
 	test('a week wholly ahead of today is seven rows, session or not', () => {
 		const result = season([on(9)])
 		const next = result.weeks[result.weeks.length - 1]!
 		expect(next.key).toBe('2030-02-25')
-		expect(next.rows).toHaveLength(7)
+		expect(weekDays(next)).toHaveLength(7)
 		expect(withSessions(next)).toEqual(['2030-03-01'])
 	})
 
@@ -389,7 +394,7 @@ describe('from today forward, every day is a row', () => {
 		// missing, or the grid has a hole in it.
 		const result = season([on(0), on(20)], plan())
 		const days = new Set(
-			result.weeks.flatMap((week) => week.rows).map((day) => day.key),
+			result.weeks.flatMap((week) => weekDays(week)).map((day) => day.key),
 		)
 		const horizon = nextDay(result.weeks[result.weeks.length - 1]!.key, 6)
 		// The plan's last week, now that the season runs to the end of the plan.
@@ -403,7 +408,7 @@ describe('from today forward, every day is a row', () => {
 		// The whole point: with a row on today the landing, the hero's collapse
 		// threshold and the back-to-today pill need no fallback (ADR 0065 §1).
 		const result = season([on(-1), on(2)])
-		const today = result.weeks[result.todayWeekIndex]?.rows.find(
+		const today = weekDays(result.weeks[result.todayWeekIndex]!).find(
 			(day) => day.key === result.todayKey,
 		)
 		expect(today).toBeDefined()
@@ -412,7 +417,7 @@ describe('from today forward, every day is a row', () => {
 	})
 
 	test('an empty day still names itself, so the gutter reads as a date', () => {
-		const saturday = season([]).weeks[0]!.rows.find(
+		const saturday = weekDays(season([]).weeks[0]!).find(
 			(day) => day.key === '2030-02-23',
 		)!
 		expect(saturday.dayLabel).toBe('lør')
@@ -420,7 +425,7 @@ describe('from today forward, every day is a row', () => {
 	})
 
 	test('an empty day outside the current week states its month too', () => {
-		const next = season([on(9)]).weeks[1]!.rows[0]!
+		const next = weekDays(season([on(9)]).weeks[1]!)[0]!
 		expect(next.key).toBe('2030-02-25')
 		expect(next.dateLabel).toBe('25. feb')
 	})
@@ -432,7 +437,7 @@ describe('from today forward, every day is a row', () => {
 		// day, plan or no plan, is no label at all (ADR 0065 §4).
 		for (const result of [season([]), season([on(0)], plan())]) {
 			const empty = result.weeks
-				.flatMap((week) => week.rows)
+				.flatMap((week) => weekDays(week))
 				.filter((day) => day.sessions.length === 0)
 			expect(empty.length).toBeGreaterThan(0)
 			expect(empty.every((day) => day.restPrescribed === false)).toBe(true)
@@ -451,7 +456,7 @@ describe('behind today, every day the query reached is a row', () => {
 		// row; a calendar draws the six days.
 		const result = season([on(-9), on(0)])
 		const lastWeek = result.weeks[0]!
-		expect(lastWeek.rows.map((day) => day.key)).toEqual([
+		expect(weekDays(lastWeek).map((day) => day.key)).toEqual([
 			'2030-02-11',
 			'2030-02-12',
 			'2030-02-13',
@@ -467,7 +472,9 @@ describe('behind today, every day the query reached is a row', () => {
 		// A row claims a day was empty. Half a year back the query stopped asking,
 		// and "nothing was fetched" is not "nothing was logged" (#500).
 		const result = season([on(-190), on(0)])
-		const days = result.weeks.flatMap((week) => week.rows).map((day) => day.key)
+		const days = result.weeks
+			.flatMap((week) => weekDays(week))
+			.map((day) => day.key)
 		const reach = nextDay(result.todayKey, -182)
 		expect(days.filter((key) => key < reach)).toEqual(['2029-08-14'])
 	})
@@ -476,7 +483,9 @@ describe('behind today, every day the query reached is a row', () => {
 		// What the reach bounds is the claim that a day was empty — never a day
 		// the caller actually handed us.
 		const result = season([on(-190), on(0)])
-		const day = result.weeks[0]!.rows.find((row) => row.sessions.length > 0)
+		const day = weekDays(result.weeks[0]!).find(
+			(row) => row.sessions.length > 0,
+		)
 		expect(day?.key).toBe('2029-08-14')
 	})
 })
@@ -521,7 +530,7 @@ describe('the strip never speaks for a day the query did not fetch', () => {
 		// they were blank (#497 AC 6).
 		const result = season([on(-179)], OLD_PLAN)
 		const reachWeek = result.weeks[0]!
-		const built = new Set(reachWeek.rows.map((row) => row.key))
+		const built = new Set(weekDays(reachWeek).map((row) => row.key))
 		expect([...built]).toEqual([
 			'2029-08-22',
 			'2029-08-23',
@@ -537,7 +546,9 @@ describe('the strip never speaks for a day the query did not fetch', () => {
 		// nothing the query returned can be dropped off the screen entirely.
 		const result = season([on(-200)])
 		expect(result.weeks[0]?.key).toBe('2029-07-30')
-		expect(result.weeks[0]?.rows.map((day) => day.key)).toEqual(['2029-08-04'])
+		expect(weekDays(result.weeks[0]!).map((day) => day.key)).toEqual([
+			'2029-08-04',
+		])
 	})
 })
 
@@ -551,7 +562,7 @@ describe('the landing anchor is a day, not a session', () => {
 
 	test("it is the key of today's own row in today's week", () => {
 		const result = season([on(-7), on(0)])
-		const anchored = result.weeks[result.todayWeekIndex]?.rows.find(
+		const anchored = weekDays(result.weeks[result.todayWeekIndex]!).find(
 			(day) => day.key === result.todayKey,
 		)
 		expect(anchored?.isToday).toBe(true)
@@ -566,7 +577,9 @@ describe('the landing anchor is a day, not a session', () => {
 			on(0, { id: 'evening', scheduledAt: new Date('2030-02-20T18:00:00') }),
 		])
 		expect(
-			result.weeks[result.todayWeekIndex]?.rows.filter((day) => day.isToday),
+			weekDays(result.weeks[result.todayWeekIndex]!).filter(
+				(day) => day.isToday,
+			),
 		).toHaveLength(1)
 	})
 })
@@ -890,7 +903,7 @@ describe('every planned session says whose it is (#505 story 29)', () => {
 			}),
 		])
 		return result.weeks
-			.flatMap((week) => week.rows)
+			.flatMap((week) => weekDays(week))
 			.flatMap((day) => day.sessions)
 			.find((row) => row.id === 'ahead')!
 	}
@@ -949,7 +962,7 @@ describe('every planned session says whose it is (#505 story 29)', () => {
 			}),
 		])
 		const rows = result.weeks
-			.flatMap((week) => week.rows)
+			.flatMap((week) => weekDays(week))
 			.flatMap((day) => day.sessions)
 		expect(rows.find((row) => row.id === 'done')).toMatchObject({
 			owner: 'machine',
@@ -998,7 +1011,7 @@ describe('a lifting row reconciles with the week header it sits under', () => {
 		expect(week.doneTss).toBe(138)
 		// A stream row is a day since #495, so the lifting session is found
 		// among the sessions its day carries.
-		const lift = week.rows
+		const lift = weekDays(week)
 			.flatMap((day) => day.sessions)
 			.find((s) => s.discipline === 'strength')!
 		expect(lift.internalLoad).toContain('sRPE 78')
@@ -1059,7 +1072,7 @@ describe('a lifting row reconciles with the week header it sits under', () => {
 			},
 		})
 		const row = result.weeks
-			.flatMap((week) => week.rows)
+			.flatMap((week) => weekDays(week))
 			.flatMap((day) => day.sessions)
 			.find((s) => s.id === 'ride')!
 		expect(row.internalLoad).toBe('220–235 W')
@@ -1088,7 +1101,7 @@ describe('a lifting row reconciles with the week header it sits under', () => {
 		expect(withLift.doneTss).toBe(withoutLift.doneTss)
 		expect(withLift.plannedTss).toBe(withoutLift.plannedTss)
 		// And the row says what it lifted regardless — the kilos are not the load.
-		const lift = withLift.rows
+		const lift = weekDays(withLift)
 			.flatMap((day) => day.sessions)
 			.find((s) => s.discipline === 'strength')!
 		expect(lift.externalLoad).toBe('Back Squat 82,5 kg × 5')
@@ -2015,7 +2028,7 @@ describe('past weeks are whole weeks, with their numbers and verdict (ADR 0086)'
 		const result = season([ran(-9, 20, 23), ran(-8, 15, 23), on(0)], runPlan())
 		const last = result.weeks.find((week) => week.key === LAST_MONDAY)!
 		expect(last.shape).toBe('past')
-		expect(last.rows).toHaveLength(7)
+		expect(weekDays(last)).toHaveLength(7)
 		expect(last.tracks[0]).toMatchObject({
 			figures: { target: '46', done: '35' },
 			gradeLabel: 'under',
@@ -2098,7 +2111,7 @@ describe('weeks past the Planning Horizon are whole weeks of empty days under a 
 		const result = season([on(0)], runPlan())
 		const week = result.weeks.find((w) => w.key === PAST_HORIZON)!
 		expect(week.shape).toBe('beyond')
-		expect(week.rows).toHaveLength(7)
+		expect(weekDays(week)).toHaveLength(7)
 		expect(week.kindLabel).toMatch(/^Oppbygging/)
 		expect(week.tracks[0]!.figures.target).toBe('58')
 		expect(week.summary).toBe('fylles søndag kveld i uke 8')
@@ -2136,7 +2149,7 @@ describe('weeks past the Planning Horizon are whole weeks of empty days under a 
 		const week = result.weeks.find((w) => w.key === PAST_HORIZON)!
 		expect(week.shape).toBe('beyond')
 		expect(withSessions(week)).toEqual([nextDay(PAST_HORIZON, 3)])
-		expect(week.rows).toHaveLength(7)
+		expect(weekDays(week)).toHaveLength(7)
 	})
 
 	test('a week the plan already laid is written, so it is open', () => {
@@ -2178,7 +2191,7 @@ describe('a session written far ahead shows on its day, in a whole week (#505 st
 		const week = result.weeks.find((w) => w.key === raceMonday)!
 		expect(week.shape).toBe('beyond')
 		expect(withSessions(week)).toEqual([nextDay(THIS_MONDAY, 402)])
-		expect(week.rows).toHaveLength(7)
+		expect(weekDays(week)).toHaveLength(7)
 		expect(week.summary).toBe('langt fram · bare øktene du skriver selv')
 		// The weeks before it are whole empty weeks, and the first one opens the
 		// horizon.
@@ -2186,7 +2199,7 @@ describe('a session written far ahead shows on its day, in a whole week (#505 st
 			(w) => w.key === nextDay(THIS_MONDAY, 7 * 40),
 		)!
 		expect(between.shape).toBe('beyond')
-		expect(between.rows).toHaveLength(7)
+		expect(weekDays(between)).toHaveLength(7)
 		expect(result.weeks.filter((w) => w.opensHorizon)).toHaveLength(1)
 	})
 
@@ -2196,7 +2209,7 @@ describe('a session written far ahead shows on its day, in a whole week (#505 st
 			(w) => w.key === nextDay(THIS_MONDAY, 7 * 20),
 		)!
 		expect(near.shape).toBe('open')
-		expect(near.rows).toHaveLength(7)
+		expect(weekDays(near)).toHaveLength(7)
 	})
 })
 
@@ -2205,11 +2218,13 @@ describe('every free day is its own row (ADR 0086, overriding #505 story 30)', (
 		// Wednesday today, Thursday written, Friday to Sunday free.
 		const result = season([on(0), on(1)])
 		const week = result.weeks.find((w) => w.key === THIS_MONDAY)!
-		expect(week.rows.map((day) => day.key)).toEqual(
+		expect(weekDays(week).map((day) => day.key)).toEqual(
 			[0, 1, 2, 3, 4, 5, 6].map((n) => nextDay(THIS_MONDAY, n)),
 		)
 		expect(
-			week.rows.filter((day) => day.sessions.length === 0).map((d) => d.key),
+			weekDays(week)
+				.filter((day) => day.sessions.length === 0)
+				.map((d) => d.key),
 		).toEqual([
 			nextDay(THIS_MONDAY, 0),
 			nextDay(THIS_MONDAY, 1),
@@ -2414,7 +2429,7 @@ describe('a session row says its own volume in its track’s unit (#505 D6)', ()
 		})
 	const sessionOn = (result: ReturnType<typeof season>, id: string) =>
 		result.weeks
-			.flatMap((week) => week.rows)
+			.flatMap((week) => weekDays(week))
 			.flatMap((day) => day.sessions)
 			.find((session) => session.id === id)!
 
@@ -2578,7 +2593,7 @@ describe('a done session can be counted in Annet from its row (#505 story 33)', 
 		})
 	const rowOf = (result: ReturnType<typeof season>, id: string) =>
 		result.weeks
-			.flatMap((week) => week.rows)
+			.flatMap((week) => weekDays(week))
 			.flatMap((day) => day.sessions)
 			.find((s) => s.id === id)!
 
@@ -2702,7 +2717,7 @@ describe('"lås opp" is offered on the athlete’s own planned sessions only (#5
 				...overrides,
 			}),
 		])
-			.weeks.flatMap((week) => week.rows)
+			.weeks.flatMap((week) => weekDays(week))
 			.flatMap((day) => day.sessions)
 			.find((row) => row.id === 'row')!
 	}
@@ -3221,7 +3236,9 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 			],
 		})
 	const rowsOf = (result: ReturnType<typeof season>) =>
-		result.weeks.flatMap((week) => week.rows).flatMap((day) => day.sessions)
+		result.weeks
+			.flatMap((week) => weekDays(week))
+			.flatMap((day) => day.sessions)
 	const rowOf = (result: ReturnType<typeof season>, id: string) =>
 		rowsOf(result).find((s) => s.id === id)!
 	const recording = (
@@ -3516,7 +3533,7 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 describe('the quick strength log under a strength session’s row (#505 stories 83–84)', () => {
 	const rowOf = (result: ReturnType<typeof season>, id: string) =>
 		result.weeks
-			.flatMap((week) => week.rows)
+			.flatMap((week) => weekDays(week))
 			.flatMap((day) => day.sessions)
 			.find((row) => row.id === id)!
 
@@ -3666,7 +3683,7 @@ describe('a day is not graded before it is over (#505 story 24)', () => {
 			}),
 		])
 		const rows = result.weeks
-			.flatMap((week) => week.rows)
+			.flatMap((week) => weekDays(week))
 			.flatMap((day) => day.sessions)
 		expect(rows.find((row) => row.id === 'morning')?.status).toBe('planned')
 		expect(rows.find((row) => row.id === 'yesterday')?.status).toBe('missed')
@@ -3705,7 +3722,7 @@ describe('a row built on Garmin data credits Garmin by its title (#557, ADR 0098
 		})
 	const creditOf = (ledgerSession: LedgerSession) =>
 		season([ledgerSession])
-			.weeks.flatMap((week) => week.rows)
+			.weeks.flatMap((week) => weekDays(week))
 			.flatMap((day) => day.sessions)
 			.find((row) => row.id === ledgerSession.id)!.sourceCredit
 

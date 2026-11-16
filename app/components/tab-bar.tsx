@@ -12,10 +12,11 @@
 // bar on a desktop is a phone pattern stretched, not a layout. It is one
 // element in both, so there is only ever one "Hovedmeny" in the page.
 //
-// `data-tab-bar` is what `tailwind.css` keys `--tab-bar-space` off: the height
-// the bar takes from the bottom of a phone screen, which anything else pinned to
-// that edge (the home frame, the rest timer) subtracts. It is `0` wherever the
-// bar is not drawn or not fixed, so no page carries the bar's arithmetic itself.
+// `--tab-bar-space` (`tailwind.css`) is the height the bar takes from the
+// bottom of a phone screen, which anything else pinned to that edge (the home
+// frame, the rest timer) subtracts. `root.tsx` marks the page's root whenever
+// this bar is drawn (the same `showsTabBar`), and it is `0` wherever the bar is
+// not drawn or not fixed, so no page carries the bar's arithmetic itself.
 import { Link, useLocation } from 'react-router'
 import { Icon, type IconName } from '#app/components/ui/icon.tsx'
 import {
@@ -36,8 +37,8 @@ const TAB_ICONS: Record<AppTab, IconName> = {
 
 export function TabBar({ className }: { className?: string }) {
 	const { pathname } = useLocation()
-	// The first run carries no bar (ADR 0083), and with no `[data-tab-bar]` in
-	// the page `--tab-bar-space` is 0, so nothing makes room for one.
+	// The first run carries no bar (ADR 0083), and there `root.tsx` leaves
+	// `--tab-bar-space` at 0, so nothing makes room for one.
 	if (!showsTabBar(pathname)) return null
 	const place = appTabPlace(pathname)
 

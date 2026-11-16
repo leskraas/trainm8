@@ -24,7 +24,20 @@
  *
  * Everything is derived, nothing is fetched: the same `LedgerSession[]` the
  * ledger already ships feeds all of it, through `toSessionLedgerEntry` for
- * status and load and `buildLedgerRows`' own profile rule for the shape bars.
+ * status and load and `sessionProfile`, the Session Ledger's own rule, for the
+ * shape bars.
+ *
+ * **Two halves, built at two times (ADR 0125).** `buildTimelineSeason` builds
+ * the season's **week skeleton**: every week's shape, header, track volumes
+ * and phase — what the Week Strip and the week headers read. A week's **days**
+ * (its rows, their sessions, each session's import facts and strength log) are
+ * built by `weekDays(week)`, once, the first time anything reads them. The
+ * Stream's `WeekBlock` reads them in its own render, so the work happens a
+ * week at a time inside React's sliced hydration, and a week that never mounts
+ * never builds its days. A field a header or the strip reads belongs on the
+ * skeleton; a field only a row reads belongs on the days. Putting a row field
+ * on the skeleton quietly brings back the whole-season pass that was the
+ * longest task on opening the full view.
  */
 import { originPlatformOf } from '#app/integrations/shared/origin-platform.ts'
 import {
@@ -95,8 +108,9 @@ import {
 	volumeSessionOf,
 } from '#app/utils/plan-outline/week-volumes.ts'
 import {
-	buildLedgerRows,
+	buildSessionRows,
 	type SessionRow,
+	sessionProfile,
 } from '#app/utils/session-ledger-rows.ts'
 import {
 	type SessionOwner,
@@ -357,12 +371,6 @@ export type TimelineWeek = {
 	/** The week today falls in. */
 	isNow: boolean
 	/**
-	 * The week's days, earliest first — a row is a day, not a session. All seven
-	 * from today forward; behind today, every day the query reached. The stream
-	 * draws every one.
-	 */
-	rows: TimelineDay[]
-	/**
 	 * The three week numbers per **Training Track** of the active plan — Week
 	 * Target, Planned Volume, Actual Volume — each in the track's own Volume
 	 * Currency (#505 stories 20–26, 34, 85; `week-volumes.ts`). Empty without a
@@ -410,6 +418,49 @@ export type TimelineWeek = {
 	 * gjort · 48 av 312 TSS`. What a week with no track to read it in says.
 	 */
 	loadLine: string
+}
+
+/**
+ * How a week's days are built, and once built, the days — keyed on the week
+ * object, so a week is built at most once for as long as anything holds it.
+ */
+const WEEK_DAYS = new WeakMap<
+	TimelineWeek,
+	{ build: () => TimelineDay[]; days: TimelineDay[] | null }
+>()
+
+/**
+ * A week's days, earliest first — a row is a day, not a session. All seven
+ * from today forward; behind today, every day the query reached. The stream
+ * draws every one.
+ *
+ * Built on the first read and cached on the week (ADR 0125 §2): the season
+ * presenter builds only the skeleton, and a week nothing reads costs nothing.
+ * Every reader of a week's days comes through here.
+ */
+export function weekDays(week: TimelineWeek): readonly TimelineDay[] {
+	const entry = WEEK_DAYS.get(week)
+	if (!entry) {
+		throw new Error(
+			`Week ${week.key} has no days: build it with buildTimelineSeason, or give it days with withWeekDays.`,
+		)
+	}
+	entry.days ??= entry.build()
+	return entry.days
+}
+
+/**
+ * Gives a week its days, built by `build` the first time `weekDays` reads
+ * them. The presenter's own seam, and the one a hand-built week in a test
+ * goes through. Returns the week, so a builder can say `withWeekDays({...},
+ * () => days)`.
+ */
+export function withWeekDays(
+	week: TimelineWeek,
+	build: () => TimelineDay[],
+): TimelineWeek {
+	WEEK_DAYS.set(week, { build, days: null })
+	return week
 }
 
 /** Annet, with its name and what it says about itself. */
@@ -534,13 +585,13 @@ export function buildTimelineSeason({
 	// The earliest day this screen knows anything about. Behind it the query
 	// asked nothing, so nothing behind it is built and no row speaks for it.
 	const reachesBackKey = addDays(todayKey, -TIMELINE_TRAILING_DAYS)
-	// The ledger's own row builder decides what a row *is* (status, load, band,
-	// profile bars), so the stream and the Session Ledger can never disagree
-	// about a session. Its `now` divider is dropped here: the week headers and
-	// today's own row already say where the boundary is, twice over.
-	const ledgerRows = buildLedgerRows(ledger, now, timezone, thresholds).filter(
-		(row): row is SessionRow => row.kind === 'session',
-	)
+	// The ledger's own row builder decides what a row *is* (status, load,
+	// band), so the stream and the Session Ledger can never disagree about a
+	// session. Its profile bars are only drawn, so a row derives them when its
+	// day is built (`buildSession`), by the ledger's own rule; and the ledger's
+	// `now` divider has no place here: the week headers and today's own row
+	// already say where the boundary is, twice over.
+	const ledgerRows = buildSessionRows(ledger, now, timezone, thresholds)
 	// Weeks are bucketed by the Athlete Calendar, the same Monday–Sunday windows
 	// Weekly Plan Adherence uses — and identically on server and client, so the
 	// stream cannot hydrate into a different shape than it rendered.
@@ -588,13 +639,16 @@ export function buildTimelineSeason({
 	const leadTrackId = leadTrack(tracks)?.trackId ?? null
 	// What each row says about imports (#505 stories 78–82): read across the
 	// whole ledger, because a question reads its day and Koble igjen reads a
-	// session that may sit anywhere on I dag.
-	const importFacts = buildImportFacts(ledgerRows, {
-		timezone,
-		todayKey,
-		importConnected,
-		trackDisciplines: new Set(tracks.map((t) => t.discipline)),
-	})
+	// session that may sit anywhere on I dag. Only a week's days read them, so
+	// they are built when the first week's days are, and once for the season.
+	let importFactsBuilt: ReadonlyMap<string, TimelineImportFacts> | null = null
+	const importFacts = () =>
+		(importFactsBuilt ??= buildImportFacts(ledgerRows, {
+			timezone,
+			todayKey,
+			importConnected,
+			trackDisciplines: new Set(tracks.map((t) => t.discipline)),
+		}))
 	// The week the Week Replan has closed (Sunday 20:00 local): on Sunday
 	// evening this week grades through Sunday, as Ukeskiftet reads it.
 	const closedThrough = lastClosedWeekKey(now, timezone)
@@ -883,7 +937,8 @@ function buildWeek({
 	far: boolean
 	/** Whether the week change will fill a week once the horizon reaches it. */
 	fillsWeeks: boolean
-	importFacts: ReadonlyMap<string, TimelineImportFacts>
+	/** The season's import facts, built the first time a week's days ask. */
+	importFacts: () => ReadonlyMap<string, TimelineImportFacts>
 	thresholds: DisciplineThresholdMap
 }): TimelineWeek {
 	const isNow = monday === nowMonday
@@ -898,33 +953,37 @@ function buildWeek({
 	// further: a day the query never asked about is not a day with nothing on it.
 	// A session older than that still gets its row — what the reach bounds is the
 	// claim that a day was empty, never a day the caller actually handed us.
-	// The stream shows every one of them (ADR 0086).
-	const byDay = bucketByDay(sessionRows, timezone)
-	const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
-	// The unit a session's own volume is said in: its track's, where the plan
-	// has one for its sport (the first, as the week header reads it).
-	const trackCurrencies = new Map<string, VolumeCurrency>()
-	for (const track of tracks) {
-		if (!trackCurrencies.has(track.discipline)) {
-			trackCurrencies.set(track.discipline, track.currency)
+	// The stream shows every one of them (ADR 0086). Built on first read, not
+	// here (`weekDays`, ADR 0125 §2).
+	const buildDays = () => {
+		const byDay = bucketByDay(sessionRows, timezone)
+		const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
+		// The unit a session's own volume is said in: its track's, where the plan
+		// has one for its sport (the first, as the week header reads it).
+		const trackCurrencies = new Map<string, VolumeCurrency>()
+		for (const track of tracks) {
+			if (!trackCurrencies.has(track.discipline)) {
+				trackCurrencies.set(track.discipline, track.currency)
+			}
 		}
+		const facts = importFacts()
+		return weekDayKeys(monday)
+			.filter((key) => key >= reachesBackKey || byDay.has(key))
+			.map((key) =>
+				buildDay({
+					key,
+					rows: byDay.get(key) ?? [],
+					week,
+					todayKey,
+					timezone,
+					sameMonth: isNow,
+					trackDisciplines,
+					trackCurrencies,
+					importFacts: facts,
+					thresholds,
+				}),
+			)
 	}
-	const rows = weekDayKeys(monday)
-		.filter((key) => key >= reachesBackKey || byDay.has(key))
-		.map((key) =>
-			buildDay({
-				key,
-				rows: byDay.get(key) ?? [],
-				week,
-				todayKey,
-				timezone,
-				sameMonth: isNow,
-				trackDisciplines,
-				trackCurrencies,
-				importFacts,
-				thresholds,
-			}),
-		)
 	const volumes = buildWeekVolumes({
 		weekKey: monday,
 		todayKey,
@@ -1008,45 +1067,49 @@ function buildWeek({
 			? null
 			: roleLabel
 
-	return {
-		key: monday,
-		rangeLabel: formatNbDateSpan(start, end, timezone),
-		plannedTss: plannedTss != null ? roundLoad(plannedTss) : null,
-		doneTss: doneTss != null ? roundLoad(doneTss) : null,
-		imported,
-		planStart,
-		isNow,
-		rows,
-		tracks: trackWeeks,
-		otherTrack: volumes.other
-			? {
-					...volumes.other,
-					label: ANNET_TRACK_LABELS.name,
-					note: ANNET_TRACK_LABELS.note,
-				}
-			: null,
-		relativeName,
-		phaseName,
-		phaseTone: imported ? null : (phase?.tone ?? null),
-		phaseIndex: imported ? null : (phase?.index ?? null),
-		role: imported ? null : role,
-		roleLabel,
-		kindLabel: imported ? BEFORE_PLAN_LABEL : join(phaseName, kindRole) || null,
-		shape,
-		// Set across the season once every week is built (`buildTimelineSeason`).
-		opensHorizon: false,
-		summary:
-			shape === 'beyond'
-				? beyondWeekNote({
-						monday,
-						fillsWeeks: fillsWeeks && phase != null,
-						far: phase == null,
-					})
-				: trackWeeks.length > 0
-					? loadLine
-					: null,
-		loadLine,
-	}
+	return withWeekDays(
+		{
+			key: monday,
+			rangeLabel: formatNbDateSpan(start, end, timezone),
+			plannedTss: plannedTss != null ? roundLoad(plannedTss) : null,
+			doneTss: doneTss != null ? roundLoad(doneTss) : null,
+			imported,
+			planStart,
+			isNow,
+			tracks: trackWeeks,
+			otherTrack: volumes.other
+				? {
+						...volumes.other,
+						label: ANNET_TRACK_LABELS.name,
+						note: ANNET_TRACK_LABELS.note,
+					}
+				: null,
+			relativeName,
+			phaseName,
+			phaseTone: imported ? null : (phase?.tone ?? null),
+			phaseIndex: imported ? null : (phase?.index ?? null),
+			role: imported ? null : role,
+			roleLabel,
+			kindLabel: imported
+				? BEFORE_PLAN_LABEL
+				: join(phaseName, kindRole) || null,
+			shape,
+			// Set across the season once every week is built (`buildTimelineSeason`).
+			opensHorizon: false,
+			summary:
+				shape === 'beyond'
+					? beyondWeekNote({
+							monday,
+							fillsWeeks: fillsWeeks && phase != null,
+							far: phase == null,
+						})
+					: trackWeeks.length > 0
+						? loadLine
+						: null,
+			loadLine,
+		},
+		buildDays,
+	)
 }
 
 /** The week's seven calendar days, Monday first. */
@@ -1173,6 +1236,8 @@ function buildSession({
 	const { session, entry } = row
 	const content = buildRowContent(row, week, { isToday, thresholds })
 	const owner = sessionOwner(session)
+	// The shape bars: by the Session Ledger's own rule, built with the row.
+	const profile = sessionProfile(session)
 	return {
 		id: session.id,
 		to: `/training/sessions/${session.id}`,
@@ -1183,8 +1248,8 @@ function buildSession({
 			entry.title ??
 			nbSessionNoun(entry.discipline),
 		status: entry.status,
-		bars: row.bars,
-		groups: row.groups,
+		bars: profile.bars,
+		groups: profile.groups,
 		externalLoad: content.externalLoad,
 		internalLoad: content.internalLoad,
 		chips: content.chips,

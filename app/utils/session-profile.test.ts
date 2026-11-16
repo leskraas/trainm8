@@ -1,11 +1,13 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import {
 	deriveRepeatGroups,
 	deriveSessionProfile,
 	intensityTargetToZone,
+	parseRecordingPhaseBars,
 	shapeZone,
 } from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
+import { IntensityTargetSchema } from './workout-schema.ts'
 
 type Workout = NonNullable<LedgerSession['workout']>
 type Step = Workout['blocks'][number]['steps'][number]
@@ -392,4 +394,58 @@ test('shapeZone: a cardio step its target, an unstated one the intent', () => {
 		shapeZone(cardioStep({ id: 'w', intensity: watts }), intent),
 	).toBeNull()
 	expect(shapeZone(cardioStep({ id: 'r', kind: 'rest' }), intent)).toBeNull()
+})
+
+test('an intensity is read once, however many steps and reps carry it (#503)', () => {
+	// The 52-week Stream reads the same few intensities thousands of times, for
+	// the week's zone split and again for each row's bars; parsing each one
+	// every time was the biggest piece of opening the full view left.
+	const parse = vi.spyOn(IntensityTargetSchema, 'safeParse')
+	// An RPE no other test uses, so the first read here is the first anywhere.
+	const target = JSON.stringify({ kind: 'rpe', min: 7.5 })
+	try {
+		for (let i = 0; i < 20; i++) {
+			expect(shapeZone(cardioStep({ id: `s${i}`, intensity: target }), 2)).toBe(
+				4,
+			)
+		}
+		expect(parse).toHaveBeenCalledTimes(1)
+		// A legacy plain word, which is not JSON at all, is not parsed as JSON.
+		parse.mockClear()
+		expect(shapeZone(cardioStep({ id: 'w', intensity: 'tempo' }), 2)).toBe(3)
+		expect(parse).not.toHaveBeenCalled()
+	} finally {
+		parse.mockRestore()
+	}
+})
+
+test("a recording's stored profile is read whole, or not at all", () => {
+	const bars = [
+		{ id: 'a', zone: 2, durationSec: 600 },
+		{ id: 'b', zone: null, durationSec: 0 },
+		{ id: 'c', zone: 5, durationSec: 60 },
+	]
+	expect(parseRecordingPhaseBars(JSON.stringify(bars))).toEqual(bars)
+	expect(parseRecordingPhaseBars(null)).toEqual([])
+	expect(parseRecordingPhaseBars('')).toEqual([])
+	expect(parseRecordingPhaseBars('not json')).toEqual([])
+	expect(parseRecordingPhaseBars('{"id":"a"}')).toEqual([])
+	// A zone outside 1–5, or one written as text, sinks the whole profile.
+	for (const zone of [0, 6, 2.5, '2']) {
+		expect(
+			parseRecordingPhaseBars(
+				JSON.stringify([...bars, { id: 'd', zone, durationSec: 1 }]),
+			),
+		).toEqual([])
+	}
+	expect(
+		parseRecordingPhaseBars(JSON.stringify([{ id: 'e', zone: 1 }])),
+	).toEqual([])
+	// What the schema would keep: the three fields, never anything stored beside them.
+	expect(
+		parseRecordingPhaseBars(
+			JSON.stringify([{ id: 'f', zone: 3, durationSec: 30, note: 'x' }]),
+		),
+	).toEqual([{ id: 'f', zone: 3, durationSec: 30 }])
+	expect(parseRecordingPhaseBars('{"0":1}')).toEqual([])
 })

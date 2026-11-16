@@ -1,4 +1,3 @@
-import { z } from 'zod/v3'
 import { type LedgerSession } from './ledger-session.ts'
 import { perStep, stepDurationSec, workoutReps } from './workout-reps.ts'
 import {
@@ -43,22 +42,33 @@ export type ShapeWorkout = {
 /** A normalized training zone, 1 (easiest) through 5 (hardest). */
 export type TrainingZone = 1 | 2 | 3 | 4 | 5
 
-export const ProfileBarSchema = z.object({
-	id: z.string(),
+const isTrainingZone = (value: unknown): value is TrainingZone =>
+	value === 1 || value === 2 || value === 3 || value === 4 || value === 5
+
+/** One bar of a Workout Shape or a recording's stored profile. */
+export type ProfileBar = {
+	id: string
 	/** The derived training zone, or null when intensity can't be truthfully mapped to a zone. */
-	zone: z
-		.union([
-			z.literal(1),
-			z.literal(2),
-			z.literal(3),
-			z.literal(4),
-			z.literal(5),
-		])
-		.nullable(),
+	zone: TrainingZone | null
 	/** Relative weight for bar width — the segment's duration in seconds (0 when unquantified). */
-	durationSec: z.number(),
-})
-export type ProfileBar = z.infer<typeof ProfileBarSchema>
+	durationSec: number
+}
+
+/**
+ * The one check of a stored {@link ProfileBar}, written by hand rather than as
+ * a zod schema: every completed session's stored profile is read on opening
+ * I dag's full view, twice (its week's volumes and its row's bars), and zod's
+ * object and union parsing was the biggest piece of the season presenter after
+ * its formatters (#503). It keeps only the three fields.
+ */
+function readProfileBar(value: unknown): ProfileBar | null {
+	if (typeof value !== 'object' || value === null) return null
+	const { id, zone, durationSec } = value as Record<string, unknown>
+	if (typeof id !== 'string') return null
+	if (zone !== null && !isTrainingZone(zone)) return null
+	if (typeof durationSec !== 'number' || Number.isNaN(durationSec)) return null
+	return { id, zone, durationSec }
+}
 
 /**
  * Parse the JSON profile stored on a recording (`ActivityImport.phaseBarsJson`),
@@ -69,12 +79,20 @@ export function parseRecordingPhaseBars(
 	json: string | null | undefined,
 ): ProfileBar[] {
 	if (!json) return []
+	let parsed: unknown
 	try {
-		const parsed = z.array(ProfileBarSchema).safeParse(JSON.parse(json))
-		return parsed.success ? parsed.data : []
+		parsed = JSON.parse(json)
 	} catch {
 		return []
 	}
+	if (!Array.isArray(parsed)) return []
+	const bars: ProfileBar[] = []
+	for (const item of parsed) {
+		const bar = readProfileBar(item)
+		if (!bar) return []
+		bars.push(bar)
+	}
+	return bars
 }
 
 /**
@@ -210,15 +228,41 @@ export function intensityTargetToZone(
 function stepToZone(step: ZonedStep): TrainingZone | null {
 	if (step.kind !== 'cardio') return null
 	if (!step.intensity) return null
+	return intensityZone(step.intensity)
+}
 
-	try {
-		const parsed = IntensityTargetSchema.safeParse(JSON.parse(step.intensity))
-		if (parsed.success) return intensityTargetToZone(parsed.data)
-	} catch {
-		// fall through to legacy plain-string matching
+/**
+ * Each stored intensity's zone, read once. A season reads the same few
+ * intensities thousands of times (every rep of every step, for the week's zone
+ * split and again for a row's bars), and parsing one each time was the biggest
+ * piece left of opening the 52-week Stream (#503, ADR 0125). Bounded, because
+ * an intensity is text the athlete may have written: past the cap it starts
+ * over.
+ */
+const INTENSITY_ZONES = new Map<string, TrainingZone | null>()
+const INTENSITY_ZONES_MAX = 512
+
+function intensityZone(intensity: string): TrainingZone | null {
+	const known = INTENSITY_ZONES.get(intensity)
+	if (known !== undefined) return known
+	const zone = readIntensityZone(intensity)
+	if (INTENSITY_ZONES.size >= INTENSITY_ZONES_MAX) INTENSITY_ZONES.clear()
+	INTENSITY_ZONES.set(intensity, zone)
+	return zone
+}
+
+function readIntensityZone(intensity: string): TrainingZone | null {
+	// A structured target is a JSON object; a legacy plain word is not JSON, and
+	// throwing on it costs more than the rest of the read together.
+	if (intensity.trimStart().startsWith('{')) {
+		try {
+			const parsed = IntensityTargetSchema.safeParse(JSON.parse(intensity))
+			if (parsed.success) return intensityTargetToZone(parsed.data)
+		} catch {
+			// fall through to legacy plain-string matching
+		}
 	}
-
-	return zoneLabelToZone(step.intensity)
+	return zoneLabelToZone(intensity)
 }
 
 /**

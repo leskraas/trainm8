@@ -236,3 +236,108 @@ test('localTimeOfDay round-trips localTimeUTC across a DST boundary', () => {
 		'2030-07-10T05:00:00.000Z',
 	)
 })
+
+// ── formatter cache (ADR 0125 §1) ──────────────────────────────────────────
+
+test('the calendar builds one formatter per timezone and shape, however often it is called', () => {
+	// Building an Intl.DateTimeFormat was two thirds of the longest task on
+	// opening the full view of a 52-week season; the presenter calls these per
+	// day and per session. A zone no other test uses, so the cache starts cold.
+	const timezone = 'Pacific/Chatham'
+	const Real = Intl.DateTimeFormat
+	const built: Array<string | undefined> = []
+	class Counting extends Real {
+		constructor(
+			locales?: Intl.LocalesArgument,
+			options?: Intl.DateTimeFormatOptions,
+		) {
+			super(locales, options)
+			built.push(options?.timeZone)
+		}
+	}
+	Intl.DateTimeFormat = Counting as typeof Intl.DateTimeFormat
+	try {
+		for (let day = 1; day <= 28; day++) {
+			const dateStr = `2030-02-${String(day).padStart(2, '0')}`
+			const instant = localTimeUTC(dateStr, '07:00', timezone)
+			expect(localDate(instant, timezone)).toBe(dateStr)
+			expect(localTimeOfDay(instant, timezone)).toBe('07:00')
+			dayBoundsUTC(dateStr, timezone)
+		}
+	} finally {
+		Intl.DateTimeFormat = Real
+	}
+	// One for the date, one for the wall clock, one for the time of day.
+	expect(built.filter((zone) => zone === timezone)).toHaveLength(3)
+})
+
+test('an unknown timezone still throws on every call, and is never cached', () => {
+	expect(() => localDate(new Date(), 'Nowhere/Atlantis')).toThrow(RangeError)
+	expect(() => localDate(new Date(), 'Nowhere/Atlantis')).toThrow(RangeError)
+})
+
+test('a timezone written in another letter case reuses the same formatter, so the cache keeps one formatter per zone', () => {
+	// Intl reads a zone name in any case (`asia/kathmandu` is Asia/Kathmandu),
+	// and the Athlete Timezone is stored as typed: keyed on the raw string, a
+	// user rewriting their zone in new casings would grow the process-lifetime
+	// cache without end.
+	const Real = Intl.DateTimeFormat
+	let built = 0
+	class Counting extends Real {
+		constructor(
+			locales?: Intl.LocalesArgument,
+			options?: Intl.DateTimeFormatOptions,
+		) {
+			super(locales, options)
+			built += 1
+		}
+	}
+	Intl.DateTimeFormat = Counting as typeof Intl.DateTimeFormat
+	const instant = new Date('2030-02-10T12:00:00.000Z')
+	try {
+		for (const zone of ['Asia/Kathmandu', 'asia/kathmandu', 'ASIA/KATHMANDU']) {
+			expect(localDate(instant, zone)).toBe('2030-02-10')
+		}
+	} finally {
+		Intl.DateTimeFormat = Real
+	}
+	expect(built).toBe(1)
+})
+
+test('the formatter cache is bounded, so an athlete stepping through timezone spellings cannot grow it without end', () => {
+	// The Athlete Timezone is free text, and Intl accepts every fixed-offset
+	// spelling (`+05:37`, `-13:59`) as a zone: thousands of keys per shape, about
+	// 29KB a formatter. Past the bound the cache starts over, so the first zone
+	// of a long run of distinct spellings is built again when it comes back.
+	const zones: string[] = []
+	for (const sign of ['+', '-']) {
+		for (let hour = 0; hour < 14; hour++) {
+			for (let minute = 0; minute < 60; minute++) {
+				zones.push(
+					`${sign}${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+				)
+			}
+		}
+	}
+	const instant = new Date('2030-02-10T12:00:00.000Z')
+	for (const zone of zones) localDate(instant, zone)
+
+	const Real = Intl.DateTimeFormat
+	let built = 0
+	class Counting extends Real {
+		constructor(
+			locales?: Intl.LocalesArgument,
+			options?: Intl.DateTimeFormatOptions,
+		) {
+			super(locales, options)
+			built += 1
+		}
+	}
+	Intl.DateTimeFormat = Counting as typeof Intl.DateTimeFormat
+	try {
+		expect(localDate(instant, zones[0]!)).toBe('2030-02-10')
+	} finally {
+		Intl.DateTimeFormat = Real
+	}
+	expect(built).toBe(1)
+})

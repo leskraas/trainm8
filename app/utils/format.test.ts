@@ -496,3 +496,34 @@ test('formatNbDayDateTime reads a moment back in Norwegian, in the athlete timez
 		'man 5. jan kl. 07.05',
 	)
 })
+
+test('the Norwegian day and clock read the Athlete Calendar’s formatters, never their own (ADR 0125 §1)', async () => {
+	// One per-zone formatter cache: a zone the calendar has formatted builds no
+	// second formatter here.
+	const { formatNbDayDateTime } = await import('./format.ts')
+	const { localDate, localTimeOfDay } = await import('./athlete-calendar.ts')
+	const zone = 'America/Godthab'
+	const instant = new Date('2026-03-04T10:15:00Z')
+	localDate(instant, zone)
+	localTimeOfDay(instant, zone)
+	const Real = Intl.DateTimeFormat
+	let built = 0
+	class Counting extends Real {
+		constructor(
+			locales?: Intl.LocalesArgument,
+			options?: Intl.DateTimeFormatOptions,
+		) {
+			super(locales, options)
+			built += 1
+		}
+	}
+	Intl.DateTimeFormat = Counting as typeof Intl.DateTimeFormat
+	try {
+		expect(formatNbDayDateTime(instant, zone)).toMatch(
+			/^ons 4\. mar kl\. \d\d\.15$/,
+		)
+	} finally {
+		Intl.DateTimeFormat = Real
+	}
+	expect(built).toBe(0)
+})

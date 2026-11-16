@@ -175,7 +175,7 @@ between past and future. Its component is gone from the tree — it was the app'
 only TanStack Table consumer — because the home surface is the **Home
 Timeline**, whose **Stream** is the timeline this entry once told readers to
 avoid saying. What did not leave is the projection — `getSessionLedger`,
-`toSessionLedgerEntry` and `buildLedgerRows` still decide what a session _is_
+`toSessionLedgerEntry` and `sessionProfile` still decide what a session _is_
 (status, load, **Adherence Band**, shape bars), and the Stream builds every row
 from them, so the two can never disagree about a session. On I dag a session
 still scheduled reads _ikke gjort_ (missed) only once its **day** has passed in

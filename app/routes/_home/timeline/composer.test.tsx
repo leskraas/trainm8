@@ -26,6 +26,7 @@ import {
 	type TimelineDay,
 	type TimelineSession,
 	type TimelineWeek,
+	withWeekDays,
 } from './presenter.ts'
 import { WeekBlock } from './stream.tsx'
 
@@ -76,27 +77,29 @@ function day(key: string, overrides: Partial<TimelineDay> = {}): TimelineDay {
 }
 
 function week(rows: TimelineDay[], key = '2030-02-18'): TimelineWeek {
-	return {
-		key,
-		rangeLabel: '18.–24. feb',
-		plannedTss: null,
-		doneTss: null,
-		imported: false,
-		planStart: false,
-		isNow: key === '2030-02-18',
-		rows,
-		tracks: [],
-		otherTrack: null,
-		relativeName: 'Denne uka',
-		phaseName: null,
-		role: null,
-		roleLabel: null,
-		kindLabel: null,
-		shape: key < '2030-02-18' ? 'past' : 'open',
-		opensHorizon: false,
-		summary: null,
-		loadLine: '0 av 0 gjort',
-	} as TimelineWeek
+	return withWeekDays(
+		{
+			key,
+			rangeLabel: '18.–24. feb',
+			plannedTss: null,
+			doneTss: null,
+			imported: false,
+			planStart: false,
+			isNow: key === '2030-02-18',
+			tracks: [],
+			otherTrack: null,
+			relativeName: 'Denne uka',
+			phaseName: null,
+			role: null,
+			roleLabel: null,
+			kindLabel: null,
+			shape: key < '2030-02-18' ? 'past' : 'open',
+			opensHorizon: false,
+			summary: null,
+			loadLine: '0 av 0 gjort',
+		},
+		() => rows,
+	)
 }
 
 const SIX_BY_THOUSAND = parseWorkoutSentence('6x1000 m terskel p 90 s', {

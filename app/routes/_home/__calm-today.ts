@@ -57,6 +57,7 @@ import {
 	type TimelineDay,
 	type TimelineSeason,
 	type TimelineSession,
+	weekDays,
 } from './timeline/presenter.ts'
 
 /** A **Day Forecast** as I dag shows it: the glyph, the words, the numbers. */
@@ -239,33 +240,39 @@ export function buildCalmToday({
 	}
 
 	const thisWeek = season.weeks[season.todayWeekIndex]
+	const thisWeekDays = thisWeek ? weekDays(thisWeek) : []
 	const weatherOf = (dayKey: string): CalmWeather | null => {
 		const forecast = weather?.[dayKey]
 		return forecast ? calmWeather(forecast, timezone) : null
 	}
-	const days: CalmDay[] = (thisWeek?.rows ?? []).map((day) =>
+	const days: CalmDay[] = thisWeekDays.map((day) =>
 		calmDay(day, todayKey, toCalm, weatherOf),
 	)
 	const cardWeather = weatherOf(todayKey)
 	const sessions = days.flatMap((day) => day.sessions)
 	const done = sessions.filter((session) => session.status === 'completed')
 
-	const later = season.weeks
-		.flatMap((week) => week.rows)
-		.filter((day) => day.key > todayKey)
+	// The next planned session after `fromKey`, found by walking the weeks in
+	// order and stopping at the first hit: a week's days are built when read
+	// (ADR 0125 §2), so the weeks past the hit, and those before `fromKey`,
+	// are never built.
 	const nextAfter = (
 		fromKey: string,
 		say: (title: string, when: string) => string = L.next,
 	): CalmNext | null => {
-		for (const day of later) {
-			if (day.key <= fromKey) continue
-			const session = day.sessions.find((one) => one.status === 'planned')
-			if (session) {
-				return named(toCalm(session, day.key), {
-					todayKey,
-					weekEndKey: thisWeek?.rows.at(-1)?.key ?? todayKey,
-					say,
-				})
+		const after = fromKey > todayKey ? fromKey : todayKey
+		for (const week of season.weeks) {
+			if (addDays(week.key, 6) <= after) continue
+			for (const day of weekDays(week)) {
+				if (day.key <= after) continue
+				const session = day.sessions.find((one) => one.status === 'planned')
+				if (session) {
+					return named(toCalm(session, day.key), {
+						todayKey,
+						weekEndKey: thisWeekDays.at(-1)?.key ?? todayKey,
+						say,
+					})
+				}
 			}
 		}
 		return null

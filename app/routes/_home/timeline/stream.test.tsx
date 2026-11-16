@@ -21,6 +21,7 @@
  */
 import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
+import { renderToString } from 'react-dom/server'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import {
@@ -35,8 +36,9 @@ import {
 	type TimelineEndCap,
 	type TimelineWeek,
 	type WeekShape,
+	withWeekDays,
 } from './presenter.ts'
-import { EndCap, TrackLine, WeekBlock } from './stream.tsx'
+import { EndCap, StreamWeek, TrackLine, WeekBlock } from './stream.tsx'
 import { wordTrackWeek } from './week-words.ts'
 
 function day(overrides: Partial<TimelineDay> = {}): TimelineDay {
@@ -57,28 +59,30 @@ function week(
 	rows: TimelineDay[],
 	overrides: Partial<TimelineWeek> = {},
 ): TimelineWeek {
-	return {
-		key: '2030-02-18',
-		rangeLabel: '18–24 February',
-		plannedTss: null,
-		doneTss: null,
-		imported: false,
-		planStart: false,
-		isNow: true,
-		rows,
-		tracks: [],
-		otherTrack: null,
-		relativeName: 'Denne uka',
-		phaseName: 'Build',
-		role: 'loading',
-		roleLabel: 'hard uke',
-		kindLabel: 'Build · hard uke',
-		shape: 'open',
-		opensHorizon: false,
-		summary: null,
-		loadLine: '0 av 0 gjort',
-		...overrides,
-	}
+	return withWeekDays(
+		{
+			key: '2030-02-18',
+			rangeLabel: '18–24 February',
+			plannedTss: null,
+			doneTss: null,
+			imported: false,
+			planStart: false,
+			isNow: true,
+			tracks: [],
+			otherTrack: null,
+			relativeName: 'Denne uka',
+			phaseName: 'Build',
+			role: 'loading',
+			roleLabel: 'hard uke',
+			kindLabel: 'Build · hard uke',
+			shape: 'open',
+			opensHorizon: false,
+			summary: null,
+			loadLine: '0 av 0 gjort',
+			...overrides,
+		},
+		() => rows,
+	)
 }
 
 function renderWeek(
@@ -452,4 +456,39 @@ test('a week header keeps three lines and a summary; the qualifying notes sit be
 	expect(popover).toHaveTextContent('Denne uka · 18–24 February')
 	expect(popover).toHaveTextContent('gjort Z1 78 % · Z3 12 % · Z5 10 %')
 	expect(popover).toHaveTextContent('hensikt, ikke en måling')
+})
+
+test('each week of the Stream is its own Suspense boundary in the server markup, so the weeks hydrate one by one', () => {
+	// ADR 0125 §3: React hydrates a dehydrated boundary on its own, at idle
+	// priority, after its parent commits. The boundary's markers sit right
+	// around the week's own section.
+	const weeks = [
+		week([day({ key: '2030-02-11' })], { key: '2030-02-11', isNow: false }),
+		week([day()]),
+	]
+	const App = createRoutesStub([
+		{
+			path: '/',
+			Component: () => (
+				<ComposerProvider
+					prefill={null}
+					thresholds={{}}
+					todayKey="2030-02-20"
+					minDayKey="2029-08-01"
+					container="drawer"
+				>
+					{weeks.map((shown) => (
+						<StreamWeek
+							key={shown.key}
+							week={shown}
+							anchorDayKey="2030-02-20"
+						/>
+					))}
+				</ComposerProvider>
+			),
+		},
+	])
+	const html = renderToString(<App initialEntries={['/']} />)
+	const boundaries = html.match(/<!--\$--><section data-timeline-week=/g) ?? []
+	expect(boundaries).toHaveLength(2)
 })
