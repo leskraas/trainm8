@@ -43,6 +43,7 @@ import {
 	type OutlineRows,
 	type PhaseRow,
 	type SegmentRow,
+	type TrackRow,
 } from './from-rows.ts'
 import {
 	digestOf,
@@ -173,36 +174,10 @@ export function previewPhilosophySwitch(
 	const from = outlineFamily(outline.family, specs)
 	if (from === family) return { ok: false, reason: 'same-family' }
 
-	const starts = phaseStartIndices(specs)
-	const total = specs.reduce((sum, phase) => sum + phase.weeks, 0)
-	// The first week the switch may change; before the plan opens, its first.
-	const boundary = Math.max(
-		0,
+	const { kept, resize, remove, boundary } = cutPhasesAt(
+		outline,
 		weekIndexOf(outline.startWeekKey, firstUnbegunWeekKey),
 	)
-
-	// The phases kept: every one wholly behind the boundary, and the one it
-	// falls in cut to the weeks before it. Past the plan's end, the last phase
-	// runs on over the weeks lived since, so the plan stays contiguous.
-	const resize: Array<{ phaseId: string; weeks: number }> = []
-	const remove: string[] = []
-	const kept: PhaseRow[] = []
-	if (boundary >= total) {
-		kept.push(...ordered)
-		if (boundary > total) {
-			resize.push({ phaseId: last.id, weeks: last.weeks + boundary - total })
-		}
-	} else {
-		const cutIndex = phaseIndexForWeek(specs, boundary) ?? 0
-		const lived = boundary - (starts[cutIndex] ?? 0)
-		ordered.forEach((phase, index) => {
-			if (index < cutIndex) kept.push(phase)
-			else if (index === cutIndex && lived > 0) {
-				kept.push(phase)
-				resize.push({ phaseId: phase.id, weeks: lived })
-			} else remove.push(phase.id)
-		})
-	}
 
 	let add: LaidPhase[]
 	if (outline.eventWeekKey == null) {
@@ -240,7 +215,7 @@ export function previewPhilosophySwitch(
 		}))
 	}
 
-	const rows = rowsAfter(outline, kept, resize, remove, add)
+	const rows = rowsAfter(outline, kept, resize, remove, add, familySegments)
 	const fromWeekKey = weekKeyAt(outline.startWeekKey, boundary)
 	const beforeWeeks = weekViews(outline)
 	const afterWeeks = weekViews(rows)
@@ -287,8 +262,88 @@ export function previewPhilosophySwitch(
 }
 
 /**
+ * Where a plan is cut at `boundary`, the first week an edit may change (a
+ * week index; before the plan opens, its first): the phases kept — every one
+ * wholly behind it, and the one it falls in cut to the weeks before it — and
+ * the ones that go. Past the plan's end the last phase runs on over the weeks
+ * lived since, so the plan stays contiguous. Shared by the philosophy switch
+ * and editing the activities (ADR 0109 §2, §7).
+ */
+export function cutPhasesAt(
+	rows: OutlineRows,
+	boundaryIndex: number,
+): {
+	kept: PhaseRow[]
+	resize: Array<{ phaseId: string; weeks: number }>
+	remove: string[]
+	/** The boundary as a week index, never before the plan's first week. */
+	boundary: number
+} {
+	const ordered = [...rows.phases].sort((a, b) => a.orderIndex - b.orderIndex)
+	const specs = phaseSpecs(rows)
+	const starts = phaseStartIndices(specs)
+	const total = specs.reduce((sum, phase) => sum + phase.weeks, 0)
+	const boundary = Math.max(0, boundaryIndex)
+	const last = ordered.at(-1)
+	const resize: Array<{ phaseId: string; weeks: number }> = []
+	const remove: string[] = []
+	const kept: PhaseRow[] = []
+	if (boundary >= total) {
+		kept.push(...ordered)
+		if (last && boundary > total) {
+			resize.push({ phaseId: last.id, weeks: last.weeks + boundary - total })
+		}
+	} else {
+		const cutIndex = phaseIndexForWeek(specs, boundary) ?? 0
+		const lived = boundary - (starts[cutIndex] ?? 0)
+		ordered.forEach((phase, index) => {
+			if (index < cutIndex) kept.push(phase)
+			else if (index === cutIndex && lived > 0) {
+				kept.push(phase)
+				resize.push({ phaseId: phase.id, weeks: lived })
+			} else remove.push(phase.id)
+		})
+	}
+	return { kept, resize, remove, boundary }
+}
+
+/** One laid phase's segment on one track, before it has an id. */
+export type LaidSegment = Pick<
+	SegmentRow,
+	'ramp' | 'boundaryStep' | 'recoveryCut' | 'taperCut' | 'mix'
+>
+
+/**
+ * The segment a laid phase gets on one track, or null for none. The caller
+ * says it, since what each track lays differs by edit: the switch and adding
+ * an Event lay the round's mix on every endurance track
+ * ({@link familySegments}); editing the activities lays the draft's (the
+ * family's mix on the main sport, none on the others, nothing on a retired
+ * track).
+ */
+export type SegmentsFor = (
+	track: TrackRow,
+	phase: LaidPhase,
+	index: number,
+) => LaidSegment | null
+
+/** The round's rates and mix on every endurance track, as a switch lays them. */
+export const familySegments: SegmentsFor = (track, phase) =>
+	isCardioDiscipline(track.discipline as Discipline)
+		? {
+				ramp: phase.ramp,
+				boundaryStep: phase.boundaryStep,
+				recoveryCut: null,
+				taperCut: null,
+				mix: phase.mix,
+			}
+		: null
+
+/**
  * The rows as the edit leaves them, the new ones under preview ids. Shared
- * with adding an Event (`attach-event.ts`), which cuts and lays the same way.
+ * with adding an Event (`attach-event.ts`), which cuts and lays the same way,
+ * and with editing the activities, which lays segments of its own
+ * (`segmentsFor`).
  */
 export function rowsAfter(
 	outline: OutlineRows,
@@ -296,6 +351,7 @@ export function rowsAfter(
 	resize: Array<{ phaseId: string; weeks: number }>,
 	remove: string[],
 	add: LaidPhase[],
+	segmentsFor: SegmentsFor,
 ): OutlineRows {
 	const resized = new Map(resize.map((r) => [r.phaseId, r.weeks]))
 	const laid = add.map((phase, index) => ({
@@ -325,26 +381,25 @@ export function rowsAfter(
 					(segment) =>
 						segment.phaseId == null || !remove.includes(segment.phaseId),
 				),
-				...(isCardioDiscipline(track.discipline as Discipline)
-					? laid.map(
-							(phase, index): SegmentRow => ({
-								id: `${PREVIEW_ID}${track.id}-${index}`,
-								kind: 'endurance',
-								phaseId: phase.id,
-								ramp: add[index]!.ramp,
-								boundaryStep: add[index]!.boundaryStep,
-								recoveryCut: null,
-								taperCut: null,
-								startWeekKey: null,
-								weeks: null,
-								goal: null,
-								sessionsPerWeek: null,
-								deloadCut: null,
-								deloadWeeks: null,
-								mix: add[index]!.mix,
-							}),
-						)
-					: []),
+				...laid.flatMap((phase, index): SegmentRow[] => {
+					const segment = segmentsFor(track, add[index]!, index)
+					return segment
+						? [
+								{
+									id: `${PREVIEW_ID}${track.id}-${index}`,
+									kind: 'endurance',
+									phaseId: phase.id,
+									startWeekKey: null,
+									weeks: null,
+									goal: null,
+									sessionsPerWeek: null,
+									deloadCut: null,
+									deloadWeeks: null,
+									...segment,
+								},
+							]
+						: []
+				}),
 			],
 		})),
 	}

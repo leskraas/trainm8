@@ -5,10 +5,6 @@ import { data, Form, redirect } from 'react-router'
 import { ErrorList, ToggleGroupField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
-	ToggleGroup,
-	ToggleGroupItem,
-} from '#app/components/ui/toggle-group.tsx'
-import {
 	readPlanStartWeekKey,
 	requireSimpleStartAthlete,
 } from '#app/utils/first-run/plan.server.ts'
@@ -29,23 +25,20 @@ import {
 import { readStartStrength } from '#app/utils/first-run/start-strength.server.ts'
 import {
 	FIRST_RUN_LABELS,
-	NB_DISCIPLINE_LABELS,
 	NB_WEEKDAY_LABELS,
-	SIMPLE_ACTIVITY_LABELS,
 	SIMPLE_START_LABELS,
 	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
-import { cn } from '#app/utils/misc.tsx'
 import { patternWeekdaysOf } from '#app/utils/plan-outline/week-pattern.ts'
-import {
-	ACTIVITY_KINDS,
-	type ActivityKind,
-} from '#app/utils/simple-activity.ts'
-import {
-	CARDIO_DISCIPLINES,
-	type CardioDiscipline,
-} from '#app/utils/workout-schema.ts'
+import { CARDIO_DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/trening.ts'
+import {
+	ActivityChips,
+	MainSportLine,
+	pressActivities,
+	pressedOf,
+	type ActivityPicks,
+} from './__activity-chips.tsx'
 import { QUESTION_LEGEND } from './__first-run-fields.tsx'
 import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
 import { StrengthField } from './__strength-field.tsx'
@@ -65,19 +58,6 @@ import { WeekSketch } from './__week-sketch.tsx'
  */
 
 const L = SIMPLE_START_LABELS
-
-/** The list's value for _Styrke_, beside the sports and Activity Kinds. */
-const STRENGTH = 'strength'
-
-/** A sport's mark is its track hue (design-system: hues are for marks). */
-const SPORT_MARK: Record<CardioDiscipline, string> = {
-	run: 'bg-track-run',
-	swim: 'bg-track-swim',
-	bike: 'bg-track-bike',
-}
-
-/** A Simple Activity has no track hue: the neutral mark, as in _Uka di_. */
-const SIMPLE_ACTIVITY_MARK = 'bg-muted-foreground'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: `${L.activities.title} | Trainm8` },
@@ -142,12 +122,22 @@ export default function ActivitiesStep({
 	actionData,
 }: Route.ComponentProps) {
 	const { level, hours, startWeekKey } = loaderData
-	// Every sport picked, in the order picked: the first is the main sport.
-	const [picked, setPicked] = useState<CardioDiscipline[]>(() =>
-		loaderData.discipline
-			? startSports(loaderData.discipline, loaderData.otherSports)
-			: [],
-	)
+	// Every sport picked, in the order picked: the first is the main sport;
+	// the Simple Activities likewise, and Styrke at its frequency.
+	const lifting = loaderData.strength
+	const [picks, setPicks] = useState<ActivityPicks>(() => {
+		const picked = lifting?.picked
+		return {
+			sports: loaderData.discipline
+				? startSports(loaderData.discipline, loaderData.otherSports)
+				: [],
+			activities: loaderData.activities,
+			strength: picked == null ? null : startStrengthPerWeek(level, picked),
+		}
+	})
+	const picked = picks.sports
+	const activities = picks.activities
+	const strength = picks.strength as StrengthPerWeek | null
 	const main = picked[0] ?? null
 	// The others in the fixed order the server reads them in, so the week
 	// shown here is the week the plan is made from.
@@ -155,70 +145,8 @@ export default function ActivitiesStep({
 		() => (main ? otherSportsOf(main, picked) : []),
 		[main, picked],
 	)
-	const [activities, setActivities] = useState<ActivityKind[]>(
-		loaderData.activities,
-	)
 	const [days, setDays] = useState<string[]>(loaderData.days.map(String))
 	const weekdays = useMemo(() => patternWeekdaysOf(days.map(Number)), [days])
-	const [strength, setStrength] = useState<StrengthPerWeek | null>(() => {
-		const picked = loaderData.strength?.picked
-		return picked == null ? null : startStrengthPerWeek(level, picked)
-	})
-	const lifting = loaderData.strength
-
-	// One list (#584): the sports, the Simple Activities and Styrke, each with
-	// its mark. What a press does is what the three groups did: a sport keeps
-	// the order picked (the first is the main sport), an activity likewise (the
-	// first goes in first), and Styrke starts on its pre-set.
-	const choices = useMemo(
-		() => [
-			...CARDIO_DISCIPLINES.map((sport) => ({
-				value: sport as string,
-				label: NB_DISCIPLINE_LABELS[sport],
-				mark: SPORT_MARK[sport],
-			})),
-			...ACTIVITY_KINDS.map((kind) => ({
-				value: kind as string,
-				label: SIMPLE_ACTIVITY_LABELS.kind[kind],
-				mark: SIMPLE_ACTIVITY_MARK,
-			})),
-			...(lifting
-				? [
-						{
-							value: STRENGTH,
-							label: L.strength.chip,
-							mark: 'bg-track-strength',
-						},
-					]
-				: []),
-		],
-		[lifting],
-	)
-	const pressed = [
-		...picked,
-		...activities,
-		...(strength != null ? [STRENGTH] : []),
-	]
-	function press(next: string[]) {
-		setPicked((before) => [
-			...before.filter((sport) => next.includes(sport)),
-			...CARDIO_DISCIPLINES.filter(
-				(sport) => next.includes(sport) && !before.includes(sport),
-			),
-		])
-		setActivities((before) => [
-			...before.filter((kind) => next.includes(kind)),
-			...ACTIVITY_KINDS.filter(
-				(kind) => next.includes(kind) && !before.includes(kind),
-			),
-		])
-		const wantsStrength = next.includes(STRENGTH)
-		if (wantsStrength && strength == null && lifting) {
-			setStrength(lifting.preset)
-		} else if (!wantsStrength && strength != null) {
-			setStrength(null)
-		}
-	}
 
 	const start = useMemo(
 		() =>
@@ -311,35 +239,16 @@ export default function ActivitiesStep({
 					<p className="text-footnote text-muted-foreground">
 						{L.activities.listHelp}
 					</p>
-					<ToggleGroup
-						multiple
-						variant="outline"
-						spacing={2}
-						value={pressed}
-						onValueChange={(next) => press(next as string[])}
-						aria-invalid={fields.discipline.errors?.length ? true : undefined}
-						className="w-full flex-wrap"
-					>
-						{choices.map((choice) => (
-							<ToggleGroupItem
-								key={choice.value}
-								value={choice.value}
-								className="group aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground text-callout h-11 max-w-full gap-2 rounded-full px-4"
-							>
-								<span
-									aria-hidden
-									className={cn(
-										'size-2.5 shrink-0 rounded-full',
-										// On the pressed fill the dot keeps its hue inside a ring
-										// of the pill's text colour, so it never sits hue on hue.
-										'group-aria-pressed:ring-primary-foreground group-aria-pressed:ring-2',
-										choice.mark,
-									)}
-								/>
-								<span className="min-w-0 truncate">{choice.label}</span>
-							</ToggleGroupItem>
-						))}
-					</ToggleGroup>
+					<ActivityChips
+						pressed={pressedOf(picks)}
+						onPressedChange={(next) =>
+							setPicks((before) =>
+								pressActivities(before, next, lifting?.preset ?? null),
+							)
+						}
+						withStrength={lifting != null}
+						invalid={Boolean(fields.discipline.errors?.length)}
+					/>
 					{CARDIO_DISCIPLINES.filter((sport) => picked.includes(sport)).map(
 						(sport) => (
 							<input
@@ -362,40 +271,16 @@ export default function ActivitiesStep({
 						id={fields.discipline.errorId}
 						errors={fields.discipline.errors}
 					/>
-					<div aria-live="polite" className="min-h-11" data-start-main-sport>
-						{main && picked.length > 1 ? (
-							<Button
-								type="button"
-								variant="ghost"
-								aria-label={L.activities.switchMainSport(
-									NB_DISCIPLINE_LABELS[main],
-									NB_DISCIPLINE_LABELS[picked[1]!],
-								)}
-								onClick={() =>
-									// The main sport hands over to the next one picked.
-									setPicked((before) => [...before.slice(1), before[0]!])
-								}
-								className="text-footnote -mx-3 max-w-full gap-2"
-							>
-								<span className="text-muted-foreground truncate">
-									{L.activities.mainSportLead}{' '}
-									<span className="text-foreground font-semibold">
-										{NB_DISCIPLINE_LABELS[main]}
-									</span>
-								</span>
-								<span className="text-primary">{L.activities.switchHint}</span>
-							</Button>
-						) : main ? (
-							<p className="text-footnote text-muted-foreground flex min-h-11 items-center">
-								<span>
-									{L.activities.mainSportLead}{' '}
-									<span className="text-foreground font-semibold">
-										{NB_DISCIPLINE_LABELS[main]}
-									</span>
-								</span>
-							</p>
-						) : null}
-					</div>
+					<MainSportLine
+						sports={picked}
+						onSwitch={() =>
+							// The main sport hands over to the next one picked.
+							setPicks((before) => ({
+								...before,
+								sports: [...before.sports.slice(1), before.sports[0]!],
+							}))
+						}
+					/>
 					<div
 						aria-live="polite"
 						className="text-footnote text-muted-foreground"
@@ -412,7 +297,9 @@ export default function ActivitiesStep({
 						name={fields.strength.name}
 						value={strength}
 						fromHistory={lifting.fromHistory}
-						onValueChange={setStrength}
+						onValueChange={(next) =>
+							setPicks((before) => ({ ...before, strength: next }))
+						}
 						errorId={fields.strength.errorId}
 						errors={fields.strength.errors}
 					/>

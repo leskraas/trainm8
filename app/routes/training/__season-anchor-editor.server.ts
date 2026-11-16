@@ -66,6 +66,10 @@ function anchorRefusalMessage(reason: SeasonAnchorRefusal): string {
 			// every week before the next one with nothing to derive from. Said as what
 			// the athlete can do instead, since both alternatives are on the same card.
 			return SESONG_REFUSAL_LABELS.earliestAnchor
+		case 'retired-track':
+			// The athlete removed the activity in Meg (ADR 0109 §3); it comes back
+			// there, with its days, and not as an hours figure here.
+			return SESONG_REFUSAL_LABELS.retiredTrack
 	}
 }
 

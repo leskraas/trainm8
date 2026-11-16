@@ -267,7 +267,16 @@ export type FirstRunDraft = {
 	 * (`lifting`) against every track's sessions. Empty with no lifts.
 	 */
 	liftingDays: PatternWeekday[]
+	/**
+	 * What `planStamp` lays the weeks shown from: the pattern's days, the
+	 * lifting slots and the tracks, under the draft's placeholder ids. Editing
+	 * the activities lays its boundary week from this pattern (ADR 0109 §7).
+	 */
+	stampInput: StampInput
 }
+
+/** `planStamp`'s input, as the draft builds it. */
+export type StampInput = Parameters<typeof planStamp>[0]
 
 /** How many weeks the first run shows and lays at once (story 68). */
 export const FIRST_RUN_WEEKS = 2
@@ -709,7 +718,7 @@ export function draftFirstRunPlan(
 	// The lifts as lifting slots on a strength track of their own, so the
 	// check lays them per week after the mix, on the days given.
 	const lifts = Math.max(0, input.lifting?.perWeek ?? 0)
-	const liftedInput: Parameters<typeof planStamp>[0] = {
+	const liftedInput: StampInput = {
 		...stampInput,
 		tracks:
 			lifts > 0
@@ -779,11 +788,12 @@ export function draftFirstRunPlan(
 		),
 		dayClashes,
 		liftingDays,
+		stampInput: liftedInput,
 	}
 }
 
 /** The draft's stand-in strength track, which only the day check reads. */
-const DRAFT_STRENGTH_TRACK_ID = 'draft-strength'
+export const DRAFT_STRENGTH_TRACK_ID = 'draft-strength'
 
 /** The sum, or null where any part is unpriced. */
 function sumOrNull(values: ReadonlyArray<number | null>): number | null {

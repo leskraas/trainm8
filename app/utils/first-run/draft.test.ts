@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { PRESET_FAMILIES } from '#app/utils/plan-outline/presets.ts'
+import { planStamp } from '#app/utils/plan-outline/stamp.ts'
 import {
 	draftFirstRunPlan,
 	firstRunPhases,
@@ -352,4 +353,26 @@ test('a week whose lifts fit says nothing in the day check', () => {
 
 test('without lifting the day check reads the endurance week alone', () => {
 	expect(draft({ family: 'threshold' }).dayClashes).toEqual([])
+})
+
+test('the draft hands back the stamp input its weeks and lifts are laid from', () => {
+	const draft = draftFirstRunPlan({
+		family: 'polarized',
+		goal: { kind: 'active' },
+		startWeekKey: '2030-01-14',
+		discipline: 'run',
+		weeklyHours: 5,
+		days: [0, 2, 4, 5],
+		lifting: { perWeek: 2, days: [0, 2, 4, 5] },
+	})!
+	const [week] = planStamp(draft.stampInput)
+	// The endurance week shown, with the lifts laid on the lifting days.
+	expect(
+		week!.sessions.filter((session) => session.discipline !== 'strength'),
+	).toEqual(draft.weeks[0]!.sessions)
+	expect(
+		week!.sessions
+			.filter((session) => session.discipline === 'strength')
+			.map((session) => session.weekday),
+	).toEqual(draft.liftingDays)
 })

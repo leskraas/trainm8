@@ -14,6 +14,7 @@ import { FIVE_MINUTES } from '../five-minutes.ts'
 import { SIMPLE_ACTIVITY_LABELS } from '../labels.ts'
 import { openEndedRound, type PresetFamily } from '../plan-outline/presets.ts'
 import { qualitySessionCount } from '../plan-outline/quality-mix.ts'
+import { type StampSession } from '../plan-outline/stamp.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { stampedSessionTitle } from '../session-title.ts'
 import { type ActivityKind } from '../simple-activity.ts'
@@ -24,6 +25,7 @@ import {
 	MIN_SESSION_HOURS,
 	patternDaysFor,
 	spreadDays,
+	type DraftedSimpleActivity,
 	type DraftSimpleActivity,
 	type DraftTrack,
 	type FirstRunDraft,
@@ -216,7 +218,16 @@ export type StartWeekSession = {
 	minutes: number
 	/** Its Effort Word, as I dag says it (`effortWordOfZone`). */
 	effort: EffortWord
+	/**
+	 * The athlete's own session, kept where it is and laid around (ADR 0109
+	 * §5): one they wrote or adopted, in a week the plan is laid again. Never
+	 * set on a week the start lays.
+	 */
+	kept?: boolean
 }
+
+/** A lifting day's strength session, and whether it is the athlete's own. */
+export type StartWeekLift = StartStrengthSession & { kept?: boolean }
 
 export type StartWeekDay = {
 	weekday: PatternWeekday
@@ -225,7 +236,7 @@ export type StartWeekDay = {
 	 * The day's strength session, where it is a lifting day (#574): shown by
 	 * its lifts, never in minutes, and outside every figure in hours.
 	 */
-	lifting: StartStrengthSession[]
+	lifting: StartWeekLift[]
 }
 
 /**
@@ -258,44 +269,84 @@ export function startWeekOf(
 		session: StartStrengthSession
 	} | null = null,
 ): StartWeek {
-	const laid = draft?.weeks[0]?.sessions ?? []
+	return startWeekFrom(
+		draft?.weeks[0]?.sessions ?? [],
+		draft?.simpleActivities ?? [],
+		lifting,
+	)
+}
+
+/**
+ * A week of laid sessions as the athlete reads it: each titled as the stamp
+ * titles it — a Simple Activity by its Activity Kind — with the lifting days,
+ * and the athlete's own sessions kept on their days (`kept`), which count in
+ * the week's figures as the sessions they are.
+ */
+export function startWeekFrom(
+	laid: ReadonlyArray<
+		Pick<
+			StampSession,
+			'weekday' | 'discipline' | 'role' | 'zone' | 'volume' | 'sourceWorkoutId'
+		>
+	>,
+	simpleActivities: readonly DraftedSimpleActivity[],
+	lifting: {
+		days: readonly PatternWeekday[]
+		session: StartStrengthSession
+	} | null = null,
+	kept: ReadonlyArray<
+		| { weekday: PatternWeekday; session: StartWeekSession }
+		| { weekday: PatternWeekday; lift: StartStrengthSession }
+	> = [],
+): StartWeek {
 	const activities = new Map(
-		(draft?.simpleActivities ?? []).map((activity) => [
-			activity.workoutId,
-			activity,
-		]),
+		simpleActivities.map((activity) => [activity.workoutId, activity]),
 	)
 	const days = WEEKDAYS.map((weekday) => ({
 		weekday,
-		lifting: lifting && lifting.days.includes(weekday) ? [lifting.session] : [],
-		sessions: laid
-			.filter((session) => session.weekday === weekday)
-			.map((session): StartWeekSession => {
-				// A Simple Activity is titled by its Activity Kind, as its Workout
-				// is (`createSimpleActivityWorkout`), and keeps its own Effort Word.
-				const activity = session.sourceWorkoutId
-					? activities.get(session.sourceWorkoutId)
-					: undefined
-				if (activity) {
-					return {
-						title: SIMPLE_ACTIVITY_LABELS.kind[activity.kind],
-						discipline: 'other',
-						minutes: activity.minutes,
-						effort: activity.effortWord,
+		lifting: [
+			...(lifting && lifting.days.includes(weekday) ? [lifting.session] : []),
+			...kept.flatMap((one) =>
+				one.weekday === weekday && 'lift' in one
+					? [{ ...one.lift, kept: true }]
+					: [],
+			),
+		],
+		sessions: [
+			...laid
+				.filter((session) => session.weekday === weekday)
+				.map((session): StartWeekSession => {
+					// A Simple Activity is titled by its Activity Kind, as its Workout
+					// is (`createSimpleActivityWorkout`), and keeps its own Effort Word.
+					const activity = session.sourceWorkoutId
+						? activities.get(session.sourceWorkoutId)
+						: undefined
+					if (activity) {
+						return {
+							title: SIMPLE_ACTIVITY_LABELS.kind[activity.kind],
+							discipline: 'other',
+							minutes: activity.minutes,
+							effort: activity.effortWord,
+						}
 					}
-				}
-				return {
-					title: stampedSessionTitle({
+					return {
+						title: stampedSessionTitle({
+							discipline: session.discipline,
+							role: session.role,
+							zone: session.zone,
+						}),
 						discipline: session.discipline,
-						role: session.role,
-						zone: session.zone,
-					}),
-					discipline: session.discipline,
-					minutes: Math.round((session.volume ?? 0) * 60),
-					effort:
-						session.zone == null ? 'rolig' : effortWordOfZone(session.zone),
-				}
-			}),
+						minutes: Math.round((session.volume ?? 0) * 60),
+						effort:
+							session.zone == null ? 'rolig' : effortWordOfZone(session.zone),
+					}
+				}),
+			...kept.flatMap((one) =>
+				one.weekday === weekday && 'session' in one
+					? [{ ...one.session, kept: true }]
+					: [],
+			),
+		],
 	}))
 	const sessions = days.flatMap((day) => day.sessions)
 	const minutesByEffort: Record<EffortWord, number> = {
@@ -546,14 +597,28 @@ export function sportTracks({
 }
 
 /**
- * The ranked, distinct **Start Options** for these answers, or null where no
- * day is picked. Each is one of the level's families laid by
- * `draftFirstRunPlan` with the level's session cap. They are ranked by score
- * (stably, so the level's order breaks ties), and an option whose first week
- * matches one ranked above it is merged into that one.
+ * What every family is laid from, worked out once from the answers: the
+ * level's session cap, the lifts the week takes (a _Nybegynner_'s count in
+ * the cap, ADR 0103 §5), what the endurance sessions are left, and the sports
+ * picked, the main sport first. Null where nothing can be laid: no day, or
+ * neither a sport nor a Simple Activity.
  */
-export function draftStart(answers: StartAnswers): StartDraft | null {
-	const { level, hours, days, startWeekKey, strength } = answers
+type StartFrame = {
+	answers: StartAnswers
+	discipline: CardioDiscipline | null
+	activities: readonly ActivityKind[]
+	sessionCap: number
+	daysPicked: number
+	liftsInCap: boolean
+	lifts: number
+	enduranceCap: number
+	preferences: readonly SessionPreference[]
+	shortWeekdays: { longMayBeLong: boolean } | undefined
+	picked: CardioDiscipline[]
+}
+
+function startFrame(answers: StartAnswers): StartFrame | null {
+	const { level, days, strength } = answers
 	const discipline = answers.discipline ?? null
 	const activities = answers.activities ?? []
 	if (days.length === 0) return null
@@ -574,61 +639,78 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 				),
 			)
 		: 0
-	const enduranceCap = liftsInCap ? sessionCap - lifts : sessionCap
 	const preferences = answers.preferences ?? []
-	const shortWeekdays = preferences.includes('short')
-		? { longMayBeLong: preferences.includes('long') }
-		: undefined
-	const picked = discipline ? startSports(discipline, answers.otherSports) : []
-	// With no endurance sport there is no family to tell apart: one way.
-	const families = discipline
-		? startFamilies(level)
-		: startFamilies(level).slice(0, 1)
-	const laid: StartOption[] = []
-	let sports: CardioDiscipline[] = []
-	for (const family of families) {
-		// The Simple Activities and the sports share what the lifts leave.
-		const layout = layStartWeek({
-			family,
-			sports: picked,
-			activities,
-			hours,
-			days,
-			sessionCap: enduranceCap,
-		})
-		sports = layout.sports
-		// The day check lays the lifts as `strengthDays` below does.
-		const lifting = strength && lifts > 0 ? { perWeek: lifts, days } : null
-		const draft =
-			layout.activities.length === 0 && sports.length === 1
-				? draftFirstRunPlan({
-						family,
-						goal: { kind: 'active' },
-						startWeekKey,
-						discipline: sports[0]!,
-						weeklyHours: hours,
-						days,
-						sessionCap: enduranceCap,
-						shortWeekdays,
-						lifting,
-					})
-				: draftFirstRunPlan({
-						family,
-						goal: { kind: 'active' },
-						startWeekKey,
-						sessionCap: enduranceCap,
-						shortWeekdays,
-						tracks: layout.tracks,
-						simpleActivities: layout.activities,
-						lifting,
-					})
-		if (!draft) continue
-		// Where the stamp lays week 1's lifts, so the card shows the plan stored.
-		const strengthDays = strength ? draft.liftingDays : []
-		const week = strength
-			? startWeekOf(draft, { days: strengthDays, session: strength.session })
-			: startWeekOf(draft)
-		laid.push({
+	return {
+		answers,
+		discipline,
+		activities,
+		sessionCap,
+		daysPicked,
+		liftsInCap,
+		lifts,
+		enduranceCap: liftsInCap ? sessionCap - lifts : sessionCap,
+		preferences,
+		shortWeekdays: preferences.includes('short')
+			? { longMayBeLong: preferences.includes('long') }
+			: undefined,
+		picked: discipline ? startSports(discipline, answers.otherSports) : [],
+	}
+}
+
+/**
+ * One family laid for the frame: its draft, the week its card shows, and
+ * the notes the card carries. Null where the draft lays nothing.
+ */
+function layFamily(
+	frame: StartFrame,
+	family: PresetFamily,
+): { option: StartOption; sports: CardioDiscipline[] } | null {
+	const { hours, days, startWeekKey, strength } = frame.answers
+	const { activities, enduranceCap, shortWeekdays, lifts, preferences } = frame
+	// The Simple Activities and the sports share what the lifts leave.
+	const layout = layStartWeek({
+		family,
+		sports: frame.picked,
+		activities,
+		hours,
+		days,
+		sessionCap: enduranceCap,
+	})
+	const sports = layout.sports
+	// The day check lays the lifts as `strengthDays` below does.
+	const lifting = strength && lifts > 0 ? { perWeek: lifts, days } : null
+	const draft =
+		layout.activities.length === 0 && sports.length === 1
+			? draftFirstRunPlan({
+					family,
+					goal: { kind: 'active' },
+					startWeekKey,
+					discipline: sports[0]!,
+					weeklyHours: hours,
+					days,
+					sessionCap: enduranceCap,
+					shortWeekdays,
+					lifting,
+				})
+			: draftFirstRunPlan({
+					family,
+					goal: { kind: 'active' },
+					startWeekKey,
+					sessionCap: enduranceCap,
+					shortWeekdays,
+					tracks: layout.tracks,
+					simpleActivities: layout.activities,
+					lifting,
+				})
+	if (!draft) return null
+	// Where the stamp lays week 1's lifts, so the card shows the plan stored.
+	const strengthDays = strength ? draft.liftingDays : []
+	const week = strength
+		? startWeekOf(draft, { days: strengthDays, session: strength.session })
+		: startWeekOf(draft)
+	return {
+		sports,
+		option: {
 			family,
 			draft,
 			week,
@@ -646,28 +728,27 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 					: week.minutes,
 			strengthDays,
 			notFitted: layout.notFitted,
-		})
+		},
 	}
-	if (laid.length === 0) return null
-	const ranked = laid
-		.map((option, index) => ({ option, index }))
-		.sort((a, b) => b.option.score - a.option.score || a.index - b.index)
-		.map(({ option }) => option)
-	const options: StartOption[] = []
-	for (const option of ranked) {
-		if (!options.some((kept) => sameWeek(kept.week, option.week))) {
-			options.push(option)
-		}
-	}
+}
+
+/** The draft around its options, the top one first. */
+function startDraftOf(
+	frame: StartFrame,
+	options: StartOption[],
+	sports: CardioDiscipline[],
+	familiesLaid: number,
+): StartDraft {
+	const { sessionCap, daysPicked, lifts, liftsInCap, enduranceCap } = frame
 	const top = options[0]!
 	return {
-		startWeekKey,
-		discipline,
-		simpleOnly: discipline == null,
+		startWeekKey: frame.answers.startWeekKey,
+		discipline: frame.discipline,
+		simpleOnly: frame.discipline == null,
 		sports,
-		sportsLeftOut: picked.slice(sports.length),
+		sportsLeftOut: frame.picked.slice(sports.length),
 		options,
-		merged: families.length - options.length,
+		merged: familiesLaid - options.length,
 		badge:
 			top.score > 0 ? 'best-fit' : top.family === 'big-base' ? 'level' : null,
 		daysPicked,
@@ -682,6 +763,61 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 				? enduranceCap
 				: null,
 	}
+}
+
+/**
+ * The ranked, distinct **Start Options** for these answers, or null where no
+ * day is picked. Each is one of the level's families laid by
+ * {@link layStartFamily}'s rule with the level's session cap. They are ranked
+ * by score (stably, so the level's order breaks ties), and an option whose
+ * first week matches one ranked above it is merged into that one.
+ */
+export function draftStart(answers: StartAnswers): StartDraft | null {
+	const frame = startFrame(answers)
+	if (!frame) return null
+	// With no endurance sport there is no family to tell apart: one way.
+	const families = frame.discipline
+		? startFamilies(answers.level)
+		: startFamilies(answers.level).slice(0, 1)
+	const laid: StartOption[] = []
+	let sports: CardioDiscipline[] = []
+	for (const family of families) {
+		const one = layFamily(frame, family)
+		if (!one) continue
+		sports = one.sports
+		laid.push(one.option)
+	}
+	if (laid.length === 0) return null
+	const ranked = laid
+		.map((option, index) => ({ option, index }))
+		.sort((a, b) => b.option.score - a.option.score || a.index - b.index)
+		.map(({ option }) => option)
+	const options: StartOption[] = []
+	for (const option of ranked) {
+		if (!options.some((kept) => sameWeek(kept.week, option.week))) {
+			options.push(option)
+		}
+	}
+	return startDraftOf(frame, options, sports, families.length)
+}
+
+/**
+ * One family laid for these answers by itself, unranked and unmerged (ADR
+ * 0109 §1, §7): the same draft `draftStart` lays for it, with the same caps,
+ * as a `StartDraft` with one option. For a plan that already follows a family
+ * — one that would have merged into a higher-ranked card, or one the start
+ * never offers (_Masters 2:1_) — so editing its activities lays it as itself.
+ * Null where nothing can be laid.
+ */
+export function layStartFamily(
+	answers: StartAnswers,
+	family: PresetFamily,
+): StartDraft | null {
+	const frame = startFrame(answers)
+	if (!frame) return null
+	const one = layFamily(frame, family)
+	if (!one) return null
+	return startDraftOf(frame, [one.option], one.sports, 1)
 }
 
 /**

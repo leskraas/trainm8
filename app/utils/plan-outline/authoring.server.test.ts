@@ -50,6 +50,7 @@ import {
 	presetWeeks,
 	type PeriodizationPreset,
 } from './presets.ts'
+import { weekKeyAt } from './week-keys.ts'
 
 const NOW = new Date('2030-01-09T12:00:00Z') // a Wednesday
 const START_WEEK_KEY = '2030-01-07' // its Monday
@@ -1111,6 +1112,48 @@ describe('re-anchoring a track mid-season', () => {
 			}),
 		).toEqual({ ok: false, reason: 'earliest-anchor' })
 		expect(await storedAnchors(eventId)).toHaveLength(2)
+	})
+
+	test('a retired track’s anchor of 0 is neither removed nor overwritten, and no week after it is re-anchored', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+		// Retired from week 5, as editing the activities in Meg writes it.
+		await prisma.seasonAnchorSegment.create({
+			data: { trackId, fromWeekKey: RE_ANCHOR_WEEK, value: 0 },
+		})
+		const later = weekKeyAt(RE_ANCHOR_WEEK, 2)
+
+		expect(
+			await removeSeasonAnchorSegment(athleteId, {
+				trackId,
+				fromWeekKey: RE_ANCHOR_WEEK,
+			}),
+		).toEqual({ ok: false, reason: 'retired-track' })
+		expect(
+			await setSeasonAnchorValue(athleteId, {
+				trackId,
+				fromWeekKey: RE_ANCHOR_WEEK,
+				value: 40,
+			}),
+		).toEqual({ ok: false, reason: 'retired-track' })
+		expect(
+			await setSeasonAnchorValue(athleteId, {
+				trackId,
+				fromWeekKey: later,
+				value: 40,
+			}),
+		).toEqual({ ok: false, reason: 'retired-track' })
+		expect(await storedAnchors(eventId)).toEqual([
+			{ fromWeekKey: START_WEEK_KEY, value: 55 },
+			{ fromWeekKey: RE_ANCHOR_WEEK, value: 0 },
+		])
+		// The weeks the athlete trained it, before the retirement, stay theirs.
+		expect(
+			await setSeasonAnchorValue(athleteId, {
+				trackId,
+				fromWeekKey: weekKeyAt(START_WEEK_KEY, 1),
+				value: 50,
+			}),
+		).toEqual({ ok: true })
 	})
 
 	test('the only anchor a track has is its earliest one, and refuses too', async () => {
