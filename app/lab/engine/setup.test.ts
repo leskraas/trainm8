@@ -5,7 +5,11 @@ import { prisma } from '#app/utils/db.server.ts'
 import { findActiveOutline } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { type CapabilityCtx } from './define.ts'
-import { applyGoalUndo, readGoalUndo } from './setup/goal.server.ts'
+import {
+	applyGoalUndo,
+	goalUndoToken,
+	readGoalUndo,
+} from './setup/goal.server.ts'
 import { SETUP_CAPABILITIES } from './setup.server.ts'
 
 // The setup capabilities against a real database: a brand-new athlete gets
@@ -477,6 +481,24 @@ describe('goal', () => {
 				where: { athleteId: userId, name: 'Sykkelritt' },
 			}),
 		).toBe(1)
+	})
+
+	test('a recreate token without its id or the goal after it is refused', async () => {
+		const userId = await createAthlete()
+		const fields = {
+			name: 'Sykkelritt',
+			date: '2030-08-01',
+			sport: 'bike',
+			distanceKm: null,
+			targetSeconds: null,
+		}
+		const old = goalUndoToken(userId, { kind: 'recreate', fields } as never)
+		expect(readGoalUndo(userId, old)).toBeNull()
+		expect(await run(userId, 'undo_goal_change', { undo: old })).toMatchObject({
+			ok: false,
+			code: 'invalid-undo',
+		})
+		expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(0)
 	})
 
 	test('a removed goal does not come back by undo once a new goal is set', async () => {
