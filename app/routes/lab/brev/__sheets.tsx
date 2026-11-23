@@ -12,7 +12,7 @@ import {
 	type Weekday,
 } from '#app/lab/engine/setup.types.ts'
 import { DAY_NAME, WEEKDAY_ORDER, addDays, cap, n1 } from './__lib.ts'
-import { ErrorLine, Sheet, useWrite } from './__ui.tsx'
+import { ErrorLine, Sheet, cx, useWrite } from './__ui.tsx'
 
 export function HoleBtn({
 	children,
@@ -552,7 +552,7 @@ export function GoalSheet({
 							<button
 								key={s}
 								type="button"
-								className={`b-btn${sport === s ? '' : 'b-btn-ghost'}`}
+								className={cx('b-btn', sport !== s && 'b-btn-ghost')}
 								aria-pressed={sport === s}
 								onClick={() => setSport(s)}
 							>

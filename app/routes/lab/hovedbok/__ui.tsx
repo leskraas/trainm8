@@ -9,10 +9,22 @@ import {
 	type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useLocation, useNavigate, useRevalidator } from 'react-router'
+import {
+	Link,
+	useLocation,
+	useNavigate,
+	useRevalidator,
+	useSearchParams,
+} from 'react-router'
 import { type CapabilityResult } from '#app/lab/engine/define.ts'
+import { useOptionalUser } from '#app/utils/user.ts'
 
 export const BASE = '/lab/hovedbok'
+
+/** Class names joined with spaces, falsy ones dropped. */
+export function cx(...names: Array<string | false | null | undefined>) {
+	return names.filter(Boolean).join(' ')
+}
 
 // ── styles ───────────────────────────────────────────────────────────────────
 
@@ -277,6 +289,8 @@ type Ctx = {
 	prefs: Prefs
 	setPrefs: (p: Partial<Prefs>) => void
 	busy: boolean
+	/** `?demo=1`: the made-up athlete. Writes are refused, never sent. */
+	demo: boolean
 }
 const HbCtx = createContext<Ctx | null>(null)
 export function useHb() {
@@ -285,8 +299,23 @@ export function useHb() {
 	return c
 }
 
-const LOG_KEY = 'hovedbok.logg.v1'
+export const DEMO_REFUSED =
+	'Demodata: endringer virker ikke her. Gå til dine tall for å endre.'
+
+/** Per account: a second account on this browser never sees the first's log. */
+const logKey = (userId: string) => `hovedbok.logg.v1:${userId}`
 const PREF_KEY = 'hovedbok.visning.v1'
+
+/** What this device keeps for an account, gone when the account is. */
+export function forgetHbDevice(userId: string | null) {
+	try {
+		if (userId) window.localStorage.removeItem(logKey(userId))
+		window.localStorage.removeItem('hovedbok.logg.v1')
+		window.localStorage.removeItem(PREF_KEY)
+	} catch {
+		/* nothing kept */
+	}
+}
 function readLS<T>(key: string, fallback: T): T {
 	try {
 		const raw = window.localStorage.getItem(key)
@@ -311,9 +340,15 @@ export function HbProvider({ children }: { children: ReactNode }) {
 	const [busy, setBusy] = useState(false)
 	const revalidator = useRevalidator()
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const [params] = useSearchParams()
+	const demo = params.get('demo') === '1'
+	const userId = useOptionalUser()?.id ?? null
 
 	useEffect(() => {
-		setLog(readLS<LogEntry[]>(LOG_KEY, []))
+		setLog(userId ? readLS<LogEntry[]>(logKey(userId), []) : [])
+	}, [userId])
+
+	useEffect(() => {
 		const p = readLS<Prefs>(PREF_KEY, DEFAULT_PREFS)
 		const known = new Set(p.cols?.map((c) => c.key) ?? [])
 		const cols = [
@@ -326,10 +361,13 @@ export function HbProvider({ children }: { children: ReactNode }) {
 		setPrefsState({ ...DEFAULT_PREFS, ...p, cols })
 	}, [])
 
-	const save = useCallback((next: LogEntry[]) => {
-		writeLS(LOG_KEY, next.slice(0, 300))
-		return next
-	}, [])
+	const save = useCallback(
+		(next: LogEntry[]) => {
+			if (userId) writeLS(logKey(userId), next.slice(0, 300))
+			return next
+		},
+		[userId],
+	)
 
 	const push = useCallback(
 		(e: Omit<LogEntry, 'id' | 'at'>) => {
@@ -369,6 +407,15 @@ export function HbProvider({ children }: { children: ReactNode }) {
 				goal?: boolean
 			} | null,
 		) => {
+			if (demo) {
+				const r: CapabilityResult<O> = {
+					ok: false,
+					code: 'demo',
+					message: DEMO_REFUSED,
+				}
+				toast(r.message, { error: true })
+				return r
+			}
 			setBusy(true)
 			const r = await callCap<O>(name, input)
 			setBusy(false)
@@ -398,13 +445,18 @@ export function HbProvider({ children }: { children: ReactNode }) {
 			void revalidator.revalidate()
 			return r
 		},
-		[push, toast, revalidator],
+		[push, toast, revalidator, demo],
 	)
 
 	const undoEntry = useCallback(
 		async (id: string) => {
 			const e = log.find((x) => x.id === id)
 			if (!e?.token || e.undone) return
+			// The log is the real account's: demo data never writes to it.
+			if (demo) {
+				toast(DEMO_REFUSED, { error: true })
+				return
+			}
 			setBusy(true)
 			const isGoal = e.token.startsWith('goal:')
 			const r = isGoal
@@ -420,7 +472,7 @@ export function HbProvider({ children }: { children: ReactNode }) {
 			toast(`Angret: ${e.what}`)
 			void revalidator.revalidate()
 		},
-		[log, mark, toast, revalidator],
+		[log, mark, toast, revalidator, demo],
 	)
 
 	const setPrefs = useCallback((p: Partial<Prefs>) => {
@@ -454,15 +506,16 @@ export function HbProvider({ children }: { children: ReactNode }) {
 			prefs,
 			setPrefs,
 			busy,
+			demo,
 		}),
-		[log, push, mark, toast, act, undoEntry, prefs, setPrefs, busy],
+		[log, push, mark, toast, act, undoEntry, prefs, setPrefs, busy, demo],
 	)
 
 	return (
 		<HbCtx.Provider value={value}>
 			{children}
 			<div
-				className={`hb-toast${toastState?.error ? 'err' : ''}`}
+				className={cx('hb-toast', toastState?.error && 'err')}
 				data-off={!toastOn}
 				role="status"
 				aria-live="polite"
@@ -695,7 +748,10 @@ export function NumPad({
 		'⌫',
 	]
 	useEffect(() => {
+		// Capture phase, and every handled key is marked as taken, so nothing
+		// else on the page (the app switcher's number keys) acts on it too.
 		function k(e: KeyboardEvent) {
+			if (e.metaKey || e.ctrlKey || e.altKey) return
 			if (/^[0-9]$/.test(e.key)) setV((x) => (x + e.key).slice(0, 6))
 			else if (e.key === 'Backspace') setV((x) => x.slice(0, -1))
 			else if ((e.key === ',' || e.key === '.') && decimals)
@@ -703,9 +759,11 @@ export function NumPad({
 			else if (e.key === 'Enter')
 				onDone(v === '' ? null : Number(v.replace(',', '.')))
 			else if (e.key === 'Escape') onCancel()
+			else return
+			e.preventDefault()
 		}
-		window.addEventListener('keydown', k)
-		return () => window.removeEventListener('keydown', k)
+		window.addEventListener('keydown', k, true)
+		return () => window.removeEventListener('keydown', k, true)
 	}, [v, decimals, onDone, onCancel])
 	return (
 		<Layer>

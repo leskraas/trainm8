@@ -899,8 +899,8 @@ function GoalPart({
 					style={{ fontSize: 16, lineHeight: '24px' }}
 				>
 					{hasHistory
-						? `Jeg har ikke grunnlag ennå for å si om ${g.targetTime.text} er realistisk. Jeg sier fra etter 6 uker.`
-						: `Med historikken din har jeg ikke grunnlag for å si om ${g.targetTime.text} er realistisk. Jeg sier fra etter 6 uker.`}
+						? `Med historikken din har jeg ikke grunnlag for å si om ${g.targetTime.text} er realistisk. Jeg sier fra etter 6 uker.`
+						: `Jeg har ikke grunnlag ennå for å si om ${g.targetTime.text} er realistisk. Jeg sier fra etter 6 uker.`}
 				</p>
 			) : null}
 			{choice === 'open' && !g ? (

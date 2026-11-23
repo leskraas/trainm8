@@ -52,19 +52,6 @@ export function effortOf(word: EffortWord): Effort {
 	return EFFORT[word]
 }
 
-/** An opaque undo token: base64url JSON the engine alone reads back. */
-export function encodeUndo(value: unknown): string {
-	return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url')
-}
-
-export function decodeUndo(token: string): unknown {
-	try {
-		return JSON.parse(Buffer.from(token, 'base64url').toString('utf8'))
-	} catch {
-		return null
-	}
-}
-
 /** `t:mm:ss` (or `m:ss` under an hour) from seconds. */
 export function clockText(seconds: number): string {
 	const h = Math.floor(seconds / 3600)

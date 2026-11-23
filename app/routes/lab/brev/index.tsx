@@ -155,7 +155,7 @@ export default function BrevHome({ loaderData }: Route.ComponentProps) {
 	}, [])
 
 	const extra =
-		(today?.proposalsWaiting ?? 0) > 0 ||
+		(today?.proposalsWaiting.value ?? 0) > 0 ||
 		(proposals?.changesMade?.undoable ?? 0) > 0 ||
 		today?.readiness.call === 'drifting' ||
 		today?.readiness.call === 'overreaching'
@@ -217,8 +217,8 @@ export default function BrevHome({ loaderData }: Route.ComponentProps) {
 						Ekstrabrev
 					</span>
 					<span>
-						{(today?.proposalsWaiting ?? 0) > 0
-							? `${today!.proposalsWaiting === 1 ? 'Ett forslag venter' : `${today!.proposalsWaiting} forslag venter`} på svar fra deg.`
+						{(today?.proposalsWaiting.value ?? 0) > 0
+							? `${today!.proposalsWaiting.value === 1 ? 'Ett forslag venter' : `${today!.proposalsWaiting.value} forslag venter`} på svar fra deg.`
 							: (proposals?.changesMade?.undoable ?? 0) > 0
 								? 'Jeg har justert planen. Les hva jeg gjorde, og angre om du vil.'
 								: today?.readiness.sentence}

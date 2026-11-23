@@ -275,7 +275,7 @@ type TodayOutput = {
 	readiness: Readiness
 	week: SportVolume[] // this week so far, per sport in the plan
 	phase: PhasePosition | null
-	proposalsWaiting: number
+	proposalsWaiting: Num // null with why when the count could not be read, never 0
 	changesMade: number // changes the plan made by itself that can still be undone
 	weather: Weather | null
 	weatherWhy: string | null // why there is no weather
@@ -544,7 +544,7 @@ Input:
 ```ts
 {
 	from: DayKey
-	to: DayKey // at most 366 days after from
+	to: DayKey // at most 365 days after from: 366 days, both ends counted
 	sport?: Sport
 	cursor?: string // nextCursor from the previous page
 	limit?: number // 1–100, default 50

@@ -1079,8 +1079,15 @@ function SelfProposals({ data }: { data: ThreadData }) {
 				: 0),
 		0,
 	)
+	// A planned session whose load is unknown would count as 0 and inflate
+	// the percentage, so with any of them the comparison is not made at all.
+	const plannedKnown = upto.every(
+		(x) => x.status === 'recording-only' || x.planned.load.value !== null,
+	)
 	const knowsLoad =
-		upto.some((x) => x.actual.load.value !== null) && plannedSoFar > 0
+		plannedKnown &&
+		upto.some((x) => x.actual.load.value !== null) &&
+		plannedSoFar > 0
 	if (
 		knowsLoad &&
 		doneSoFar > plannedSoFar * 1.3 &&

@@ -352,6 +352,10 @@ export function Lapp({
 						touchAction: 'pan-y',
 						cursor: 'pointer',
 						overflow: 'hidden',
+						// A long press holds the card; it must not select the text.
+						userSelect: 'none',
+						WebkitUserSelect: 'none',
+						WebkitTouchCallout: 'none',
 					}}
 				>
 					<p className="b-p" style={{ marginBottom: 4 }}>

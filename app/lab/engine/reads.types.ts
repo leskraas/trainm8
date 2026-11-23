@@ -297,7 +297,8 @@ export type TodayOutput = {
 	/** This week per sport. */
 	week: SportVolume[]
 	phase: PhasePosition | null
-	proposalsWaiting: number
+	/** Proposals waiting for an answer; null with a reason when the read failed. */
+	proposalsWaiting: Num
 	/** Changes the plan made by itself at the last week's close, not yet undone. */
 	changesMade: number
 	weather: Weather | null

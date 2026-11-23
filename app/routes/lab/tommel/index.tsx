@@ -374,7 +374,19 @@ export default function Ro() {
 						<i aria-hidden="true" />
 						Status
 					</Link>
-					<p className="tm-hint">Hold inne for å endre noe om deg</p>
+					<p className="tm-hint">
+						<Link
+							to={`${BASE}/endre`}
+							style={{
+								color: 'inherit',
+								display: 'inline-block',
+								padding: '12px 8px',
+							}}
+						>
+							Endre noe om deg
+						</Link>{' '}
+						(eller hold inne)
+					</p>
 				</div>
 			</main>
 			{status}

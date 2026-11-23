@@ -252,8 +252,10 @@ Output `RemoveGoalOutput` (`removed`, `planStopped`, `undo`). Fails
 
 Input `{ undo }` — the token from `set_goal`, `update_goal` or `remove_goal`.
 Restores the goal as it was (a stopped plan comes back with its goal, unless a
-new plan was made since: `has-plan`). Output `GoalWriteOutput`. Fails
-`invalid-undo`, `not-found`, `has-plan`.
+new plan was made since: `has-plan`). The token is signed for this athlete and
+works once, only while the goal is still as the write left it (`changed`
+otherwise). Output `GoalWriteOutput`. Fails `invalid-undo`, `not-found`,
+`has-plan`, `changed`.
 
 ---
 

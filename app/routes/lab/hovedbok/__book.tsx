@@ -47,6 +47,7 @@ import {
 	BASE,
 	callCap,
 	Confirm,
+	cx,
 	type FULL_COLS,
 	Layer,
 	NumPad,
@@ -641,6 +642,24 @@ export function Book({
 			// else: stays in placing mode, tap a day
 		}
 	}
+	/**
+	 * A cancelled gesture (the system took the pointer) puts everything back
+	 * and does nothing: no done, no skip, no move.
+	 */
+	function onCancel(e: React.PointerEvent<HTMLTableRowElement>) {
+		const g = gesture.current
+		if (!g || g.id !== e.pointerId) return
+		if (g.timer) clearTimeout(g.timer)
+		gesture.current = null
+		setTx(g.row, 0, 0)
+		setHint(null)
+		if (g.mode === 'lift') {
+			setLifted(null)
+			dropRef.current?.classList.remove('drop')
+			dropRef.current = null
+			setPlacing(null)
+		}
+	}
 	async function placeExplicit(
 		s: SessionCard,
 		date: string,
@@ -692,6 +711,7 @@ export function Book({
 		onDown,
 		onMove,
 		onUp,
+		onCancel,
 		fits,
 		lifted,
 	}
@@ -741,7 +761,7 @@ export function Book({
 							<th
 								key={c}
 								scope="col"
-								className={`${c === 'dag' ? 'lk' : ''}${COL_INFO[c].num ? 'num' : ''}`}
+								className={cx(c === 'dag' && 'lk', COL_INFO[c].num && 'num')}
 							>
 								<button
 									type="button"
@@ -935,6 +955,7 @@ type RowCtx = {
 	) => void
 	onMove: (e: React.PointerEvent<HTMLTableRowElement>) => void
 	onUp: (e: React.PointerEvent<HTMLTableRowElement>) => void
+	onCancel: (e: React.PointerEvent<HTMLTableRowElement>) => void
 	fits: boolean
 	lifted: string | null
 }
@@ -1486,7 +1507,7 @@ function DayRowView({ r, ctx }: { r: DayRow; ctx: RowCtx }) {
 				)
 			case 'forslag':
 				return (
-					<td key={c} className={`c${prop ? 'prop' : ''}`}>
+					<td key={c} className={cx('c', prop && 'prop')}>
 						{prop ? (
 							<button
 								type="button"
@@ -1500,7 +1521,7 @@ function DayRowView({ r, ctx }: { r: DayRow; ctx: RowCtx }) {
 				)
 			case 'faktisk':
 				return (
-					<td key={c} ref={actRef} className={`c${ambiguous ? 'amb' : ''}`}>
+					<td key={c} ref={actRef} className={cx('c', ambiguous && 'amb')}>
 						{ambiguous ? (
 							<button
 								type="button"
@@ -1609,7 +1630,7 @@ function DayRowView({ r, ctx }: { r: DayRow; ctx: RowCtx }) {
 				onPointerDown={(e) => ctx.onDown(e, s)}
 				onPointerMove={ctx.onMove}
 				onPointerUp={ctx.onUp}
-				onPointerCancel={ctx.onUp}
+				onPointerCancel={ctx.onCancel}
 				onClick={(e) => {
 					if (placing && (e.target as HTMLElement).tagName === 'TD')
 						void ctx.place(r.date, s)
@@ -2440,8 +2461,36 @@ export function StrengthTable({
 	sessionId: string
 	canLog: { allowed: boolean; why: string | null }
 }) {
-	const { act } = useHb()
+	const { act, demo } = useHb()
 	const q = useRead<StrengthSessionOutput>('strength_session', { sessionId })
+	// Opening the sets of a session not begun starts it, once: a program's
+	// working weights are taken at this moment, as in the other apps.
+	const started = useRef(false)
+	// Until the start answers, the sets wait: a quick entry would log against
+	// the weights from before the program's were taken.
+	const [starting, setStarting] = useState(false)
+	const [startError, setStartError] = useState<string | null>(null)
+	// A failed start is tried again from its note: bumping this lets the
+	// effect below run once more.
+	const [startTry, setStartTry] = useState(0)
+	const read = q.state
+	const setRead = q.setState
+	useEffect(() => {
+		if (started.current || demo || !canLog.allowed) return
+		if (!read?.ok) return
+		const v = read.value
+		if (v.session.state !== 'planned' || v.loggedWorkingSets > 0) return
+		started.current = true
+		setStarting(true)
+		setStartError(null)
+		void callCap<StrengthSessionOutput>('start_strength_session', {
+			sessionId,
+		}).then((r) => {
+			setStarting(false)
+			if (r.ok) setRead(r)
+			else setStartError(r.message)
+		})
+	}, [read, demo, canLog.allowed, sessionId, setRead, startTry])
 	const [pad, setPad] = useState<{
 		stepId: string
 		setIndex: number
@@ -2453,6 +2502,7 @@ export function StrengthTable({
 	const [finished, setFinished] = useState<string | null>(null)
 	if (!q.state) return <div className="why">Henter settene …</div>
 	if (!q.state.ok) return <div className="why">{q.state.message}</div>
+	if (starting) return <div className="why">Starter økta …</div>
 	const st = q.state.value
 	let volume = 0
 	let volumeUnknown = false
@@ -2476,6 +2526,22 @@ export function StrengthTable({
 	}
 	return (
 		<div style={{ marginTop: 6 }}>
+			{startError ? (
+				<div className="hb-bar warn" role="status">
+					Fikk ikke startet økta: {startError}
+					{st.program ? ' Vektene er fra før programmet ble lest.' : null}{' '}
+					<button
+						type="button"
+						className="btn sm"
+						onClick={() => {
+							started.current = false
+							setStartTry((n) => n + 1)
+						}}
+					>
+						Prøv igjen
+					</button>
+				</div>
+			) : null}
 			{st.program ? (
 				<div className="why">Program: {st.program.name}</div>
 			) : null}

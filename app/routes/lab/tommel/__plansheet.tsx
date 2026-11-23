@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import {
 	type PlanOutput,
 	type WeekOutput,
@@ -139,12 +140,37 @@ export function PreviewSheet({
 	p: PlanPreviewOutput
 	onClose: () => void
 }) {
+	const ref = useRef<HTMLDivElement>(null)
+	const close = useRef(onClose)
+	useEffect(() => {
+		close.current = onClose
+	}, [onClose])
+	// Focus moves in when the sheet opens and back when it closes; Escape
+	// closes it like the button does.
+	useEffect(() => {
+		const prev = document.activeElement as HTMLElement | null
+		const t = window.setTimeout(() => {
+			ref.current
+				?.querySelector<HTMLElement>('button, input, textarea, select, a[href]')
+				?.focus({ preventScroll: true })
+		}, 30)
+		function onKey(e: KeyboardEvent) {
+			if (e.key === 'Escape') close.current()
+		}
+		window.addEventListener('keydown', onKey)
+		return () => {
+			window.clearTimeout(t)
+			window.removeEventListener('keydown', onKey)
+			if (prev?.isConnected) prev.focus({ preventScroll: true })
+		}
+	}, [])
 	const toward = p.towardGoal && !p.towardGoal.problem ? p.towardGoal : null
 	const phases = toward ? toward.phases : p.phases
 	const outlook = toward ? toward.outlook : p.outlook
 	const w1 = p.weeks[0]
 	return (
 		<div
+			ref={ref}
 			className="tm tm-sheet"
 			role="dialog"
 			aria-modal="true"

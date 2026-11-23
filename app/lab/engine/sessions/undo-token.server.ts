@@ -59,30 +59,39 @@ export type StoredSet = {
 	restTakenSec: number | null
 }
 
-type Envelope = { v: 1; u: string; p: UndoPayload }
+type Envelope = { v: 1; u: string; p: unknown }
 
-function secret(): string {
+function secret(scope: string): string {
 	const value = process.env.SESSION_SECRET
 	if (!value) throw new Error('SESSION_SECRET is required to sign undo tokens')
-	return `lab-undo:${value}`
+	return `${scope}:${value}`
 }
 
-function sign(body: string): string {
-	return createHmac('sha256', secret()).update(body).digest('base64url')
+function sign(scope: string, body: string): string {
+	return createHmac('sha256', secret(scope)).update(body).digest('base64url')
 }
 
-export function signUndo(userId: string, payload: UndoPayload): string {
+/**
+ * Seal any undo payload for one athlete under a scope, so a token from one
+ * area (sessions, goal) is never read by another, and none can be made up or
+ * edited.
+ */
+export function sealUndo(scope: string, userId: string, payload: unknown) {
 	const envelope: Envelope = { v: 1, u: userId, p: payload }
 	const body = Buffer.from(JSON.stringify(envelope)).toString('base64url')
-	return `${body}.${sign(body)}`
+	return `${body}.${sign(scope, body)}`
 }
 
-/** The payload, or null when the token is not one this engine signed for
- * this athlete. */
-export function readUndo(userId: string, token: string): UndoPayload | null {
+/** The payload, or null when the token is not one this engine sealed under
+ * `scope` for this athlete. */
+export function openUndo(
+	scope: string,
+	userId: string,
+	token: string,
+): unknown {
 	const [body, mac] = token.split('.')
 	if (!body || !mac) return null
-	const expected = Buffer.from(sign(body))
+	const expected = Buffer.from(sign(scope, body))
 	const given = Buffer.from(mac)
 	if (expected.length !== given.length || !timingSafeEqual(expected, given)) {
 		return null
@@ -96,4 +105,16 @@ export function readUndo(userId: string, token: string): UndoPayload | null {
 	} catch {
 		return null
 	}
+}
+
+const SESSIONS = 'lab-undo'
+
+export function signUndo(userId: string, payload: UndoPayload): string {
+	return sealUndo(SESSIONS, userId, payload)
+}
+
+/** The payload, or null when the token is not one this engine signed for
+ * this athlete. */
+export function readUndo(userId: string, token: string): UndoPayload | null {
+	return openUndo(SESSIONS, userId, token) as UndoPayload | null
 }

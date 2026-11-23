@@ -45,13 +45,30 @@ export function SRow({
 	)
 }
 
-/** Writes a setup answer; quiet in getting started, logged in settings. */
+/** Sent once per page load, with the first answer in getting started. */
+let timezoneSent = false
+
+/**
+ * Writes a setup answer; quiet in getting started, logged in settings. The
+ * first answer in getting started also tells the engine the browser's
+ * timezone, so days and weeks are the athlete's, not UTC's.
+ */
 function useSetupWrite(log: boolean) {
-	const { act } = useHb()
-	return (name: string, input: unknown, what: string) =>
-		act<{ note?: string }>(name, input, (v) =>
+	const { act, demo } = useHb()
+	return async (name: string, input: unknown, what: string) => {
+		// Marked sent only once it lands: a failed try is tried again with the
+		// next answer.
+		if (!log && !demo && !timezoneSent) {
+			const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+			if (tz) {
+				const r = await callCap('set_timezone', { timezone: tz })
+				if (r.ok) timezoneSent = true
+			}
+		}
+		return act<{ note?: string }>(name, input, (v) =>
 			log ? { what: v.note ? `${what}. ${v.note}` : what } : null,
 		)
+	}
 }
 
 export function SportsRow({ setup, log }: { setup: SetupState; log: boolean }) {

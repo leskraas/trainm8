@@ -1,3 +1,4 @@
+import { SESSIONS_MAX_DAYS } from '#app/lab/engine/reads.server.ts'
 import { type SessionCard } from '#app/lab/engine/reads.types.ts'
 import { runCapability } from '#app/lab/engine/registry.server.ts'
 import { addDays, daysBetween } from './__ui.tsx'
@@ -31,7 +32,18 @@ export async function loadLandscape(request: Request) {
 		const goalDay = p.goal.date
 		if (goalDay && goalDay > to) to = goalDay
 	}
-	if (daysBetween(from, to) > 366) from = addDays(to, -366)
+	// One `sessions` read covers at most SESSIONS_MAX_DAYS days, counted
+	// inclusive. Cut the far end, not the start, and keep five weeks past
+	// today in view whatever happens.
+	const span = SESSIONS_MAX_DAYS - 1
+	if (daysBetween(from, to) > span) {
+		to = addDays(from, span)
+		const ahead = addDays(day, 35)
+		if (to < ahead) {
+			to = ahead
+			from = addDays(to, -span)
+		}
+	}
 
 	const sessions: SessionCard[] = []
 	let cursor: string | undefined

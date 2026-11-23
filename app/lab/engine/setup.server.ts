@@ -538,6 +538,11 @@ async function withUndo(
 	return { ...(await readGoal(ctx.userId, ctx.now, ctx.timezone)), undo }
 }
 
+/** The goal that stands now, by id: what a removal's undo expects to find. */
+async function nextGoalId(ctx: CapabilityCtx): Promise<string | null> {
+	return (await findGoal(ctx.userId, ctx.now, ctx.timezone))?.event.id ?? null
+}
+
 const set_goal = defineCapability({
 	name: 'set_goal',
 	kind: 'write',
@@ -567,7 +572,15 @@ const set_goal = defineCapability({
 			const fields = fieldsOf(found.event)
 			await deleteEvent(ctx.userId, found.event.id)
 			return ok(
-				await withUndo(ctx, goalUndoToken({ kind: 'recreate', fields })),
+				await withUndo(
+					ctx,
+					goalUndoToken(ctx.userId, {
+						kind: 'recreate',
+						id: found.event.id,
+						fields,
+						next: await nextGoalId(ctx),
+					}),
+				),
 			)
 		}
 		if (found) {
@@ -595,7 +608,14 @@ const set_goal = defineCapability({
 			targetSeconds: target.seconds,
 		})
 		return ok(
-			await withUndo(ctx, goalUndoToken({ kind: 'delete', id: event.id })),
+			await withUndo(
+				ctx,
+				goalUndoToken(ctx.userId, {
+					kind: 'delete',
+					id: event.id,
+					after: fieldsOf(event),
+				}),
+			),
 		)
 	},
 })
@@ -641,11 +661,18 @@ const update_goal = defineCapability({
 				input.distanceKm === undefined ? before.distanceKm : input.distanceKm,
 			targetSeconds: target.seconds,
 		}
-		await updateGoalFields(ctx.userId, found.event, fields)
+		const updated = await updateGoalFields(ctx.userId, found.event, fields)
 		return ok(
 			await withUndo(
 				ctx,
-				goalUndoToken({ kind: 'restore', id: found.event.id, fields: before }),
+				updated
+					? goalUndoToken(ctx.userId, {
+							kind: 'restore',
+							id: found.event.id,
+							fields: before,
+							after: fieldsOf(updated),
+						})
+					: null,
 			),
 		)
 	},
@@ -677,7 +704,10 @@ const remove_goal = defineCapability({
 			return ok<RemoveGoalOutput>({
 				removed: 'cancelled',
 				planStopped: true,
-				undo: goalUndoToken({ kind: 'uncancel', id: found.event.id }),
+				undo: goalUndoToken(ctx.userId, {
+					kind: 'uncancel',
+					id: found.event.id,
+				}),
 			})
 		}
 		const fields = fieldsOf(found.event)
@@ -685,7 +715,12 @@ const remove_goal = defineCapability({
 		return ok<RemoveGoalOutput>({
 			removed: 'deleted',
 			planStopped: false,
-			undo: goalUndoToken({ kind: 'recreate', fields }),
+			undo: goalUndoToken(ctx.userId, {
+				kind: 'recreate',
+				id: found.event.id,
+				fields,
+				next: await nextGoalId(ctx),
+			}),
 		})
 	},
 })
@@ -697,9 +732,9 @@ const undo_goal_change = defineCapability({
 		'Angre set_goal, update_goal eller remove_goal med tokenet de ga.',
 	input: z.object({ undo: z.string().min(1).max(4000) }),
 	run: async (ctx, input) => {
-		const undo = readGoalUndo(input.undo)
+		const undo = readGoalUndo(ctx.userId, input.undo)
 		if (!undo) return fail('invalid-undo', 'Det kan ikke angres.')
-		const applied = await applyGoalUndo(ctx.userId, undo, ctx.now)
+		const applied = await applyGoalUndo(ctx.userId, undo, ctx.now, ctx.timezone)
 		if (!applied.ok) return fail(applied.code, applied.message)
 		return ok(await withUndo(ctx, null))
 	},

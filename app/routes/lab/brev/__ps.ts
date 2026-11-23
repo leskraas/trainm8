@@ -21,9 +21,27 @@ export type PsLine = {
 const KEY = 'brev-ps-v1'
 const EVENT = 'brev-ps-change'
 
+/**
+ * Whose lines these are. The list is kept per account, so a second account
+ * on this browser never sees the first's changes. Set by the Brev layout.
+ */
+let owner: string | null = null
+
+export function setPsOwner(userId: string | null) {
+	if (userId === owner) return
+	owner = userId
+	memory = null
+}
+
+function key() {
+	return owner ? `${KEY}:${owner}` : null
+}
+
 function read(): PsLine[] {
+	const k = key()
+	if (!k) return []
 	try {
-		const raw = window.localStorage.getItem(KEY)
+		const raw = window.localStorage.getItem(k)
 		const list = raw ? (JSON.parse(raw) as PsLine[]) : []
 		return Array.isArray(list) ? list : []
 	} catch {
@@ -32,8 +50,9 @@ function read(): PsLine[] {
 }
 
 function write(list: PsLine[]) {
+	const k = key()
 	try {
-		window.localStorage.setItem(KEY, JSON.stringify(list.slice(-200)))
+		if (k) window.localStorage.setItem(k, JSON.stringify(list.slice(-200)))
 	} catch {
 		// Private window or blocked storage: the PS still shows until reload.
 	}
@@ -63,8 +82,9 @@ export function markUndone(id: string) {
 
 export function clearPs() {
 	memory = []
+	const k = key()
 	try {
-		window.localStorage.removeItem(KEY)
+		if (k) window.localStorage.removeItem(k)
 	} catch {
 		// ignore
 	}
