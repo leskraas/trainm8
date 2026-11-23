@@ -2470,6 +2470,9 @@ export function StrengthTable({
 	// the weights from before the program's were taken.
 	const [starting, setStarting] = useState(false)
 	const [startError, setStartError] = useState<string | null>(null)
+	// A failed start is tried again from its note: bumping this lets the
+	// effect below run once more.
+	const [startTry, setStartTry] = useState(0)
 	const read = q.state
 	const setRead = q.setState
 	useEffect(() => {
@@ -2479,6 +2482,7 @@ export function StrengthTable({
 		if (v.session.state !== 'planned' || v.loggedWorkingSets > 0) return
 		started.current = true
 		setStarting(true)
+		setStartError(null)
 		void callCap<StrengthSessionOutput>('start_strength_session', {
 			sessionId,
 		}).then((r) => {
@@ -2486,7 +2490,7 @@ export function StrengthTable({
 			if (r.ok) setRead(r)
 			else setStartError(r.message)
 		})
-	}, [read, demo, canLog.allowed, sessionId, setRead])
+	}, [read, demo, canLog.allowed, sessionId, setRead, startTry])
 	const [pad, setPad] = useState<{
 		stepId: string
 		setIndex: number
@@ -2523,9 +2527,19 @@ export function StrengthTable({
 	return (
 		<div style={{ marginTop: 6 }}>
 			{startError ? (
-				<div className="why">
-					Fikk ikke startet økta: {startError} Vektene er fra før programmet ble
-					lest.
+				<div className="hb-bar warn" role="status">
+					Fikk ikke startet økta: {startError}
+					{st.program ? ' Vektene er fra før programmet ble lest.' : null}{' '}
+					<button
+						type="button"
+						className="btn sm"
+						onClick={() => {
+							started.current = false
+							setStartTry((n) => n + 1)
+						}}
+					>
+						Prøv igjen
+					</button>
 				</div>
 			) : null}
 			{st.program ? (
