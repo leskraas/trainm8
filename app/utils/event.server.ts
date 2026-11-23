@@ -1,4 +1,4 @@
-import { type Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import {
 	type EventAuthoringInput,
@@ -57,12 +57,9 @@ async function ownSessionIdOrNull(
 export async function createEvent(
 	athleteId: string,
 	input: EventAuthoringInput,
-	/** Bring back a removed event under its own id (an undo). */
-	options: { id?: string } = {},
 ): Promise<EventRecord> {
 	return prisma.event.create({
 		data: {
-			...(options.id ? { id: options.id } : {}),
 			athleteId,
 			...serializeInput(input),
 			resultSessionId: await ownSessionIdOrNull(
@@ -72,6 +69,39 @@ export async function createEvent(
 		},
 		select: eventSelect,
 	})
+}
+
+/**
+ * Bring a removed event back under its own id (an undo). 'exists' when a row
+ * with that id is already there: the event came back once already.
+ */
+export async function restoreEvent(
+	athleteId: string,
+	id: string,
+	input: EventAuthoringInput,
+): Promise<EventRecord | 'exists'> {
+	try {
+		return await prisma.event.create({
+			data: {
+				id,
+				athleteId,
+				...serializeInput(input),
+				resultSessionId: await ownSessionIdOrNull(
+					athleteId,
+					input.resultSessionId,
+				),
+			},
+			select: eventSelect,
+		})
+	} catch (error) {
+		if (
+			error instanceof Prisma.PrismaClientKnownRequestError &&
+			error.code === 'P2002'
+		) {
+			return 'exists'
+		}
+		throw error
+	}
 }
 
 export async function updateEvent(

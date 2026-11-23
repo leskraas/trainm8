@@ -4,7 +4,6 @@
  * plan, which is a proposal the athlete accepts (with a digest, so what lands
  * is what they saw).
  */
-import { Prisma } from '@prisma/client'
 import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -16,6 +15,7 @@ import {
 import {
 	cancelEvent,
 	createEvent,
+	restoreEvent,
 	deleteEvent,
 	type EventRecord,
 	getEventById,
@@ -245,12 +245,17 @@ export function fieldsOf(event: EventRecord): GoalFields {
 	}
 }
 
-export async function createGoal(
+export async function createGoal(userId: string, fields: GoalFields) {
+	return createEvent(userId, authoringInputOf(fields))
+}
+
+/** A removed goal back under its own id; 'exists' when it is back already. */
+export async function restoreGoal(
 	userId: string,
+	id: string,
 	fields: GoalFields,
-	id?: string,
 ) {
-	return createEvent(userId, authoringInputOf(fields), { id })
+	return restoreEvent(userId, id, authoringInputOf(fields))
 }
 
 /**
@@ -394,17 +399,8 @@ export async function applyGoalUndo(
 			}
 			// The goal comes back under its own id, so a second use of the
 			// token (or two at once) meets the first one's row and is refused.
-			try {
-				await createGoal(userId, undo.fields, undo.id)
-			} catch (error) {
-				if (
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === 'P2002'
-				) {
-					return CHANGED
-				}
-				throw error
-			}
+			const restored = await restoreGoal(userId, undo.id, undo.fields)
+			if (restored === 'exists') return CHANGED
 			return { ok: true }
 		}
 		case 'delete': {
