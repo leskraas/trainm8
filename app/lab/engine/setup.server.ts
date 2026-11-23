@@ -538,6 +538,11 @@ async function withUndo(
 	return { ...(await readGoal(ctx.userId, ctx.now, ctx.timezone)), undo }
 }
 
+/** The goal that stands now, by id: what a removal's undo expects to find. */
+async function nextGoalId(ctx: CapabilityCtx): Promise<string | null> {
+	return (await findGoal(ctx.userId, ctx.now, ctx.timezone))?.event.id ?? null
+}
+
 const set_goal = defineCapability({
 	name: 'set_goal',
 	kind: 'write',
@@ -573,6 +578,7 @@ const set_goal = defineCapability({
 						kind: 'recreate',
 						id: found.event.id,
 						fields,
+						next: await nextGoalId(ctx),
 					}),
 				),
 			)
@@ -713,6 +719,7 @@ const remove_goal = defineCapability({
 				kind: 'recreate',
 				id: found.event.id,
 				fields,
+				next: await nextGoalId(ctx),
 			}),
 		})
 	},

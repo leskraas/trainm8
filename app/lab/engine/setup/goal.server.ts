@@ -282,7 +282,13 @@ export async function updateGoalFields(
 export type GoalUndo =
 	| { kind: 'restore'; id: string; fields: GoalFields; after: GoalFields }
 	| { kind: 'uncancel'; id: string }
-	| { kind: 'recreate'; id: string; fields: GoalFields }
+	| {
+			kind: 'recreate'
+			id: string
+			fields: GoalFields
+			/** The goal that stood once this one was gone (null for none). */
+			next: string | null
+	  }
 	| { kind: 'delete'; id: string; after: GoalFields }
 
 const GOAL_UNDO = 'lab-undo-goal'
@@ -295,10 +301,17 @@ export function goalUndoToken(userId: string, undo: GoalUndo): string {
 export function readGoalUndo(userId: string, token: string): GoalUndo | null {
 	const value = openUndo(GOAL_UNDO, userId, token) as GoalUndo | null
 	if (!value) return null
+	if (value.kind === 'recreate') {
+		// Without its id and the goal after it, a recreate could neither be
+		// used once nor see that the goal moved on.
+		return typeof value.id === 'string' &&
+			(value.next === null || typeof value.next === 'string')
+			? value
+			: null
+	}
 	if (
 		value.kind === 'restore' ||
 		value.kind === 'uncancel' ||
-		value.kind === 'recreate' ||
 		value.kind === 'delete'
 	) {
 		return value
@@ -367,6 +380,10 @@ export async function applyGoalUndo(
 			return { ok: true }
 		}
 		case 'recreate': {
+			// The goal has moved on once another stands where the next one
+			// stood when this was removed (a goal set since, say).
+			const standing = await findGoal(userId, now, timezone)
+			if ((standing?.event.id ?? null) !== undo.next) return CHANGED
 			// set_goal's own rule: a goal's day is after today.
 			if (undo.fields.date && undo.fields.date <= localDate(now, timezone)) {
 				return {

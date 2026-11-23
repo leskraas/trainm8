@@ -479,6 +479,29 @@ describe('goal', () => {
 		).toBe(1)
 	})
 
+	test('a removed goal does not come back by undo once a new goal is set', async () => {
+		const userId = await createAthlete()
+		await run(userId, 'set_goal', {
+			kind: 'event',
+			name: 'Sykkelritt',
+			date: '2030-08-01',
+			sport: 'bike',
+		})
+		const removed = await run(userId, 'remove_goal')
+		expect(removed.value.removed).toBe('deleted')
+		await run(userId, 'set_goal', {
+			kind: 'event',
+			name: 'Høstløp',
+			date: '2030-10-01',
+			sport: 'run',
+		})
+		const undone = await run(userId, 'undo_goal_change', {
+			undo: removed.value.undo,
+		})
+		expect(undone.ok).toBe(false)
+		expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(1)
+	})
+
 	test('undoing a set goal is refused once a plan runs toward it, and the plan stands', async () => {
 		const userId = await createAthlete()
 		await answerTheBasics(userId)
