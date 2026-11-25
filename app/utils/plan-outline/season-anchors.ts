@@ -14,6 +14,11 @@
 // - **The earliest segment stays.** Removing it would leave every week before
 //   the next one with no anchor in force — an Unavailable Metric across the
 //   opening of a season the athlete never asked to un-plan.
+// - **A retirement anchor stays** (ADR 0109 §3). An anchor of 0 is a
+//   **Retired track**: the athlete's "I stopped" from _Meg_. It is neither
+//   removed nor overwritten here, and the track is not re-anchored after it;
+//   it comes back by being taken up again in _Meg_, which lays its days as
+//   well as its hours.
 
 export type AnchorSegment = { fromWeekKey: string; value: number }
 
@@ -22,7 +27,10 @@ export type AnchorListEdit =
 	| { action: 'add' | 'set'; fromWeekKey: string; value: number }
 	| { action: 'remove'; fromWeekKey: string }
 
-export type AnchorListRefusal = 'anchor-not-found' | 'earliest-anchor'
+export type AnchorListRefusal =
+	| 'anchor-not-found'
+	| 'earliest-anchor'
+	| 'retired-track'
 
 export type AnchorListResult =
 	| {
@@ -74,6 +82,7 @@ export function editAnchorList(
 	const held = anchors.find((anchor) => anchor.fromWeekKey === edit.fromWeekKey)
 	if (edit.action === 'remove') {
 		if (!held) return { ok: false, reason: 'anchor-not-found' }
+		if (held.value === 0) return { ok: false, reason: 'retired-track' }
 		if (earliestAnchor(anchors)?.fromWeekKey === edit.fromWeekKey) {
 			return { ok: false, reason: 'earliest-anchor' }
 		}
@@ -87,6 +96,11 @@ export function editAnchorList(
 	}
 	if (edit.action === 'set' && !held) {
 		return { ok: false, reason: 'anchor-not-found' }
+	}
+	// The retirement anchor itself, and every week after it, read as retired:
+	// `trackRetiredAt`'s rule (from-rows.ts), which reads this same function.
+	if (anchorInForceAt(anchors, edit.fromWeekKey)?.value === 0) {
+		return { ok: false, reason: 'retired-track' }
 	}
 	const segment = { fromWeekKey: edit.fromWeekKey, value: edit.value }
 	return {

@@ -100,6 +100,7 @@ import { proposeFit, type FitProposal } from './fit-proposal.ts'
 import {
 	isSimpleActivityTrack,
 	SIMPLE_ACTIVITY_SEGMENT,
+	trackRetiredAt,
 	walksAsEndurance,
 } from './from-rows.ts'
 import { heldWorkouts } from './held-workouts.server.ts'
@@ -995,6 +996,13 @@ export type SeasonAnchorRefusal =
 	| 'week-outside-plan'
 	| 'anchor-not-found'
 	| 'earliest-anchor'
+	/**
+	 * A **Retired track** (ADR 0109 §3): its anchor of 0 is the athlete's
+	 * "I stopped" from _Meg_, so it is neither removed nor overwritten here,
+	 * and the track is not re-anchored after it. It comes back by being taken
+	 * up again in _Meg_, which lays its days as well as its hours.
+	 */
+	| 'retired-track'
 
 export type SetSeasonAnchorResult =
 	| { ok: true }
@@ -1042,6 +1050,10 @@ export async function setSeasonAnchorValue(
 	if (!track) return { ok: false, reason: 'track-not-found' }
 	if (!weekWithinPlan(track.outline, anchor.fromWeekKey)) {
 		return { ok: false, reason: 'week-outside-plan' }
+	}
+	// The retirement anchor itself, and every week after it, read as retired.
+	if (trackRetiredAt(track, anchor.fromWeekKey)) {
+		return { ok: false, reason: 'retired-track' }
 	}
 
 	await prisma.seasonAnchorSegment.upsert({
@@ -1100,7 +1112,8 @@ export async function removeSeasonAnchorSegment(
 	if (!track) return { ok: false, reason: 'track-not-found' }
 
 	// The list's own rule, shared with the Sesong edit's preview (ADR 0122 §1),
-	// so the two writers cannot disagree about which segment may go.
+	// so the two writers cannot disagree about which segment may go — a
+	// retirement anchor (ADR 0109 §3) included.
 	const edited = editAnchorList(track.anchors, {
 		action: 'remove',
 		fromWeekKey: remove.fromWeekKey,
@@ -1181,12 +1194,14 @@ async function ownedTrackWithSpan(
 	trackId: string,
 ): Promise<{
 	id: string
+	anchors: Array<{ fromWeekKey: string; value: number }>
 	outline: { startWeekKey: string; phases: Array<{ weeks: number }> }
 } | null> {
 	return prisma.trainingTrack.findFirst({
 		where: { id: trackId, outline: { athleteId } },
 		select: {
 			id: true,
+			anchors: { select: { fromWeekKey: true, value: true } },
 			outline: {
 				select: { startWeekKey: true, phases: { select: { weeks: true } } },
 			},
@@ -2595,7 +2610,7 @@ export async function addWeekPattern(
 }
 
 /** What a starter week is called when the app proposes one. Free text after that. */
-const STARTER_PATTERN_NAME = 'Typical week'
+export const STARTER_PATTERN_NAME = 'Typical week'
 
 export type StarterPatternResult =
 	| { ok: true; proposal: StarterProposal }

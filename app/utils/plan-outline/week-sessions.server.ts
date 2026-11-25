@@ -34,7 +34,7 @@ import {
 } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
-import { slotKey } from './kept-slots.ts'
+import { keptSlotsOf } from './kept-slots.ts'
 
 /**
  * What makes a session the plan's to replace. Kept as a `where` fragment rather than
@@ -46,6 +46,17 @@ export const REPLACEABLE_SESSION = {
 	status: 'scheduled',
 	recordingId: null,
 	sessionLog: { is: null },
+} satisfies Prisma.WorkoutSessionWhereInput
+
+/**
+ * The other side of the rule, for the plan's own sessions: what a rewrite of
+ * a week keeps where it is — adopted, trained, logged or recorded. One
+ * fragment so a query that counts them and a query that shows them cannot
+ * drift apart.
+ */
+export const KEPT_PLAN_SESSION = {
+	source: { not: 'authored' },
+	NOT: REPLACEABLE_SESSION,
 } satisfies Prisma.WorkoutSessionWhereInput
 
 /** What one week of the plan already holds, split by what a rewrite may touch. */
@@ -227,19 +238,20 @@ export async function readKeptSlots(
 			userId,
 			planOutlineId,
 			scheduledAt: { gte: start, lte: end },
-			source: { not: 'authored' },
-			NOT: REPLACEABLE_SESSION,
+			...KEPT_PLAN_SESSION,
 		},
 		select: { scheduledAt: true, workout: { select: { discipline: true } } },
 	})
-	const filled = new Map<string, number>()
-	for (const session of kept) {
-		if (!session.workout) continue
-		const slot = slotKey(
-			weekdayIndex(localDate(session.scheduledAt, timezone)),
-			session.workout.discipline,
-		)
-		filled.set(slot, (filled.get(slot) ?? 0) + 1)
-	}
-	return filled
+	return keptSlotsOf(
+		kept.flatMap((session) =>
+			session.workout
+				? [
+						{
+							weekday: weekdayIndex(localDate(session.scheduledAt, timezone)),
+							discipline: session.workout.discipline,
+						},
+					]
+				: [],
+		),
+	)
 }

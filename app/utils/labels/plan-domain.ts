@@ -617,6 +617,10 @@ export const SEASON_EDIT_REFUSAL_LABELS: Record<
 		'Sporet har ikke noe startnivå ennå. Det første legger du til under Startnivå i Avansert.',
 	'not-endurance-track':
 		'Startnivået endres her for løping, sykling og svømming. Styrke planlegges i blokker under Avansert.',
+	// The direct editor's sentence (`SESONG_REFUSAL_LABELS.retiredTrack`): the
+	// same refusal from the same list rule (ADR 0109 §3, ADR 0122 §1).
+	'retired-track':
+		'Du tok bort denne aktiviteten under Meg, og fra den uka legger planen ikke ut noe på den. Vil du ha den tilbake, velger du den igjen under Meg, Nivå og økter, så får den både timer og dager.',
 }
 
 /**

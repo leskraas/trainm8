@@ -2,11 +2,11 @@ import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { PLAN_READY_LABELS } from '#app/utils/labels.ts'
 import {
 	guardedRoundFactor,
 	ROUND_STEP_UP,
 } from '#app/utils/load/propose-next-round.ts'
-import { PLAN_READY_LABELS } from '#app/utils/labels.ts'
 import { appendOpenEndedRound } from '#app/utils/plan-outline/open-ended.server.ts'
 import { getSeasonForOutline } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'

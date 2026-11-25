@@ -17,9 +17,9 @@ const BASE: PlanStartInputs = {
 	level: 'experienced',
 	preferences: ['long'],
 	tracks: [
-		{ discipline: 'run', currency: 'hours' },
-		{ discipline: 'bike', currency: 'hours' },
-		{ discipline: 'strength', currency: 'sets' },
+		{ discipline: 'run', currency: 'hours', anchors: [] },
+		{ discipline: 'bike', currency: 'hours', anchors: [] },
+		{ discipline: 'strength', currency: 'sets', anchors: [] },
 	],
 	weeks: [
 		week('2030-01-07', 'loading', 5),
@@ -70,7 +70,43 @@ test('a plan that only lifts has no options to show', () => {
 	expect(
 		planStartAnswers({
 			...BASE,
-			tracks: [{ discipline: 'strength', currency: 'sets' }],
+			tracks: [{ discipline: 'strength', currency: 'sets', anchors: [] }],
 		}),
 	).toBeNull()
+})
+
+test('a retired track is not one of the plan’s activities: its sport is never laid again', () => {
+	const retired = (from: string) => [
+		{ fromWeekKey: '2030-01-07', value: 2 },
+		{ fromWeekKey: from, value: 0 },
+	]
+	const answers = planStartAnswers({
+		...BASE,
+		tracks: [
+			{ discipline: 'run', currency: 'hours', anchors: [] },
+			{ discipline: 'bike', currency: 'hours', anchors: retired('2030-01-14') },
+			{
+				discipline: 'other',
+				currency: 'hours',
+				anchors: retired('2030-01-14'),
+			},
+		],
+		activities: [{ kind: 'climb', minutes: 90 }],
+	})
+	expect(answers?.otherSports).toEqual([])
+	expect(answers?.activities).toEqual([])
+	// Retired from a later week, it is still the plan's at this one.
+	expect(
+		planStartAnswers({
+			...BASE,
+			tracks: [
+				{ discipline: 'run', currency: 'hours', anchors: [] },
+				{
+					discipline: 'bike',
+					currency: 'hours',
+					anchors: retired('2030-02-04'),
+				},
+			],
+		})?.otherSports,
+	).toEqual(['bike'])
 })

@@ -1,15 +1,25 @@
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
+import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { createFirstRunPlan } from '#app/utils/first-run/plan.server.ts'
+import {
+	ACTIVITIES_EDIT_LABELS,
+	nbDayMonth,
+	SESSION_PREFERENCE_LABELS,
+} from '#app/utils/labels.ts'
+import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
+import { weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader as meLoader } from '../me.tsx'
 import { action, loader } from './level.tsx'
 
 // _Nivå og økter_ in Meg (#571): the Training Level, the activities and the
-// Session Preferences the start asked, shown and changed.
+// Session Preferences the start asked, shown and changed; and the activities
+// edited in place (#587): previewed with _Vis ny uke_, laid on _Bekreft_.
 
 const ARGS = {
 	params: {},
@@ -59,7 +69,10 @@ test('an athlete from before the start has no level, no preferences and, with no
 	expect(await loader({ request: request(cookie), ...ARGS })).toEqual({
 		level: null,
 		preferences: [],
-		activities: [],
+		activities: {
+			kind: 'none',
+			text: SESSION_PREFERENCE_LABELS.meg.activitiesNone,
+		},
 	})
 })
 
@@ -73,10 +86,10 @@ test('Meg shows the level and preferences kept, and the activities the plan has 
 		},
 	})
 	await createOpenEndedPlan(userId, { discipline: 'run', weeklyHours: 4 })
-	expect(await loader({ request: request(cookie), ...ARGS })).toEqual({
+	expect(await loader({ request: request(cookie), ...ARGS })).toMatchObject({
 		level: 'experienced',
 		preferences: ['long', 'short'],
-		activities: ['Løping'],
+		activities: { names: ['Løping'] },
 	})
 	const me = await meLoader({
 		request: request(cookie),
@@ -127,4 +140,303 @@ test('a level that does not exist is refused, and nothing is stored', async () =
 			where: { userId, trainingLevel: { not: null } },
 		}),
 	).toBe(0)
+})
+
+/** A plan the start made: run and bike, two lifts a week. */
+async function startPlan(userId: string) {
+	await prisma.athleteProfile.create({
+		data: { userId, timezone: 'Europe/Oslo', defaultTrainingTime: '07:00' },
+	})
+	const made = await createFirstRunPlan(userId, {
+		level: 'recreational',
+		discipline: 'run',
+		otherSports: ['bike'],
+		hours: 6,
+		days: [0, 1, 3, 5, 6],
+		family: 'polarized',
+		strength: 2,
+	})
+	if (!made.ok) throw new Error(made.reason)
+}
+
+/** The outline and tracks of the athlete's plan. */
+async function planOf(userId: string) {
+	return prisma.planOutline.findFirstOrThrow({
+		where: { athleteId: userId },
+		select: {
+			id: true,
+			startWeekKey: true,
+			tracks: { select: { id: true, discipline: true } },
+		},
+	})
+}
+
+test('a plan toward an Event stays read-only in Meg, naming the Event', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const plan = await planOf(userId)
+	const event = await prisma.event.create({
+		select: { id: true },
+		data: {
+			athleteId: userId,
+			name: 'Birken',
+			startDate: new Date(Date.now() + 120 * 24 * 3600 * 1000),
+			kind: 'race',
+			priority: 'A',
+			disciplines: JSON.stringify(['bike']),
+		},
+	})
+	await prisma.planOutline.update({
+		where: { id: plan.id },
+		data: { eventId: event.id },
+	})
+	const loaded = await loader({ request: request(cookie), ...ARGS })
+	expect(loaded.activities).toEqual({
+		kind: 'read-only',
+		names: expect.arrayContaining(['Løping']),
+		why: ACTIVITIES_EDIT_LABELS.readOnly.event('Birken'),
+	})
+})
+
+test('a plan measured in km stays read-only in Meg, saying why', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const plan = await planOf(userId)
+	await prisma.trainingTrack.updateMany({
+		where: { outlineId: plan.id, discipline: 'run' },
+		data: { currency: 'km' },
+	})
+	const loaded = await loader({ request: request(cookie), ...ARGS })
+	expect(loaded.activities).toMatchObject({
+		kind: 'read-only',
+		why: ACTIVITIES_EDIT_LABELS.readOnly.currency,
+	})
+})
+
+test('a plan with only strength left stays read-only in Meg, saying why', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const plan = await planOf(userId)
+	// Run and bike retired from the plan's first week: only lifts are left.
+	const retired = plan.tracks
+		.filter((track) => track.discipline !== 'strength')
+		.map((track) => track.id)
+	await prisma.seasonAnchorSegment.deleteMany({
+		where: { trackId: { in: retired } },
+	})
+	await prisma.seasonAnchorSegment.createMany({
+		data: retired.map((trackId) => ({
+			trackId,
+			fromWeekKey: plan.startWeekKey,
+			value: 0,
+		})),
+	})
+	const loaded = await loader({ request: request(cookie), ...ARGS })
+	expect(loaded.activities).toEqual({
+		kind: 'read-only',
+		names: ['Styrke'],
+		why: ACTIVITIES_EDIT_LABELS.readOnly.liftingOnly,
+	})
+})
+
+test('the preview says what else changes: kept sessions, Pinned days, cleared weeks and later Season Anchors', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const plan = await planOf(userId)
+	const boundary = await readFirstUnbegunWeekKey(
+		userId,
+		new Date(),
+		'Europe/Oslo',
+	)
+	const run = plan.tracks.find((track) => track.discipline === 'run')!
+	// A Pinned day on run, a hand-set week on it from the boundary, and one
+	// session of the athlete's own in that week.
+	await prisma.trainingTrack.update({
+		where: { id: run.id },
+		data: { pinnedDays: JSON.stringify([6]) },
+	})
+	await prisma.weekVolumeOverride.create({
+		data: { trackId: run.id, weekKey: boundary, value: 5 },
+	})
+	// A re-anchor the athlete set two weeks after the boundary, and one on the
+	// boundary Monday itself, which the rows cannot tell from the plan's own.
+	const later = weekKeyAt(boundary, 2)
+	for (const [fromWeekKey, value] of [
+		[later, 7],
+		[boundary, 6],
+	] as const) {
+		await prisma.seasonAnchorSegment.upsert({
+			where: { trackId_fromWeekKey: { trackId: run.id, fromWeekKey } },
+			create: { trackId: run.id, fromWeekKey, value },
+			update: { value },
+		})
+	}
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Tur med klubben',
+			discipline: 'run',
+			intent: 'easy',
+			ownerId: userId,
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt: new Date(`${boundary}T06:00:00Z`),
+			status: 'scheduled',
+			source: 'authored',
+		},
+	})
+
+	const shown = (await action({
+		request: request(cookie, [
+			['intent', 'preview-activities'],
+			['sports', 'run'],
+			['sports', 'swim'],
+		]),
+		...ARGS,
+	})) as {
+		activities: {
+			kind: string
+			preview: {
+				kept: string | null
+				pinned: string[]
+				overrides: string[]
+				anchors: string[]
+			}
+		}
+	}
+	expect(shown.activities.kind).toBe('preview')
+	const { kept, pinned, overrides, anchors } = shown.activities.preview
+	// One own session stays, and it is on the removed sport (bike is out,
+	// the session is a run, so only the count line names it).
+	expect(kept).toContain(ACTIVITIES_EDIT_LABELS.kept(1, '').split(' ')[0])
+	expect(pinned).toEqual([
+		ACTIVITIES_EDIT_LABELS.pinnedRow('Løping', ['søndag']),
+	])
+	expect(overrides).toEqual([
+		`Løping: ${ACTIVITIES_EDIT_LABELS.overrideWeek(
+			isoWeekNumber(boundary),
+			nbDayMonth(boundary),
+		)}`,
+	])
+	// The cleared week is held on one line: no ordinary spaces inside it.
+	expect(overrides[0]).not.toContain('uke ')
+	expect(overrides[0]).not.toContain(' (')
+	// Only the anchor after the boundary Monday is named as the athlete's.
+	expect(anchors).toEqual([
+		`Løping: ${ACTIVITIES_EDIT_LABELS.overrideWeek(
+			isoWeekNumber(later),
+			nbDayMonth(later),
+		)}`,
+	])
+})
+
+test('a plan the start made is edited in place: pre-filled, previewed, refused when unchanged, and laid on Bekreft', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const loaded = await loader({ request: request(cookie), ...ARGS })
+	expect(loaded.activities).toMatchObject({
+		kind: 'editable',
+		current: { sports: ['run', 'bike'], activities: [], strength: 2 },
+	})
+
+	const same = await action({
+		request: request(cookie, [
+			['intent', 'preview-activities'],
+			['sports', 'run'],
+			['sports', 'bike'],
+			['strength', '2'],
+		]),
+		...ARGS,
+	})
+	expect(same).toEqual({
+		activities: { kind: 'refused', message: ACTIVITIES_EDIT_LABELS.same },
+	})
+	const none = await action({
+		request: request(cookie, [['intent', 'preview-activities']]),
+		...ARGS,
+	})
+	expect(none).toEqual({
+		activities: { kind: 'refused', message: ACTIVITIES_EDIT_LABELS.none },
+	})
+
+	const swim: Array<[string, string]> = [
+		['sports', 'run'],
+		['sports', 'swim'],
+		['activities', 'yoga-mobility'],
+	]
+	const shown = (await action({
+		request: request(cookie, [['intent', 'preview-activities'], ...swim]),
+		...ARGS,
+	})) as { activities: { kind: string; preview?: { digest: string } } }
+	expect(shown.activities.kind).toBe('preview')
+	const digest = shown.activities.preview!.digest
+
+	// A stale digest writes nothing and answers with the new preview.
+	const stale = await action({
+		request: request(cookie, [
+			['intent', 'confirm-activities'],
+			['digest', 'not-the-week'],
+			...swim,
+		]),
+		...ARGS,
+	})
+	expect(stale).toMatchObject({ activities: { kind: 'preview', stale: true } })
+
+	const done = await action({
+		request: request(cookie, [
+			['intent', 'confirm-activities'],
+			['digest', digest],
+			...swim,
+		]),
+		...ARGS,
+	})
+	expect(done).toMatchObject({ activities: { kind: 'done' } })
+	const after = await loader({ request: request(cookie), ...ARGS })
+	expect(after.activities).toMatchObject({
+		kind: 'editable',
+		current: {
+			sports: ['run', 'swim'],
+			activities: ['yoga-mobility'],
+			strength: null,
+		},
+	})
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId },
+		select: { strengthPerWeek: true },
+	})
+	expect(profile.strengthPerWeek).toBeNull()
+})
+
+test('a confirm posted without the preview it confirms writes nothing', async () => {
+	const { userId, cookie } = await setUp()
+	await startPlan(userId)
+	const segments = () =>
+		prisma.seasonAnchorSegment.count({
+			where: { track: { outline: { athleteId: userId } } },
+		})
+	const before = await segments()
+	const reply = await action({
+		request: request(cookie, [
+			['intent', 'confirm-activities'],
+			['sports', 'run'],
+			['sports', 'swim'],
+		]),
+		...ARGS,
+	})
+	expect(reply).toEqual({
+		activities: {
+			kind: 'refused',
+			message: ACTIVITIES_EDIT_LABELS.previewFirst,
+		},
+	})
+	expect(await segments()).toBe(before)
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId },
+		select: { strengthPerWeek: true },
+	})
+	expect(profile.strengthPerWeek).toBe(2)
 })

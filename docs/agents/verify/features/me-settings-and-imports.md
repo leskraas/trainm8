@@ -4,7 +4,7 @@ The _Meg_ tab: the athlete's profile and levels, account settings, connections
 to Strava and Intervals.icu, and file imports. Specs to copy from:
 `tests/e2e/settings-profile.test.ts`, `tests/e2e/imports.test.ts`,
 `tests/e2e/onboarding.test.ts`, `tests/e2e/2fa.test.ts`,
-`tests/e2e/passkey.test.ts`.
+`tests/e2e/passkey.test.ts`, `tests/e2e/meg-activities-edit.test.ts`.
 
 ## Sub-features
 
@@ -20,6 +20,12 @@ to Strava and Intervals.icu, and file imports. Specs to copy from:
   session token or one-time code. Better Auth runs dark (ADR 0114), so these
   tables stay empty until the login cutover.
 - Training settings and level: `/settings/training`, `/settings/level`.
+- The plan's activities at `/settings/level` (#587, ADR 0109): the start's chips
+  pressed with the plan's activities, _Vis ny uke_ for the server's preview of
+  the first week the edit lays (with _Dette endres også_: kept sessions, Pinned
+  days, hand-set weeks and the athlete's later Season Anchors that go),
+  _Bekreft_ to lay it. A plan toward an Event, measured in km or TSS, or lifting
+  only shows the activities read-only with why; no plan shows no editor.
 - _Hjemsted_ at `/settings/hjemsted` (#433, ADR 0115): the Home Place. Search by
   name (Kartverket, mocked with `MOCK_WEATHER=true`), pick a match (saves at
   once, status line _Lagret. I dag viser været for X._), _Fjern_. The _Meg_ row
@@ -52,6 +58,11 @@ await page
 
 ## Gotchas
 
+- The activities editor needs a plan the start made (hours, no Event). Make one
+  with
+  `createFirstRunPlan(userId, { level, discipline, otherSports, hours, days, family, strength })`
+  before opening `/settings/level`; the chips are `button`s with `aria-pressed`,
+  under `[data-meg-activities]`, and the preview is `[data-activities-preview]`.
 - _Hjemsted_'s search is a cmdk combobox: type into
   `getByRole('combobox', { name: 'Søk etter et sted' })`, wait for
   `getByRole('option')`, click one. The mock knows Lillehammer (two), Tromsø and

@@ -83,6 +83,7 @@ import { sessionZone, sessionZoneSelect } from './session-zone.ts'
 import {
 	mixDisagreements,
 	planStamp,
+	stampWeekInput,
 	WeekPatternStampSchema,
 	type MixDisagreement,
 	type StampDay,
@@ -320,7 +321,13 @@ export async function stampWeekPattern(
 		}
 		weeks.push({
 			...stampWeekInput(weekKey, index, specs, resolved),
-			held: await readHeldSessions(userId, outline.id, weekKey, timezone),
+			held: await readHeldSessions(
+				prisma,
+				userId,
+				outline.id,
+				weekKey,
+				timezone,
+			),
 		})
 	}
 
@@ -424,33 +431,6 @@ export async function stampWeekPattern(
 	}
 }
 
-/** One plan week as the planner reads it: its targets and its mixes. */
-function stampWeekInput(
-	weekKey: string,
-	index: number,
-	specs: ReturnType<typeof phaseSpecs>,
-	resolved: ReturnType<typeof resolvedTracks>,
-): StampWeekInput {
-	const phaseIndex = phaseIndexForWeek(specs, index)
-	return {
-		weekKey,
-		weekInPlan: index + 1,
-		targets: resolved.map((track) => ({
-			trackId: track.trackId,
-			value: track.targets[index]?.value ?? null,
-		})),
-		// The week's segment's **Quality Session Mix**, which the planner lays
-		// on the bare share days (round 2): a plan that says two hard sessions
-		// a week lays two.
-		mixes: resolved.map((track) => ({
-			trackId: track.trackId,
-			mix:
-				track.segments.find((segment) => segment.phaseIndex === phaseIndex)
-					?.mix ?? [],
-		})),
-	}
-}
-
 /** The planner's input for a pattern: its days and its lifting slots. */
 export type LaidPatternInput = {
 	days: StampDay[]
@@ -512,7 +492,13 @@ export async function readLaidWeeks(
 		}
 		weeks.push({
 			...stampWeekInput(weekKey, index, specs, resolved),
-			held: await readHeldSessions(userId, outline.id, weekKey, timezone),
+			held: await readHeldSessions(
+				prisma,
+				userId,
+				outline.id,
+				weekKey,
+				timezone,
+			),
 		})
 	}
 	const input = swap({
@@ -532,17 +518,24 @@ export async function readLaidWeeks(
  * story 34): the ones the athlete scheduled by hand, and any another plan
  * laid — scheduled or trained, as the day rule reads them. This plan's own
  * laid sessions are not among them: the stamp is what lays those. Skipped
- * and missed sessions were not trained, so they make no day hard.
+ * and missed sessions were not trained, so they make no day hard. Read
+ * through `db`, so a caller inside a transaction reads in it.
  */
-async function readHeldSessions(
+export async function readHeldSessions(
+	db: Prisma.TransactionClient,
 	userId: string,
 	planOutlineId: string,
 	weekKey: string,
 	timezone: string,
+	/**
+	 * The athlete's thresholds, where the caller read them already: inside a
+	 * transaction, which holds the one connection, they cannot be read here.
+	 */
+	known?: DisciplineThresholdMap,
 ): Promise<PlacedSession[]> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
 	const [rows, thresholds] = await Promise.all([
-		prisma.workoutSession.findMany({
+		db.workoutSession.findMany({
 			where: {
 				userId,
 				scheduledAt: { gte: start, lte: end },
@@ -556,7 +549,7 @@ async function readHeldSessions(
 			select: { scheduledAt: true, workout: sessionWorkoutSelect },
 		}),
 		// What an absolute pace, watts or bpm is read by (#617).
-		getDisciplineThresholds(userId),
+		known ?? getDisciplineThresholds(userId),
 	])
 	return rows.flatMap((row) => {
 		const shape = readPlacement(row.workout, thresholds)

@@ -11,6 +11,21 @@ export function slotKey(weekday: number, discipline: string): string {
 }
 
 /**
+ * The slots kept sessions fill in one week, counted per {@link slotKey}: what
+ * {@link fillKeptSlots} reads.
+ */
+export function keptSlotsOf(
+	kept: ReadonlyArray<{ weekday: number; discipline: string }>,
+): Map<string, number> {
+	const filled = new Map<string, number>()
+	for (const session of kept) {
+		const slot = slotKey(session.weekday, session.discipline)
+		filled.set(slot, (filled.get(slot) ?? 0) + 1)
+	}
+	return filled
+}
+
+/**
  * The sessions of a week's laying still to lay once the kept sessions
  * (`kept`, counted per {@link slotKey}) have filled their slots. A lifting
  * slot falls on no weekday of its own (ADR 0104 §3), so a lift kept on a day
